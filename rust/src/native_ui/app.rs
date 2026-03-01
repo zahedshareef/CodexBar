@@ -49,6 +49,25 @@ fn restore_main_window() {
     }
 }
 
+#[cfg(windows)]
+fn show_main_window_no_focus() {
+    use windows::core::w;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowW, ShowWindow, SW_SHOWNOACTIVATE,
+    };
+
+    unsafe {
+        if let Ok(hwnd) = FindWindowW(None, w!("CodexBar")) {
+            if !hwnd.is_invalid() {
+                let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            }
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn show_main_window_no_focus() {}
+
 #[cfg(not(windows))]
 fn restore_main_window() {}
 
@@ -441,14 +460,16 @@ impl CodexBarApp {
             let repaint_ctx = cc.egui_ctx.clone();
             std::thread::spawn(move || loop {
                 if let Some(action) = UnifiedTrayManager::check_events() {
-                    if matches!(
-                        action,
-                        TrayMenuAction::Open | TrayMenuAction::Settings | TrayMenuAction::Refresh
-                    ) {
+                    if matches!(action, TrayMenuAction::Open | TrayMenuAction::Refresh) {
                         // Egui viewport commands alone can be ignored while minimized.
                         // Force a native restore first so the update loop wakes up.
                         restore_main_window();
                         repaint_ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                        repaint_ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+                    } else if matches!(action, TrayMenuAction::Settings) {
+                        // Show main window so update() runs (needed to spawn the
+                        // settings child viewport), but don't steal focus.
+                        show_main_window_no_focus();
                         repaint_ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                     }
                     if tx.send(action).is_err() {
@@ -883,6 +904,12 @@ fn create_provider(id: ProviderId) -> Box<dyn Provider> {
 
 impl eframe::App for CodexBarApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Intercept window close: hide to tray instead of exiting
+        if ctx.input(|i| i.viewport().close_requested()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
+
         if self.pending_main_window_layout {
             self.layout_main_window(ctx, self.anchor_main_window_to_pointer);
         }
@@ -1139,10 +1166,9 @@ impl eframe::App for CodexBarApp {
                         }
                     }
                     TrayMenuAction::Settings => {
-                        self.pending_main_window_layout = true;
-                        self.anchor_main_window_to_pointer = true;
-                        self.layout_main_window(ctx, true);
                         self.preferences_window.open();
+                        // Move main window off-screen so only settings viewport is visible.
+                        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(-10000.0, -10000.0)));
                     }
                     TrayMenuAction::CheckForUpdates => {
                         // Trigger update check in background
