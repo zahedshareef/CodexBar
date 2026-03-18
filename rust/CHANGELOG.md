@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## [1.2.0] — 2026-03-18
 
 ### Added
 - **Kilo Provider**: Full Kilo credits + Kilo Pass usage tracking via tRPC batch API. Supports KILO_API_KEY env var, Windows Credential Manager, and ~/.local/share/kilo/auth.json (from `kilo login`). Includes credit blocks, pass subscription, auto-top-up display, and plan tier labels.
