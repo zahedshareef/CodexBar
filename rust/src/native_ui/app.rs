@@ -1609,7 +1609,7 @@ impl eframe::App for CodexBarApp {
                                     .filter_map(|id| {
                                         visible_providers.iter()
                                             .find(|(_, p)| p.name == id.cli_name())
-                                            .map(|(_, p)| p)
+                                            .map(|(_, p)| *p)
                                     })
                                     .collect();
 
@@ -1618,11 +1618,11 @@ impl eframe::App for CodexBarApp {
                                         ui.add_space(Spacing::LG);
                                         ui.label(RichText::new("No providers selected for Overview")
                                             .size(FontSize::SM)
-                                            .color(Theme::TEXT_TERTIARY));
+                                            .color(Theme::TEXT_MUTED));
                                         ui.add_space(Spacing::SM);
                                         ui.label(RichText::new("Configure in Settings → Display")
                                             .size(FontSize::XS)
-                                            .color(Theme::TEXT_TERTIARY));
+                                            .color(Theme::TEXT_MUTED));
                                     });
                                 } else {
                                     for provider in &overview_data {
@@ -1823,11 +1823,11 @@ fn draw_overview_provider_row(
                                 .strong(),
                         );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if let Some(reset_desc) = &provider.reset_description {
+                            if let Some(reset_desc) = &provider.session_reset {
                                 ui.label(
                                     RichText::new(reset_desc)
                                         .size(FontSize::XS)
-                                        .color(Theme::TEXT_TERTIARY),
+                                        .color(Theme::TEXT_MUTED),
                                 );
                             } else if let Some(error) = &provider.error {
                                 let short = if error.len() > 30 {

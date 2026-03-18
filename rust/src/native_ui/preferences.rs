@@ -1111,7 +1111,7 @@ impl PreferencesWindow {
                     ui.label(
                         RichText::new("No enabled providers.")
                             .size(FontSize::SM)
-                            .color(Theme::TEXT_TERTIARY),
+                            .color(Theme::TEXT_MUTED),
                     );
                 }
             });
