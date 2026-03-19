@@ -1,5 +1,5 @@
-/// Generate icon files for Tauri
-/// This creates a simple icon.ico file for Windows
+//! Generate icon files for Tauri.
+//! This creates a simple icon.ico file for Windows.
 
 use std::fs::File;
 use std::io::Write;
@@ -43,7 +43,7 @@ fn create_ico(path: &str) {
     // BMP size calculation
     let bmp_header_size = 40u32;
     let pixel_data_size = size * size * 4;
-    let mask_size = ((size + 31) / 32) * 4 * size; // AND mask
+    let mask_size = size.div_ceil(32) * 4 * size; // AND mask
     let bmp_size = bmp_header_size + pixel_data_size + mask_size;
 
     let data_offset: u32 = 6 + 16; // ICO header + directory entry
@@ -59,16 +59,17 @@ fn create_ico(path: &str) {
 
     // BMP info header (BITMAPINFOHEADER)
     file.write_all(&bmp_header_size.to_le_bytes()).unwrap(); // biSize
-    file.write_all(&(size as i32).to_le_bytes()).unwrap();   // biWidth
+    file.write_all(&(size as i32).to_le_bytes()).unwrap(); // biWidth
     file.write_all(&((size * 2) as i32).to_le_bytes()).unwrap(); // biHeight (doubled for ICO)
-    file.write_all(&1u16.to_le_bytes()).unwrap();            // biPlanes
-    file.write_all(&32u16.to_le_bytes()).unwrap();           // biBitCount
-    file.write_all(&0u32.to_le_bytes()).unwrap();            // biCompression
-    file.write_all(&(pixel_data_size + mask_size).to_le_bytes()).unwrap(); // biSizeImage
-    file.write_all(&0i32.to_le_bytes()).unwrap();            // biXPelsPerMeter
-    file.write_all(&0i32.to_le_bytes()).unwrap();            // biYPelsPerMeter
-    file.write_all(&0u32.to_le_bytes()).unwrap();            // biClrUsed
-    file.write_all(&0u32.to_le_bytes()).unwrap();            // biClrImportant
+    file.write_all(&1u16.to_le_bytes()).unwrap(); // biPlanes
+    file.write_all(&32u16.to_le_bytes()).unwrap(); // biBitCount
+    file.write_all(&0u32.to_le_bytes()).unwrap(); // biCompression
+    file.write_all(&(pixel_data_size + mask_size).to_le_bytes())
+        .unwrap(); // biSizeImage
+    file.write_all(&0i32.to_le_bytes()).unwrap(); // biXPelsPerMeter
+    file.write_all(&0i32.to_le_bytes()).unwrap(); // biYPelsPerMeter
+    file.write_all(&0u32.to_le_bytes()).unwrap(); // biClrUsed
+    file.write_all(&0u32.to_le_bytes()).unwrap(); // biClrImportant
 
     // Pixel data (BGRA, bottom-up)
     for y in (0..size).rev() {
@@ -83,7 +84,7 @@ fn create_ico(path: &str) {
     }
 
     // AND mask (all zeros = fully opaque)
-    let mask_row_size = ((size + 31) / 32) * 4;
+    let mask_row_size = size.div_ceil(32) * 4;
     for _ in 0..size {
         for _ in 0..mask_row_size {
             file.write_all(&[0u8]).unwrap();
@@ -173,8 +174,8 @@ fn generate_icon_rgba(size: u32) -> Vec<u8> {
 }
 
 fn is_letter_c(x: u32, y: u32, cx: u32, cy: u32, outer_r: u32, inner_r: u32) -> bool {
-    let dx = (x as i32 - cx as i32).abs() as u32;
-    let dy = (y as i32 - cy as i32).abs() as u32;
+    let dx = (x as i32 - cx as i32).unsigned_abs();
+    let dy = (y as i32 - cy as i32).unsigned_abs();
     let dist_sq = dx * dx + dy * dy;
 
     let in_ring = dist_sq >= inner_r * inner_r && dist_sq <= outer_r * outer_r;
