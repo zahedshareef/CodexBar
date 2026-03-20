@@ -113,6 +113,7 @@ struct PreferencesSharedState {
     selected_browser: Option<BrowserType>,
     browser_import_status: Option<(String, bool)>,
     refresh_requested: bool,
+    update_check_requested: bool,
     cached_snapshot: Option<WidgetSnapshot>,
     // Token accounts data
     token_accounts: HashMap<ProviderId, ProviderAccountData>,
@@ -150,6 +151,7 @@ impl Default for PreferencesWindow {
             selected_browser: None,
             browser_import_status: None,
             refresh_requested: false,
+            update_check_requested: false,
             cached_snapshot: WidgetSnapshotStore::load(),
             token_accounts: token_accounts.clone(),
             new_account_label: String::new(),
@@ -213,6 +215,7 @@ impl PreferencesWindow {
             state.selected_provider = self.selected_provider;
             state.shortcut_input = self.settings.global_shortcut.clone();
             state.shortcut_status_msg = None;
+            state.update_check_requested = false;
         }
     }
 
@@ -239,6 +242,16 @@ impl PreferencesWindow {
         if let Ok(mut state) = self.shared_state.lock() {
             if state.refresh_requested {
                 state.refresh_requested = false;
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn take_update_check_requested(&mut self) -> bool {
+        if let Ok(mut state) = self.shared_state.lock() {
+            if state.update_check_requested {
+                state.update_check_requested = false;
                 return true;
             }
         }
@@ -3702,6 +3715,83 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                                 }
                             });
                     });
+            });
+        });
+    });
+
+    ui.add_space(Spacing::LG);
+
+    settings_card(ui, |ui| {
+        let (mut auto_download_updates, mut install_updates_on_quit) =
+            if let Ok(state) = shared_state.lock() {
+                (
+                    state.settings.auto_download_updates,
+                    state.settings.install_updates_on_quit,
+                )
+            } else {
+                (true, false)
+            };
+
+        if setting_toggle(
+            ui,
+            "Auto-download updates",
+            "Download verified installer updates in the background when a new release is found",
+            &mut auto_download_updates,
+        ) {
+            if let Ok(mut state) = shared_state.lock() {
+                state.settings.auto_download_updates = auto_download_updates;
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(Spacing::MD);
+
+        if setting_toggle(
+            ui,
+            "Install downloaded updates on quit",
+            "Apply a verified pending installer when you choose Quit",
+            &mut install_updates_on_quit,
+        ) {
+            if let Ok(mut state) = shared_state.lock() {
+                state.settings.install_updates_on_quit = install_updates_on_quit;
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(Spacing::MD);
+
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new("Check now")
+                        .size(FontSize::MD)
+                        .color(Theme::text_primary()),
+                );
+                ui.label(
+                    RichText::new("Run an update check immediately using the selected channel")
+                        .size(FontSize::SM)
+                        .color(Theme::text_muted()),
+                );
+            });
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui
+                    .add(
+                        egui::Button::new(
+                            RichText::new("Check now")
+                                .size(FontSize::SM)
+                                .color(Theme::text_primary()),
+                        )
+                        .fill(Theme::bg_tertiary())
+                        .stroke(Stroke::new(1.0, Theme::border_subtle()))
+                        .rounding(Rounding::same(Radius::SM)),
+                    )
+                    .clicked()
+                {
+                    if let Ok(mut state) = shared_state.lock() {
+                        state.update_check_requested = true;
+                    }
+                }
             });
         });
     });
