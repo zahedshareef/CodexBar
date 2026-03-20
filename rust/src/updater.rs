@@ -1,19 +1,20 @@
 //! Auto-update checker for CodexBar
 //! Checks GitHub releases for new versions and handles background downloads
 
+use crate::settings::UpdateChannel;
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::watch;
-use crate::settings::UpdateChannel;
 
 const GITHUB_REPO: &str = "Finesssee/Win-CodexBar";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// State of the update download process
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum UpdateState {
     /// No update available or not checked
+    #[default]
     Idle,
     /// Update available but not downloaded
     Available,
@@ -23,12 +24,6 @@ pub enum UpdateState {
     Ready(PathBuf),
     /// Download or install failed
     Failed(String),
-}
-
-impl Default for UpdateState {
-    fn default() -> Self {
-        UpdateState::Idle
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -77,10 +72,7 @@ pub async fn check_for_updates_with_channel(channel: UpdateChannel) -> Option<Up
     let url = match channel {
         UpdateChannel::Beta => {
             // For beta, we need to check all releases and find the latest (including pre-releases)
-            format!(
-                "https://api.github.com/repos/{}/releases",
-                GITHUB_REPO
-            )
+            format!("https://api.github.com/repos/{}/releases", GITHUB_REPO)
         }
         UpdateChannel::Stable => {
             // For stable, use the /latest endpoint which excludes pre-releases
@@ -149,10 +141,7 @@ pub async fn check_for_updates_with_channel(channel: UpdateChannel) -> Option<Up
 /// Compare semantic versions, returns true if remote is newer
 fn is_newer_version(remote: &str, current: &str) -> bool {
     let parse_version = |v: &str| -> (u32, u32, u32) {
-        let parts: Vec<u32> = v
-            .split('.')
-            .filter_map(|p| p.parse().ok())
-            .collect();
+        let parts: Vec<u32> = v.split('.').filter_map(|p| p.parse().ok()).collect();
         (
             parts.first().copied().unwrap_or(0),
             parts.get(1).copied().unwrap_or(0),
@@ -185,17 +174,18 @@ pub async fn download_update(
     update_info: &UpdateInfo,
     progress_tx: watch::Sender<UpdateState>,
 ) -> Result<PathBuf, String> {
-    let download_dir = get_download_dir()
-        .ok_or_else(|| "Could not determine download directory".to_string())?;
+    let download_dir =
+        get_download_dir().ok_or_else(|| "Could not determine download directory".to_string())?;
 
     // Create download directory if it doesn't exist
     std::fs::create_dir_all(&download_dir)
         .map_err(|e| format!("Failed to create download directory: {}", e))?;
 
     // Extract filename from URL or use default
-    let filename = update_info.download_url
+    let filename = update_info
+        .download_url
         .split('/')
-        .last()
+        .next_back()
         .unwrap_or("CodexBar-Setup.exe")
         .to_string();
 
@@ -214,7 +204,10 @@ pub async fn download_update(
         .map_err(|e| format!("Failed to start download: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("Download failed with status: {}", response.status()));
+        return Err(format!(
+            "Download failed with status: {}",
+            response.status()
+        ));
     }
 
     let total_size = response.content_length().unwrap_or(0);
@@ -269,7 +262,7 @@ async fn verify_download_hash(
     download_url: &str,
     file_path: &PathBuf,
 ) -> Result<(), String> {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
 
     let hash_url = format!("{}.sha256", download_url);
 
@@ -301,7 +294,10 @@ async fn verify_download_hash(
         .to_lowercase();
 
     if expected.len() != 64 {
-        return Err(format!("Invalid SHA256 hash length: {} chars", expected.len()));
+        return Err(format!(
+            "Invalid SHA256 hash length: {} chars",
+            expected.len()
+        ));
     }
 
     let file_bytes = tokio::fs::read(file_path)
@@ -331,7 +327,10 @@ async fn verify_download_hash(
 #[allow(dead_code)]
 pub fn start_background_download(
     update_info: UpdateInfo,
-) -> (Arc<watch::Receiver<UpdateState>>, std::thread::JoinHandle<()>) {
+) -> (
+    Arc<watch::Receiver<UpdateState>>,
+    std::thread::JoinHandle<()>,
+) {
     let (tx, rx) = watch::channel(UpdateState::Available);
     let rx = Arc::new(rx);
 

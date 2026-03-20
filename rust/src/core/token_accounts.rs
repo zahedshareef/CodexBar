@@ -236,12 +236,13 @@ impl TokenAccount {
 
     /// Get added_at as DateTime
     pub fn added_at_datetime(&self) -> DateTime<Utc> {
-        DateTime::from_timestamp(self.added_at, 0).unwrap_or_else(|| Utc::now())
+        DateTime::from_timestamp(self.added_at, 0).unwrap_or_else(Utc::now)
     }
 
     /// Get last_used as DateTime
     pub fn last_used_datetime(&self) -> Option<DateTime<Utc>> {
-        self.last_used.and_then(|ts| DateTime::from_timestamp(ts, 0))
+        self.last_used
+            .and_then(|ts| DateTime::from_timestamp(ts, 0))
     }
 }
 
@@ -519,7 +520,9 @@ mod tests {
         assert!(!TokenAccountSupport::is_claude_oauth_token(
             "sessionKey=abc123"
         ));
-        assert!(!TokenAccountSupport::is_claude_oauth_token("Cookie: foo=bar"));
+        assert!(!TokenAccountSupport::is_claude_oauth_token(
+            "Cookie: foo=bar"
+        ));
     }
 
     #[test]

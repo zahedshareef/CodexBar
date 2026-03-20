@@ -114,7 +114,10 @@ struct CostResult {
 fn print_text_output(results: &[CostResult], use_color: bool, days: u32) {
     for (i, result) in results.iter().enumerate() {
         if use_color {
-            println!("\x1b[1m{} Cost (last {} days)\x1b[0m", result.display_name, days);
+            println!(
+                "\x1b[1m{} Cost (last {} days)\x1b[0m",
+                result.display_name, days
+            );
         } else {
             println!("{} Cost (last {} days)", result.display_name, days);
         }
@@ -128,7 +131,10 @@ fn print_text_output(results: &[CostResult], use_color: bool, days: u32) {
         } else {
             // Total cost
             if use_color {
-                println!("  Total:    \x1b[32m{}\x1b[0m", result.summary.format_total());
+                println!(
+                    "  Total:    \x1b[32m{}\x1b[0m",
+                    result.summary.format_total()
+                );
             } else {
                 println!("  Total:    {}", result.summary.format_total());
             }
@@ -213,7 +219,7 @@ fn format_number(n: u64) -> String {
     let mut result = String::new();
     let chars: Vec<char> = s.chars().collect();
     for (i, c) in chars.iter().enumerate() {
-        if i > 0 && (chars.len() - i) % 3 == 0 {
+        if i > 0 && (chars.len() - i).is_multiple_of(3) {
             result.push(',');
         }
         result.push(*c);

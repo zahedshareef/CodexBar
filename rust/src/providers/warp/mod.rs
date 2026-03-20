@@ -8,8 +8,8 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::core::{
-    FetchContext, Provider, ProviderId, ProviderError, ProviderFetchResult,
-    ProviderMetadata, RateWindow, SourceMode, UsageSnapshot,
+    FetchContext, Provider, ProviderError, ProviderFetchResult, ProviderId, ProviderMetadata,
+    RateWindow, SourceMode, UsageSnapshot,
 };
 
 /// Warp GraphQL API endpoint
@@ -220,10 +220,8 @@ impl WarpProvider {
         // Check for GraphQL errors
         if let Some(errors) = &gql_response.errors {
             if !errors.is_empty() {
-                let messages: Vec<String> = errors
-                    .iter()
-                    .filter_map(|e| e.message.clone())
-                    .collect();
+                let messages: Vec<String> =
+                    errors.iter().filter_map(|e| e.message.clone()).collect();
                 let summary = if messages.is_empty() {
                     "GraphQL request failed".to_string()
                 } else {
@@ -254,9 +252,7 @@ impl WarpProvider {
         let used_percent = if is_unlimited {
             0.0
         } else if request_limit > 0 {
-            ((requests_used as f64) / (request_limit as f64) * 100.0)
-                .min(100.0)
-                .max(0.0)
+            ((requests_used as f64) / (request_limit as f64) * 100.0).clamp(0.0, 100.0)
         } else {
             0.0
         };
@@ -301,9 +297,7 @@ impl WarpProvider {
         if bonus_total > 0 || bonus_remaining > 0 {
             let bonus_used = bonus_total - bonus_remaining;
             let bonus_percent = if bonus_total > 0 {
-                ((bonus_used as f64) / (bonus_total as f64) * 100.0)
-                    .min(100.0)
-                    .max(0.0)
+                ((bonus_used as f64) / (bonus_total as f64) * 100.0).clamp(0.0, 100.0)
             } else if bonus_remaining > 0 {
                 0.0
             } else {

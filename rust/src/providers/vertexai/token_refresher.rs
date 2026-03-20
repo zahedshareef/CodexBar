@@ -55,8 +55,14 @@ pub enum RefreshError {
 impl std::fmt::Display for RefreshError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RefreshError::Expired => write!(f, "Refresh token expired. Run `gcloud auth application-default login` again."),
-            RefreshError::Revoked => write!(f, "Refresh token was revoked. Run `gcloud auth application-default login` again."),
+            RefreshError::Expired => write!(
+                f,
+                "Refresh token expired. Run `gcloud auth application-default login` again."
+            ),
+            RefreshError::Revoked => write!(
+                f,
+                "Refresh token was revoked. Run `gcloud auth application-default login` again."
+            ),
             RefreshError::NetworkError(e) => write!(f, "Network error during token refresh: {}", e),
             RefreshError::InvalidResponse(e) => write!(f, "Invalid refresh response: {}", e),
         }
@@ -79,9 +85,14 @@ impl VertexAITokenRefresher {
     }
 
     /// Refresh the access token using the refresh token
-    pub async fn refresh(&self, credentials: VertexAIOAuthCredentials) -> Result<VertexAIOAuthCredentials, RefreshError> {
+    pub async fn refresh(
+        &self,
+        credentials: VertexAIOAuthCredentials,
+    ) -> Result<VertexAIOAuthCredentials, RefreshError> {
         if credentials.refresh_token.is_empty() {
-            return Err(RefreshError::InvalidResponse("No refresh token available".to_string()));
+            return Err(RefreshError::InvalidResponse(
+                "No refresh token available".to_string(),
+            ));
         }
 
         let client = reqwest::Client::builder()
@@ -120,24 +131,29 @@ impl VertexAITokenRefresher {
             return Err(RefreshError::InvalidResponse(format!("Status {}", status)));
         }
 
-        let json: serde_json::Value = resp.json().await
+        let json: serde_json::Value = resp
+            .json()
+            .await
             .map_err(|e| RefreshError::InvalidResponse(e.to_string()))?;
 
-        let new_access_token = json.get("access_token")
+        let new_access_token = json
+            .get("access_token")
             .and_then(|v| v.as_str())
             .unwrap_or(&credentials.access_token)
             .to_string();
 
-        let expires_in = json.get("expires_in")
+        let expires_in = json
+            .get("expires_in")
             .and_then(|v| v.as_f64())
             .unwrap_or(3600.0);
 
         let new_expiry_date = Utc::now() + chrono::Duration::seconds(expires_in as i64);
 
         // Extract email from new ID token if present
-        let email = json.get("id_token")
+        let email = json
+            .get("id_token")
             .and_then(|v| v.as_str())
-            .and_then(|token| Self::extract_email_from_id_token(token))
+            .and_then(Self::extract_email_from_id_token)
             .or(credentials.email.clone());
 
         let new_credentials = VertexAIOAuthCredentials {
@@ -157,7 +173,10 @@ impl VertexAITokenRefresher {
     }
 
     /// Get a valid access token, refreshing if necessary
-    pub async fn get_valid_token(&self, credentials: VertexAIOAuthCredentials) -> Result<String, RefreshError> {
+    pub async fn get_valid_token(
+        &self,
+        credentials: VertexAIOAuthCredentials,
+    ) -> Result<String, RefreshError> {
         // Check cache first
         if let Some(cached) = self.cached_credentials.read().await.clone() {
             if cached.is_valid() {
@@ -185,9 +204,7 @@ impl VertexAITokenRefresher {
 
         // Decode the payload (second part)
         let payload = parts[1];
-        let mut padded = payload
-            .replace('-', "+")
-            .replace('_', "/");
+        let mut padded = payload.replace('-', "+").replace('_', "/");
 
         // Add padding if needed
         let remainder = padded.len() % 4;
@@ -195,10 +212,8 @@ impl VertexAITokenRefresher {
             padded.push_str(&"=".repeat(4 - remainder));
         }
 
-        let decoded = base64::Engine::decode(
-            &base64::engine::general_purpose::STANDARD,
-            &padded,
-        ).ok()?;
+        let decoded =
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &padded).ok()?;
 
         let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
         json.get("email")

@@ -8,7 +8,7 @@ pub mod version;
 // Re-exports for version compatibility checking
 #[allow(unused_imports)]
 pub use version::{
-    KiroVersion, detect_version, find_kiro_cli, get_version, is_compatible, is_installed,
+    detect_version, find_kiro_cli, get_version, is_compatible, is_installed, KiroVersion,
 };
 
 use async_trait::async_trait;
@@ -171,7 +171,7 @@ impl KiroProvider {
             return Err(ProviderError::AuthRequired);
         }
 
-        self.parse_cli_output(&combined)
+        self.parse_cli_output(combined)
     }
 
     /// Parse CLI output to extract usage information
@@ -338,7 +338,7 @@ impl KiroProvider {
                 // Skip escape sequence
                 if chars.peek() == Some(&'[') {
                     chars.next(); // consume '['
-                    // Skip until we hit a letter
+                                  // Skip until we hit a letter
                     while let Some(&next) = chars.peek() {
                         chars.next();
                         if next.is_ascii_alphabetic() {
@@ -347,7 +347,7 @@ impl KiroProvider {
                     }
                 } else if chars.peek() == Some(&']') {
                     // OSC sequence - skip until BEL or ST
-                    while let Some(next) = chars.next() {
+                    for next in chars.by_ref() {
                         if next == '\x07' || next == '\\' {
                             break;
                         }

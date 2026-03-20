@@ -10,13 +10,13 @@ use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 use super::provider_icons::ProviderIconCache;
-use super::theme::{FontSize, Radius, Spacing, Theme, provider_color, provider_icon};
+use super::theme::{provider_color, provider_icon, FontSize, Radius, Spacing, Theme};
 use crate::browser::cookies::get_cookie_header_from_browser;
 use crate::browser::detection::{BrowserDetector, BrowserType};
 use crate::core::{PersonalInfoRedactor, ProviderId, WidgetSnapshot, WidgetSnapshotStore};
 use crate::core::{ProviderAccountData, TokenAccount, TokenAccountStore, TokenAccountSupport};
 use crate::settings::{
-    ApiKeys, ManualCookies, Settings, ThemeMode, TrayIconMode, get_api_key_providers,
+    get_api_key_providers, ApiKeys, ManualCookies, Settings, ThemeMode, TrayIconMode,
 };
 use crate::shortcuts::format_shortcut;
 use std::collections::HashMap;
@@ -588,12 +588,12 @@ impl PreferencesWindow {
 
         // Ensure a provider is selected
         if self.selected_provider.is_none() && !providers.is_empty() {
-            self.selected_provider = Some(providers[0].clone());
+            self.selected_provider = Some(providers[0]);
         }
 
         // Calculate dimensions - responsive sidebar width
         let total_width = ui.available_width();
-        let sidebar_width = (total_width * 0.45).min(180.0).max(140.0); // 45% of width, 140-180px range
+        let sidebar_width = (total_width * 0.45).clamp(140.0, 180.0); // 45% of width, 140-180px range
         let gap = Spacing::SM;
         let detail_width = (total_width - sidebar_width - gap).max(150.0);
         let panel_height = available_height;
@@ -729,7 +729,7 @@ impl PreferencesWindow {
                             let is_hovered = row_response.hovered();
 
                             if row_response.clicked() {
-                                self.selected_provider = Some(provider_id.clone());
+                                self.selected_provider = Some(*provider_id);
                             }
 
                             // Draw the selection/hover ring on top
@@ -748,7 +748,7 @@ impl PreferencesWindow {
     }
 
     fn draw_provider_detail(&mut self, ui: &mut egui::Ui, available_height: f32) {
-        if let Some(ref selected_id) = self.selected_provider.clone() {
+        if let Some(selected_id) = self.selected_provider {
             egui::Frame::none()
                 .fill(Theme::bg_secondary())
                 .rounding(Rounding::same(Radius::LG))
@@ -1397,12 +1397,10 @@ impl PreferencesWindow {
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
                                         ui.add_space(Spacing::XS);
-                                        if !has_key {
-                                            if primary_button(ui, "+ Add Key") {
-                                                self.new_api_key_provider = provider_id.to_string();
-                                                self.show_api_key_input = true;
-                                                self.new_api_key_value.clear();
-                                            }
+                                        if !has_key && primary_button(ui, "+ Add Key") {
+                                            self.new_api_key_provider = provider_id.to_string();
+                                            self.show_api_key_input = true;
+                                            self.new_api_key_value.clear();
                                         }
                                     },
                                 );
@@ -2067,7 +2065,7 @@ fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
     {
         use windows::Win32::Foundation::RECT as WinRect;
         use windows::Win32::UI::WindowsAndMessaging::{
-            SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
+            SystemParametersInfoW, SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
         };
 
         let mut rect = WinRect::default();
@@ -2264,7 +2262,7 @@ fn render_providers_tab_macos(
 
     // Get selected provider
     let selected_provider = if let Ok(state) = shared_state.lock() {
-        state.selected_provider.clone()
+        state.selected_provider
     } else {
         None
     };
@@ -4028,14 +4026,11 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     ui.add_space(Spacing::XS);
-                                    if !has_key {
-                                        if primary_button(ui, "+ Add Key") {
-                                            if let Ok(mut state) = shared_state.lock() {
-                                                state.new_api_key_provider =
-                                                    provider_id.to_string();
-                                                state.show_api_key_input = true;
-                                                state.new_api_key_value.clear();
-                                            }
+                                    if !has_key && primary_button(ui, "+ Add Key") {
+                                        if let Ok(mut state) = shared_state.lock() {
+                                            state.new_api_key_provider = provider_id.to_string();
+                                            state.show_api_key_input = true;
+                                            state.new_api_key_value.clear();
                                         }
                                     }
                                 },

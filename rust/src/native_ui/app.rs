@@ -14,7 +14,7 @@ use super::charts::{
 };
 use super::preferences::PreferencesWindow;
 use super::provider_icons::ProviderIconCache;
-use super::theme::{FontSize, Radius, Spacing, Theme, provider_color, provider_icon, status_color};
+use super::theme::{provider_color, provider_icon, status_color, FontSize, Radius, Spacing, Theme};
 use crate::browser::cookies::get_cookie_header;
 use crate::core::{
     FetchContext, OpenAIDashboardCacheStore, PersonalInfoRedactor, Provider, ProviderFetchResult,
@@ -25,8 +25,8 @@ use crate::cost_scanner::get_daily_cost_history;
 use crate::login::LoginPhase;
 use crate::providers::*;
 use crate::settings::{ApiKeys, ManualCookies, Settings};
-use crate::shortcuts::{ShortcutManager, parse_shortcut};
-use crate::status::{StatusLevel, fetch_provider_status, get_status_page_url};
+use crate::shortcuts::{parse_shortcut, ShortcutManager};
+use crate::status::{fetch_provider_status, get_status_page_url, StatusLevel};
 use crate::tray::{
     LoadingPattern, ProviderUsage, SurpriseAnimation, TrayMenuAction, UnifiedTrayManager,
 };
@@ -34,10 +34,10 @@ use crate::updater::{self, UpdateInfo, UpdateState};
 
 #[cfg(windows)]
 fn restore_main_window() {
-    use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, IsIconic, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindow,
-    };
     use windows::core::w;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowW, IsIconic, SetForegroundWindow, ShowWindow, SW_RESTORE, SW_SHOW,
+    };
 
     unsafe {
         if let Ok(hwnd) = FindWindowW(None, w!("CodexBar")) {
@@ -55,8 +55,8 @@ fn restore_main_window() {
 
 #[cfg(windows)]
 fn show_main_window_no_focus() {
-    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, SW_SHOWNOACTIVATE, ShowWindow};
     use windows::core::w;
+    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, ShowWindow, SW_SHOWNOACTIVATE};
 
     unsafe {
         if let Ok(hwnd) = FindWindowW(None, w!("CodexBar")) {
@@ -247,7 +247,11 @@ impl ProviderData {
                     sum += v;
                     count += 1;
                 }
-                if count > 0 { sum / count as f64 } else { 0.0 }
+                if count > 0 {
+                    sum / count as f64
+                } else {
+                    0.0
+                }
             }
             crate::settings::MetricPreference::Automatic => {
                 // Automatic: prefer the highest available metric (most concerning)
@@ -899,7 +903,7 @@ fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
     {
         use windows::Win32::Foundation::RECT as WinRect;
         use windows::Win32::UI::WindowsAndMessaging::{
-            SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
+            SystemParametersInfoW, SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
         };
 
         let mut rect = WinRect::default();
@@ -2014,8 +2018,6 @@ fn draw_provider_detail_card(
     let mut refresh_requested = false;
     let mut account_switch_requested: Option<String> = None;
     let brand_color = provider_color(&provider.name);
-    let content_width = ui.available_width() - 32.0; // 16px padding each side
-
     // Main VStack with spacing: 4 (compact)
     ui.vertical(|ui| {
         ui.add_space(1.0); // Top padding
@@ -2039,7 +2041,7 @@ fn draw_provider_detail_card(
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_space(16.0); // Right padding
-                        // Email - .subheadline, secondary color (redacted if privacy mode enabled)
+                                            // Email - .subheadline, secondary color (redacted if privacy mode enabled)
                         if let Some(account) = &provider.account {
                             let display_account = PersonalInfoRedactor::redact_email(
                                 Some(account.as_str()),
@@ -2077,7 +2079,7 @@ fn draw_provider_detail_card(
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.add_space(16.0); // Right padding
-                        // Plan badge - .footnote, secondary
+                                            // Plan badge - .footnote, secondary
                         if let Some(plan) = &provider.plan {
                             ui.label(
                                 RichText::new(plan)
@@ -2136,9 +2138,7 @@ fn draw_provider_detail_card(
                     show_as_used,
                     provider.session_reset.as_deref(),
                     brand_color,
-                    content_width,
-                    None, // No pace for session
-                    false,
+                    MetricRowPace::none(),
                 );
             }
 
@@ -2153,9 +2153,7 @@ fn draw_provider_detail_card(
                     show_as_used,
                     provider.weekly_reset.as_deref(),
                     brand_color,
-                    content_width,
-                    provider.pace_percent,
-                    provider.pace_lasts_to_reset,
+                    MetricRowPace::new(provider.pace_percent, provider.pace_lasts_to_reset),
                 );
             }
 
@@ -2171,9 +2169,7 @@ fn draw_provider_detail_card(
                     show_as_used,
                     None,
                     brand_color,
-                    content_width,
-                    None, // No pace for model
-                    false,
+                    MetricRowPace::none(),
                 );
             }
 
@@ -2370,10 +2366,9 @@ fn draw_provider_detail_card(
             // Switch Account link - only show for providers that support token accounts
             if TokenAccountSupport::is_supported(
                 ProviderId::from_cli_name(&provider.name).unwrap_or(ProviderId::Claude),
-            ) {
-                if draw_menu_item(ui, "->", "Switch Account...") {
-                    account_switch_requested = Some(provider.name.clone());
-                }
+            ) && draw_menu_item(ui, "->", "Switch Account...")
+            {
+                account_switch_requested = Some(provider.name.clone());
             }
 
             // Usage Dashboard link
@@ -2462,6 +2457,24 @@ fn draw_text_menu_item(ui: &mut egui::Ui, label: &str) -> bool {
 /// # Arguments
 /// * `pace_percent` - Optional pace difference (actual - expected). Positive means ahead of expected, negative means behind.
 /// * `pace_lasts_to_reset` - Whether current usage will last until reset (on track or ahead)
+struct MetricRowPace {
+    percent: Option<f64>,
+    lasts_to_reset: bool,
+}
+
+impl MetricRowPace {
+    fn new(percent: Option<f64>, lasts_to_reset: bool) -> Self {
+        Self {
+            percent,
+            lasts_to_reset,
+        }
+    }
+
+    fn none() -> Self {
+        Self::new(None, false)
+    }
+}
+
 fn draw_metric_row(
     ui: &mut egui::Ui,
     title: &str,
@@ -2469,9 +2482,7 @@ fn draw_metric_row(
     show_as_used: bool,
     reset_text: Option<&str>,
     color: Color32,
-    _content_width: f32,
-    pace_percent: Option<f64>,
-    pace_lasts_to_reset: bool,
+    pace: MetricRowPace,
 ) {
     // Title - .font(.body).fontWeight(.medium)
     ui.label(
@@ -2484,7 +2495,13 @@ fn draw_metric_row(
     ui.add_space(6.0);
 
     let display_percent = usage_display_percent(percent, show_as_used);
-    let display_pace_percent = pace_percent.map(|pace| if show_as_used { pace } else { -pace });
+    let display_pace_percent = pace.percent.map(|pace_percent| {
+        if show_as_used {
+            pace_percent
+        } else {
+            -pace_percent
+        }
+    });
 
     // Progress bar row - 8px height like macOS
     let bar_width = ui.available_width();
@@ -2533,7 +2550,7 @@ fn draw_metric_row(
         // Pace status indicator
         if display_pace_percent.is_some() {
             ui.add_space(8.0);
-            let (pace_text, pace_color) = if pace_lasts_to_reset {
+            let (pace_text, pace_color) = if pace.lasts_to_reset {
                 ("On track", Theme::GREEN)
             } else {
                 ("Behind", Theme::YELLOW)

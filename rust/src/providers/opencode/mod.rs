@@ -16,14 +16,16 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::core::{
-    FetchContext, Provider, ProviderId, ProviderError, ProviderFetchResult,
-    ProviderMetadata, RateWindow, SourceMode, UsageSnapshot,
+    FetchContext, Provider, ProviderError, ProviderFetchResult, ProviderId, ProviderMetadata,
+    RateWindow, SourceMode, UsageSnapshot,
 };
 
 const BASE_URL: &str = "https://opencode.ai";
 const SERVER_URL: &str = "https://opencode.ai/_server";
-const WORKSPACES_SERVER_ID: &str = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f";
-const SUBSCRIPTION_SERVER_ID: &str = "7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4";
+const WORKSPACES_SERVER_ID: &str =
+    "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f";
+const SUBSCRIPTION_SERVER_ID: &str =
+    "7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4";
 
 /// OpenCode provider
 pub struct OpenCodeProvider {
@@ -54,12 +56,17 @@ impl OpenCodeProvider {
     }
 
     /// Fetch usage with cookie header
-    async fn fetch_with_cookies(&self, cookie_header: &str) -> Result<UsageSnapshot, ProviderError> {
+    async fn fetch_with_cookies(
+        &self,
+        cookie_header: &str,
+    ) -> Result<UsageSnapshot, ProviderError> {
         // First get workspace ID
         let workspace_id = self.fetch_workspace_id(cookie_header).await?;
 
         // Then fetch subscription info
-        let subscription = self.fetch_subscription(&workspace_id, cookie_header).await?;
+        let subscription = self
+            .fetch_subscription(&workspace_id, cookie_header)
+            .await?;
 
         // Parse the response
         self.parse_subscription(&subscription)
@@ -69,15 +76,22 @@ impl OpenCodeProvider {
     async fn fetch_workspace_id(&self, cookie_header: &str) -> Result<String, ProviderError> {
         let url = format!("{}?id={}", SERVER_URL, WORKSPACES_SERVER_ID);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Cookie", cookie_header)
             .header("X-Server-Id", WORKSPACES_SERVER_ID)
             .header("X-Server-Instance", format!("server-fn:{}", Uuid::new_v4()))
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            )
             .header("Origin", BASE_URL)
             .header("Referer", BASE_URL)
-            .header("Accept", "text/javascript, application/json;q=0.9, */*;q=0.8")
+            .header(
+                "Accept",
+                "text/javascript, application/json;q=0.9, */*;q=0.8",
+            )
             .send()
             .await?;
 
@@ -108,21 +122,35 @@ impl OpenCodeProvider {
     }
 
     /// Fetch subscription info for a workspace
-    async fn fetch_subscription(&self, workspace_id: &str, cookie_header: &str) -> Result<String, ProviderError> {
+    async fn fetch_subscription(
+        &self,
+        workspace_id: &str,
+        cookie_header: &str,
+    ) -> Result<String, ProviderError> {
         let referer = format!("https://opencode.ai/workspace/{}/billing", workspace_id);
         let args = serde_json::json!([workspace_id]);
         let encoded_args = Self::url_encode(&args.to_string());
-        let url = format!("{}?id={}&args={}", SERVER_URL, SUBSCRIPTION_SERVER_ID, encoded_args);
+        let url = format!(
+            "{}?id={}&args={}",
+            SERVER_URL, SUBSCRIPTION_SERVER_ID, encoded_args
+        );
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .header("Cookie", cookie_header)
             .header("X-Server-Id", SUBSCRIPTION_SERVER_ID)
             .header("X-Server-Instance", format!("server-fn:{}", Uuid::new_v4()))
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            )
             .header("Origin", BASE_URL)
             .header("Referer", referer)
-            .header("Accept", "text/javascript, application/json;q=0.9, */*;q=0.8")
+            .header(
+                "Accept",
+                "text/javascript, application/json;q=0.9, */*;q=0.8",
+            )
             .send()
             .await?;
 
@@ -163,14 +191,14 @@ impl OpenCodeProvider {
         let primary = RateWindow::with_details(
             rolling.0,
             Some(300), // 5 hours
-            Some(now + chrono::Duration::seconds(rolling.1 as i64)),
+            Some(now + chrono::Duration::seconds(rolling.1)),
             None,
         );
 
         let secondary = RateWindow::with_details(
             weekly.0,
             Some(10080), // 7 days
-            Some(now + chrono::Duration::seconds(weekly.1 as i64)),
+            Some(now + chrono::Duration::seconds(weekly.1)),
             None,
         );
 
@@ -184,20 +212,21 @@ impl OpenCodeProvider {
     /// Parse usage from JSON response
     fn parse_usage_json(&self, json: &Value, now: DateTime<Utc>) -> Option<UsageSnapshot> {
         // Look for rollingUsage and weeklyUsage
-        let rolling = self.find_usage_window(json, &["rollingUsage", "rolling", "rolling_usage"])?;
+        let rolling =
+            self.find_usage_window(json, &["rollingUsage", "rolling", "rolling_usage"])?;
         let weekly = self.find_usage_window(json, &["weeklyUsage", "weekly", "weekly_usage"])?;
 
         let primary = RateWindow::with_details(
             rolling.0,
             Some(300),
-            Some(now + chrono::Duration::seconds(rolling.1 as i64)),
+            Some(now + chrono::Duration::seconds(rolling.1)),
             None,
         );
 
         let secondary = RateWindow::with_details(
             weekly.0,
             Some(10080),
-            Some(now + chrono::Duration::seconds(weekly.1 as i64)),
+            Some(now + chrono::Duration::seconds(weekly.1)),
             None,
         );
 
@@ -232,8 +261,19 @@ impl OpenCodeProvider {
 
     /// Parse a usage window object
     fn parse_window(&self, obj: &Value) -> Option<(f64, i64)> {
-        let percent_keys = ["usagePercent", "usedPercent", "percentUsed", "percent", "utilization"];
-        let reset_keys = ["resetInSec", "resetInSeconds", "resetSeconds", "resetsInSec"];
+        let percent_keys = [
+            "usagePercent",
+            "usedPercent",
+            "percentUsed",
+            "percent",
+            "utilization",
+        ];
+        let reset_keys = [
+            "resetInSec",
+            "resetInSeconds",
+            "resetSeconds",
+            "resetsInSec",
+        ];
 
         let mut percent: Option<f64> = None;
         for key in percent_keys {
@@ -245,8 +285,14 @@ impl OpenCodeProvider {
 
         // Try computing from used/limit
         if percent.is_none() {
-            let used = obj.get("used").or(obj.get("usage")).and_then(|v| v.as_f64());
-            let limit = obj.get("limit").or(obj.get("total")).and_then(|v| v.as_f64());
+            let used = obj
+                .get("used")
+                .or(obj.get("usage"))
+                .and_then(|v| v.as_f64());
+            let limit = obj
+                .get("limit")
+                .or(obj.get("total"))
+                .and_then(|v| v.as_f64());
             if let (Some(u), Some(l)) = (used, limit) {
                 if l > 0.0 {
                     percent = Some((u / l) * 100.0);
@@ -274,10 +320,12 @@ impl OpenCodeProvider {
         let percent_pattern = format!(r"{}[^}}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)", prefix);
         let reset_pattern = format!(r"{}[^}}]*?resetInSec\s*:\s*([0-9]+)", prefix);
 
-        let percent = self.extract_number(&percent_pattern, text)
+        let percent = self
+            .extract_number(&percent_pattern, text)
             .ok_or_else(|| ProviderError::Parse(format!("Missing {} percent", prefix)))?;
 
-        let reset = self.extract_number(&reset_pattern, text)
+        let reset = self
+            .extract_number(&reset_pattern, text)
             .map(|n| n as i64)
             .unwrap_or(0);
 
@@ -359,15 +407,18 @@ impl Provider for OpenCodeProvider {
                 // Try to get cookies from browser
                 #[cfg(windows)]
                 {
-                    use crate::browser::detection::BrowserDetector;
                     use crate::browser::cookies::{Cookie, CookieExtractor};
+                    use crate::browser::detection::BrowserDetector;
 
                     let browsers = BrowserDetector::detect_all();
 
                     for browser in browsers {
-                        if let Ok(cookies) = CookieExtractor::extract_for_domain(&browser, "opencode.ai") {
+                        if let Ok(cookies) =
+                            CookieExtractor::extract_for_domain(&browser, "opencode.ai")
+                        {
                             // Build cookie header
-                            let cookie_header: String = cookies.iter()
+                            let cookie_header: String = cookies
+                                .iter()
                                 .map(|c: &Cookie| format!("{}={}", c.name, c.value))
                                 .collect::<Vec<_>>()
                                 .join("; ");
@@ -385,12 +436,8 @@ impl Provider for OpenCodeProvider {
 
                 Err(ProviderError::AuthRequired)
             }
-            SourceMode::Cli => {
-                Err(ProviderError::UnsupportedSource(SourceMode::Cli))
-            }
-            SourceMode::OAuth => {
-                Err(ProviderError::UnsupportedSource(SourceMode::OAuth))
-            }
+            SourceMode::Cli => Err(ProviderError::UnsupportedSource(SourceMode::Cli)),
+            SourceMode::OAuth => Err(ProviderError::UnsupportedSource(SourceMode::OAuth)),
         }
     }
 

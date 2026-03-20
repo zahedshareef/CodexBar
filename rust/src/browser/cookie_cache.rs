@@ -67,8 +67,7 @@ impl CookieHeaderCache {
         }
 
         let entry = CookieHeaderEntry::new(normalized, source_label);
-        let path = Self::cache_path(provider)
-            .ok_or_else(|| CookieHeaderCacheError::PathNotAvailable)?;
+        let path = Self::cache_path(provider).ok_or(CookieHeaderCacheError::PathNotAvailable)?;
 
         // Create parent directory
         if let Some(parent) = path.parent() {
@@ -104,8 +103,10 @@ impl CookieHeaderCache {
 
     /// Get the cache file path for a provider
     fn cache_path(provider: ProviderId) -> Option<PathBuf> {
-        dirs::data_local_dir()
-            .map(|d| d.join("CodexBar").join(format!("{}-cookie.json", provider.cli_name())))
+        dirs::data_local_dir().map(|d| {
+            d.join("CodexBar")
+                .join(format!("{}-cookie.json", provider.cli_name()))
+        })
     }
 
     /// Normalize a cookie header string

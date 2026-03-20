@@ -170,6 +170,7 @@ A badge appears in the corner for status issues:
 
 ```powershell
 cargo test
+cargo clippy --all-targets -- -D warnings
 ```
 
 ### Project Structure
