@@ -5,19 +5,17 @@
 
 #![allow(dead_code)] // Legacy show_* methods kept for potential future use
 
-use eframe::egui::{self, Color32, Rect, RichText, Rounding, Stroke, Vec2};
-use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
+use eframe::egui::{self, Color32, RichText, Rounding, Stroke, Vec2, Rect};
 
 use super::provider_icons::ProviderIconCache;
 use super::theme::{provider_color, provider_icon, FontSize, Radius, Spacing, Theme};
-use crate::browser::cookies::get_cookie_header_from_browser;
-use crate::browser::detection::{BrowserDetector, BrowserType};
+use crate::settings::{ApiKeys, ManualCookies, Settings, TrayIconMode, get_api_key_providers};
 use crate::core::{PersonalInfoRedactor, ProviderId, WidgetSnapshot, WidgetSnapshotStore};
-use crate::core::{ProviderAccountData, TokenAccount, TokenAccountStore, TokenAccountSupport};
-use crate::settings::{
-    get_api_key_providers, ApiKeys, ManualCookies, Settings, ThemeMode, TrayIconMode,
-};
+use crate::core::{TokenAccountStore, TokenAccount, TokenAccountSupport, ProviderAccountData};
+use crate::browser::detection::{BrowserDetector, BrowserType};
+use crate::browser::cookies::get_cookie_header_from_browser;
 use crate::shortcuts::format_shortcut;
 use std::collections::HashMap;
 
@@ -113,7 +111,6 @@ struct PreferencesSharedState {
     selected_browser: Option<BrowserType>,
     browser_import_status: Option<(String, bool)>,
     refresh_requested: bool,
-    update_check_requested: bool,
     cached_snapshot: Option<WidgetSnapshot>,
     // Token accounts data
     token_accounts: HashMap<ProviderId, ProviderAccountData>,
@@ -151,7 +148,6 @@ impl Default for PreferencesWindow {
             selected_browser: None,
             browser_import_status: None,
             refresh_requested: false,
-            update_check_requested: false,
             cached_snapshot: WidgetSnapshotStore::load(),
             token_accounts: token_accounts.clone(),
             new_account_label: String::new(),
@@ -215,7 +211,6 @@ impl PreferencesWindow {
             state.selected_provider = self.selected_provider;
             state.shortcut_input = self.settings.global_shortcut.clone();
             state.shortcut_status_msg = None;
-            state.update_check_requested = false;
         }
     }
 
@@ -242,16 +237,6 @@ impl PreferencesWindow {
         if let Ok(mut state) = self.shared_state.lock() {
             if state.refresh_requested {
                 state.refresh_requested = false;
-                return true;
-            }
-        }
-        false
-    }
-
-    pub fn take_update_check_requested(&mut self) -> bool {
-        if let Ok(mut state) = self.shared_state.lock() {
-            if state.update_check_requested {
-                state.update_check_requested = false;
                 return true;
             }
         }
@@ -292,11 +277,7 @@ impl PreferencesWindow {
         );
         let settings_position = if self.needs_viewport_placement {
             match (main_outer_rect, work_area) {
-                (Some(main_rect), Some(area)) => Some(settings_position_near_main_window(
-                    main_rect,
-                    settings_size,
-                    area,
-                )),
+                (Some(main_rect), Some(area)) => Some(settings_position_near_main_window(main_rect, settings_size, area)),
                 _ => None,
             }
         } else {
@@ -313,42 +294,36 @@ impl PreferencesWindow {
             builder = builder.with_position(position);
         }
 
-        ctx.show_viewport_immediate(settings_viewport_id, builder, |ctx, _class| {
-            // Check if window was closed
-            if ctx.input(|i| i.viewport().close_requested()) {
-                if let Ok(mut state) = shared_state.lock() {
-                    state.is_open = false;
+        ctx.show_viewport_immediate(
+            settings_viewport_id,
+            builder,
+            |ctx, _class| {
+                // Check if window was closed
+                if ctx.input(|i| i.viewport().close_requested()) {
+                    if let Ok(mut state) = shared_state.lock() {
+                        state.is_open = false;
+                    }
                 }
-            }
 
-            // Apply theme
-            if let Ok(state) = shared_state.lock() {
-                Theme::set_dark(state.settings.theme_mode.is_dark());
-            }
-            let mut style = (*ctx.style()).clone();
-            style.visuals = if Theme::is_dark() {
-                egui::Visuals::dark()
-            } else {
-                egui::Visuals::light()
-            };
-            style.visuals.window_fill = Theme::bg_primary();
-            style.visuals.panel_fill = Theme::bg_primary();
-            style.visuals.widgets.noninteractive.bg_fill = Theme::bg_secondary();
-            style.visuals.widgets.inactive.bg_fill = Theme::card_bg();
-            style.visuals.widgets.hovered.bg_fill = Theme::card_bg_hover();
-            style.visuals.widgets.active.bg_fill = Theme::ACCENT_PRIMARY;
-            ctx.set_style(style);
+                // Apply dark theme
+                let mut style = (*ctx.style()).clone();
+                style.visuals.window_fill = Theme::BG_PRIMARY;
+                style.visuals.panel_fill = Theme::BG_PRIMARY;
+                style.visuals.widgets.noninteractive.bg_fill = Theme::BG_SECONDARY;
+                style.visuals.widgets.inactive.bg_fill = Theme::CARD_BG;
+                style.visuals.widgets.hovered.bg_fill = Theme::CARD_BG_HOVER;
+                style.visuals.widgets.active.bg_fill = Theme::ACCENT_PRIMARY;
+                ctx.set_style(style);
 
-            egui::CentralPanel::default()
-                .frame(
-                    egui::Frame::none()
-                        .fill(Theme::bg_primary())
-                        .inner_margin(Spacing::MD),
-                )
-                .show(ctx, |ui| {
-                    render_settings_ui(ui, &shared_state);
-                });
-        });
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::none()
+                        .fill(Theme::BG_PRIMARY)
+                        .inner_margin(Spacing::MD))
+                    .show(ctx, |ui| {
+                        render_settings_ui(ui, &shared_state);
+                    });
+            },
+        );
 
         if settings_position.is_some() {
             ctx.send_viewport_cmd_to(settings_viewport_id, egui::ViewportCommand::Focus);
@@ -370,12 +345,7 @@ impl PreferencesWindow {
 
         settings_card(ui, |ui| {
             let mut start_at_login = self.settings.start_at_login;
-            if setting_toggle(
-                ui,
-                "Start at login",
-                "Launch CodexBar when you log in",
-                &mut start_at_login,
-            ) {
+            if setting_toggle(ui, "Start at login", "Launch CodexBar when you log in", &mut start_at_login) {
                 if let Err(e) = self.settings.set_start_at_login(start_at_login) {
                     tracing::error!("Failed to set start at login: {}", e);
                 } else {
@@ -386,12 +356,7 @@ impl PreferencesWindow {
             setting_divider(ui);
 
             let mut start_minimized = self.settings.start_minimized;
-            if setting_toggle(
-                ui,
-                "Start minimized",
-                "Start in the system tray",
-                &mut start_minimized,
-            ) {
+            if setting_toggle(ui, "Start minimized", "Start in the system tray", &mut start_minimized) {
                 self.settings.start_minimized = start_minimized;
                 self.settings_changed = true;
             }
@@ -404,12 +369,7 @@ impl PreferencesWindow {
 
         settings_card(ui, |ui| {
             let mut show_notifications = self.settings.show_notifications;
-            if setting_toggle(
-                ui,
-                "Show notifications",
-                "Alert when usage thresholds are reached",
-                &mut show_notifications,
-            ) {
+            if setting_toggle(ui, "Show notifications", "Alert when usage thresholds are reached", &mut show_notifications) {
                 self.settings.show_notifications = show_notifications;
                 self.settings_changed = true;
             }
@@ -418,12 +378,7 @@ impl PreferencesWindow {
 
             // Sound effects toggle
             let mut sound_enabled = self.settings.sound_enabled;
-            if setting_toggle(
-                ui,
-                "Sound effects",
-                "Play sound when thresholds are reached",
-                &mut sound_enabled,
-            ) {
+            if setting_toggle(ui, "Sound effects", "Play sound when thresholds are reached", &mut sound_enabled) {
                 self.settings.sound_enabled = sound_enabled;
                 self.settings_changed = true;
             }
@@ -437,43 +392,30 @@ impl PreferencesWindow {
 
                     // Title row with volume badge on right
                     ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new("Sound volume")
-                                .size(FontSize::MD)
-                                .color(Theme::text_primary()),
-                        );
+                        ui.label(RichText::new("Sound volume").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             egui::Frame::none()
                                 .fill(Theme::ACCENT_PRIMARY.gamma_multiply(0.15))
                                 .rounding(Rounding::same(10.0))
                                 .inner_margin(egui::Margin::symmetric(10.0, 3.0))
                                 .show(ui, |ui| {
-                                    ui.label(
-                                        RichText::new(format!("{}%", volume))
-                                            .size(FontSize::SM)
-                                            .color(Theme::ACCENT_PRIMARY)
-                                            .strong(),
-                                    );
+                                    ui.label(RichText::new(format!("{}%", volume)).size(FontSize::SM).color(Theme::ACCENT_PRIMARY).strong());
                                 });
                         });
                     });
 
                     ui.add_space(2.0);
-                    ui.label(
-                        RichText::new("Volume level for alert sounds")
-                            .size(FontSize::SM)
-                            .color(Theme::text_muted()),
-                    );
+                    ui.label(RichText::new("Volume level for alert sounds").size(FontSize::SM).color(Theme::TEXT_MUTED));
                     ui.add_space(6.0);
 
-                    ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::bg_tertiary();
-                    ui.style_mut().visuals.widgets.hovered.bg_fill = Theme::card_bg_hover();
+                    ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
+                    ui.style_mut().visuals.widgets.hovered.bg_fill = Theme::CARD_BG_HOVER;
                     ui.style_mut().visuals.widgets.active.bg_fill = Theme::ACCENT_PRIMARY;
 
                     let slider = ui.add(
                         egui::Slider::new(&mut volume, 0..=100)
                             .show_value(false)
-                            .trailing_fill(true),
+                            .trailing_fill(true)
                     );
 
                     if slider.changed() {
@@ -491,11 +433,7 @@ impl PreferencesWindow {
 
                 // Title row with percentage badge on right
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("High warning")
-                            .size(FontSize::MD)
-                            .color(Theme::text_primary()),
-                    );
+                    ui.label(RichText::new("High warning").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Percentage pill badge
                         egui::Frame::none()
@@ -503,33 +441,24 @@ impl PreferencesWindow {
                             .rounding(Rounding::same(10.0))
                             .inner_margin(egui::Margin::symmetric(10.0, 3.0))
                             .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new(format!("{}%", threshold))
-                                        .size(FontSize::SM)
-                                        .color(Theme::ACCENT_PRIMARY)
-                                        .strong(),
-                                );
+                                ui.label(RichText::new(format!("{}%", threshold)).size(FontSize::SM).color(Theme::ACCENT_PRIMARY).strong());
                             });
                     });
                 });
 
                 ui.add_space(2.0);
-                ui.label(
-                    RichText::new("Show warning at this usage level")
-                        .size(FontSize::SM)
-                        .color(Theme::text_muted()),
-                );
+                ui.label(RichText::new("Show warning at this usage level").size(FontSize::SM).color(Theme::TEXT_MUTED));
                 ui.add_space(6.0);
 
                 // Full-width slider
-                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::bg_tertiary();
-                ui.style_mut().visuals.widgets.hovered.bg_fill = Theme::card_bg_hover();
+                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
+                ui.style_mut().visuals.widgets.hovered.bg_fill = Theme::CARD_BG_HOVER;
                 ui.style_mut().visuals.widgets.active.bg_fill = Theme::ACCENT_PRIMARY;
 
                 let slider = ui.add(
                     egui::Slider::new(&mut threshold, 50..=95)
                         .show_value(false)
-                        .trailing_fill(true),
+                        .trailing_fill(true)
                 );
 
                 if slider.changed() && threshold as f64 != self.settings.high_usage_threshold {
@@ -547,11 +476,7 @@ impl PreferencesWindow {
 
                 // Title row with percentage badge on right
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("Critical alert")
-                            .size(FontSize::MD)
-                            .color(Theme::text_primary()),
-                    );
+                    ui.label(RichText::new("Critical alert").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Percentage pill badge - red tint for critical
                         egui::Frame::none()
@@ -559,33 +484,24 @@ impl PreferencesWindow {
                             .rounding(Rounding::same(10.0))
                             .inner_margin(egui::Margin::symmetric(10.0, 3.0))
                             .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new(format!("{}%", threshold))
-                                        .size(FontSize::SM)
-                                        .color(badge_color)
-                                        .strong(),
-                                );
+                                ui.label(RichText::new(format!("{}%", threshold)).size(FontSize::SM).color(badge_color).strong());
                             });
                     });
                 });
 
                 ui.add_space(2.0);
-                ui.label(
-                    RichText::new("Show critical alert at this level")
-                        .size(FontSize::SM)
-                        .color(Theme::text_muted()),
-                );
+                ui.label(RichText::new("Show critical alert at this level").size(FontSize::SM).color(Theme::TEXT_MUTED));
                 ui.add_space(6.0);
 
                 // Full-width slider
-                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::bg_tertiary();
-                ui.style_mut().visuals.widgets.hovered.bg_fill = Theme::card_bg_hover();
+                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
+                ui.style_mut().visuals.widgets.hovered.bg_fill = Theme::CARD_BG_HOVER;
                 ui.style_mut().visuals.widgets.active.bg_fill = badge_color;
 
                 let slider = ui.add(
                     egui::Slider::new(&mut threshold, 80..=100)
                         .show_value(false)
-                        .trailing_fill(true),
+                        .trailing_fill(true)
                 );
 
                 if slider.changed() && threshold as f64 != self.settings.critical_usage_threshold {
@@ -601,12 +517,12 @@ impl PreferencesWindow {
 
         // Ensure a provider is selected
         if self.selected_provider.is_none() && !providers.is_empty() {
-            self.selected_provider = Some(providers[0]);
+            self.selected_provider = Some(providers[0].clone());
         }
 
         // Calculate dimensions - responsive sidebar width
         let total_width = ui.available_width();
-        let sidebar_width = (total_width * 0.45).clamp(140.0, 180.0); // 45% of width, 140-180px range
+        let sidebar_width = (total_width * 0.45).min(180.0).max(140.0);  // 45% of width, 140-180px range
         let gap = Spacing::SM;
         let detail_width = (total_width - sidebar_width - gap).max(150.0);
         let panel_height = available_height;
@@ -622,7 +538,7 @@ impl PreferencesWindow {
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
                         self.draw_provider_sidebar(ui, providers, panel_height);
-                    },
+                    }
                 );
 
                 ui.add_space(gap);
@@ -633,20 +549,15 @@ impl PreferencesWindow {
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
                         self.draw_provider_detail(ui, panel_height);
-                    },
+                    }
                 );
-            },
+            }
         );
     }
 
-    fn draw_provider_sidebar(
-        &mut self,
-        ui: &mut egui::Ui,
-        providers: &[ProviderId],
-        available_height: f32,
-    ) {
+    fn draw_provider_sidebar(&mut self, ui: &mut egui::Ui, providers: &[ProviderId], available_height: f32) {
         egui::Frame::none()
-            .fill(Theme::bg_tertiary())
+            .fill(Theme::BG_TERTIARY)
             .rounding(Rounding::same(Radius::MD))
             .inner_margin(Spacing::SM)
             .show(ui, |ui| {
@@ -660,8 +571,7 @@ impl PreferencesWindow {
                         for provider_id in providers {
                             let provider_name = provider_id.cli_name();
                             let is_selected = self.selected_provider.as_ref() == Some(provider_id);
-                            let is_enabled =
-                                self.settings.enabled_providers.contains(provider_name);
+                            let is_enabled = self.settings.enabled_providers.contains(provider_name);
 
                             // Add padding around each row
                             let frame_response = egui::Frame::none()
@@ -675,74 +585,44 @@ impl PreferencesWindow {
 
                                         // Icon
                                         let icon_size = 20.0;
-                                        if let Some(texture) = self.icon_cache.get_icon(
-                                            ui.ctx(),
-                                            provider_name,
-                                            icon_size as u32,
-                                        ) {
-                                            ui.add(
-                                                egui::Image::new(texture)
-                                                    .fit_to_exact_size(Vec2::splat(icon_size)),
-                                            );
+                                        if let Some(texture) = self.icon_cache.get_icon(ui.ctx(), provider_name, icon_size as u32) {
+                                            ui.add(egui::Image::new(texture).fit_to_exact_size(Vec2::splat(icon_size)));
                                         } else {
-                                            ui.label(
-                                                RichText::new(provider_icon(provider_name))
-                                                    .size(FontSize::MD)
-                                                    .color(provider_color(provider_name)),
-                                            );
+                                            ui.label(RichText::new(provider_icon(provider_name)).size(FontSize::MD).color(provider_color(provider_name)));
                                         }
 
                                         ui.add_space(8.0);
 
                                         // Provider name as plain label (no hover effect)
-                                        let text_color = if is_selected {
-                                            Theme::text_primary()
-                                        } else if is_enabled {
-                                            Theme::text_secondary()
-                                        } else {
-                                            Theme::text_muted()
-                                        };
+                                        let text_color = if is_selected { Theme::TEXT_PRIMARY }
+                                            else if is_enabled { Theme::TEXT_SECONDARY }
+                                            else { Theme::TEXT_MUTED };
 
-                                        ui.label(
-                                            RichText::new(provider_id.display_name())
-                                                .size(FontSize::SM)
-                                                .color(text_color),
-                                        );
+                                        ui.label(RichText::new(provider_id.display_name()).size(FontSize::SM).color(text_color));
 
                                         // Spacer to push checkbox to right
-                                        ui.with_layout(
-                                            egui::Layout::right_to_left(egui::Align::Center),
-                                            |ui| {
-                                                // Checkbox
-                                                let mut enabled = is_enabled;
-                                                if ui.checkbox(&mut enabled, "").changed() {
-                                                    if enabled {
-                                                        self.settings
-                                                            .enabled_providers
-                                                            .insert(provider_name.to_string());
-                                                    } else {
-                                                        self.settings
-                                                            .enabled_providers
-                                                            .remove(provider_name);
-                                                    }
-                                                    self.settings_changed = true;
+                                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                            // Checkbox
+                                            let mut enabled = is_enabled;
+                                            if ui.checkbox(&mut enabled, "").changed() {
+                                                if enabled {
+                                                    self.settings.enabled_providers.insert(provider_name.to_string());
+                                                } else {
+                                                    self.settings.enabled_providers.remove(provider_name);
                                                 }
-                                            },
-                                        );
+                                                self.settings_changed = true;
+                                            }
+                                        });
                                     });
                                 });
 
                             // Check hover and click on the frame
                             let frame_rect = frame_response.response.rect;
-                            let row_response = ui.interact(
-                                frame_rect,
-                                ui.make_persistent_id(format!("row_{}", provider_name)),
-                                egui::Sense::click(),
-                            );
+                            let row_response = ui.interact(frame_rect, ui.make_persistent_id(format!("row_{}", provider_name)), egui::Sense::click());
                             let is_hovered = row_response.hovered();
 
                             if row_response.clicked() {
-                                self.selected_provider = Some(*provider_id);
+                                self.selected_provider = Some(provider_id.clone());
                             }
 
                             // Draw the selection/hover ring on top
@@ -761,9 +641,9 @@ impl PreferencesWindow {
     }
 
     fn draw_provider_detail(&mut self, ui: &mut egui::Ui, available_height: f32) {
-        if let Some(selected_id) = self.selected_provider {
+        if let Some(ref selected_id) = self.selected_provider.clone() {
             egui::Frame::none()
-                .fill(Theme::bg_secondary())
+                .fill(Theme::BG_SECONDARY)
                 .rounding(Rounding::same(Radius::LG))
                 .inner_margin(Spacing::MD)
                 .show(ui, |ui| {
@@ -779,18 +659,14 @@ impl PreferencesWindow {
         } else {
             // Placeholder
             egui::Frame::none()
-                .fill(Theme::bg_secondary())
+                .fill(Theme::BG_SECONDARY)
                 .rounding(Rounding::same(Radius::LG))
                 .inner_margin(Spacing::MD)
                 .show(ui, |ui| {
                     ui.set_min_height(available_height);
                     ui.vertical_centered(|ui| {
                         ui.add_space(available_height / 3.0);
-                        ui.label(
-                            RichText::new("Select a provider")
-                                .size(FontSize::MD)
-                                .color(Theme::text_muted()),
-                        );
+                        ui.label(RichText::new("Select a provider").size(FontSize::MD).color(Theme::TEXT_MUTED));
                     });
                 });
         }
@@ -813,17 +689,10 @@ impl PreferencesWindow {
                 .inner_margin(Spacing::SM)
                 .show(ui, |ui| {
                     let icon_size = 32.0;
-                    if let Some(texture) =
-                        self.icon_cache
-                            .get_icon(ui.ctx(), provider_name, icon_size as u32)
-                    {
+                    if let Some(texture) = self.icon_cache.get_icon(ui.ctx(), provider_name, icon_size as u32) {
                         ui.add(egui::Image::new(texture).fit_to_exact_size(Vec2::splat(icon_size)));
                     } else {
-                        ui.label(
-                            RichText::new(provider_icon(provider_name))
-                                .size(icon_size)
-                                .color(color),
-                        );
+                        ui.label(RichText::new(provider_icon(provider_name)).size(icon_size).color(color));
                     }
                 });
 
@@ -833,22 +702,18 @@ impl PreferencesWindow {
                 ui.label(
                     RichText::new(display_name)
                         .size(FontSize::XL)
-                        .color(Theme::text_primary())
-                        .strong(),
+                        .color(Theme::TEXT_PRIMARY)
+                        .strong()
                 );
                 ui.horizontal(|ui| {
                     // Status indicator dot
-                    let status_color = if is_enabled {
-                        Theme::GREEN
-                    } else {
-                        Theme::text_muted()
-                    };
+                    let status_color = if is_enabled { Theme::GREEN } else { Theme::TEXT_MUTED };
                     ui.label(RichText::new("●").size(FontSize::XS).color(status_color));
                     ui.add_space(4.0);
                     ui.label(
                         RichText::new(if is_enabled { "Enabled" } else { "Disabled" })
                             .size(FontSize::SM)
-                            .color(status_color),
+                            .color(status_color)
                     );
                 });
             });
@@ -858,9 +723,7 @@ impl PreferencesWindow {
                 let mut enabled = is_enabled;
                 if ui.checkbox(&mut enabled, "").changed() {
                     if enabled {
-                        self.settings
-                            .enabled_providers
-                            .insert(provider_name.to_string());
+                        self.settings.enabled_providers.insert(provider_name.to_string());
                     } else {
                         self.settings.enabled_providers.remove(provider_name);
                     }
@@ -930,33 +793,29 @@ impl PreferencesWindow {
                         ui.label(
                             RichText::new("Live usage data in main window")
                                 .size(FontSize::MD)
-                                .color(Theme::text_primary()),
+                                .color(Theme::TEXT_PRIMARY)
                         );
                         ui.label(
                             RichText::new("Click the tray icon to view real-time metrics")
                                 .size(FontSize::SM)
-                                .color(Theme::text_muted()),
+                                .color(Theme::TEXT_MUTED)
                         );
                     });
                 });
             } else {
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("⏸")
-                            .size(FontSize::LG)
-                            .color(Theme::text_muted()),
-                    );
+                    ui.label(RichText::new("⏸").size(FontSize::LG).color(Theme::TEXT_MUTED));
                     ui.add_space(Spacing::SM);
                     ui.vertical(|ui| {
                         ui.label(
                             RichText::new("Provider disabled")
                                 .size(FontSize::MD)
-                                .color(Theme::text_muted()),
+                                .color(Theme::TEXT_MUTED)
                         );
                         ui.label(
                             RichText::new("Enable to start tracking usage")
                                 .size(FontSize::SM)
-                                .color(Theme::text_dim()),
+                                .color(Theme::TEXT_DIM)
                         );
                     });
                 });
@@ -1005,14 +864,14 @@ impl PreferencesWindow {
                     ui.label(
                         RichText::new("Ollama runs locally - no dashboard")
                             .size(FontSize::SM)
-                            .color(Theme::text_muted()),
+                            .color(Theme::TEXT_MUTED)
                     );
                 }
                 _ => {
                     ui.label(
                         RichText::new("No quick actions available")
                             .size(FontSize::SM)
-                            .color(Theme::text_muted()),
+                            .color(Theme::TEXT_MUTED)
                     );
                 }
             }
@@ -1024,13 +883,13 @@ impl PreferencesWindow {
             ui.label(
                 RichText::new(label)
                     .size(FontSize::SM)
-                    .color(Theme::text_muted()),
+                    .color(Theme::TEXT_MUTED)
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
                     RichText::new(value)
                         .size(FontSize::SM)
-                        .color(Theme::text_secondary()),
+                        .color(Theme::TEXT_SECONDARY)
                 );
             });
         });
@@ -1045,7 +904,7 @@ impl PreferencesWindow {
             ui.label(
                 RichText::new(format!("Import cookies from your browser for {}", domain))
                     .size(FontSize::SM)
-                    .color(Theme::text_muted()),
+                    .color(Theme::TEXT_MUTED)
             );
 
             ui.add_space(Spacing::SM);
@@ -1057,20 +916,15 @@ impl PreferencesWindow {
                 ui.label(
                     RichText::new("No supported browsers detected")
                         .size(FontSize::SM)
-                        .color(Theme::YELLOW),
+                        .color(Theme::YELLOW)
                 );
             } else {
                 // Browser selection dropdown
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("Browser")
-                            .size(FontSize::MD)
-                            .color(Theme::text_primary()),
-                    );
+                    ui.label(RichText::new("Browser").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let selected_text = self
-                            .selected_browser
+                        let selected_text = self.selected_browser
                             .map(|b| b.display_name())
                             .unwrap_or("Select browser...");
 
@@ -1079,13 +933,10 @@ impl PreferencesWindow {
                             .show_ui(ui, |ui| {
                                 for browser in &browsers {
                                     let browser_type = browser.browser_type;
-                                    if ui
-                                        .selectable_label(
-                                            self.selected_browser == Some(browser_type),
-                                            browser_type.display_name(),
-                                        )
-                                        .clicked()
-                                    {
+                                    if ui.selectable_label(
+                                        self.selected_browser == Some(browser_type),
+                                        browser_type.display_name(),
+                                    ).clicked() {
                                         self.selected_browser = Some(browser_type);
                                         self.browser_import_status = None;
                                     }
@@ -1098,71 +949,49 @@ impl PreferencesWindow {
 
                 // Import button
                 let can_import = self.selected_browser.is_some();
-                if ui
-                    .add_enabled(
-                        can_import,
-                        egui::Button::new(
-                            RichText::new("Import Cookies").size(FontSize::SM).color(
-                                if can_import {
-                                    Color32::WHITE
-                                } else {
-                                    Theme::text_muted()
-                                },
-                            ),
-                        )
-                        .fill(if can_import {
-                            Theme::ACCENT_PRIMARY
-                        } else {
-                            Theme::bg_tertiary()
-                        })
-                        .rounding(Rounding::same(Radius::MD))
-                        .min_size(Vec2::new(120.0, 36.0)),
+                if ui.add_enabled(
+                    can_import,
+                    egui::Button::new(
+                        RichText::new("Import Cookies")
+                            .size(FontSize::SM)
+                            .color(if can_import { Color32::WHITE } else { Theme::TEXT_MUTED })
                     )
-                    .clicked()
-                {
+                    .fill(if can_import { Theme::ACCENT_PRIMARY } else { Theme::BG_TERTIARY })
+                    .rounding(Rounding::same(Radius::MD))
+                    .min_size(Vec2::new(120.0, 36.0))
+                ).clicked() {
                     // Attempt to import cookies from selected browser
                     if let Some(browser_type) = self.selected_browser {
                         // Find the detected browser matching the selected type
                         let browsers = BrowserDetector::detect_all();
-                        if let Some(browser) =
-                            browsers.iter().find(|b| b.browser_type == browser_type)
-                        {
+                        if let Some(browser) = browsers.iter().find(|b| b.browser_type == browser_type) {
                             match get_cookie_header_from_browser(domain, browser) {
                                 Ok(cookie_header) if !cookie_header.is_empty() => {
                                     // Save the cookie
                                     self.cookies.set(provider_id.cli_name(), &cookie_header);
                                     if let Err(e) = self.cookies.save() {
-                                        self.browser_import_status =
-                                            Some((format!("Failed to save: {}", e), true));
+                                        self.browser_import_status = Some((format!("Failed to save: {}", e), true));
                                     } else {
                                         self.browser_import_status = Some((
-                                            format!(
-                                                "Cookies imported for {}",
-                                                provider_id.display_name()
-                                            ),
-                                            false,
+                                            format!("Cookies imported for {}", provider_id.display_name()),
+                                            false
                                         ));
                                     }
                                 }
                                 Ok(_) => {
                                     self.browser_import_status = Some((
-                                        format!(
-                                            "No cookies found for {} in {}. Make sure you're logged in.",
-                                            domain,
-                                            browser_type.display_name()
-                                        ),
-                                        true,
+                                        format!("No cookies found for {} in {}. Make sure you're logged in.", domain, browser_type.display_name()),
+                                        true
                                     ));
                                 }
                                 Err(e) => {
-                                    self.browser_import_status =
-                                        Some((format!("Import failed: {}", e), true));
+                                    self.browser_import_status = Some((format!("Import failed: {}", e), true));
                                 }
                             }
                         } else {
                             self.browser_import_status = Some((
                                 format!("Browser {} not found", browser_type.display_name()),
-                                true,
+                                true
                             ));
                         }
                     }
@@ -1183,12 +1012,7 @@ impl PreferencesWindow {
 
         settings_card(ui, |ui| {
             let mut show_as_used = self.settings.show_as_used;
-            if setting_toggle(
-                ui,
-                "Show usage as used",
-                "Show usage as percentage used (vs remaining)",
-                &mut show_as_used,
-            ) {
+            if setting_toggle(ui, "Show usage as used", "Show usage as percentage used (vs remaining)", &mut show_as_used) {
                 self.settings.show_as_used = show_as_used;
                 self.settings_changed = true;
             }
@@ -1196,12 +1020,7 @@ impl PreferencesWindow {
             setting_divider(ui);
 
             let mut reset_time_relative = self.settings.reset_time_relative;
-            if setting_toggle(
-                ui,
-                "Relative reset times",
-                "Show '2h 30m' instead of '3:00 PM'",
-                &mut reset_time_relative,
-            ) {
+            if setting_toggle(ui, "Relative reset times", "Show '2h 30m' instead of '3:00 PM'", &mut reset_time_relative) {
                 self.settings.reset_time_relative = reset_time_relative;
                 self.settings_changed = true;
             }
@@ -1209,12 +1028,7 @@ impl PreferencesWindow {
             setting_divider(ui);
 
             let mut show_credits_extra = self.settings.show_credits_extra_usage;
-            if setting_toggle(
-                ui,
-                "Show credits + extra usage",
-                "Display credit balance and extra usage information",
-                &mut show_credits_extra,
-            ) {
+            if setting_toggle(ui, "Show credits + extra usage", "Display credit balance and extra usage information", &mut show_credits_extra) {
                 self.settings.show_credits_extra_usage = show_credits_extra;
                 self.settings_changed = true;
             }
@@ -1226,12 +1040,7 @@ impl PreferencesWindow {
 
         settings_card(ui, |ui| {
             let mut merge_icons = self.settings.merge_tray_icons;
-            if setting_toggle(
-                ui,
-                "Merge tray icons",
-                "Show all providers in a single tray icon",
-                &mut merge_icons,
-            ) {
+            if setting_toggle(ui, "Merge tray icons", "Show all providers in a single tray icon", &mut merge_icons) {
                 self.settings.merge_tray_icons = merge_icons;
                 self.settings_changed = true;
             }
@@ -1239,12 +1048,7 @@ impl PreferencesWindow {
             setting_divider(ui);
 
             let mut per_provider = self.settings.tray_icon_mode == TrayIconMode::PerProvider;
-            if setting_toggle(
-                ui,
-                "Per-provider icons",
-                "Show a separate tray icon for each enabled provider",
-                &mut per_provider,
-            ) {
+            if setting_toggle(ui, "Per-provider icons", "Show a separate tray icon for each enabled provider", &mut per_provider) {
                 self.settings.tray_icon_mode = if per_provider {
                     TrayIconMode::PerProvider
                 } else {
@@ -1253,65 +1057,6 @@ impl PreferencesWindow {
                 self.settings_changed = true;
             }
         });
-
-        if self.settings.merge_tray_icons {
-            ui.add_space(Spacing::SM);
-
-            section_header(ui, "Overview Tab");
-
-            settings_card(ui, |ui| {
-                ui.label(
-                    RichText::new(format!(
-                        "Select up to {} providers for the Overview tab.",
-                        Settings::MAX_OVERVIEW_PROVIDERS
-                    ))
-                    .size(FontSize::SM)
-                    .color(Theme::text_muted()),
-                );
-
-                ui.add_space(Spacing::XS);
-
-                let enabled_ids = self.settings.get_enabled_provider_ids();
-                let current_count = self.settings.overview_providers.len();
-
-                for id in &enabled_ids {
-                    let is_selected = self.settings.is_overview_provider(*id);
-                    let at_limit = current_count >= Settings::MAX_OVERVIEW_PROVIDERS;
-                    let can_toggle = is_selected || !at_limit;
-
-                    let mut checked = is_selected;
-                    let label = id.display_name();
-                    let color = provider_color(id.cli_name());
-
-                    ui.horizontal(|ui| {
-                        ui.add_enabled_ui(can_toggle, |ui| {
-                            if ui.checkbox(&mut checked, "").changed() {
-                                self.settings.toggle_overview_provider(*id);
-                                self.settings_changed = true;
-                            }
-                        });
-                        ui.label(
-                            RichText::new(provider_icon(id.cli_name()))
-                                .size(FontSize::SM)
-                                .color(color),
-                        );
-                        ui.label(
-                            RichText::new(label)
-                                .size(FontSize::SM)
-                                .color(Theme::text_primary()),
-                        );
-                    });
-                }
-
-                if enabled_ids.is_empty() {
-                    ui.label(
-                        RichText::new("No enabled providers.")
-                            .size(FontSize::SM)
-                            .color(Theme::text_muted()),
-                    );
-                }
-            });
-        }
     }
 
     fn show_api_keys_tab(&mut self, ui: &mut egui::Ui) {
@@ -1320,7 +1065,7 @@ impl PreferencesWindow {
         ui.label(
             RichText::new("Configure access tokens for providers that require authentication.")
                 .size(FontSize::SM)
-                .color(Theme::text_muted()),
+                .color(Theme::TEXT_MUTED),
         );
 
         ui.add_space(Spacing::MD);
@@ -1342,22 +1087,19 @@ impl PreferencesWindow {
             let color = provider_color(provider_id);
 
             // Card with left accent bar
-            let accent_color = if has_key {
-                Theme::GREEN
-            } else if is_enabled {
-                Theme::ORANGE
-            } else {
-                Theme::bg_tertiary()
-            };
+            let accent_color = if has_key { Theme::GREEN } else if is_enabled { Theme::ORANGE } else { Theme::BG_TERTIARY };
 
             egui::Frame::none()
-                .fill(Theme::bg_secondary())
+                .fill(Theme::BG_SECONDARY)
                 .rounding(Rounding::same(Radius::MD))
                 .inner_margin(egui::Margin::same(0.0))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         // Left accent bar - reduced height for compact layout
-                        let bar_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(3.0, 48.0));
+                        let bar_rect = Rect::from_min_size(
+                            ui.cursor().min,
+                            Vec2::new(3.0, 48.0),
+                        );
                         ui.painter().rect_filled(
                             bar_rect,
                             Rounding {
@@ -1382,8 +1124,8 @@ impl PreferencesWindow {
                                 ui.label(
                                     RichText::new(provider_info.name)
                                         .size(FontSize::MD)
-                                        .color(Theme::text_primary())
-                                        .strong(),
+                                        .color(Theme::TEXT_PRIMARY)
+                                        .strong()
                                 );
 
                                 ui.add_space(Spacing::XS);
@@ -1400,23 +1142,22 @@ impl PreferencesWindow {
                                             ui.label(
                                                 RichText::new("Needs key")
                                                     .size(FontSize::XS)
-                                                    .color(Color32::BLACK),
+                                                    .color(Color32::BLACK)
                                             );
                                         });
                                 }
 
                                 // Right-aligned: Add Key button for providers without keys
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.add_space(Spacing::XS);
-                                        if !has_key && primary_button(ui, "+ Add Key") {
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.add_space(Spacing::XS);
+                                    if !has_key {
+                                        if primary_button(ui, "+ Add Key") {
                                             self.new_api_key_provider = provider_id.to_string();
                                             self.show_api_key_input = true;
                                             self.new_api_key_value.clear();
                                         }
-                                    },
-                                );
+                                    }
+                                });
                             });
 
                             // Row 2: Single line with env var, masked key, and actions
@@ -1428,61 +1169,46 @@ impl PreferencesWindow {
                                     ui.label(
                                         RichText::new(format!("Env: {}", env_var))
                                             .size(FontSize::XS)
-                                            .color(Theme::text_muted())
-                                            .monospace(),
+                                            .color(Theme::TEXT_MUTED)
+                                            .monospace()
                                     );
                                 }
 
                                 if has_key {
                                     ui.add_space(Spacing::SM);
                                     // Show masked key inline
-                                    if let Some(key_info) = self
-                                        .api_keys
-                                        .get_all_for_display()
+                                    if let Some(key_info) = self.api_keys.get_all_for_display()
                                         .iter()
                                         .find(|k| k.provider_id == provider_id)
                                     {
                                         ui.label(
                                             RichText::new(&key_info.masked_key)
                                                 .size(FontSize::XS)
-                                                .color(Theme::text_muted())
-                                                .monospace(),
+                                                .color(Theme::TEXT_MUTED)
+                                                .monospace()
                                         );
                                     }
 
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            ui.add_space(Spacing::XS);
-                                            if small_button(ui, "Remove", Theme::RED) {
-                                                self.api_keys.remove(provider_id);
-                                                let _ = self.api_keys.save();
-                                                self.api_key_status_msg = Some((
-                                                    format!(
-                                                        "Removed API key for {}",
-                                                        provider_info.name
-                                                    ),
-                                                    false,
-                                                ));
-                                            }
-                                        },
-                                    );
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        ui.add_space(Spacing::XS);
+                                        if small_button(ui, "Remove", Theme::RED) {
+                                            self.api_keys.remove(provider_id);
+                                            let _ = self.api_keys.save();
+                                            self.api_key_status_msg = Some((
+                                                format!("Removed API key for {}", provider_info.name),
+                                                false,
+                                            ));
+                                        }
+                                    });
                                 } else {
-                                    ui.with_layout(
-                                        egui::Layout::right_to_left(egui::Align::Center),
-                                        |ui| {
-                                            ui.add_space(Spacing::XS);
-                                            if let Some(url) = provider_info.dashboard_url {
-                                                if text_button(
-                                                    ui,
-                                                    "Get key →",
-                                                    Theme::ACCENT_PRIMARY,
-                                                ) {
-                                                    let _ = open::that(url);
-                                                }
+                                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                        ui.add_space(Spacing::XS);
+                                        if let Some(url) = provider_info.dashboard_url {
+                                            if text_button(ui, "Get key →", Theme::ACCENT_PRIMARY) {
+                                                let _ = open::that(url);
                                             }
-                                        },
-                                    );
+                                        }
+                                    });
                                 }
                             });
 
@@ -1503,7 +1229,7 @@ impl PreferencesWindow {
                 .unwrap_or(&self.new_api_key_provider);
 
             egui::Frame::none()
-                .fill(Theme::bg_tertiary())
+                .fill(Theme::BG_TERTIARY)
                 .stroke(Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.4)))
                 .rounding(Rounding::same(Radius::LG))
                 .inner_margin(Spacing::LG)
@@ -1511,8 +1237,8 @@ impl PreferencesWindow {
                     ui.label(
                         RichText::new(format!("Enter API Key for {}", provider_name))
                             .size(FontSize::MD)
-                            .color(Theme::text_primary())
-                            .strong(),
+                            .color(Theme::TEXT_PRIMARY)
+                            .strong()
                     );
 
                     ui.add_space(Spacing::SM);
@@ -1528,35 +1254,29 @@ impl PreferencesWindow {
                     ui.horizontal(|ui| {
                         let can_save = !self.new_api_key_value.trim().is_empty();
 
-                        if ui
-                            .add_enabled(
-                                can_save,
-                                egui::Button::new(
-                                    RichText::new("Save")
-                                        .size(FontSize::SM)
-                                        .color(Color32::WHITE),
-                                )
-                                .fill(if can_save {
-                                    Theme::GREEN
-                                } else {
-                                    Theme::bg_tertiary()
-                                })
-                                .rounding(Rounding::same(Radius::SM))
-                                .min_size(Vec2::new(80.0, 32.0)),
+                        if ui.add_enabled(
+                            can_save,
+                            egui::Button::new(
+                                RichText::new("Save")
+                                    .size(FontSize::SM)
+                                    .color(Color32::WHITE)
                             )
-                            .clicked()
-                        {
+                            .fill(if can_save { Theme::GREEN } else { Theme::BG_TERTIARY })
+                            .rounding(Rounding::same(Radius::SM))
+                            .min_size(Vec2::new(80.0, 32.0))
+                        ).clicked() {
                             self.api_keys.set(
                                 &self.new_api_key_provider,
                                 self.new_api_key_value.trim(),
                                 None,
                             );
                             if let Err(e) = self.api_keys.save() {
-                                self.api_key_status_msg =
-                                    Some((format!("Failed to save: {}", e), true));
+                                self.api_key_status_msg = Some((format!("Failed to save: {}", e), true));
                             } else {
-                                self.api_key_status_msg =
-                                    Some((format!("API key saved for {}", provider_name), false));
+                                self.api_key_status_msg = Some((
+                                    format!("API key saved for {}", provider_name),
+                                    false,
+                                ));
                                 self.show_api_key_input = false;
                                 self.new_api_key_value.clear();
                             }
@@ -1564,19 +1284,16 @@ impl PreferencesWindow {
 
                         ui.add_space(Spacing::XS);
 
-                        if ui
-                            .add(
-                                egui::Button::new(
-                                    RichText::new("Cancel")
-                                        .size(FontSize::SM)
-                                        .color(Theme::text_muted()),
-                                )
-                                .fill(Color32::TRANSPARENT)
-                                .stroke(Stroke::new(1.0, Theme::border_subtle()))
-                                .rounding(Rounding::same(Radius::SM)),
+                        if ui.add(
+                            egui::Button::new(
+                                RichText::new("Cancel")
+                                    .size(FontSize::SM)
+                                    .color(Theme::TEXT_MUTED)
                             )
-                            .clicked()
-                        {
+                            .fill(Color32::TRANSPARENT)
+                            .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                            .rounding(Rounding::same(Radius::SM))
+                        ).clicked() {
                             self.show_api_key_input = false;
                             self.new_api_key_value.clear();
                         }
@@ -1589,11 +1306,9 @@ impl PreferencesWindow {
         section_header(ui, "Browser Cookies");
 
         ui.label(
-            RichText::new(
-                "Cookies are automatically extracted from Chrome, Edge, Brave, and Firefox.",
-            )
-            .size(FontSize::SM)
-            .color(Theme::text_muted()),
+            RichText::new("Cookies are automatically extracted from Chrome, Edge, Brave, and Firefox.")
+                .size(FontSize::SM)
+                .color(Theme::TEXT_MUTED),
         );
 
         ui.add_space(Spacing::LG);
@@ -1619,12 +1334,12 @@ impl PreferencesWindow {
                         ui.label(
                             RichText::new(&cookie_info.provider)
                                 .size(FontSize::MD)
-                                .color(Theme::text_primary()),
+                                .color(Theme::TEXT_PRIMARY)
                         );
                         ui.label(
                             RichText::new(format!("· {}", &cookie_info.saved_at))
                                 .size(FontSize::SM)
-                                .color(Theme::text_muted()),
+                                .color(Theme::TEXT_MUTED)
                         );
 
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1642,8 +1357,7 @@ impl PreferencesWindow {
                 if let Some(provider_id) = to_remove {
                     self.cookies.remove(&provider_id);
                     let _ = self.cookies.save();
-                    self.cookie_status_msg =
-                        Some((format!("Removed cookie for {}", provider_id), false));
+                    self.cookie_status_msg = Some((format!("Removed cookie for {}", provider_id), false));
                 }
             });
 
@@ -1656,11 +1370,7 @@ impl PreferencesWindow {
         settings_card(ui, |ui| {
             // Provider selection row
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("Provider")
-                        .size(FontSize::MD)
-                        .color(Theme::text_primary()),
-                );
+                ui.label(RichText::new("Provider").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     egui::ComboBox::from_id_salt("cookie_provider")
                         .selected_text(if self.new_cookie_provider.is_empty() {
@@ -1672,13 +1382,10 @@ impl PreferencesWindow {
                             let web_providers = ["claude", "cursor", "kimi"];
                             for provider_name in web_providers {
                                 if let Some(id) = ProviderId::from_cli_name(provider_name) {
-                                    if ui
-                                        .selectable_label(
-                                            self.new_cookie_provider == provider_name,
-                                            id.display_name(),
-                                        )
-                                        .clicked()
-                                    {
+                                    if ui.selectable_label(
+                                        self.new_cookie_provider == provider_name,
+                                        id.display_name(),
+                                    ).clicked() {
                                         self.new_cookie_provider = provider_name.to_string();
                                     }
                                 }
@@ -1692,17 +1399,13 @@ impl PreferencesWindow {
             ui.add_space(Spacing::SM);
 
             // Cookie header label
-            ui.label(
-                RichText::new("Cookie header")
-                    .size(FontSize::MD)
-                    .color(Theme::text_primary()),
-            );
+            ui.label(RichText::new("Cookie header").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
             ui.add_space(Spacing::SM);
 
             // Styled text input with visible border and rounded corners
             egui::Frame::none()
-                .fill(Theme::input_bg())
-                .stroke(Stroke::new(1.0, Theme::border_subtle()))
+                .fill(Theme::INPUT_BG)
+                .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
                 .rounding(Rounding::same(Radius::SM))
                 .inner_margin(Spacing::SM)
                 .show(ui, |ui| {
@@ -1717,44 +1420,28 @@ impl PreferencesWindow {
             ui.add_space(Spacing::LG);
 
             // Save button - filled primary style with proper sizing
-            let can_save =
-                !self.new_cookie_provider.is_empty() && !self.new_cookie_value.is_empty();
+            let can_save = !self.new_cookie_provider.is_empty() && !self.new_cookie_value.is_empty();
 
-            if ui
-                .add_enabled(
-                    can_save,
-                    egui::Button::new(RichText::new("Save Cookie").size(FontSize::SM).color(
-                        if can_save {
-                            Color32::WHITE
-                        } else {
-                            Theme::text_muted()
-                        },
-                    ))
-                    .fill(if can_save {
-                        Theme::ACCENT_PRIMARY
-                    } else {
-                        Theme::bg_tertiary()
-                    })
-                    .stroke(if can_save {
-                        Stroke::NONE
-                    } else {
-                        Stroke::new(1.0, Theme::border_subtle())
-                    })
-                    .rounding(Rounding::same(Radius::MD))
-                    .min_size(Vec2::new(120.0, 36.0)),
+            if ui.add_enabled(
+                can_save,
+                egui::Button::new(
+                    RichText::new("Save Cookie")
+                        .size(FontSize::SM)
+                        .color(if can_save { Color32::WHITE } else { Theme::TEXT_MUTED })
                 )
-                .clicked()
-            {
-                self.cookies
-                    .set(&self.new_cookie_provider, &self.new_cookie_value);
+                .fill(if can_save { Theme::ACCENT_PRIMARY } else { Theme::BG_TERTIARY })
+                .stroke(if can_save { Stroke::NONE } else { Stroke::new(1.0, Theme::BORDER_SUBTLE) })
+                .rounding(Rounding::same(Radius::MD))
+                .min_size(Vec2::new(120.0, 36.0))
+            ).clicked() {
+                self.cookies.set(&self.new_cookie_provider, &self.new_cookie_value);
                 if let Err(e) = self.cookies.save() {
                     self.cookie_status_msg = Some((format!("Failed to save: {}", e), true));
                 } else {
                     let provider_name = ProviderId::from_cli_name(&self.new_cookie_provider)
                         .map(|id| id.display_name().to_string())
                         .unwrap_or_else(|| self.new_cookie_provider.clone());
-                    self.cookie_status_msg =
-                        Some((format!("Cookie saved for {}", provider_name), false));
+                    self.cookie_status_msg = Some((format!("Cookie saved for {}", provider_name), false));
                     self.new_cookie_provider.clear();
                     self.new_cookie_value.clear();
                 }
@@ -1768,16 +1455,8 @@ impl PreferencesWindow {
         settings_card(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new("Auto-refresh interval")
-                            .size(FontSize::MD)
-                            .color(Theme::text_primary()),
-                    );
-                    ui.label(
-                        RichText::new("How often to fetch usage data")
-                            .size(FontSize::SM)
-                            .color(Theme::text_muted()),
-                    );
+                    ui.label(RichText::new("Auto-refresh interval").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
+                    ui.label(RichText::new("How often to fetch usage data").size(FontSize::SM).color(Theme::TEXT_MUTED));
                 });
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1791,8 +1470,8 @@ impl PreferencesWindow {
                     ];
 
                     egui::Frame::none()
-                        .fill(Theme::bg_tertiary())
-                        .stroke(Stroke::new(1.0, Theme::border_subtle()))
+                        .fill(Theme::BG_TERTIARY)
+                        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
                         .rounding(Rounding::same(Radius::SM))
                         .inner_margin(egui::Margin::symmetric(Spacing::XS, 2.0))
                         .show(ui, |ui| {
@@ -1800,22 +1479,17 @@ impl PreferencesWindow {
                                 .selected_text(
                                     intervals
                                         .iter()
-                                        .find(|(secs, _)| {
-                                            *secs == self.settings.refresh_interval_secs
-                                        })
+                                        .find(|(secs, _)| *secs == self.settings.refresh_interval_secs)
                                         .map(|(_, label)| *label)
                                         .unwrap_or("5 min"),
                                 )
                                 .show_ui(ui, |ui| {
                                     for (secs, label) in intervals {
-                                        if ui
-                                            .selectable_value(
-                                                &mut self.settings.refresh_interval_secs,
-                                                secs,
-                                                label,
-                                            )
-                                            .changed()
-                                        {
+                                        if ui.selectable_value(
+                                            &mut self.settings.refresh_interval_secs,
+                                            secs,
+                                            label,
+                                        ).changed() {
                                             self.settings_changed = true;
                                         }
                                     }
@@ -1831,12 +1505,7 @@ impl PreferencesWindow {
 
         settings_card(ui, |ui| {
             let mut enable_animations = self.settings.enable_animations;
-            if setting_toggle(
-                ui,
-                "Enable animations",
-                "Animate charts and UI transitions",
-                &mut enable_animations,
-            ) {
+            if setting_toggle(ui, "Enable animations", "Animate charts and UI transitions", &mut enable_animations) {
                 self.settings.enable_animations = enable_animations;
                 self.settings_changed = true;
             }
@@ -1849,16 +1518,8 @@ impl PreferencesWindow {
         settings_card(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
-                    ui.label(
-                        RichText::new("Display mode")
-                            .size(FontSize::MD)
-                            .color(Theme::text_primary()),
-                    );
-                    ui.label(
-                        RichText::new("How much detail to show in menu bar")
-                            .size(FontSize::SM)
-                            .color(Theme::text_muted()),
-                    );
+                    ui.label(RichText::new("Display mode").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
+                    ui.label(RichText::new("How much detail to show in menu bar").size(FontSize::SM).color(Theme::TEXT_MUTED));
                 });
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1869,8 +1530,8 @@ impl PreferencesWindow {
                     ];
 
                     egui::Frame::none()
-                        .fill(Theme::bg_tertiary())
-                        .stroke(Stroke::new(1.0, Theme::border_subtle()))
+                        .fill(Theme::BG_TERTIARY)
+                        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
                         .rounding(Rounding::same(Radius::SM))
                         .inner_margin(egui::Margin::symmetric(Spacing::XS, 2.0))
                         .show(ui, |ui| {
@@ -1878,22 +1539,17 @@ impl PreferencesWindow {
                                 .selected_text(
                                     display_modes
                                         .iter()
-                                        .find(|(val, _)| {
-                                            *val == self.settings.menu_bar_display_mode
-                                        })
+                                        .find(|(val, _)| *val == self.settings.menu_bar_display_mode)
                                         .map(|(_, label)| *label)
                                         .unwrap_or("Detailed"),
                                 )
                                 .show_ui(ui, |ui| {
                                     for (value, label) in display_modes {
-                                        if ui
-                                            .selectable_value(
-                                                &mut self.settings.menu_bar_display_mode,
-                                                value.to_string(),
-                                                label,
-                                            )
-                                            .changed()
-                                        {
+                                        if ui.selectable_value(
+                                            &mut self.settings.menu_bar_display_mode,
+                                            value.to_string(),
+                                            label,
+                                        ).changed() {
                                             self.settings_changed = true;
                                         }
                                     }
@@ -1909,12 +1565,7 @@ impl PreferencesWindow {
 
         settings_card(ui, |ui| {
             let mut surprise = self.settings.surprise_animations;
-            if setting_toggle(
-                ui,
-                "Surprise me",
-                "Random animations on tray icon",
-                &mut surprise,
-            ) {
+            if setting_toggle(ui, "Surprise me", "Random animations on tray icon", &mut surprise) {
                 self.settings.surprise_animations = surprise;
                 self.settings_changed = true;
             }
@@ -1932,7 +1583,12 @@ impl PreferencesWindow {
                 .rounding(Rounding::same(16.0))
                 .inner_margin(Spacing::MD)
                 .show(ui, |ui| {
-                    ui.label(RichText::new("C").size(32.0).color(Color32::WHITE).strong());
+                    ui.label(
+                        RichText::new("C")
+                            .size(32.0)
+                            .color(Color32::WHITE)
+                            .strong()
+                    );
                 });
 
             ui.add_space(Spacing::MD);
@@ -1940,14 +1596,14 @@ impl PreferencesWindow {
             ui.label(
                 RichText::new("CodexBar")
                     .size(FontSize::XXL)
-                    .color(Theme::text_primary())
-                    .strong(),
+                    .color(Theme::TEXT_PRIMARY)
+                    .strong()
             );
 
             ui.label(
                 RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
                     .size(FontSize::SM)
-                    .color(Theme::text_muted()),
+                    .color(Theme::TEXT_MUTED)
             );
         });
 
@@ -1957,12 +1613,12 @@ impl PreferencesWindow {
             ui.label(
                 RichText::new("A Windows port of the macOS CodexBar app.")
                     .size(FontSize::MD)
-                    .color(Theme::text_secondary()),
+                    .color(Theme::TEXT_SECONDARY)
             );
             ui.label(
                 RichText::new("Track your AI provider usage from the system tray.")
                     .size(FontSize::MD)
-                    .color(Theme::text_secondary()),
+                    .color(Theme::TEXT_SECONDARY)
             );
         });
 
@@ -1973,7 +1629,7 @@ impl PreferencesWindow {
                 if ui.link("GitHub Repository").clicked() {
                     let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
                 }
-                ui.label(RichText::new("·").color(Theme::text_dim()));
+                ui.label(RichText::new("·").color(Theme::TEXT_DIM));
                 if ui.link("Original macOS Version").clicked() {
                     let _ = open::that("https://github.com/steipete/CodexBar");
                 }
@@ -1983,19 +1639,16 @@ impl PreferencesWindow {
         ui.add_space(Spacing::LG);
 
         ui.vertical_centered(|ui| {
-            if ui
-                .add(
-                    egui::Button::new(
-                        RichText::new("Check for Updates")
-                            .size(FontSize::SM)
-                            .color(Theme::text_primary()),
-                    )
-                    .fill(Theme::bg_secondary())
-                    .stroke(Stroke::new(1.0, Theme::border_subtle()))
-                    .rounding(Rounding::same(Radius::SM)),
+            if ui.add(
+                egui::Button::new(
+                    RichText::new("Check for Updates")
+                        .size(FontSize::SM)
+                        .color(Theme::TEXT_PRIMARY)
                 )
-                .clicked()
-            {
+                .fill(Theme::BG_SECONDARY)
+                .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                .rounding(Rounding::same(Radius::SM))
+            ).clicked() {
                 let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
             }
         });
@@ -2006,17 +1659,14 @@ impl PreferencesWindow {
             ui.label(
                 RichText::new("Built with Rust + egui")
                     .size(FontSize::XS)
-                    .color(Theme::text_dim()),
+                    .color(Theme::TEXT_DIM)
             );
         });
     }
+
 }
 
-fn settings_position_near_main_window(
-    main_rect: Rect,
-    settings_size: Vec2,
-    monitor_size: Rect,
-) -> egui::Pos2 {
+fn settings_position_near_main_window(main_rect: Rect, settings_size: Vec2, monitor_size: Rect) -> egui::Pos2 {
     let margin = 12.0;
     let gap = 12.0;
 
@@ -2058,12 +1708,18 @@ fn settings_position_near_main_window(
     };
 
     let (x, y) = match best_side {
-        "right" => (clamp_x(main_rect.max.x + gap), clamp_y(main_rect.min.y)),
+        "right" => (
+            clamp_x(main_rect.max.x + gap),
+            clamp_y(main_rect.min.y),
+        ),
         "left" => (
             clamp_x(main_rect.min.x - settings_size.x - gap),
             clamp_y(main_rect.min.y),
         ),
-        "bottom" => (clamp_x(main_rect.min.x), clamp_y(main_rect.max.y + gap)),
+        "bottom" => (
+            clamp_x(main_rect.min.x),
+            clamp_y(main_rect.max.y + gap),
+        ),
         _ => (
             clamp_x(main_rect.min.x),
             clamp_y(main_rect.min.y - settings_size.y - gap),
@@ -2095,14 +1751,8 @@ fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
         if ok {
             let pixels_per_point = ctx.pixels_per_point().max(0.1);
             return Some(Rect::from_min_max(
-                egui::pos2(
-                    rect.left as f32 / pixels_per_point,
-                    rect.top as f32 / pixels_per_point,
-                ),
-                egui::pos2(
-                    rect.right as f32 / pixels_per_point,
-                    rect.bottom as f32 / pixels_per_point,
-                ),
+                egui::pos2(rect.left as f32 / pixels_per_point, rect.top as f32 / pixels_per_point),
+                egui::pos2(rect.right as f32 / pixels_per_point, rect.bottom as f32 / pixels_per_point),
             ));
         }
     }
@@ -2149,33 +1799,26 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         // Allocate the entire tab bar as one row
         let (tab_bar_rect, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), tab_height),
-            egui::Sense::hover(),
+            egui::Sense::hover()
         );
 
         for (i, tab) in tabs.iter().enumerate() {
             let is_selected = active_tab == *tab;
 
             let tab_rect = Rect::from_min_size(
-                egui::pos2(
-                    tab_bar_rect.min.x + start_x + i as f32 * tab_width,
-                    tab_bar_rect.min.y,
-                ),
+                egui::pos2(tab_bar_rect.min.x + start_x + i as f32 * tab_width, tab_bar_rect.min.y),
                 Vec2::new(tab_width, tab_height),
             );
 
             // Check for click
-            let response = ui.interact(
-                tab_rect,
-                ui.id().with(format!("tab_{}", i)),
-                egui::Sense::click(),
-            );
+            let response = ui.interact(tab_rect, ui.id().with(format!("tab_{}", i)), egui::Sense::click());
 
             // Background for selected/hovered
             if is_selected {
                 ui.painter().rect_filled(
                     tab_rect.shrink(2.0),
                     Rounding::same(Radius::MD),
-                    Theme::card_bg(),
+                    Theme::CARD_BG,
                 );
             } else if response.hovered() {
                 ui.painter().rect_filled(
@@ -2186,11 +1829,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             }
 
             // Icon (centered, larger)
-            let icon_color = if is_selected {
-                Theme::ACCENT_PRIMARY
-            } else {
-                Theme::text_muted()
-            };
+            let icon_color = if is_selected { Theme::ACCENT_PRIMARY } else { Theme::TEXT_MUTED };
             ui.painter().text(
                 egui::pos2(tab_rect.center().x, tab_rect.min.y + 20.0),
                 egui::Align2::CENTER_CENTER,
@@ -2200,11 +1839,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             );
 
             // Label below icon
-            let label_color = if is_selected {
-                Theme::text_primary()
-            } else {
-                Theme::text_muted()
-            };
+            let label_color = if is_selected { Theme::TEXT_PRIMARY } else { Theme::TEXT_MUTED };
             ui.painter().text(
                 egui::pos2(tab_rect.center().x, tab_rect.min.y + 44.0),
                 egui::Align2::CENTER_CENTER,
@@ -2222,10 +1857,11 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         // Separator line
         ui.add_space(Spacing::SM);
-        let separator_rect =
-            Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
-        ui.painter()
-            .rect_filled(separator_rect, 0.0, Theme::separator());
+        let separator_rect = Rect::from_min_size(
+            ui.cursor().min,
+            Vec2::new(ui.available_width(), 1.0),
+        );
+        ui.painter().rect_filled(separator_rect, 0.0, Theme::SEPARATOR);
         ui.add_space(Spacing::SM);
 
         // ═══════════════════════════════════════════════════════════
@@ -2261,21 +1897,17 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 }
 
 /// Render Providers tab with macOS-style sidebar + detail layout
-fn render_providers_tab_macos(
-    ui: &mut egui::Ui,
-    available_height: f32,
-    shared_state: &Arc<Mutex<PreferencesSharedState>>,
-) {
+fn render_providers_tab_macos(ui: &mut egui::Ui, available_height: f32, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
     // macOS metrics
-    let sidebar_width = 240.0; // ProviderSettingsMetrics.sidebarWidth
-    let sidebar_corner_radius = 12.0; // sidebarCornerRadius
-    let icon_size = 18.0; // iconSize
+    let sidebar_width = 240.0;  // ProviderSettingsMetrics.sidebarWidth
+    let sidebar_corner_radius = 12.0;  // sidebarCornerRadius
+    let icon_size = 18.0;  // iconSize
     let total_width = ui.available_width();
-    let detail_width = (total_width - sidebar_width - Spacing::LG).min(640.0); // detailMaxWidth
+    let detail_width = (total_width - sidebar_width - Spacing::LG).min(640.0);  // detailMaxWidth
 
     // Get selected provider
     let selected_provider = if let Ok(state) = shared_state.lock() {
-        state.selected_provider
+        state.selected_provider.clone()
     } else {
         None
     };
@@ -2292,9 +1924,9 @@ fn render_providers_tab_macos(
         egui::Layout::top_down(egui::Align::LEFT),
         |ui| {
             egui::Frame::none()
-                .fill(Theme::bg_secondary())
+                .fill(Theme::BG_SECONDARY)
                 .rounding(Rounding::same(sidebar_corner_radius))
-                .stroke(Stroke::new(1.0, Theme::separator()))
+                .stroke(Stroke::new(1.0, Theme::SEPARATOR))
                 .inner_margin(Spacing::SM)
                 .show(ui, |ui| {
                     egui::ScrollArea::vertical()
@@ -2305,16 +1937,11 @@ fn render_providers_tab_macos(
                             for provider_id in providers {
                                 let is_selected = *provider_id == selected;
                                 let is_enabled = if let Ok(state) = shared_state.lock() {
-                                    state
-                                        .settings
-                                        .enabled_providers
-                                        .contains(provider_id.cli_name())
-                                } else {
-                                    true
-                                };
+                                    state.settings.enabled_providers.contains(provider_id.cli_name())
+                                } else { true };
 
                                 let brand_color = provider_color(provider_id.cli_name());
-                                let row_height = 44.0; // Compact rows
+                                let row_height = 44.0;  // Compact rows
                                 let row_width = sidebar_width - Spacing::SM * 4.0;
 
                                 // Row with vertical padding of 2px
@@ -2322,7 +1949,7 @@ fn render_providers_tab_macos(
 
                                 let (rect, response) = ui.allocate_exact_size(
                                     Vec2::new(row_width, row_height),
-                                    egui::Sense::click(),
+                                    egui::Sense::click()
                                 );
 
                                 // Selection/hover background - use gray like macOS
@@ -2353,7 +1980,7 @@ fn render_providers_tab_macos(
                                         ui.painter().circle_filled(
                                             egui::pos2(x, y),
                                             1.0,
-                                            Theme::text_muted(),
+                                            Theme::TEXT_MUTED,
                                         );
                                     }
                                 }
@@ -2368,19 +1995,12 @@ fn render_providers_tab_macos(
                                 // Try to get SVG icon from cache
                                 let has_svg_icon = VIEWPORT_ICON_CACHE.with(|cache| {
                                     let mut cache = cache.borrow_mut();
-                                    if let Some(texture) = cache.get_icon(
-                                        ui.ctx(),
-                                        provider_id.cli_name(),
-                                        icon_size as u32,
-                                    ) {
+                                    if let Some(texture) = cache.get_icon(ui.ctx(), provider_id.cli_name(), icon_size as u32) {
                                         // Paint the texture
                                         ui.painter().image(
                                             texture.id(),
                                             icon_rect,
-                                            Rect::from_min_max(
-                                                egui::pos2(0.0, 0.0),
-                                                egui::pos2(1.0, 1.0),
-                                            ),
+                                            Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
                                             Color32::WHITE,
                                         );
                                         true
@@ -2408,12 +2028,12 @@ fn render_providers_tab_macos(
                                 let name_galley = ui.painter().layout_no_wrap(
                                     name_text.to_string(),
                                     egui::FontId::proportional(14.0),
-                                    Theme::text_primary(),
+                                    Theme::TEXT_PRIMARY,
                                 );
                                 ui.painter().galley(
                                     egui::pos2(text_x, rect.center().y - 10.0),
                                     name_galley,
-                                    Theme::text_primary(),
+                                    Theme::TEXT_PRIMARY,
                                 );
 
                                 // Status dot (small, after name) - only shown for enabled
@@ -2433,7 +2053,7 @@ fn render_providers_tab_macos(
                                     egui::Align2::LEFT_CENTER,
                                     provider_id.cli_name(),
                                     egui::FontId::proportional(11.0),
-                                    Theme::text_secondary(),
+                                    Theme::TEXT_SECONDARY,
                                 );
 
                                 // Toggle checkbox on right - use small checkbox style like macOS
@@ -2448,14 +2068,7 @@ fn render_providers_tab_macos(
                                 ui.painter().rect_stroke(
                                     checkbox_rect,
                                     Rounding::same(3.0),
-                                    Stroke::new(
-                                        1.0,
-                                        if is_enabled {
-                                            Theme::ACCENT_PRIMARY
-                                        } else {
-                                            Theme::text_muted()
-                                        },
-                                    ),
+                                    Stroke::new(1.0, if is_enabled { Theme::ACCENT_PRIMARY } else { Theme::TEXT_MUTED }),
                                 );
 
                                 // Fill and checkmark if enabled
@@ -2485,15 +2098,12 @@ fn render_providers_tab_macos(
                             }
                         });
                 });
-        },
+        }
     );
 
     // Move cursor to the right of sidebar
     let detail_rect = egui::Rect::from_min_size(
-        egui::pos2(
-            sidebar_rect.min.x + sidebar_width + Spacing::MD,
-            sidebar_rect.min.y,
-        ),
+        egui::pos2(sidebar_rect.min.x + sidebar_width + Spacing::MD, sidebar_rect.min.y),
         Vec2::new(detail_width, available_height),
     );
 
@@ -2510,28 +2120,16 @@ fn render_providers_tab_macos(
 }
 
 /// Render the provider detail panel (right side)
-fn render_provider_detail_panel(
-    ui: &mut egui::Ui,
-    provider_id: ProviderId,
-    shared_state: &Arc<Mutex<PreferencesSharedState>>,
-) {
+fn render_provider_detail_panel(ui: &mut egui::Ui, provider_id: ProviderId, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
     let brand_color = provider_color(provider_id.cli_name());
 
     let is_enabled = if let Ok(state) = shared_state.lock() {
-        state
-            .settings
-            .enabled_providers
-            .contains(provider_id.cli_name())
-    } else {
-        true
-    };
+        state.settings.enabled_providers.contains(provider_id.cli_name())
+    } else { true };
 
     // Use cached snapshot data for this provider (loaded once, not every frame)
     let entry = if let Ok(state) = shared_state.lock() {
-        state
-            .cached_snapshot
-            .as_ref()
-            .and_then(|s| s.entry_for(provider_id).cloned())
+        state.cached_snapshot.as_ref().and_then(|s| s.entry_for(provider_id).cloned())
     } else {
         None
     };
@@ -2555,9 +2153,7 @@ fn render_provider_detail_panel(
         let icon_size = 28.0;
         let has_svg = VIEWPORT_ICON_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
-            if let Some(texture) =
-                cache.get_icon(ui.ctx(), provider_id.cli_name(), icon_size as u32)
-            {
+            if let Some(texture) = cache.get_icon(ui.ctx(), provider_id.cli_name(), icon_size as u32) {
                 ui.add(egui::Image::new(texture).fit_to_exact_size(Vec2::splat(icon_size)));
                 true
             } else {
@@ -2569,7 +2165,7 @@ fn render_provider_detail_panel(
             ui.label(
                 RichText::new(provider_icon(provider_id.cli_name()))
                     .size(icon_size)
-                    .color(brand_color),
+                    .color(brand_color)
             );
         }
 
@@ -2579,8 +2175,8 @@ fn render_provider_detail_panel(
             ui.label(
                 RichText::new(provider_id.display_name())
                     .size(FontSize::LG)
-                    .color(Theme::text_primary())
-                    .strong(),
+                    .color(Theme::TEXT_PRIMARY)
+                    .strong()
             );
             let updated_str = if let Some(ts) = updated_at {
                 let now = chrono::Utc::now();
@@ -2600,18 +2196,14 @@ fn render_provider_detail_panel(
             ui.label(
                 RichText::new(format!("{} • {}", provider_id.cli_name(), updated_str))
                     .size(FontSize::SM)
-                    .color(Theme::text_muted()),
+                    .color(Theme::TEXT_MUTED)
             );
         });
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             // Toggle switch
             let mut enabled = is_enabled;
-            if switch_toggle(
-                ui,
-                egui::Id::new(format!("detail_toggle_{}", provider_id.cli_name())),
-                &mut enabled,
-            ) {
+            if switch_toggle(ui, egui::Id::new(format!("detail_toggle_{}", provider_id.cli_name())), &mut enabled) {
                 if let Ok(mut state) = shared_state.lock() {
                     let name = provider_id.cli_name().to_string();
                     if enabled {
@@ -2626,20 +2218,13 @@ fn render_provider_detail_panel(
             ui.add_space(16.0);
 
             // Refresh button
-            if ui
-                .add(
-                    egui::Button::new(
-                        RichText::new("↻")
-                            .size(FontSize::MD)
-                            .color(Theme::text_secondary()),
-                    )
+            if ui.add(
+                egui::Button::new(RichText::new("↻").size(FontSize::MD).color(Theme::TEXT_SECONDARY))
                     .fill(Color32::TRANSPARENT)
-                    .stroke(Stroke::new(1.0, Theme::card_border()))
+                    .stroke(Stroke::new(1.0, Theme::CARD_BORDER))
                     .rounding(Rounding::same(Radius::SM))
-                    .min_size(Vec2::new(32.0, 32.0)),
-                )
-                .clicked()
-            {
+                    .min_size(Vec2::new(32.0, 32.0))
+            ).clicked() {
                 if let Ok(mut state) = shared_state.lock() {
                     state.refresh_requested = true;
                 }
@@ -2669,19 +2254,13 @@ fn render_provider_detail_panel(
     };
     let hide_personal_info = if let Ok(state) = shared_state.lock() {
         state.settings.hide_personal_info
-    } else {
-        false
-    };
+    } else { false };
     let account_display = if account_email.is_some() {
         PersonalInfoRedactor::redact_email(account_email.as_deref(), hide_personal_info)
     } else {
         "Not logged in".to_string()
     };
-    let account_display = if account_display.is_empty() {
-        "Not logged in".to_string()
-    } else {
-        account_display
-    };
+    let account_display = if account_display.is_empty() { "Not logged in".to_string() } else { account_display };
     let plan_display = login_method.as_deref().unwrap_or("Unknown");
 
     egui::Grid::new("provider_info_grid")
@@ -2705,8 +2284,8 @@ fn render_provider_detail_panel(
     ui.label(
         RichText::new("Usage")
             .size(FontSize::MD)
-            .color(Theme::text_primary())
-            .strong(),
+            .color(Theme::TEXT_PRIMARY)
+            .strong()
     );
     ui.add_space(Spacing::SM);
 
@@ -2719,17 +2298,9 @@ fn render_provider_detail_panel(
             if diff.num_seconds() <= 0 {
                 return Some("Resetting...".to_string());
             } else if diff.num_hours() >= 24 {
-                return Some(format!(
-                    "Resets in {}d {}h",
-                    diff.num_days(),
-                    diff.num_hours() % 24
-                ));
+                return Some(format!("Resets in {}d {}h", diff.num_days(), diff.num_hours() % 24));
             } else {
-                return Some(format!(
-                    "Resets in {}h {}m",
-                    diff.num_hours(),
-                    diff.num_minutes() % 60
-                ));
+                return Some(format!("Resets in {}h {}m", diff.num_hours(), diff.num_minutes() % 60));
             }
         }
         // Fall back to reset_description if available (for CLI/web sources without parsed timestamp)
@@ -2738,22 +2309,13 @@ fn render_provider_detail_panel(
 
     let show_as_used = if let Ok(state) = shared_state.lock() {
         state.settings.show_as_used
-    } else {
-        true
-    };
+    } else { true };
 
     // Session usage bar (primary rate)
     if let Some(ref rate) = primary_rate {
         let (percent, label) = usage_display(rate.used_percent, show_as_used);
         let reset_str = format_reset(rate);
-        usage_bar_row(
-            ui,
-            "Session",
-            percent as f32,
-            &label,
-            reset_str.as_deref(),
-            brand_color,
-        );
+        usage_bar_row(ui, "Session", percent as f32, &label, reset_str.as_deref(), brand_color);
         ui.add_space(8.0);
     }
 
@@ -2761,14 +2323,7 @@ fn render_provider_detail_panel(
     if let Some(ref rate) = secondary_rate {
         let (percent, label) = usage_display(rate.used_percent, show_as_used);
         let reset_str = format_reset(rate);
-        usage_bar_row(
-            ui,
-            "Weekly",
-            percent as f32,
-            &label,
-            reset_str.as_deref(),
-            brand_color,
-        );
+        usage_bar_row(ui, "Weekly", percent as f32, &label, reset_str.as_deref(), brand_color);
         ui.add_space(8.0);
     }
 
@@ -2776,14 +2331,7 @@ fn render_provider_detail_panel(
     if let Some(ref rate) = tertiary_rate {
         let (percent, label) = usage_display(rate.used_percent, show_as_used);
         let reset_str = rate.reset_description.as_deref();
-        usage_bar_row(
-            ui,
-            "Code review",
-            percent as f32,
-            &label,
-            reset_str,
-            brand_color,
-        );
+        usage_bar_row(ui, "Code review", percent as f32, &label, reset_str, brand_color);
         ui.add_space(8.0);
     }
 
@@ -2805,17 +2353,13 @@ fn render_provider_detail_panel(
     ui.label(
         RichText::new("Tray Display")
             .size(FontSize::MD)
-            .color(Theme::text_primary())
-            .strong(),
+            .color(Theme::TEXT_PRIMARY)
+            .strong()
     );
     ui.add_space(Spacing::SM);
 
     ui.horizontal(|ui| {
-        ui.label(
-            RichText::new("Show in tray")
-                .size(FontSize::SM)
-                .color(Theme::text_secondary()),
-        );
+        ui.label(RichText::new("Show in tray").size(FontSize::SM).color(Theme::TEXT_SECONDARY));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let current_metric = if let Ok(state) = shared_state.lock() {
                 state.settings.get_provider_metric(provider_id)
@@ -2824,8 +2368,8 @@ fn render_provider_detail_panel(
             };
 
             egui::Frame::none()
-                .fill(Theme::bg_tertiary())
-                .stroke(Stroke::new(1.0, Theme::border_subtle()))
+                .fill(Theme::BG_TERTIARY)
+                .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
                 .rounding(Rounding::same(Radius::SM))
                 .inner_margin(egui::Margin::symmetric(Spacing::XS, 2.0))
                 .show(ui, |ui| {
@@ -2836,10 +2380,7 @@ fn render_provider_detail_panel(
                         .selected_text(selected.display_name())
                         .show_ui(ui, |ui| {
                             for metric in metrics {
-                                if ui
-                                    .selectable_value(&mut selected, *metric, metric.display_name())
-                                    .changed()
-                                {
+                                if ui.selectable_value(&mut selected, *metric, metric.display_name()).changed() {
                                     if let Ok(mut state) = shared_state.lock() {
                                         state.settings.set_provider_metric(provider_id, selected);
                                         state.settings_changed = true;
@@ -2861,13 +2402,13 @@ fn render_provider_detail_panel(
             ui.label(
                 RichText::new("Credits")
                     .size(FontSize::SM)
-                    .color(Theme::text_secondary()),
+                    .color(Theme::TEXT_SECONDARY)
             );
             ui.add_space(16.0);
             ui.label(
                 RichText::new(format!("{:.1} left", credits))
                     .size(FontSize::SM)
-                    .color(Theme::text_primary()),
+                    .color(Theme::TEXT_PRIMARY)
             );
         });
         ui.add_space(Spacing::SM);
@@ -2876,41 +2417,34 @@ fn render_provider_detail_panel(
     // ═══════════════════════════════════════════════════════════
     // COST SECTION
     // ═══════════════════════════════════════════════════════════
-    let (today_cost, today_tokens, monthly_cost, monthly_tokens) =
-        if let Some(ref usage) = token_usage {
-            (
-                usage.session_cost_usd.unwrap_or(0.0),
-                usage.session_tokens.unwrap_or(0),
-                usage.last_30_days_cost_usd.unwrap_or(0.0),
-                usage.last_30_days_tokens.unwrap_or(0),
-            )
-        } else {
-            (0.0, 0, 0.0, 0)
-        };
+    let (today_cost, today_tokens, monthly_cost, monthly_tokens) = if let Some(ref usage) = token_usage {
+        (
+            usage.session_cost_usd.unwrap_or(0.0),
+            usage.session_tokens.unwrap_or(0),
+            usage.last_30_days_cost_usd.unwrap_or(0.0),
+            usage.last_30_days_tokens.unwrap_or(0),
+        )
+    } else {
+        (0.0, 0, 0.0, 0)
+    };
 
     ui.horizontal(|ui| {
         ui.label(
             RichText::new("Cost")
                 .size(FontSize::SM)
-                .color(Theme::text_secondary()),
+                .color(Theme::TEXT_SECONDARY)
         );
         ui.add_space(32.0);
         ui.vertical(|ui| {
             ui.label(
-                RichText::new(format!(
-                    "Today: ${:.2} • {} tokens",
-                    today_cost, today_tokens
-                ))
-                .size(FontSize::SM)
-                .color(Theme::text_primary()),
+                RichText::new(format!("Today: ${:.2} • {} tokens", today_cost, today_tokens))
+                    .size(FontSize::SM)
+                    .color(Theme::TEXT_PRIMARY)
             );
             ui.label(
-                RichText::new(format!(
-                    "Last 30 days: ${:.2} • {} tokens",
-                    monthly_cost, monthly_tokens
-                ))
-                .size(FontSize::SM)
-                .color(Theme::text_muted()),
+                RichText::new(format!("Last 30 days: ${:.2} • {} tokens", monthly_cost, monthly_tokens))
+                    .size(FontSize::SM)
+                    .color(Theme::TEXT_MUTED)
             );
         });
     });
@@ -2923,8 +2457,8 @@ fn render_provider_detail_panel(
     ui.label(
         RichText::new("Settings")
             .size(FontSize::MD)
-            .color(Theme::text_primary())
-            .strong(),
+            .color(Theme::TEXT_PRIMARY)
+            .strong()
     );
     ui.add_space(Spacing::SM);
 
@@ -2933,7 +2467,7 @@ fn render_provider_detail_panel(
         ui.label(
             RichText::new("Menu bar metric")
                 .size(FontSize::SM)
-                .color(Theme::text_secondary()),
+                .color(Theme::TEXT_SECONDARY)
         );
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -2952,7 +2486,7 @@ fn render_provider_detail_panel(
     ui.label(
         RichText::new("Choose which window drives the menu bar percent.")
             .size(FontSize::XS)
-            .color(Theme::text_muted()),
+            .color(Theme::TEXT_MUTED)
     );
 
     ui.add_space(Spacing::MD);
@@ -2962,14 +2496,14 @@ fn render_provider_detail_panel(
         ui.label(
             RichText::new("Usage source")
                 .size(FontSize::SM)
-                .color(Theme::text_secondary()),
+                .color(Theme::TEXT_SECONDARY)
         );
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.label(
                 RichText::new("oauth + web")
                     .size(FontSize::XS)
-                    .color(Theme::text_muted()),
+                    .color(Theme::TEXT_MUTED)
             );
             ui.add_space(8.0);
             egui::ComboBox::from_id_salt(format!("source_{}", provider_id.cli_name()))
@@ -2987,7 +2521,7 @@ fn render_provider_detail_panel(
     ui.label(
         RichText::new("Auto falls back to the next source if the preferred one fails.")
             .size(FontSize::XS)
-            .color(Theme::text_muted()),
+            .color(Theme::TEXT_MUTED)
     );
 
     // ═══════════════════════════════════════════════════════════
@@ -3004,47 +2538,37 @@ fn info_row(ui: &mut egui::Ui, label: &str, value: &str) {
     ui.label(
         RichText::new(label)
             .size(FontSize::SM)
-            .color(Theme::text_secondary()),
+            .color(Theme::TEXT_SECONDARY)
     );
     ui.label(
         RichText::new(value)
             .size(FontSize::SM)
-            .color(Theme::text_primary()),
+            .color(Theme::TEXT_PRIMARY)
     );
     ui.end_row();
 }
 
 /// Helper: Usage bar row with label, percentage, info text
-fn usage_bar_row(
-    ui: &mut egui::Ui,
-    label: &str,
-    percent: f32,
-    info: &str,
-    reset: Option<&str>,
-    color: Color32,
-) {
+fn usage_bar_row(ui: &mut egui::Ui, label: &str, percent: f32, info: &str, reset: Option<&str>, color: Color32) {
     ui.horizontal(|ui| {
         ui.label(
             RichText::new(label)
                 .size(FontSize::SM)
-                .color(Theme::text_secondary()),
+                .color(Theme::TEXT_SECONDARY)
         );
         ui.add_space(8.0);
 
         // Progress bar
         let bar_width = 200.0;
         let bar_height = 8.0;
-        let (rect, _) =
-            ui.allocate_exact_size(Vec2::new(bar_width, bar_height), egui::Sense::hover());
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(bar_width, bar_height), egui::Sense::hover());
 
-        ui.painter()
-            .rect_filled(rect, Rounding::same(4.0), Theme::progress_track());
+        ui.painter().rect_filled(rect, Rounding::same(4.0), Theme::progress_track());
 
         let fill_width = rect.width() * (percent / 100.0).clamp(0.0, 1.0);
         if fill_width > 0.0 {
             let fill_rect = Rect::from_min_size(rect.min, Vec2::new(fill_width, bar_height));
-            ui.painter()
-                .rect_filled(fill_rect, Rounding::same(4.0), color);
+            ui.painter().rect_filled(fill_rect, Rounding::same(4.0), color);
         }
 
         ui.add_space(8.0);
@@ -3052,7 +2576,7 @@ fn usage_bar_row(
         ui.label(
             RichText::new(info)
                 .size(FontSize::XS)
-                .color(Theme::text_muted()),
+                .color(Theme::TEXT_MUTED)
         );
 
         if let Some(reset_text) = reset {
@@ -3060,7 +2584,7 @@ fn usage_bar_row(
                 ui.label(
                     RichText::new(reset_text)
                         .size(FontSize::XS)
-                        .color(Theme::text_muted()),
+                        .color(Theme::TEXT_MUTED)
                 );
             });
         }
@@ -3085,11 +2609,7 @@ fn usage_display(used_percent: f64, show_as_used: bool) -> (f64, String) {
 }
 
 /// Render Accounts section for token account switching
-fn render_accounts_section(
-    ui: &mut egui::Ui,
-    provider_id: ProviderId,
-    shared_state: &Arc<Mutex<PreferencesSharedState>>,
-) {
+fn render_accounts_section(ui: &mut egui::Ui, provider_id: ProviderId, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
     let support = match TokenAccountSupport::for_provider(provider_id) {
         Some(s) => s,
         None => return,
@@ -3098,29 +2618,21 @@ fn render_accounts_section(
     ui.label(
         RichText::new(support.title)
             .size(FontSize::MD)
-            .color(Theme::text_primary())
-            .strong(),
+            .color(Theme::TEXT_PRIMARY)
+            .strong()
     );
     ui.add_space(4.0);
     ui.label(
         RichText::new(support.subtitle)
             .size(FontSize::XS)
-            .color(Theme::text_muted()),
+            .color(Theme::TEXT_MUTED)
     );
     ui.add_space(Spacing::SM);
 
     // Get current accounts for this provider
     let (accounts_data, show_add, status_msg) = if let Ok(state) = shared_state.lock() {
-        let data = state
-            .token_accounts
-            .get(&provider_id)
-            .cloned()
-            .unwrap_or_default();
-        (
-            data,
-            state.show_add_account_input,
-            state.token_account_status_msg.clone(),
-        )
+        let data = state.token_accounts.get(&provider_id).cloned().unwrap_or_default();
+        (data, state.show_add_account_input, state.token_account_status_msg.clone())
     } else {
         (ProviderAccountData::default(), false, None)
     };
@@ -3150,11 +2662,9 @@ fn render_accounts_section(
                         // Save to disk
                         let store = TokenAccountStore::new();
                         if let Err(e) = store.save(&state.token_accounts) {
-                            state.token_account_status_msg =
-                                Some((format!("Failed to save: {}", e), true));
+                            state.token_account_status_msg = Some((format!("Failed to save: {}", e), true));
                         } else {
-                            state.token_account_status_msg =
-                                Some(("Account switched".to_string(), false));
+                            state.token_account_status_msg = Some(("Account switched".to_string(), false));
                         }
                     }
                 }
@@ -3165,11 +2675,7 @@ fn render_accounts_section(
                 ui.label(
                     RichText::new(account.display_name())
                         .size(FontSize::SM)
-                        .color(if is_active {
-                            Theme::text_primary()
-                        } else {
-                            Theme::text_secondary()
-                        }),
+                        .color(if is_active { Theme::TEXT_PRIMARY } else { Theme::TEXT_SECONDARY })
                 );
 
                 // Truncated token preview
@@ -3181,8 +2687,8 @@ fn render_accounts_section(
                 ui.label(
                     RichText::new(token_preview)
                         .size(FontSize::XS)
-                        .color(Theme::text_muted())
-                        .monospace(),
+                        .color(Theme::TEXT_MUTED)
+                        .monospace()
                 );
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -3196,11 +2702,9 @@ fn render_accounts_section(
                             // Save to disk
                             let store = TokenAccountStore::new();
                             if let Err(e) = store.save(&state.token_accounts) {
-                                state.token_account_status_msg =
-                                    Some((format!("Failed to save: {}", e), true));
+                                state.token_account_status_msg = Some((format!("Failed to save: {}", e), true));
                             } else {
-                                state.token_account_status_msg =
-                                    Some(("Account removed".to_string(), false));
+                                state.token_account_status_msg = Some(("Account removed".to_string(), false));
                             }
                         }
                     }
@@ -3217,7 +2721,7 @@ fn render_accounts_section(
     if show_add {
         // Input form for adding new account
         egui::Frame::none()
-            .fill(Theme::bg_tertiary())
+            .fill(Theme::BG_TERTIARY)
             .stroke(Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.4)))
             .rounding(Rounding::same(Radius::MD))
             .inner_margin(Spacing::MD)
@@ -3225,23 +2729,17 @@ fn render_accounts_section(
                 ui.label(
                     RichText::new("Add Account")
                         .size(FontSize::MD)
-                        .color(Theme::text_primary())
-                        .strong(),
+                        .color(Theme::TEXT_PRIMARY)
+                        .strong()
                 );
 
                 ui.add_space(Spacing::SM);
 
                 // Label input
-                ui.label(
-                    RichText::new("Label")
-                        .size(FontSize::SM)
-                        .color(Theme::text_secondary()),
-                );
+                ui.label(RichText::new("Label").size(FontSize::SM).color(Theme::TEXT_SECONDARY));
                 let mut label = if let Ok(state) = shared_state.lock() {
                     state.new_account_label.clone()
-                } else {
-                    String::new()
-                };
+                } else { String::new() };
                 let label_edit = egui::TextEdit::singleline(&mut label)
                     .desired_width(ui.available_width())
                     .hint_text("e.g., Work Account, Personal...");
@@ -3254,16 +2752,10 @@ fn render_accounts_section(
                 ui.add_space(Spacing::SM);
 
                 // Token input
-                ui.label(
-                    RichText::new("Token")
-                        .size(FontSize::SM)
-                        .color(Theme::text_secondary()),
-                );
+                ui.label(RichText::new("Token").size(FontSize::SM).color(Theme::TEXT_SECONDARY));
                 let mut token = if let Ok(state) = shared_state.lock() {
                     state.new_account_token.clone()
-                } else {
-                    String::new()
-                };
+                } else { String::new() };
                 let token_edit = egui::TextEdit::singleline(&mut token)
                     .password(true)
                     .desired_width(ui.available_width())
@@ -3280,33 +2772,22 @@ fn render_accounts_section(
                     let (can_save, label_val, token_val) = if let Ok(state) = shared_state.lock() {
                         let can = !state.new_account_label.trim().is_empty()
                             && !state.new_account_token.trim().is_empty();
-                        (
-                            can,
-                            state.new_account_label.clone(),
-                            state.new_account_token.clone(),
-                        )
+                        (can, state.new_account_label.clone(), state.new_account_token.clone())
                     } else {
                         (false, String::new(), String::new())
                     };
 
-                    if ui
-                        .add_enabled(
-                            can_save,
-                            egui::Button::new(
-                                RichText::new("Save")
-                                    .size(FontSize::SM)
-                                    .color(Color32::WHITE),
-                            )
-                            .fill(if can_save {
-                                Theme::GREEN
-                            } else {
-                                Theme::bg_tertiary()
-                            })
-                            .rounding(Rounding::same(Radius::SM))
-                            .min_size(Vec2::new(80.0, 32.0)),
+                    if ui.add_enabled(
+                        can_save,
+                        egui::Button::new(
+                            RichText::new("Save")
+                                .size(FontSize::SM)
+                                .color(Color32::WHITE)
                         )
-                        .clicked()
-                    {
+                        .fill(if can_save { Theme::GREEN } else { Theme::BG_TERTIARY })
+                        .rounding(Rounding::same(Radius::SM))
+                        .min_size(Vec2::new(80.0, 32.0))
+                    ).clicked() {
                         if let Ok(mut state) = shared_state.lock() {
                             // Create new account
                             let account = TokenAccount::new(label_val.trim(), token_val.trim());
@@ -3318,11 +2799,9 @@ fn render_accounts_section(
                             // Save to disk
                             let store = TokenAccountStore::new();
                             if let Err(e) = store.save(&state.token_accounts) {
-                                state.token_account_status_msg =
-                                    Some((format!("Failed to save: {}", e), true));
+                                state.token_account_status_msg = Some((format!("Failed to save: {}", e), true));
                             } else {
-                                state.token_account_status_msg =
-                                    Some(("Account added".to_string(), false));
+                                state.token_account_status_msg = Some(("Account added".to_string(), false));
                                 state.new_account_label.clear();
                                 state.new_account_token.clear();
                                 state.show_add_account_input = false;
@@ -3332,19 +2811,16 @@ fn render_accounts_section(
 
                     ui.add_space(Spacing::XS);
 
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new("Cancel")
-                                    .size(FontSize::SM)
-                                    .color(Theme::text_muted()),
-                            )
-                            .fill(Color32::TRANSPARENT)
-                            .stroke(Stroke::new(1.0, Theme::border_subtle()))
-                            .rounding(Rounding::same(Radius::SM)),
+                    if ui.add(
+                        egui::Button::new(
+                            RichText::new("Cancel")
+                                .size(FontSize::SM)
+                                .color(Theme::TEXT_MUTED)
                         )
-                        .clicked()
-                    {
+                        .fill(Color32::TRANSPARENT)
+                        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                        .rounding(Rounding::same(Radius::SM))
+                    ).clicked() {
                         if let Ok(mut state) = shared_state.lock() {
                             state.show_add_account_input = false;
                             state.new_account_label.clear();
@@ -3373,16 +2849,9 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
     settings_card(ui, |ui| {
         let mut start_at_login = if let Ok(state) = shared_state.lock() {
             state.settings.start_at_login
-        } else {
-            false
-        };
+        } else { false };
 
-        if setting_toggle(
-            ui,
-            "Start at login",
-            "Launch CodexBar when you log in",
-            &mut start_at_login,
-        ) {
+        if setting_toggle(ui, "Start at login", "Launch CodexBar when you log in", &mut start_at_login) {
             if let Ok(mut state) = shared_state.lock() {
                 if let Err(e) = state.settings.set_start_at_login(start_at_login) {
                     tracing::error!("Failed to set start at login: {}", e);
@@ -3396,16 +2865,9 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         let mut start_minimized = if let Ok(state) = shared_state.lock() {
             state.settings.start_minimized
-        } else {
-            false
-        };
+        } else { false };
 
-        if setting_toggle(
-            ui,
-            "Start minimized",
-            "Start in the system tray",
-            &mut start_minimized,
-        ) {
+        if setting_toggle(ui, "Start minimized", "Start in the system tray", &mut start_minimized) {
             if let Ok(mut state) = shared_state.lock() {
                 state.settings.start_minimized = start_minimized;
                 state.settings_changed = true;
@@ -3420,16 +2882,9 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
     settings_card(ui, |ui| {
         let mut show_notifications = if let Ok(state) = shared_state.lock() {
             state.settings.show_notifications
-        } else {
-            true
-        };
+        } else { true };
 
-        if setting_toggle(
-            ui,
-            "Show notifications",
-            "Alert when usage thresholds are reached",
-            &mut show_notifications,
-        ) {
+        if setting_toggle(ui, "Show notifications", "Alert when usage thresholds are reached", &mut show_notifications) {
             if let Ok(mut state) = shared_state.lock() {
                 state.settings.show_notifications = show_notifications;
                 state.settings_changed = true;
@@ -3441,16 +2896,9 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         // Sound effects toggle
         let mut sound_enabled = if let Ok(state) = shared_state.lock() {
             state.settings.sound_enabled
-        } else {
-            true
-        };
+        } else { true };
 
-        if setting_toggle(
-            ui,
-            "Sound effects",
-            "Play sound when thresholds are reached",
-            &mut sound_enabled,
-        ) {
+        if setting_toggle(ui, "Sound effects", "Play sound when thresholds are reached", &mut sound_enabled) {
             if let Ok(mut state) = shared_state.lock() {
                 state.settings.sound_enabled = sound_enabled;
                 state.settings_changed = true;
@@ -3464,47 +2912,32 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             ui.vertical(|ui| {
                 let mut volume = if let Ok(state) = shared_state.lock() {
                     state.settings.sound_volume as i32
-                } else {
-                    100
-                };
+                } else { 100 };
 
                 // Title row with volume badge on right
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("Sound volume")
-                            .size(FontSize::MD)
-                            .color(Theme::text_primary()),
-                    );
+                    ui.label(RichText::new("Sound volume").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         egui::Frame::none()
                             .fill(Theme::ACCENT_PRIMARY.gamma_multiply(0.15))
                             .rounding(Rounding::same(10.0))
                             .inner_margin(egui::Margin::symmetric(10.0, 3.0))
                             .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new(format!("{}%", volume))
-                                        .size(FontSize::SM)
-                                        .color(Theme::ACCENT_PRIMARY)
-                                        .strong(),
-                                );
+                                ui.label(RichText::new(format!("{}%", volume)).size(FontSize::SM).color(Theme::ACCENT_PRIMARY).strong());
                             });
                     });
                 });
 
                 ui.add_space(2.0);
-                ui.label(
-                    RichText::new("Volume level for alert sounds")
-                        .size(FontSize::SM)
-                        .color(Theme::text_muted()),
-                );
+                ui.label(RichText::new("Volume level for alert sounds").size(FontSize::SM).color(Theme::TEXT_MUTED));
                 ui.add_space(6.0);
 
-                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::bg_tertiary();
+                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
 
                 let slider = ui.add(
                     egui::Slider::new(&mut volume, 0..=100)
                         .show_value(false)
-                        .trailing_fill(true),
+                        .trailing_fill(true)
                 );
 
                 if slider.changed() {
@@ -3522,47 +2955,32 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         ui.vertical(|ui| {
             let mut threshold = if let Ok(state) = shared_state.lock() {
                 state.settings.high_usage_threshold as i32
-            } else {
-                70
-            };
+            } else { 70 };
 
             // Title row with percentage badge on right
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("High warning")
-                        .size(FontSize::MD)
-                        .color(Theme::text_primary()),
-                );
+                ui.label(RichText::new("High warning").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     egui::Frame::none()
                         .fill(Theme::ACCENT_PRIMARY.gamma_multiply(0.15))
                         .rounding(Rounding::same(10.0))
                         .inner_margin(egui::Margin::symmetric(10.0, 3.0))
                         .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(format!("{}%", threshold))
-                                    .size(FontSize::SM)
-                                    .color(Theme::ACCENT_PRIMARY)
-                                    .strong(),
-                            );
+                            ui.label(RichText::new(format!("{}%", threshold)).size(FontSize::SM).color(Theme::ACCENT_PRIMARY).strong());
                         });
                 });
             });
 
             ui.add_space(2.0);
-            ui.label(
-                RichText::new("Show warning at this usage level")
-                    .size(FontSize::SM)
-                    .color(Theme::text_muted()),
-            );
+            ui.label(RichText::new("Show warning at this usage level").size(FontSize::SM).color(Theme::TEXT_MUTED));
             ui.add_space(6.0);
 
-            ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::bg_tertiary();
+            ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
 
             let slider = ui.add(
                 egui::Slider::new(&mut threshold, 50..=95)
                     .show_value(false)
-                    .trailing_fill(true),
+                    .trailing_fill(true)
             );
 
             if slider.changed() {
@@ -3579,49 +2997,34 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         ui.vertical(|ui| {
             let mut threshold = if let Ok(state) = shared_state.lock() {
                 state.settings.critical_usage_threshold as i32
-            } else {
-                90
-            };
+            } else { 90 };
 
             let badge_color = Color32::from_rgb(239, 68, 68);
 
             // Title row with percentage badge on right
             ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new("Critical alert")
-                        .size(FontSize::MD)
-                        .color(Theme::text_primary()),
-                );
+                ui.label(RichText::new("Critical alert").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     egui::Frame::none()
                         .fill(badge_color.gamma_multiply(0.15))
                         .rounding(Rounding::same(10.0))
                         .inner_margin(egui::Margin::symmetric(10.0, 3.0))
                         .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(format!("{}%", threshold))
-                                    .size(FontSize::SM)
-                                    .color(badge_color)
-                                    .strong(),
-                            );
+                            ui.label(RichText::new(format!("{}%", threshold)).size(FontSize::SM).color(badge_color).strong());
                         });
                 });
             });
 
             ui.add_space(2.0);
-            ui.label(
-                RichText::new("Show critical alert at this level")
-                    .size(FontSize::SM)
-                    .color(Theme::text_muted()),
-            );
+            ui.label(RichText::new("Show critical alert at this level").size(FontSize::SM).color(Theme::TEXT_MUTED));
             ui.add_space(6.0);
 
-            ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::bg_tertiary();
+            ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
 
             let slider = ui.add(
                 egui::Slider::new(&mut threshold, 80..=100)
                     .show_value(false)
-                    .trailing_fill(true),
+                    .trailing_fill(true)
             );
 
             if slider.changed() {
@@ -3640,16 +3043,9 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
     settings_card(ui, |ui| {
         let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
             state.settings.hide_personal_info
-        } else {
-            false
-        };
+        } else { false };
 
-        if setting_toggle(
-            ui,
-            "Hide personal info",
-            "Mask emails and account names (useful for streaming)",
-            &mut hide_personal_info,
-        ) {
+        if setting_toggle(ui, "Hide personal info", "Mask emails and account names (useful for streaming)", &mut hide_personal_info) {
             if let Ok(mut state) = shared_state.lock() {
                 state.settings.hide_personal_info = hide_personal_info;
                 state.settings_changed = true;
@@ -3664,16 +3060,8 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
     settings_card(ui, |ui| {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                ui.label(
-                    RichText::new("Update channel")
-                        .size(FontSize::MD)
-                        .color(Theme::text_primary()),
-                );
-                ui.label(
-                    RichText::new("Choose between stable releases or beta previews")
-                        .size(FontSize::SM)
-                        .color(Theme::text_muted()),
-                );
+                ui.label(RichText::new("Update channel").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
+                ui.label(RichText::new("Choose between stable releases or beta previews").size(FontSize::SM).color(Theme::TEXT_MUTED));
             });
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -3684,8 +3072,8 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 };
 
                 egui::Frame::none()
-                    .fill(Theme::bg_tertiary())
-                    .stroke(Stroke::new(1.0, Theme::border_subtle()))
+                    .fill(Theme::BG_TERTIARY)
+                    .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
                     .rounding(Rounding::same(Radius::SM))
                     .inner_margin(egui::Margin::symmetric(Spacing::XS, 2.0))
                     .show(ui, |ui| {
@@ -3705,8 +3093,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                             )
                             .show_ui(ui, |ui| {
                                 for (channel, label) in channels {
-                                    if ui.selectable_value(&mut selected, channel, label).changed()
-                                    {
+                                    if ui.selectable_value(&mut selected, channel, label).changed() {
                                         if let Ok(mut state) = shared_state.lock() {
                                             state.settings.update_channel = selected;
                                             state.settings_changed = true;
@@ -3721,106 +3108,18 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
     ui.add_space(Spacing::LG);
 
-    settings_card(ui, |ui| {
-        let (mut auto_download_updates, mut install_updates_on_quit) =
-            if let Ok(state) = shared_state.lock() {
-                (
-                    state.settings.auto_download_updates,
-                    state.settings.install_updates_on_quit,
-                )
-            } else {
-                (true, false)
-            };
-
-        if setting_toggle(
-            ui,
-            "Auto-download updates",
-            "Download verified installer updates in the background when a new release is found",
-            &mut auto_download_updates,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.auto_download_updates = auto_download_updates;
-                state.settings_changed = true;
-            }
-        }
-
-        ui.add_space(Spacing::MD);
-
-        if setting_toggle(
-            ui,
-            "Install downloaded updates on quit",
-            "Apply a verified pending installer when you choose Quit",
-            &mut install_updates_on_quit,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.install_updates_on_quit = install_updates_on_quit;
-                state.settings_changed = true;
-            }
-        }
-
-        ui.add_space(Spacing::MD);
-
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new("Check now")
-                        .size(FontSize::MD)
-                        .color(Theme::text_primary()),
-                );
-                ui.label(
-                    RichText::new("Run an update check immediately using the selected channel")
-                        .size(FontSize::SM)
-                        .color(Theme::text_muted()),
-                );
-            });
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .add(
-                        egui::Button::new(
-                            RichText::new("Check now")
-                                .size(FontSize::SM)
-                                .color(Theme::text_primary()),
-                        )
-                        .fill(Theme::bg_tertiary())
-                        .stroke(Stroke::new(1.0, Theme::border_subtle()))
-                        .rounding(Rounding::same(Radius::SM)),
-                    )
-                    .clicked()
-                {
-                    if let Ok(mut state) = shared_state.lock() {
-                        state.update_check_requested = true;
-                    }
-                }
-            });
-        });
-    });
-
-    ui.add_space(Spacing::LG);
-
     section_header(ui, "Keyboard Shortcuts");
 
     settings_card(ui, |ui| {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                ui.label(
-                    RichText::new("Global shortcut")
-                        .size(FontSize::MD)
-                        .color(Theme::text_primary()),
-                );
-                ui.label(
-                    RichText::new("Press this key combination to open CodexBar from anywhere")
-                        .size(FontSize::SM)
-                        .color(Theme::text_muted()),
-                );
+                ui.label(RichText::new("Global shortcut").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
+                ui.label(RichText::new("Press this key combination to open CodexBar from anywhere").size(FontSize::SM).color(Theme::TEXT_MUTED));
             });
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let (mut shortcut_input, status_msg) = if let Ok(state) = shared_state.lock() {
-                    (
-                        state.shortcut_input.clone(),
-                        state.shortcut_status_msg.clone(),
-                    )
+                    (state.shortcut_input.clone(), state.shortcut_status_msg.clone())
                 } else {
                     ("Ctrl+Shift+U".to_string(), None)
                 };
@@ -3833,8 +3132,8 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 }
 
                 egui::Frame::none()
-                    .fill(Theme::bg_tertiary())
-                    .stroke(Stroke::new(1.0, Theme::border_subtle()))
+                    .fill(Theme::BG_TERTIARY)
+                    .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
                     .rounding(Rounding::same(Radius::SM))
                     .inner_margin(egui::Margin::symmetric(Spacing::SM, 4.0))
                     .show(ui, |ui| {
@@ -3854,22 +3153,18 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                             let shortcut_str = shortcut_input.trim().to_string();
                             if !shortcut_str.is_empty() {
                                 // Try to parse the shortcut to validate it
-                                if let Some((modifiers, key)) =
-                                    crate::shortcuts::parse_shortcut(&shortcut_str)
-                                {
+                                if let Some((modifiers, key)) = crate::shortcuts::parse_shortcut(&shortcut_str) {
                                     // Format it back to canonical form
                                     let formatted = format_shortcut(modifiers, key);
                                     if let Ok(mut state) = shared_state.lock() {
                                         state.settings.global_shortcut = formatted.clone();
                                         state.shortcut_input = formatted;
                                         state.settings_changed = true;
-                                        state.shortcut_status_msg =
-                                            Some(("Saved (restart to apply)".to_string(), false));
+                                        state.shortcut_status_msg = Some(("Saved (restart to apply)".to_string(), false));
                                     }
                                 } else {
                                     if let Ok(mut state) = shared_state.lock() {
-                                        state.shortcut_status_msg =
-                                            Some(("Invalid shortcut format".to_string(), true));
+                                        state.shortcut_status_msg = Some(("Invalid shortcut format".to_string(), true));
                                     }
                                 }
                             }
@@ -3880,11 +3175,9 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         ui.add_space(4.0);
         ui.label(
-            RichText::new(
-                "Format: Ctrl+Shift+Key, Alt+Ctrl+Key, etc. Restart required to apply changes.",
-            )
-            .size(FontSize::XS)
-            .color(Theme::text_muted()),
+            RichText::new("Format: Ctrl+Shift+Key, Alt+Ctrl+Key, etc. Restart required to apply changes.")
+                .size(FontSize::XS)
+                .color(Theme::TEXT_MUTED)
         );
     });
 }
@@ -3894,68 +3187,11 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
     section_header(ui, "Appearance");
 
     settings_card(ui, |ui| {
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new("Theme mode")
-                        .size(FontSize::MD)
-                        .color(Theme::text_primary()),
-                );
-                ui.label(
-                    RichText::new("Choose light, dark, or follow the Windows appearance setting")
-                        .size(FontSize::SM)
-                        .color(Theme::text_muted()),
-                );
-            });
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let current_mode = if let Ok(state) = shared_state.lock() {
-                    state.settings.theme_mode
-                } else {
-                    ThemeMode::default()
-                };
-
-                egui::Frame::none()
-                    .fill(Theme::bg_tertiary())
-                    .stroke(Stroke::new(1.0, Theme::border_subtle()))
-                    .rounding(Rounding::same(Radius::SM))
-                    .inner_margin(egui::Margin::symmetric(Spacing::XS, 2.0))
-                    .show(ui, |ui| {
-                        let mut selected = current_mode;
-                        egui::ComboBox::from_id_salt("theme_mode")
-                            .selected_text(selected.display_name())
-                            .show_ui(ui, |ui| {
-                                for mode in [ThemeMode::System, ThemeMode::Light, ThemeMode::Dark] {
-                                    if ui
-                                        .selectable_value(&mut selected, mode, mode.display_name())
-                                        .changed()
-                                    {
-                                        if let Ok(mut state) = shared_state.lock() {
-                                            state.settings.theme_mode = selected;
-                                            state.settings_changed = true;
-                                        }
-                                        Theme::set_dark(selected.is_dark());
-                                    }
-                                }
-                            });
-                    });
-            });
-        });
-
-        setting_divider(ui);
-
         let mut relative_time = if let Ok(state) = shared_state.lock() {
             state.settings.reset_time_relative
-        } else {
-            true
-        };
+        } else { true };
 
-        if setting_toggle(
-            ui,
-            "Relative time",
-            "Show reset time as relative (3h 45m) instead of absolute",
-            &mut relative_time,
-        ) {
+        if setting_toggle(ui, "Relative time", "Show reset time as relative (3h 45m) instead of absolute", &mut relative_time) {
             if let Ok(mut state) = shared_state.lock() {
                 state.settings.reset_time_relative = relative_time;
                 state.settings_changed = true;
@@ -3966,16 +3202,9 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         let mut surprise = if let Ok(state) = shared_state.lock() {
             state.settings.surprise_animations
-        } else {
-            false
-        };
+        } else { false };
 
-        if setting_toggle(
-            ui,
-            "Surprise animations",
-            "Show occasional fun animations in the tray icon",
-            &mut surprise,
-        ) {
+        if setting_toggle(ui, "Surprise animations", "Show occasional fun animations in the tray icon", &mut surprise) {
             if let Ok(mut state) = shared_state.lock() {
                 state.settings.surprise_animations = surprise;
                 state.settings_changed = true;
@@ -3991,7 +3220,7 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
     ui.label(
         RichText::new("Configure access tokens for providers that require authentication.")
             .size(FontSize::SM)
-            .color(Theme::text_muted()),
+            .color(Theme::TEXT_MUTED),
     );
 
     ui.add_space(Spacing::MD);
@@ -3999,9 +3228,7 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
     // Status message
     let status_msg = if let Ok(state) = shared_state.lock() {
         state.api_key_status_msg.clone()
-    } else {
-        None
-    };
+    } else { None };
 
     if let Some((msg, is_error)) = &status_msg {
         status_message(ui, msg, *is_error);
@@ -4009,17 +3236,16 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
     }
 
     // Get state for rendering
-    let (api_keys_data, settings_data, show_input, input_provider) =
-        if let Ok(state) = shared_state.lock() {
-            (
-                state.api_keys.clone(),
-                state.settings.clone(),
-                state.show_api_key_input,
-                state.new_api_key_provider.clone(),
-            )
-        } else {
-            return;
-        };
+    let (api_keys_data, settings_data, show_input, input_provider) = if let Ok(state) = shared_state.lock() {
+        (
+            state.api_keys.clone(),
+            state.settings.clone(),
+            state.show_api_key_input,
+            state.new_api_key_provider.clone(),
+        )
+    } else {
+        return;
+    };
 
     // Provider cards - one per provider
     let api_key_providers = get_api_key_providers();
@@ -4032,22 +3258,19 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
         let color = provider_color(provider_id);
 
         // Card with left accent bar
-        let accent_color = if has_key {
-            Theme::GREEN
-        } else if is_enabled {
-            Theme::ORANGE
-        } else {
-            Theme::bg_tertiary()
-        };
+        let accent_color = if has_key { Theme::GREEN } else if is_enabled { Theme::ORANGE } else { Theme::BG_TERTIARY };
 
         egui::Frame::none()
-            .fill(Theme::bg_secondary())
+            .fill(Theme::BG_SECONDARY)
             .rounding(Rounding::same(Radius::MD))
             .inner_margin(egui::Margin::same(0.0))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     // Left accent bar
-                    let bar_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(3.0, 48.0));
+                    let bar_rect = Rect::from_min_size(
+                        ui.cursor().min,
+                        Vec2::new(3.0, 48.0),
+                    );
                     ui.painter().rect_filled(
                         bar_rect,
                         Rounding {
@@ -4071,15 +3294,8 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                             // Try to render SVG icon from cache
                             let icon_size = 20.0;
                             VIEWPORT_ICON_CACHE.with(|cache| {
-                                if let Some(texture) = cache.borrow_mut().get_icon(
-                                    ui.ctx(),
-                                    provider_id,
-                                    icon_size as u32,
-                                ) {
-                                    ui.add(
-                                        egui::Image::new(texture)
-                                            .fit_to_exact_size(Vec2::splat(icon_size)),
-                                    );
+                                if let Some(texture) = cache.borrow_mut().get_icon(ui.ctx(), provider_id, icon_size as u32) {
+                                    ui.add(egui::Image::new(texture).fit_to_exact_size(Vec2::splat(icon_size)));
                                 } else {
                                     ui.label(RichText::new(icon).size(FontSize::LG).color(color));
                                 }
@@ -4089,8 +3305,8 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                             ui.label(
                                 RichText::new(provider_info.name)
                                     .size(FontSize::MD)
-                                    .color(Theme::text_primary())
-                                    .strong(),
+                                    .color(Theme::TEXT_PRIMARY)
+                                    .strong()
                             );
 
                             ui.add_space(Spacing::XS);
@@ -4106,25 +3322,24 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                                         ui.label(
                                             RichText::new("Needs key")
                                                 .size(FontSize::XS)
-                                                .color(Color32::BLACK),
+                                                .color(Color32::BLACK)
                                         );
                                     });
                             }
 
                             // Right-aligned: Add Key button
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    ui.add_space(Spacing::XS);
-                                    if !has_key && primary_button(ui, "+ Add Key") {
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.add_space(Spacing::XS);
+                                if !has_key {
+                                    if primary_button(ui, "+ Add Key") {
                                         if let Ok(mut state) = shared_state.lock() {
                                             state.new_api_key_provider = provider_id.to_string();
                                             state.show_api_key_input = true;
                                             state.new_api_key_value.clear();
                                         }
                                     }
-                                },
-                            );
+                                }
+                            });
                         });
 
                         // Row 2: Env var, masked key, and actions
@@ -4135,58 +3350,47 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                                 ui.label(
                                     RichText::new(format!("Env: {}", env_var))
                                         .size(FontSize::XS)
-                                        .color(Theme::text_muted())
-                                        .monospace(),
+                                        .color(Theme::TEXT_MUTED)
+                                        .monospace()
                                 );
                             }
 
                             if has_key {
                                 ui.add_space(Spacing::SM);
-                                if let Some(key_info) = api_keys_data
-                                    .get_all_for_display()
+                                if let Some(key_info) = api_keys_data.get_all_for_display()
                                     .iter()
                                     .find(|k| k.provider_id == provider_id)
                                 {
                                     ui.label(
                                         RichText::new(&key_info.masked_key)
                                             .size(FontSize::XS)
-                                            .color(Theme::text_muted())
-                                            .monospace(),
+                                            .color(Theme::TEXT_MUTED)
+                                            .monospace()
                                     );
                                 }
 
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.add_space(Spacing::XS);
-                                        if small_button(ui, "Remove", Theme::RED) {
-                                            if let Ok(mut state) = shared_state.lock() {
-                                                state.api_keys.remove(provider_id);
-                                                let _ = state.api_keys.save();
-                                                state.api_key_status_msg = Some((
-                                                    format!(
-                                                        "Removed API key for {}",
-                                                        provider_info.name
-                                                    ),
-                                                    false,
-                                                ));
-                                            }
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.add_space(Spacing::XS);
+                                    if small_button(ui, "Remove", Theme::RED) {
+                                        if let Ok(mut state) = shared_state.lock() {
+                                            state.api_keys.remove(provider_id);
+                                            let _ = state.api_keys.save();
+                                            state.api_key_status_msg = Some((
+                                                format!("Removed API key for {}", provider_info.name),
+                                                false,
+                                            ));
                                         }
-                                    },
-                                );
+                                    }
+                                });
                             } else {
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.add_space(Spacing::XS);
-                                        if let Some(url) = provider_info.dashboard_url {
-                                            if text_button(ui, "Get key →", Theme::ACCENT_PRIMARY)
-                                            {
-                                                let _ = open::that(url);
-                                            }
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                    ui.add_space(Spacing::XS);
+                                    if let Some(url) = provider_info.dashboard_url {
+                                        if text_button(ui, "Get key →", Theme::ACCENT_PRIMARY) {
+                                            let _ = open::that(url);
                                         }
-                                    },
-                                );
+                                    }
+                                });
                             }
                         });
 
@@ -4207,7 +3411,7 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
             .unwrap_or(&input_provider);
 
         egui::Frame::none()
-            .fill(Theme::bg_tertiary())
+            .fill(Theme::BG_TERTIARY)
             .stroke(Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.4)))
             .rounding(Rounding::same(Radius::LG))
             .inner_margin(Spacing::LG)
@@ -4215,8 +3419,8 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                 ui.label(
                     RichText::new(format!("Enter API Key for {}", provider_name))
                         .size(FontSize::MD)
-                        .color(Theme::text_primary())
-                        .strong(),
+                        .color(Theme::TEXT_PRIMARY)
+                        .strong()
                 );
 
                 ui.add_space(Spacing::SM);
@@ -4245,34 +3449,32 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                 ui.horizontal(|ui| {
                     let can_save = !current_value.trim().is_empty();
 
-                    if ui
-                        .add_enabled(
-                            can_save,
-                            egui::Button::new(
-                                RichText::new("Save")
-                                    .size(FontSize::SM)
-                                    .color(Color32::WHITE),
-                            )
-                            .fill(if can_save {
-                                Theme::GREEN
-                            } else {
-                                Theme::bg_tertiary()
-                            })
-                            .rounding(Rounding::same(Radius::SM))
-                            .min_size(Vec2::new(80.0, 32.0)),
+                    if ui.add_enabled(
+                        can_save,
+                        egui::Button::new(
+                            RichText::new("Save")
+                                .size(FontSize::SM)
+                                .color(Color32::WHITE)
                         )
-                        .clicked()
-                    {
+                        .fill(if can_save { Theme::GREEN } else { Theme::BG_TERTIARY })
+                        .rounding(Rounding::same(Radius::SM))
+                        .min_size(Vec2::new(80.0, 32.0))
+                    ).clicked() {
                         if let Ok(mut state) = shared_state.lock() {
                             let provider = state.new_api_key_provider.clone();
                             let value = state.new_api_key_value.trim().to_string();
-                            state.api_keys.set(&provider, &value, None);
+                            state.api_keys.set(
+                                &provider,
+                                &value,
+                                None,
+                            );
                             if let Err(e) = state.api_keys.save() {
-                                state.api_key_status_msg =
-                                    Some((format!("Failed to save: {}", e), true));
+                                state.api_key_status_msg = Some((format!("Failed to save: {}", e), true));
                             } else {
-                                state.api_key_status_msg =
-                                    Some((format!("API key saved for {}", provider_name), false));
+                                state.api_key_status_msg = Some((
+                                    format!("API key saved for {}", provider_name),
+                                    false,
+                                ));
                                 state.show_api_key_input = false;
                                 state.new_api_key_value.clear();
                             }
@@ -4281,19 +3483,16 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
 
                     ui.add_space(Spacing::XS);
 
-                    if ui
-                        .add(
-                            egui::Button::new(
-                                RichText::new("Cancel")
-                                    .size(FontSize::SM)
-                                    .color(Theme::text_muted()),
-                            )
-                            .fill(Color32::TRANSPARENT)
-                            .stroke(Stroke::new(1.0, Theme::border_subtle()))
-                            .rounding(Rounding::same(Radius::SM)),
+                    if ui.add(
+                        egui::Button::new(
+                            RichText::new("Cancel")
+                                .size(FontSize::SM)
+                                .color(Theme::TEXT_MUTED)
                         )
-                        .clicked()
-                    {
+                        .fill(Color32::TRANSPARENT)
+                        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                        .rounding(Rounding::same(Radius::SM))
+                    ).clicked() {
                         if let Ok(mut state) = shared_state.lock() {
                             state.show_api_key_input = false;
                             state.new_api_key_value.clear();
@@ -4311,7 +3510,7 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
     ui.label(
         RichText::new("Cookies are automatically extracted from Chrome, Edge, Brave, and Firefox.")
             .size(FontSize::SM)
-            .color(Theme::text_muted()),
+            .color(Theme::TEXT_MUTED),
     );
 
     ui.add_space(Spacing::LG);
@@ -4319,9 +3518,7 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
     // Status message
     let status_msg = if let Ok(state) = shared_state.lock() {
         state.cookie_status_msg.clone()
-    } else {
-        None
-    };
+    } else { None };
 
     if let Some((msg, is_error)) = &status_msg {
         status_message(ui, msg, *is_error);
@@ -4347,12 +3544,12 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     ui.label(
                         RichText::new(&cookie_info.provider)
                             .size(FontSize::MD)
-                            .color(Theme::text_primary()),
+                            .color(Theme::TEXT_PRIMARY)
                     );
                     ui.label(
                         RichText::new(format!("· {}", &cookie_info.saved_at))
                             .size(FontSize::SM)
-                            .color(Theme::text_muted()),
+                            .color(Theme::TEXT_MUTED)
                     );
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -4371,8 +3568,7 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 if let Ok(mut state) = shared_state.lock() {
                     state.cookies.remove(&provider_id);
                     let _ = state.cookies.save();
-                    state.cookie_status_msg =
-                        Some((format!("Removed cookie for {}", provider_id), false));
+                    state.cookie_status_msg = Some((format!("Removed cookie for {}", provider_id), false));
                 }
             }
         });
@@ -4393,11 +3589,7 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         // Provider selection row
         ui.horizontal(|ui| {
-            ui.label(
-                RichText::new("Provider")
-                    .size(FontSize::MD)
-                    .color(Theme::text_primary()),
-            );
+            ui.label(RichText::new("Provider").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let combo = egui::ComboBox::from_id_salt("cookie_provider_viewport")
                     .selected_text(if current_provider.is_empty() {
@@ -4409,13 +3601,10 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                         let web_providers = ["claude", "cursor", "kimi"];
                         for provider_name in web_providers {
                             if let Some(id) = ProviderId::from_cli_name(provider_name) {
-                                if ui
-                                    .selectable_label(
-                                        current_provider == provider_name,
-                                        id.display_name(),
-                                    )
-                                    .clicked()
-                                {
+                                if ui.selectable_label(
+                                    current_provider == provider_name,
+                                    id.display_name(),
+                                ).clicked() {
                                     if let Ok(mut state) = shared_state.lock() {
                                         state.new_cookie_provider = provider_name.to_string();
                                     }
@@ -4432,11 +3621,7 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         ui.add_space(Spacing::SM);
 
         // Cookie header label
-        ui.label(
-            RichText::new("Cookie header")
-                .size(FontSize::MD)
-                .color(Theme::text_primary()),
-        );
+        ui.label(RichText::new("Cookie header").size(FontSize::MD).color(Theme::TEXT_PRIMARY));
         ui.add_space(Spacing::SM);
 
         // Get current cookie value
@@ -4448,8 +3633,8 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         // Styled text input
         egui::Frame::none()
-            .fill(Theme::input_bg())
-            .stroke(Stroke::new(1.0, Theme::border_subtle()))
+            .fill(Theme::INPUT_BG)
+            .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
             .rounding(Rounding::same(Radius::SM))
             .inner_margin(Spacing::SM)
             .show(ui, |ui| {
@@ -4471,41 +3656,25 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         // Re-fetch current provider for save button check
         let (save_provider, save_value) = if let Ok(state) = shared_state.lock() {
-            (
-                state.new_cookie_provider.clone(),
-                state.new_cookie_value.clone(),
-            )
+            (state.new_cookie_provider.clone(), state.new_cookie_value.clone())
         } else {
             (String::new(), String::new())
         };
 
         let can_save = !save_provider.is_empty() && !save_value.is_empty();
 
-        if ui
-            .add_enabled(
-                can_save,
-                egui::Button::new(RichText::new("Save Cookie").size(FontSize::SM).color(
-                    if can_save {
-                        Color32::WHITE
-                    } else {
-                        Theme::text_muted()
-                    },
-                ))
-                .fill(if can_save {
-                    Theme::ACCENT_PRIMARY
-                } else {
-                    Theme::bg_tertiary()
-                })
-                .stroke(if can_save {
-                    Stroke::NONE
-                } else {
-                    Stroke::new(1.0, Theme::border_subtle())
-                })
-                .rounding(Rounding::same(Radius::MD))
-                .min_size(Vec2::new(120.0, 36.0)),
+        if ui.add_enabled(
+            can_save,
+            egui::Button::new(
+                RichText::new("Save Cookie")
+                    .size(FontSize::SM)
+                    .color(if can_save { Color32::WHITE } else { Theme::TEXT_MUTED })
             )
-            .clicked()
-        {
+            .fill(if can_save { Theme::ACCENT_PRIMARY } else { Theme::BG_TERTIARY })
+            .stroke(if can_save { Stroke::NONE } else { Stroke::new(1.0, Theme::BORDER_SUBTLE) })
+            .rounding(Rounding::same(Radius::MD))
+            .min_size(Vec2::new(120.0, 36.0))
+        ).clicked() {
             if let Ok(mut state) = shared_state.lock() {
                 let provider = state.new_cookie_provider.clone();
                 let value = state.new_cookie_value.clone();
@@ -4516,8 +3685,7 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     let provider_name = ProviderId::from_cli_name(&provider)
                         .map(|id| id.display_name().to_string())
                         .unwrap_or_else(|| provider.clone());
-                    state.cookie_status_msg =
-                        Some((format!("Cookie saved for {}", provider_name), false));
+                    state.cookie_status_msg = Some((format!("Cookie saved for {}", provider_name), false));
                     state.new_cookie_provider.clear();
                     state.new_cookie_value.clear();
                 }
@@ -4535,15 +3703,13 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
             ui.label(
                 RichText::new("Auto-refresh interval")
                     .size(FontSize::MD)
-                    .color(Theme::text_primary()),
+                    .color(Theme::TEXT_PRIMARY)
             );
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let current_interval = if let Ok(state) = shared_state.lock() {
                     state.settings.refresh_interval_secs
-                } else {
-                    60
-                };
+                } else { 60 };
 
                 let intervals = [
                     (0, "Never"),
@@ -4553,17 +3719,16 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                     (600, "10 min"),
                 ];
 
-                let current_label = intervals
-                    .iter()
+                let current_label = intervals.iter()
                     .find(|(v, _)| *v == current_interval)
                     .map(|(_, l)| *l)
                     .unwrap_or("Custom");
 
                 // Style combobox to match theme
-                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::bg_tertiary();
-                ui.style_mut().visuals.widgets.inactive.weak_bg_fill = Theme::bg_tertiary();
-                ui.style_mut().visuals.widgets.hovered.bg_fill = Theme::card_bg_hover();
-                ui.style_mut().visuals.widgets.active.bg_fill = Theme::card_bg();
+                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
+                ui.style_mut().visuals.widgets.inactive.weak_bg_fill = Theme::BG_TERTIARY;
+                ui.style_mut().visuals.widgets.hovered.bg_fill = Theme::CARD_BG_HOVER;
+                ui.style_mut().visuals.widgets.active.bg_fill = Theme::CARD_BG;
                 ui.style_mut().visuals.widgets.inactive.rounding = Rounding::same(Radius::SM);
                 ui.style_mut().visuals.widgets.hovered.rounding = Rounding::same(Radius::SM);
                 ui.style_mut().visuals.widgets.active.rounding = Rounding::same(Radius::SM);
@@ -4573,10 +3738,7 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                     .width(90.0)
                     .show_ui(ui, |ui| {
                         for (value, label) in intervals {
-                            if ui
-                                .selectable_label(current_interval == value, label)
-                                .clicked()
-                            {
+                            if ui.selectable_label(current_interval == value, label).clicked() {
                                 if let Ok(mut state) = shared_state.lock() {
                                     state.settings.refresh_interval_secs = value;
                                     state.settings_changed = true;
@@ -4595,7 +3757,11 @@ fn render_about_tab(ui: &mut egui::Ui) {
         ui.add_space(Spacing::XL);
 
         // App icon
-        ui.label(RichText::new("◆").size(48.0).color(Theme::ACCENT_PRIMARY));
+        ui.label(
+            RichText::new("◆")
+                .size(48.0)
+                .color(Theme::ACCENT_PRIMARY)
+        );
 
         ui.add_space(Spacing::MD);
 
@@ -4603,8 +3769,8 @@ fn render_about_tab(ui: &mut egui::Ui) {
         ui.label(
             RichText::new("CodexBar")
                 .size(FontSize::XXL)
-                .color(Theme::text_primary())
-                .strong(),
+                .color(Theme::TEXT_PRIMARY)
+                .strong()
         );
 
         ui.add_space(Spacing::SM);
@@ -4613,7 +3779,7 @@ fn render_about_tab(ui: &mut egui::Ui) {
         ui.label(
             RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
                 .size(FontSize::MD)
-                .color(Theme::text_secondary()),
+                .color(Theme::TEXT_SECONDARY)
         );
 
         ui.add_space(Spacing::SM);
@@ -4622,7 +3788,7 @@ fn render_about_tab(ui: &mut egui::Ui) {
         ui.label(
             RichText::new("Monitor your AI provider usage limits")
                 .size(FontSize::SM)
-                .color(Theme::text_muted()),
+                .color(Theme::TEXT_MUTED)
         );
 
         ui.add_space(Spacing::XL);
@@ -4635,13 +3801,13 @@ fn render_about_tab(ui: &mut egui::Ui) {
             ui.label(
                 RichText::new("Created by CodexBar Contributors")
                     .size(FontSize::SM)
-                    .color(Theme::text_primary()),
+                    .color(Theme::TEXT_PRIMARY)
             );
             ui.add_space(Spacing::XS);
             ui.label(
                 RichText::new("MIT License")
                     .size(FontSize::SM)
-                    .color(Theme::text_muted()),
+                    .color(Theme::TEXT_MUTED)
             );
         });
     });
@@ -4675,13 +3841,13 @@ fn render_about_tab(ui: &mut egui::Ui) {
                 ui.label(
                     RichText::new("Commit:")
                         .size(FontSize::SM)
-                        .color(Theme::text_muted()),
+                        .color(Theme::TEXT_MUTED)
                 );
                 ui.label(
                     RichText::new(git_commit)
                         .size(FontSize::SM)
-                        .color(Theme::text_secondary())
-                        .monospace(),
+                        .color(Theme::TEXT_SECONDARY)
+                        .monospace()
                 );
             });
 
@@ -4691,12 +3857,12 @@ fn render_about_tab(ui: &mut egui::Ui) {
                 ui.label(
                     RichText::new("Built:")
                         .size(FontSize::SM)
-                        .color(Theme::text_muted()),
+                        .color(Theme::TEXT_MUTED)
                 );
                 ui.label(
                     RichText::new(build_date)
                         .size(FontSize::SM)
-                        .color(Theme::text_secondary()),
+                        .color(Theme::TEXT_SECONDARY)
                 );
             });
         });
@@ -4704,24 +3870,15 @@ fn render_about_tab(ui: &mut egui::Ui) {
 }
 
 /// Render Providers tab for viewport
-fn render_providers_tab(
-    ui: &mut egui::Ui,
-    _available_height: f32,
-    shared_state: &Arc<Mutex<PreferencesSharedState>>,
-) {
+fn render_providers_tab(ui: &mut egui::Ui, _available_height: f32, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
     section_header(ui, "Enabled Providers");
 
     let providers = ProviderId::all();
 
     for provider_id in providers {
         let is_enabled = if let Ok(state) = shared_state.lock() {
-            state
-                .settings
-                .enabled_providers
-                .contains(provider_id.cli_name())
-        } else {
-            true
-        };
+            state.settings.enabled_providers.contains(provider_id.cli_name())
+        } else { true };
 
         settings_card(ui, |ui| {
             ui.horizontal(|ui| {
@@ -4730,7 +3887,7 @@ fn render_providers_tab(
                 ui.label(
                     RichText::new(provider_icon(provider_id.cli_name()))
                         .size(FontSize::LG)
-                        .color(brand_color),
+                        .color(brand_color)
                 );
 
                 ui.add_space(8.0);
@@ -4738,16 +3895,12 @@ fn render_providers_tab(
                 ui.label(
                     RichText::new(provider_id.display_name())
                         .size(FontSize::MD)
-                        .color(Theme::text_primary()),
+                        .color(Theme::TEXT_PRIMARY)
                 );
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let mut enabled = is_enabled;
-                    if switch_toggle(
-                        ui,
-                        egui::Id::new(format!("provider_{}", provider_id.cli_name())),
-                        &mut enabled,
-                    ) {
+                    if switch_toggle(ui, egui::Id::new(format!("provider_{}", provider_id.cli_name())), &mut enabled) {
                         if let Ok(mut state) = shared_state.lock() {
                             let name = provider_id.cli_name().to_string();
                             if enabled {
@@ -4776,8 +3929,8 @@ fn section_header(ui: &mut egui::Ui, text: &str) {
     ui.label(
         RichText::new(text.to_uppercase())
             .size(FontSize::XS)
-            .color(Theme::text_section())
-            .strong(),
+            .color(Theme::TEXT_SECTION)
+            .strong()
     );
     ui.add_space(Spacing::MD);
 }
@@ -4785,8 +3938,8 @@ fn section_header(ui: &mut egui::Ui, text: &str) {
 /// Settings card container - grouped settings with rounded corners and border
 fn settings_card(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::none()
-        .fill(Theme::bg_secondary())
-        .stroke(Stroke::new(1.0, Theme::card_border()))
+        .fill(Theme::BG_SECONDARY)
+        .stroke(Stroke::new(1.0, Theme::CARD_BORDER))
         .rounding(Rounding::same(Radius::LG))
         .inner_margin(Spacing::SM)
         .show(ui, content);
@@ -4795,8 +3948,11 @@ fn settings_card(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
 /// Divider line between settings in a card
 fn setting_divider(ui: &mut egui::Ui) {
     ui.add_space(Spacing::SM);
-    let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
-    ui.painter().rect_filled(rect, 0.0, Theme::separator());
+    let rect = Rect::from_min_size(
+        ui.cursor().min,
+        Vec2::new(ui.available_width(), 1.0),
+    );
+    ui.painter().rect_filled(rect, 0.0, Theme::SEPARATOR);
     ui.add_space(Spacing::SM + 1.0);
 }
 
@@ -4813,19 +3969,21 @@ fn switch_toggle(ui: &mut egui::Ui, id: impl std::hash::Hash, value: &mut bool) 
     }
 
     // Animate the knob position
-    let animation_progress = ui.ctx().animate_bool_responsive(egui::Id::new(id), *value);
+    let animation_progress = ui.ctx().animate_bool_responsive(
+        egui::Id::new(id),
+        *value,
+    );
 
     // Track colors
     let track_color = if animation_progress > 0.5 {
         Theme::ACCENT_PRIMARY
     } else {
-        Theme::bg_tertiary()
+        Theme::BG_TERTIARY
     };
 
     // Draw track (rounded rectangle)
     let track_rounding = rect.height() / 2.0;
-    ui.painter()
-        .rect_filled(rect, Rounding::same(track_rounding), track_color);
+    ui.painter().rect_filled(rect, Rounding::same(track_rounding), track_color);
 
     // Knob properties
     let knob_margin = 2.0;
@@ -4837,8 +3995,7 @@ fn switch_toggle(ui: &mut egui::Ui, id: impl std::hash::Hash, value: &mut bool) 
     let knob_center = egui::pos2(knob_x + knob_diameter / 2.0, rect.center().y);
 
     // Draw knob (white circle)
-    ui.painter()
-        .circle_filled(knob_center, knob_diameter / 2.0, Color32::WHITE);
+    ui.painter().circle_filled(knob_center, knob_diameter / 2.0, Color32::WHITE);
 
     changed
 }
@@ -4850,16 +4007,8 @@ fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bo
     ui.horizontal(|ui| {
         // Labels on the left
         ui.vertical(|ui| {
-            ui.label(
-                RichText::new(title)
-                    .size(FontSize::MD)
-                    .color(Theme::text_primary()),
-            );
-            ui.label(
-                RichText::new(subtitle)
-                    .size(FontSize::SM)
-                    .color(Theme::text_muted()),
-            );
+            ui.label(RichText::new(title).size(FontSize::MD).color(Theme::TEXT_PRIMARY));
+            ui.label(RichText::new(subtitle).size(FontSize::SM).color(Theme::TEXT_MUTED));
         });
 
         // Switch on the right
@@ -4876,17 +4025,9 @@ fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bo
 /// Status message banner
 fn status_message(ui: &mut egui::Ui, msg: &str, is_error: bool) {
     let (bg_color, text_color, icon) = if is_error {
-        (
-            Color32::from_rgba_unmultiplied(239, 68, 68, 15),
-            Theme::RED,
-            "✕",
-        )
+        (Color32::from_rgba_unmultiplied(239, 68, 68, 15), Theme::RED, "✕")
     } else {
-        (
-            Color32::from_rgba_unmultiplied(34, 197, 94, 15),
-            Theme::GREEN,
-            "✓",
-        )
+        (Color32::from_rgba_unmultiplied(34, 197, 94, 15), Theme::GREEN, "✓")
     };
 
     egui::Frame::none()
@@ -4909,36 +4050,49 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32) {
         .rounding(Rounding::same(Radius::XS))
         .inner_margin(egui::Margin::symmetric(Spacing::XS, 2.0))
         .show(ui, |ui| {
-            ui.label(RichText::new(text).size(FontSize::XS).color(color));
+            ui.label(
+                RichText::new(text)
+                    .size(FontSize::XS)
+                    .color(color)
+            );
         });
 }
 
 /// Small text button
 fn small_button(ui: &mut egui::Ui, text: &str, color: Color32) -> bool {
     ui.add(
-        egui::Button::new(RichText::new(text).size(FontSize::SM).color(color))
-            .fill(color.gamma_multiply(0.1))
-            .rounding(Rounding::same(Radius::SM)),
-    )
-    .clicked()
+        egui::Button::new(
+            RichText::new(text)
+                .size(FontSize::SM)
+                .color(color)
+        )
+        .fill(color.gamma_multiply(0.1))
+        .rounding(Rounding::same(Radius::SM))
+    ).clicked()
 }
 
 /// Text-only button (no background)
 fn text_button(ui: &mut egui::Ui, text: &str, color: Color32) -> bool {
     ui.add(
-        egui::Button::new(RichText::new(text).size(FontSize::SM).color(color))
-            .fill(Color32::TRANSPARENT)
-            .stroke(Stroke::NONE),
-    )
-    .clicked()
+        egui::Button::new(
+            RichText::new(text)
+                .size(FontSize::SM)
+                .color(color)
+        )
+        .fill(Color32::TRANSPARENT)
+        .stroke(Stroke::NONE)
+    ).clicked()
 }
 
 /// Primary action button
 fn primary_button(ui: &mut egui::Ui, text: &str) -> bool {
     ui.add(
-        egui::Button::new(RichText::new(text).size(FontSize::SM).color(Color32::WHITE))
-            .fill(Theme::ACCENT_PRIMARY)
-            .rounding(Rounding::same(Radius::SM)),
-    )
-    .clicked()
+        egui::Button::new(
+            RichText::new(text)
+                .size(FontSize::SM)
+                .color(Color32::WHITE)
+        )
+        .fill(Theme::ACCENT_PRIMARY)
+        .rounding(Rounding::same(Radius::SM))
+    ).clicked()
 }

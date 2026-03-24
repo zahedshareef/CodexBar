@@ -1,11 +1,13 @@
 //! Claude Web API fetcher - uses browser cookies to fetch usage from claude.ai
 
 use chrono::{DateTime, Utc};
-use reqwest::{header, Client};
+use reqwest::{Client, header};
 use serde::Deserialize;
 
 use crate::browser::cookies::get_cookie_header;
-use crate::core::{CostSnapshot, ProviderError, ProviderFetchResult, RateWindow, UsageSnapshot};
+use crate::core::{
+    CostSnapshot, ProviderError, ProviderFetchResult, RateWindow, UsageSnapshot,
+};
 
 /// Claude Web API fetcher
 pub struct ClaudeWebApiFetcher {
@@ -86,12 +88,7 @@ impl ClaudeWebApiFetcher {
     pub async fn fetch_with_cookies(&self) -> Result<ProviderFetchResult, ProviderError> {
         // Try multiple domains - Claude uses different domains for different services
         // console.anthropic.com has the sessionKey for API access
-        let domains = [
-            "claude.ai",
-            "claude.com",
-            "console.anthropic.com",
-            "anthropic.com",
-        ];
+        let domains = ["claude.ai", "claude.com", "console.anthropic.com", "anthropic.com"];
 
         for domain in domains {
             match get_cookie_header(domain) {
@@ -212,10 +209,9 @@ impl ClaudeWebApiFetcher {
             )));
         }
 
-        let orgs: Vec<Organization> = response
-            .json()
-            .await
-            .map_err(|e| ProviderError::Parse(format!("Failed to parse organizations: {}", e)))?;
+        let orgs: Vec<Organization> = response.json().await.map_err(|e| {
+            ProviderError::Parse(format!("Failed to parse organizations: {}", e))
+        })?;
 
         orgs.into_iter()
             .next()
@@ -246,10 +242,9 @@ impl ClaudeWebApiFetcher {
             )));
         }
 
-        response
-            .json()
-            .await
-            .map_err(|e| ProviderError::Parse(format!("Failed to parse usage: {}", e)))
+        response.json().await.map_err(|e| {
+            ProviderError::Parse(format!("Failed to parse usage: {}", e))
+        })
     }
 
     /// Get extra usage (credits)
@@ -260,8 +255,7 @@ impl ClaudeWebApiFetcher {
     ) -> Result<ExtraUsageResponse, ProviderError> {
         let url = format!(
             "{}/organizations/{}/overage_spend_limit",
-            Self::BASE_URL,
-            org_id
+            Self::BASE_URL, org_id
         );
 
         let response = self
@@ -279,17 +273,13 @@ impl ClaudeWebApiFetcher {
             )));
         }
 
-        response
-            .json()
-            .await
-            .map_err(|e| ProviderError::Parse(format!("Failed to parse extra usage: {}", e)))
+        response.json().await.map_err(|e| {
+            ProviderError::Parse(format!("Failed to parse extra usage: {}", e))
+        })
     }
 
     /// Get account info
-    async fn get_account_info(
-        &self,
-        cookie_header: &str,
-    ) -> Result<AccountResponse, ProviderError> {
+    async fn get_account_info(&self, cookie_header: &str) -> Result<AccountResponse, ProviderError> {
         let url = format!("{}/account", Self::BASE_URL);
 
         let response = self
@@ -307,10 +297,9 @@ impl ClaudeWebApiFetcher {
             )));
         }
 
-        response
-            .json()
-            .await
-            .map_err(|e| ProviderError::Parse(format!("Failed to parse account: {}", e)))
+        response.json().await.map_err(|e| {
+            ProviderError::Parse(format!("Failed to parse account: {}", e))
+        })
     }
 
     /// Convert a usage window to a RateWindow
@@ -322,7 +311,7 @@ impl ClaudeWebApiFetcher {
             .as_ref()
             .and_then(|s| Self::parse_iso8601(s));
 
-        let reset_description = resets_at.map(Self::format_reset_time);
+        let reset_description = resets_at.map(|dt| Self::format_reset_time(dt));
 
         RateWindow::with_details(used_percent, window_minutes, resets_at, reset_description)
     }

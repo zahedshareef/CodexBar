@@ -9,12 +9,6 @@ use serde::Deserialize;
 
 const BASE_URL: &str = "https://cursor.com";
 const COOKIE_DOMAINS: [&str; 2] = ["cursor.com", "cursor.sh"];
-type CursorUsageResult = (
-    RateWindow,
-    Option<CostSnapshot>,
-    Option<String>,
-    Option<String>,
-);
 
 /// Cursor API client
 pub struct CursorApi {
@@ -30,7 +24,7 @@ impl CursorApi {
 
     /// Fetch usage information from Cursor API
     /// Returns (primary RateWindow, optional CostSnapshot, optional email, optional plan_type)
-    pub async fn fetch_usage(&self) -> Result<CursorUsageResult, ProviderError> {
+    pub async fn fetch_usage(&self) -> Result<(RateWindow, Option<CostSnapshot>, Option<String>, Option<String>), ProviderError> {
         // Try to get cookies from browser
         let cookie_header = self.get_cookie_header()?;
 
@@ -110,9 +104,7 @@ impl CursorApi {
             .await?;
 
         if !response.status().is_success() {
-            return Err(ProviderError::Other(
-                "Failed to fetch user info".to_string(),
-            ));
+            return Err(ProviderError::Other("Failed to fetch user info".to_string()));
         }
 
         response
@@ -125,19 +117,19 @@ impl CursorApi {
         &self,
         summary: UsageSummary,
         user_info: Option<UserInfo>,
-    ) -> Result<CursorUsageResult, ProviderError> {
+    ) -> Result<(RateWindow, Option<CostSnapshot>, Option<String>, Option<String>), ProviderError> {
         // Parse billing cycle end date
-        let billing_end = summary
-            .billing_cycle_end
-            .as_ref()
-            .and_then(|s| parse_iso_date(s));
+        let billing_end = summary.billing_cycle_end.as_ref().and_then(|s| parse_iso_date(s));
 
         // Extract plan usage for primary rate window
         let (percent_used, cost_snapshot) = if let Some(individual) = &summary.individual_usage {
             if let Some(plan) = &individual.plan {
                 // Get raw values (in cents)
                 let used_cents = plan.used.unwrap_or(0) as f64;
-                let limit_cents = plan.limit.unwrap_or(0) as f64;
+                let limit_cents = plan.breakdown.as_ref()
+                    .and_then(|b| b.total)
+                    .or(plan.limit)
+                    .unwrap_or(0) as f64;
 
                 let percent = if limit_cents > 0.0 {
                     (used_cents / limit_cents) * 100.0
@@ -171,16 +163,15 @@ impl CursorApi {
         );
 
         // Format plan type
-        let plan_type = summary
-            .membership_type
-            .as_ref()
-            .map(|t| match t.to_lowercase().as_str() {
+        let plan_type = summary.membership_type.as_ref().map(|t| {
+            match t.to_lowercase().as_str() {
                 "enterprise" => "Cursor Enterprise".to_string(),
                 "pro" => "Cursor Pro".to_string(),
                 "hobby" => "Cursor Hobby".to_string(),
                 "team" => "Cursor Team".to_string(),
                 other => format!("Cursor {}", capitalize(other)),
-            });
+            }
+        });
 
         let email = user_info.as_ref().and_then(|u| u.email.clone());
 

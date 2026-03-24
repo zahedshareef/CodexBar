@@ -7,12 +7,12 @@ use async_trait::async_trait;
 use serde::Deserialize;
 
 use crate::core::{
-    FetchContext, Provider, ProviderError, ProviderFetchResult, ProviderId, ProviderMetadata,
-    RateWindow, SourceMode, UsageSnapshot,
+    FetchContext, Provider, ProviderId, ProviderError, ProviderFetchResult,
+    ProviderMetadata, RateWindow, SourceMode, UsageSnapshot,
 };
 
 /// OpenRouter API base URL
-const OPENROUTER_API_BASE: &str = "https://openrouter.ai/api/v1";
+const OPENROUTER_API_BASE: &str = "https://openrouter.ai/api/v1/auth";
 
 /// Windows Credential Manager target for OpenRouter API token
 const OPENROUTER_CREDENTIAL_TARGET: &str = "codexbar-openrouter";
@@ -139,9 +139,10 @@ impl OpenRouterProvider {
             )));
         }
 
-        let credits: CreditsResponse = resp.json().await.map_err(|e| {
-            ProviderError::Parse(format!("Failed to parse credits response: {}", e))
-        })?;
+        let credits: CreditsResponse = resp
+            .json()
+            .await
+            .map_err(|e| ProviderError::Parse(format!("Failed to parse credits response: {}", e)))?;
 
         let balance = credits.data.balance();
         let used_percent = credits.data.used_percent();
@@ -149,8 +150,8 @@ impl OpenRouterProvider {
         let mut primary = RateWindow::new(used_percent);
         primary.reset_description = Some(format!("${:.2} remaining", balance));
 
-        let mut usage =
-            UsageSnapshot::new(primary).with_login_method(format!("${:.2} balance", balance));
+        let mut usage = UsageSnapshot::new(primary)
+            .with_login_method(&format!("${:.2} balance", balance));
 
         // Try to enrich with /key endpoint data (optional, short timeout)
         let key_url = format!("{}/key", OPENROUTER_API_BASE);
@@ -173,8 +174,10 @@ impl OpenRouterProvider {
                         (key_data.data.limit, key_data.data.usage)
                     {
                         if limit > 0.0 {
-                            let key_percent = ((key_usage / limit) * 100.0).clamp(0.0, 100.0);
-                            let key_desc = format!("${:.2}/${:.2} key quota", key_usage, limit);
+                            let key_percent =
+                                ((key_usage / limit) * 100.0).min(100.0).max(0.0);
+                            let key_desc =
+                                format!("${:.2}/${:.2} key quota", key_usage, limit);
                             let mut key_window = RateWindow::new(key_percent);
                             key_window.reset_description = Some(key_desc);
                             usage = usage.with_secondary(key_window);

@@ -5,7 +5,6 @@
 
 #![allow(dead_code)]
 
-use regex_lite::Regex;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -13,6 +12,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
+use regex_lite::Regex;
 
 /// Result of running a TTY command
 #[derive(Debug, Clone)]
@@ -118,11 +118,7 @@ impl TtyCommandOptions {
         self
     }
 
-    pub fn with_send_on_substring(
-        mut self,
-        trigger: impl Into<String>,
-        keys: impl Into<String>,
-    ) -> Self {
+    pub fn with_send_on_substring(mut self, trigger: impl Into<String>, keys: impl Into<String>) -> Self {
         self.send_on_substrings.insert(trigger.into(), keys.into());
         self
     }
@@ -192,12 +188,7 @@ impl TtyCommandRunner {
         let candidates = [
             // npm global install locations
             dirs::data_local_dir().map(|d| d.join("npm").join("codex.cmd")),
-            dirs::home_dir().map(|h| {
-                h.join("AppData")
-                    .join("Roaming")
-                    .join("npm")
-                    .join("codex.cmd")
-            }),
+            dirs::home_dir().map(|h| h.join("AppData").join("Roaming").join("npm").join("codex.cmd")),
             // Bun install
             dirs::home_dir().map(|h| h.join(".bun").join("bin").join("codex.exe")),
         ];
@@ -226,12 +217,7 @@ impl TtyCommandRunner {
         let candidates = [
             // npm global install locations
             dirs::data_local_dir().map(|d| d.join("npm").join("claude.cmd")),
-            dirs::home_dir().map(|h| {
-                h.join("AppData")
-                    .join("Roaming")
-                    .join("npm")
-                    .join("claude.cmd")
-            }),
+            dirs::home_dir().map(|h| h.join("AppData").join("Roaming").join("npm").join("claude.cmd")),
         ];
 
         for candidate in candidates.into_iter().flatten() {
@@ -305,9 +291,7 @@ impl TtyCommandRunner {
         cmd.stderr(Stdio::piped());
 
         // Launch the process
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| TtyCommandError::LaunchFailed(e.to_string()))?;
+        let mut child = cmd.spawn().map_err(|e| TtyCommandError::LaunchFailed(e.to_string()))?;
 
         // Run the interactive session
         self.run_session(&mut child, script, &options)
@@ -426,7 +410,7 @@ impl TtyCommandRunner {
                     for mat in regex.find_iter(&chunk) {
                         let mut url = mat.as_str().to_string();
                         // Trim trailing punctuation
-                        while url.ends_with(['.', ',', ';', ':', ')', ']', '}', '>', '"', '\'']) {
+                        while url.ends_with(|c| matches!(c, '.' | ',' | ';' | ':' | ')' | ']' | '}' | '>' | '"' | '\'')) {
                             url.pop();
                         }
                         if !detected_urls.contains(&url) {
@@ -540,16 +524,12 @@ impl TtyCommandRunner {
         let mut env: HashMap<String, String> = std::env::vars().collect();
 
         env.insert("PATH".to_string(), Self::enriched_path());
-        env.entry("TERM".to_string())
-            .or_insert_with(|| "xterm-256color".to_string());
-        env.entry("COLORTERM".to_string())
-            .or_insert_with(|| "truecolor".to_string());
+        env.entry("TERM".to_string()).or_insert_with(|| "xterm-256color".to_string());
+        env.entry("COLORTERM".to_string()).or_insert_with(|| "truecolor".to_string());
 
         if let Some(home) = dirs::home_dir() {
-            env.entry("HOME".to_string())
-                .or_insert_with(|| home.to_string_lossy().to_string());
-            env.entry("USERPROFILE".to_string())
-                .or_insert_with(|| home.to_string_lossy().to_string());
+            env.entry("HOME".to_string()).or_insert_with(|| home.to_string_lossy().to_string());
+            env.entry("USERPROFILE".to_string()).or_insert_with(|| home.to_string_lossy().to_string());
         }
 
         env
@@ -649,6 +629,6 @@ mod tests {
         let path = TtyCommandRunner::enriched_path();
         assert!(!path.is_empty());
         // Should contain path separator
-        assert!(path.contains(';') || !path.is_empty());
+        assert!(path.contains(';') || path.len() > 0);
     }
 }

@@ -4,18 +4,20 @@ mod oauth;
 mod web_api;
 
 use async_trait::async_trait;
-use regex_lite::Regex;
 use std::process::Stdio;
-use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
+use tokio::io::AsyncWriteExt;
+use regex_lite::Regex;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 use crate::core::{
     FetchContext, Provider, ProviderError, ProviderFetchResult, ProviderId, ProviderMetadata,
     RateWindow, SourceMode, UsageSnapshot,
 };
 
-pub use oauth::ClaudeOAuthFetcher;
 pub use web_api::ClaudeWebApiFetcher;
+pub use oauth::ClaudeOAuthFetcher;
 
 /// Claude provider implementation
 pub struct ClaudeProvider {
@@ -106,37 +108,25 @@ impl Provider for ClaudeProvider {
 }
 
 impl ClaudeProvider {
-    async fn fetch_via_oauth(
-        &self,
-        _ctx: &FetchContext,
-    ) -> Result<ProviderFetchResult, ProviderError> {
+    async fn fetch_via_oauth(&self, _ctx: &FetchContext) -> Result<ProviderFetchResult, ProviderError> {
         tracing::debug!("Attempting OAuth fetch for Claude");
         self.oauth_fetcher.fetch().await
     }
 
-    async fn fetch_via_web(
-        &self,
-        ctx: &FetchContext,
-    ) -> Result<ProviderFetchResult, ProviderError> {
+    async fn fetch_via_web(&self, ctx: &FetchContext) -> Result<ProviderFetchResult, ProviderError> {
         tracing::debug!("Attempting Web API fetch for Claude");
 
         // Check for manual cookie header first
         if let Some(ref cookie_header) = ctx.manual_cookie_header {
             tracing::debug!("Using manual cookie header");
-            return self
-                .web_fetcher
-                .fetch_with_cookie_header(cookie_header)
-                .await;
+            return self.web_fetcher.fetch_with_cookie_header(cookie_header).await;
         }
 
         // Otherwise, try to extract cookies from browser
         self.web_fetcher.fetch_with_cookies().await
     }
 
-    async fn fetch_via_cli(
-        &self,
-        _ctx: &FetchContext,
-    ) -> Result<ProviderFetchResult, ProviderError> {
+    async fn fetch_via_cli(&self, _ctx: &FetchContext) -> Result<ProviderFetchResult, ProviderError> {
         tracing::debug!("Attempting CLI probe for Claude");
 
         // Check if claude CLI exists
@@ -148,13 +138,19 @@ impl ClaudeProvider {
 
         // Run claude CLI with /usage command via stdin
         // We spawn claude in non-interactive mode and send /usage
-        let mut child = Command::new(&claude_path)
-            .stdin(Stdio::piped())
+        #[cfg(windows)]
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let mut cmd = Command::new(&claude_path);
+        cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .env("TERM", "xterm-256color")
-            .env("NO_COLOR", "1") // Try to disable colors
-            .spawn()
+            .env("NO_COLOR", "1"); // Try to disable colors
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+
+        let mut child = cmd.spawn()
             .map_err(|e| ProviderError::Other(format!("Failed to spawn claude: {}", e)))?;
 
         // Send /usage command
@@ -165,11 +161,13 @@ impl ClaudeProvider {
         }
 
         // Wait for output with timeout
-        let output =
-            tokio::time::timeout(std::time::Duration::from_secs(30), child.wait_with_output())
-                .await
-                .map_err(|_| ProviderError::Timeout)?
-                .map_err(|e| ProviderError::Other(format!("Claude CLI failed: {}", e)))?;
+        let output = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            child.wait_with_output()
+        )
+        .await
+        .map_err(|_| ProviderError::Timeout)?
+        .map_err(|e| ProviderError::Other(format!("Claude CLI failed: {}", e)))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -181,14 +179,10 @@ impl ClaudeProvider {
             return Err(ProviderError::AuthRequired);
         }
         if lowered.contains("token expired") || lowered.contains("token_expired") {
-            return Err(ProviderError::OAuth(
-                "Token expired. Run `claude login` to refresh.".to_string(),
-            ));
+            return Err(ProviderError::OAuth("Token expired. Run `claude login` to refresh.".to_string()));
         }
         if lowered.contains("authentication_error") {
-            return Err(ProviderError::OAuth(
-                "Authentication error. Run `claude login`.".to_string(),
-            ));
+            return Err(ProviderError::OAuth("Authentication error. Run `claude login`.".to_string()));
         }
 
         // Parse the usage output
@@ -200,9 +194,7 @@ impl ClaudeProvider {
         let clean = strip_ansi(output);
 
         if clean.trim().is_empty() {
-            return Err(ProviderError::Parse(
-                "Empty output from Claude CLI".to_string(),
-            ));
+            return Err(ProviderError::Parse("Empty output from Claude CLI".to_string()));
         }
 
         // Parse session percent: "X% used" or "X% left"
@@ -254,7 +246,7 @@ impl ClaudeProvider {
         let primary = RateWindow::with_details(
             session_used,
             Some(300), // 5 hour session window
-            None,      // Could parse reset time
+            None, // Could parse reset time
             session_reset,
         );
 
@@ -271,7 +263,12 @@ impl ClaudeProvider {
         }
 
         if let Some(opus_used) = opus_percent {
-            let model_specific = RateWindow::with_details(opus_used, Some(10080), None, None);
+            let model_specific = RateWindow::with_details(
+                opus_used,
+                Some(10080),
+                None,
+                None,
+            );
             usage = usage.with_model_specific(model_specific);
         }
 
@@ -308,10 +305,15 @@ fn which_claude() -> Option<std::path::PathBuf> {
 fn detect_claude_version() -> Option<String> {
     let claude_path = which_claude()?;
 
-    let output = std::process::Command::new(claude_path)
-        .args(["--version"])
-        .output()
-        .ok()?;
+    #[cfg(windows)]
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    let mut cmd = std::process::Command::new(claude_path);
+    cmd.args(["--version"]);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().ok()?;
 
     if output.status.success() {
         let version_str = String::from_utf8_lossy(&output.stdout);
@@ -345,7 +347,7 @@ fn strip_ansi(text: &str) -> String {
                 }
             // Skip OSC sequences: ESC]...BEL
             } else if chars.peek() == Some(&']') {
-                for next in chars.by_ref() {
+                while let Some(next) = chars.next() {
                     if next == '\x07' || next == '\\' {
                         break;
                     }

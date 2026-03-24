@@ -16,9 +16,9 @@ pub struct ModelBreakdown {
 /// A single data point for the chart
 #[derive(Clone, Debug)]
 pub struct ChartPoint {
-    pub date: String,                                  // "2025-01-15" format
-    pub value: f64,                                    // Cost in USD or credits used
-    pub tokens: Option<i64>,                           // Optional token count
+    pub date: String,      // "2025-01-15" format
+    pub value: f64,        // Cost in USD or credits used
+    pub tokens: Option<i64>, // Optional token count
     pub model_breakdowns: Option<Vec<ModelBreakdown>>, // Optional model-level breakdown
 }
 
@@ -104,10 +104,7 @@ impl CostHistoryChart {
             return;
         }
 
-        let peak_index = self
-            .points
-            .iter()
-            .enumerate()
+        let peak_index = self.points.iter().enumerate()
             .max_by(|(_, a), (_, b)| a.value.partial_cmp(&b.value).unwrap())
             .map(|(i, _)| i);
 
@@ -132,8 +129,7 @@ impl CostHistoryChart {
         let animation_needs_repaint = if self.is_animated {
             if let Some(start) = self.animation_start {
                 let elapsed = start.elapsed().as_millis() as f32;
-                let total_duration =
-                    TOTAL_ANIMATION_MS + (self.points.len() as f32 * STAGGER_PER_BAR_MS);
+                let total_duration = TOTAL_ANIMATION_MS + (self.points.len() as f32 * STAGGER_PER_BAR_MS);
                 elapsed < total_duration
             } else {
                 false
@@ -182,9 +178,9 @@ impl CostHistoryChart {
             );
 
             // Check hover
-            let is_hovered = response
-                .hover_pos()
-                .is_some_and(|pos| pos.x >= x && pos.x <= x + bar_width);
+            let is_hovered = response.hover_pos().map_or(false, |pos| {
+                pos.x >= x && pos.x <= x + bar_width
+            });
 
             if is_hovered {
                 self.selected_index = Some(i);
@@ -204,11 +200,7 @@ impl CostHistoryChart {
                     egui::pos2(x, rect.bottom() - bar_height),
                     Vec2::new(bar_width, 5.0),
                 );
-                painter.rect_filled(
-                    cap_rect,
-                    Rounding::same(2.0),
-                    Color32::from_rgb(255, 200, 50),
-                );
+                painter.rect_filled(cap_rect, Rounding::same(2.0), Color32::from_rgb(255, 200, 50));
                 continue;
             } else if is_hovered {
                 self.bar_color.gamma_multiply(1.2)
@@ -232,11 +224,7 @@ impl CostHistoryChart {
                     egui::pos2(x, rect.top()),
                     Vec2::new(bar_width + bar_spacing, chart_height),
                 );
-                painter.rect_filled(
-                    highlight_rect,
-                    Rounding::ZERO,
-                    Color32::from_rgba_unmultiplied(255, 255, 255, 20),
-                );
+                painter.rect_filled(highlight_rect, Rounding::ZERO, Color32::from_rgba_unmultiplied(255, 255, 255, 20));
             }
         }
 
@@ -252,17 +240,16 @@ impl CostHistoryChart {
                 let cost_display = format!("${:.2}", point.value);
 
                 let detail = if let Some(tokens) = point.tokens {
-                    format!(
-                        "{}: {} · {} tokens",
-                        date_display,
-                        cost_display,
-                        format_tokens(tokens)
-                    )
+                    format!("{}: {} · {} tokens", date_display, cost_display, format_tokens(tokens))
                 } else {
                     format!("{}: {}", date_display, cost_display)
                 };
 
-                ui.label(RichText::new(detail).size(10.0).color(Color32::GRAY));
+                ui.label(
+                    RichText::new(detail)
+                        .size(10.0)
+                        .color(Color32::GRAY),
+                );
             }
         }
         // Removed: "Hover a bar for details" and "Total (30d)" texts for compact layout
@@ -304,10 +291,7 @@ impl CreditsHistoryChart {
 
         let bar_color = Color32::from_rgb(73, 163, 176); // Teal color for credits
         let max_value = self.points.iter().map(|p| p.value).fold(0.0f64, f64::max);
-        let peak_index = self
-            .points
-            .iter()
-            .enumerate()
+        let peak_index = self.points.iter().enumerate()
             .max_by(|(_, a), (_, b)| a.value.partial_cmp(&b.value).unwrap())
             .map(|(i, _)| i);
 
@@ -335,9 +319,9 @@ impl CreditsHistoryChart {
             let x = rect.left() + (i as f32 * (bar_width + bar_spacing)) + bar_spacing / 2.0;
 
             // Check hover
-            let is_hovered = response
-                .hover_pos()
-                .is_some_and(|pos| pos.x >= x && pos.x <= x + bar_width);
+            let is_hovered = response.hover_pos().map_or(false, |pos| {
+                pos.x >= x && pos.x <= x + bar_width
+            });
 
             if is_hovered {
                 self.selected_index = Some(i);
@@ -357,11 +341,7 @@ impl CreditsHistoryChart {
                     egui::pos2(x, rect.bottom() - bar_height),
                     Vec2::new(bar_width, 5.0),
                 );
-                painter.rect_filled(
-                    cap_rect,
-                    Rounding::same(2.0),
-                    Color32::from_rgb(255, 200, 50),
-                );
+                painter.rect_filled(cap_rect, Rounding::same(2.0), Color32::from_rgb(255, 200, 50));
             } else {
                 let bar_rect = egui::Rect::from_min_size(
                     egui::pos2(x, rect.bottom() - bar_height),
@@ -389,7 +369,11 @@ impl CreditsHistoryChart {
                 let date_display = format_date_display(&point.date);
                 let detail = format!("{}: {:.2} credits", date_display, point.value);
 
-                ui.label(RichText::new(detail).size(11.0).color(Color32::GRAY));
+                ui.label(
+                    RichText::new(detail)
+                        .size(11.0)
+                        .color(Color32::GRAY),
+                );
             }
         } else {
             ui.label(
@@ -459,7 +443,7 @@ pub struct ServiceUsage {
 /// A single data point for usage breakdown chart
 #[derive(Clone, Debug)]
 pub struct UsageBreakdownPoint {
-    pub day: String, // "2025-01-15" format
+    pub day: String,           // "2025-01-15" format
     pub services: Vec<ServiceUsage>,
     pub total_credits_used: f64,
 }
@@ -496,12 +480,10 @@ impl UsageBreakdownChart {
 
     fn build_service_colors(points: &[UsageBreakdownPoint]) -> Vec<(String, Color32)> {
         // Collect all unique services and their total usage
-        let mut service_totals: std::collections::HashMap<String, f64> =
-            std::collections::HashMap::new();
+        let mut service_totals: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
         for point in points {
             for service in &point.services {
-                *service_totals.entry(service.service.clone()).or_insert(0.0) +=
-                    service.credits_used;
+                *service_totals.entry(service.service.clone()).or_insert(0.0) += service.credits_used;
             }
         }
 
@@ -510,18 +492,14 @@ impl UsageBreakdownChart {
         sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Assign colors
-        sorted
-            .into_iter()
-            .map(|(service, _)| {
-                let color = color_for_service(&service);
-                (service, color)
-            })
-            .collect()
+        sorted.into_iter().map(|(service, _)| {
+            let color = color_for_service(&service);
+            (service, color)
+        }).collect()
     }
 
     fn get_service_color(&self, service: &str) -> Color32 {
-        self.service_colors
-            .iter()
+        self.service_colors.iter()
             .find(|(s, _)| s == service)
             .map(|(_, c)| *c)
             .unwrap_or(Color32::GRAY)
@@ -538,20 +516,11 @@ impl UsageBreakdownChart {
             return;
         }
 
-        let max_value = self
-            .points
-            .iter()
+        let max_value = self.points.iter()
             .map(|p| p.total_credits_used)
             .fold(0.0f64, f64::max);
-        let peak_index = self
-            .points
-            .iter()
-            .enumerate()
-            .max_by(|(_, a), (_, b)| {
-                a.total_credits_used
-                    .partial_cmp(&b.total_credits_used)
-                    .unwrap()
-            })
+        let peak_index = self.points.iter().enumerate()
+            .max_by(|(_, a), (_, b)| a.total_credits_used.partial_cmp(&b.total_credits_used).unwrap())
             .map(|(i, _)| i);
 
         // Chart area
@@ -578,9 +547,9 @@ impl UsageBreakdownChart {
             let x = rect.left() + (i as f32 * (bar_width + bar_spacing)) + bar_spacing / 2.0;
 
             // Check hover
-            let is_hovered = response
-                .hover_pos()
-                .is_some_and(|pos| pos.x >= x && pos.x <= x + bar_width);
+            let is_hovered = response.hover_pos().map_or(false, |pos| {
+                pos.x >= x && pos.x <= x + bar_width
+            });
 
             if is_hovered {
                 self.selected_index = Some(i);
@@ -620,11 +589,7 @@ impl UsageBreakdownChart {
                     egui::pos2(x, rect.bottom() - total_bar_height - cap_height),
                     Vec2::new(bar_width, cap_height),
                 );
-                painter.rect_filled(
-                    cap_rect,
-                    Rounding::same(2.0),
-                    Color32::from_rgb(255, 200, 50),
-                );
+                painter.rect_filled(cap_rect, Rounding::same(2.0), Color32::from_rgb(255, 200, 50));
             }
         }
 
@@ -642,9 +607,7 @@ impl UsageBreakdownChart {
                 let total_display = format!("{:.1}", point.total_credits_used);
 
                 // Show top services
-                let top_services: String = point
-                    .services
-                    .iter()
+                let top_services: String = point.services.iter()
                     .filter(|s| s.credits_used > 0.0)
                     .take(3)
                     .map(|s| format!("{} {:.1}", s.service, s.credits_used))
@@ -657,7 +620,11 @@ impl UsageBreakdownChart {
                         .color(Color32::GRAY),
                 );
                 if !top_services.is_empty() {
-                    ui.label(RichText::new(top_services).size(10.0).color(Color32::GRAY));
+                    ui.label(
+                        RichText::new(top_services)
+                            .size(10.0)
+                            .color(Color32::GRAY),
+                    );
                 }
             }
         }
@@ -709,15 +676,12 @@ fn format_top_models(breakdowns: &[ModelBreakdown]) -> String {
     }
 
     // Sort by cost descending and take top 3
-    let mut sorted: Vec<_> = breakdowns.iter().filter(|b| b.cost_usd > 0.0).collect();
-    sorted.sort_by(|a, b| {
-        b.cost_usd
-            .partial_cmp(&a.cost_usd)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
+    let mut sorted: Vec<_> = breakdowns.iter()
+        .filter(|b| b.cost_usd > 0.0)
+        .collect();
+    sorted.sort_by(|a, b| b.cost_usd.partial_cmp(&a.cost_usd).unwrap_or(std::cmp::Ordering::Equal));
 
-    let top: Vec<String> = sorted
-        .iter()
+    let top: Vec<String> = sorted.iter()
         .take(3)
         .map(|b| format!("{} ${:.2}", format_model_name(&b.model_name), b.cost_usd))
         .collect();

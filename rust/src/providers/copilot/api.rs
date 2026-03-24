@@ -10,9 +10,9 @@ const API_URL: &str = "https://api.github.com/copilot_internal/user";
 
 // Credential Manager targets to try
 const CREDENTIAL_TARGETS: &[&str] = &[
-    "codexbar-copilot",       // Our own storage
-    "git:https://github.com", // GitHub CLI / Git Credential Manager
-    "github.com",             // Alternative format
+    "codexbar-copilot",          // Our own storage
+    "git:https://github.com",    // GitHub CLI / Git Credential Manager
+    "github.com",                // Alternative format
 ];
 
 /// Copilot API client
@@ -38,8 +38,7 @@ impl CopilotApi {
         let token = self.load_token(api_key)?;
 
         // Build request with required headers
-        let response = self
-            .client
+        let response = self.client
             .get(API_URL)
             .header("Authorization", format!("token {}", token))
             .header("Accept", "application/json")
@@ -112,7 +111,7 @@ impl CopilotApi {
         use std::os::windows::ffi::OsStrExt;
         use windows::core::PCWSTR;
         use windows::Win32::Security::Credentials::{
-            CredFree, CredReadW, CREDENTIALW, CRED_TYPE_GENERIC,
+            CredReadW, CredFree, CREDENTIALW, CRED_TYPE_GENERIC,
         };
 
         let target_wide: Vec<u16> = OsStr::new(target)
@@ -123,12 +122,7 @@ impl CopilotApi {
         let mut credential: *mut CREDENTIALW = std::ptr::null_mut();
 
         let result = unsafe {
-            CredReadW(
-                PCWSTR(target_wide.as_ptr()),
-                CRED_TYPE_GENERIC,
-                0,
-                &mut credential,
-            )
+            CredReadW(PCWSTR(target_wide.as_ptr()), CRED_TYPE_GENERIC, 0, &mut credential)
         };
 
         if result.is_err() {
@@ -138,15 +132,17 @@ impl CopilotApi {
         let token = unsafe {
             let cred = &*credential;
             if cred.CredentialBlobSize == 0 || cred.CredentialBlob.is_null() {
-                CredFree(credential as *mut std::ffi::c_void);
+                let _ = CredFree(credential as *mut std::ffi::c_void);
                 return None;
             }
 
-            let blob =
-                std::slice::from_raw_parts(cred.CredentialBlob, cred.CredentialBlobSize as usize);
+            let blob = std::slice::from_raw_parts(
+                cred.CredentialBlob,
+                cred.CredentialBlobSize as usize,
+            );
 
             let token = String::from_utf8_lossy(blob).to_string();
-            CredFree(credential as *mut std::ffi::c_void);
+            let _ = CredFree(credential as *mut std::ffi::c_void);
             token
         };
 
@@ -163,14 +159,9 @@ impl CopilotApi {
         None
     }
 
-    fn build_snapshot(
-        &self,
-        response: CopilotUsageResponse,
-    ) -> Result<UsageSnapshot, ProviderError> {
+    fn build_snapshot(&self, response: CopilotUsageResponse) -> Result<UsageSnapshot, ProviderError> {
         // Build primary rate window from premium_interactions
-        let primary = response
-            .quota_snapshots
-            .premium_interactions
+        let primary = response.quota_snapshots.premium_interactions
             .as_ref()
             .map(|snapshot| {
                 let used_percent = (100.0 - snapshot.percent_remaining).max(0.0);
@@ -184,15 +175,17 @@ impl CopilotApi {
             .unwrap_or_else(|| RateWindow::new(0.0));
 
         // Build secondary rate window from chat
-        let secondary = response.quota_snapshots.chat.as_ref().map(|snapshot| {
-            let used_percent = (100.0 - snapshot.percent_remaining).max(0.0);
-            RateWindow::with_details(
-                used_percent,
-                None,
-                parse_iso_date(&response.quota_reset_date),
-                None,
-            )
-        });
+        let secondary = response.quota_snapshots.chat
+            .as_ref()
+            .map(|snapshot| {
+                let used_percent = (100.0 - snapshot.percent_remaining).max(0.0);
+                RateWindow::with_details(
+                    used_percent,
+                    None,
+                    parse_iso_date(&response.quota_reset_date),
+                    None,
+                )
+            });
 
         // Format plan type
         let plan_type = format!("Copilot {}", capitalize(&response.copilot_plan));

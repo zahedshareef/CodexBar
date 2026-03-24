@@ -6,7 +6,7 @@ A Windows port of [CodexBar](https://github.com/steipete/CodexBar) - the tiny me
 
 ## Features
 
-- **22 AI Providers**: Codex, Claude, Cursor, Gemini, Copilot, Antigravity, Windsurf, Zai, MiniMax, Kilo, Kiro, Vertex AI, Augment, OpenCode, Kimi, Kimi K2, Amp, Warp, Ollama, OpenRouter, Synthetic, JetBrains
+- **15 AI Providers**: Codex, Claude, Cursor, Gemini, Copilot, Antigravity, Windsurf, Zai, Kiro, Vertex AI, Augment, MiniMax, OpenCode, Kimi, Kimi K2
 - **System Tray Icon**: Dynamic two-bar meter showing session + weekly usage
 - **Native Windows UI**: Built with egui - no web runtime required
 - **Browser Cookie Extraction**: Automatic extraction from Chrome, Edge, Brave, Firefox (DPAPI encrypted)
@@ -51,9 +51,6 @@ Other options:
 
 Download the latest release from [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases).
 
-- Primary installable asset: `CodexBar-<version>-Setup.exe`
-- Optional portable asset: `codexbar.exe`
-
 ### Manual Build
 
 Prerequisites: Rust 1.70+ with `x86_64-pc-windows-gnu` target, MinGW-w64.
@@ -66,8 +63,8 @@ Install them automatically with:
 Then build:
 ```powershell
 cd rust
-cargo build --release --bins
-# Binaries at: target/x86_64-pc-windows-gnu/release/
+cargo build --release
+# Binary at: target/release/codexbar.exe
 ```
 
 ## Usage
@@ -101,20 +98,13 @@ codexbar cost -p claude
 | Antigravity | Local Language Server | Usage |
 | Windsurf | Local Config | Usage |
 | Zai | API Token | Quota |
-| MiniMax | API | Usage |
-| Kilo | API Key / CLI (`kilo login`) | Credits, Kilo Pass |
 | Kiro | CLI | Monthly Credits |
 | Vertex AI | gcloud OAuth | Cost Tracking |
 | Augment | Browser Cookies | Credits |
+| MiniMax | API | Usage |
 | OpenCode | Local Config | Usage |
 | Kimi | Browser Cookies | 5-Hour Rate, Weekly |
 | Kimi K2 | API Key | Credits |
-| Amp | API Token | Usage |
-| Warp | API Key | Credits, Add-ons |
-| Ollama | Browser Cookies | Usage |
-| OpenRouter | API Key | Credits, Key Quota |
-| Synthetic | API Key | Usage |
-| JetBrains | API Token | Usage |
 
 ## First Run
 
@@ -148,7 +138,7 @@ If automatic extraction fails, you can add cookies manually:
 | System Tray | NSStatusItem | tray-icon crate |
 | Cookie Decryption | Keychain | DPAPI |
 | Widget | WidgetKit | Not available |
-| Auto-update | Sparkle | GitHub Releases + local Setup installer |
+| Auto-update | Sparkle | Manual |
 
 ## Privacy
 

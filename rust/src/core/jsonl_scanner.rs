@@ -162,10 +162,7 @@ impl JsonlScanner {
             if let Ok(entries) = fs::read_dir(&day_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path
-                        .extension()
-                        .is_some_and(|e| e.eq_ignore_ascii_case("jsonl"))
-                    {
+                    if path.extension().map_or(false, |e| e.eq_ignore_ascii_case("jsonl")) {
                         files.push(path);
                     }
                 }
@@ -203,9 +200,7 @@ impl JsonlScanner {
             parsed_bytes += line.len() as i64;
 
             // Quick check for relevant lines
-            if !line.contains("\"type\":\"event_msg\"")
-                && !line.contains("\"type\":\"turn_context\"")
-            {
+            if !line.contains("\"type\":\"event_msg\"") && !line.contains("\"type\":\"turn_context\"") {
                 line.clear();
                 continue;
             }
@@ -230,11 +225,7 @@ impl JsonlScanner {
                         continue;
                     };
 
-                    if !CostUsageDayRange::is_in_range(
-                        day_key,
-                        &range.scan_since_key,
-                        &range.scan_until_key,
-                    ) {
+                    if !CostUsageDayRange::is_in_range(day_key, &range.scan_since_key, &range.scan_until_key) {
                         line.clear();
                         continue;
                     }
@@ -273,55 +264,29 @@ impl JsonlScanner {
                             let (delta_input, delta_cached, delta_output) = if let Some(total) =
                                 info.and_then(|i| i.get("total_token_usage"))
                             {
-                                let input = total
-                                    .get("input_tokens")
-                                    .and_then(|v| v.as_i64())
-                                    .unwrap_or(0)
-                                    as i32;
+                                let input = total.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
                                 let cached = total
                                     .get("cached_input_tokens")
                                     .or(total.get("cache_read_input_tokens"))
                                     .and_then(|v| v.as_i64())
-                                    .unwrap_or(0)
-                                    as i32;
-                                let output = total
-                                    .get("output_tokens")
-                                    .and_then(|v| v.as_i64())
-                                    .unwrap_or(0)
-                                    as i32;
+                                    .unwrap_or(0) as i32;
+                                let output = total.get("output_tokens").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
 
-                                let delta_input = (input
-                                    - previous_totals.as_ref().map_or(0, |t| t.input))
-                                .max(0);
-                                let delta_cached = (cached
-                                    - previous_totals.as_ref().map_or(0, |t| t.cached))
-                                .max(0);
-                                let delta_output = (output
-                                    - previous_totals.as_ref().map_or(0, |t| t.output))
-                                .max(0);
+                                let delta_input = (input - previous_totals.as_ref().map_or(0, |t| t.input)).max(0);
+                                let delta_cached = (cached - previous_totals.as_ref().map_or(0, |t| t.cached)).max(0);
+                                let delta_output = (output - previous_totals.as_ref().map_or(0, |t| t.output)).max(0);
 
-                                previous_totals = Some(CodexTotals {
-                                    input,
-                                    cached,
-                                    output,
-                                });
+                                previous_totals = Some(CodexTotals { input, cached, output });
 
                                 (delta_input, delta_cached, delta_output)
-                            } else if let Some(last) = info.and_then(|i| i.get("last_token_usage"))
-                            {
-                                let input =
-                                    last.get("input_tokens")
-                                        .and_then(|v| v.as_i64())
-                                        .unwrap_or(0) as i32;
-                                let cached =
-                                    last.get("cached_input_tokens")
-                                        .or(last.get("cache_read_input_tokens"))
-                                        .and_then(|v| v.as_i64())
-                                        .unwrap_or(0) as i32;
-                                let output =
-                                    last.get("output_tokens")
-                                        .and_then(|v| v.as_i64())
-                                        .unwrap_or(0) as i32;
+                            } else if let Some(last) = info.and_then(|i| i.get("last_token_usage")) {
+                                let input = last.get("input_tokens").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
+                                let cached = last
+                                    .get("cached_input_tokens")
+                                    .or(last.get("cache_read_input_tokens"))
+                                    .and_then(|v| v.as_i64())
+                                    .unwrap_or(0) as i32;
+                                let output = last.get("output_tokens").and_then(|v| v.as_i64()).unwrap_or(0) as i32;
 
                                 (input.max(0), cached.max(0), output.max(0))
                             } else {
@@ -339,9 +304,7 @@ impl JsonlScanner {
                             let cached_clamp = delta_cached.min(delta_input);
 
                             let day_models = days.entry(day_key.to_string()).or_default();
-                            let packed = day_models
-                                .entry(norm_model)
-                                .or_insert_with(|| vec![0, 0, 0]);
+                            let packed = day_models.entry(norm_model).or_insert_with(|| vec![0, 0, 0]);
                             packed[0] += delta_input;
                             packed[1] += cached_clamp;
                             packed[2] += delta_output;
@@ -417,21 +380,9 @@ mod tests {
 
     #[test]
     fn test_is_in_range() {
-        assert!(CostUsageDayRange::is_in_range(
-            "2026-01-15",
-            "2026-01-10",
-            "2026-01-20"
-        ));
-        assert!(!CostUsageDayRange::is_in_range(
-            "2026-01-05",
-            "2026-01-10",
-            "2026-01-20"
-        ));
-        assert!(!CostUsageDayRange::is_in_range(
-            "2026-01-25",
-            "2026-01-10",
-            "2026-01-20"
-        ));
+        assert!(CostUsageDayRange::is_in_range("2026-01-15", "2026-01-10", "2026-01-20"));
+        assert!(!CostUsageDayRange::is_in_range("2026-01-05", "2026-01-10", "2026-01-20"));
+        assert!(!CostUsageDayRange::is_in_range("2026-01-25", "2026-01-10", "2026-01-20"));
     }
 
     #[test]

@@ -300,7 +300,6 @@ pub fn account_name_for_provider(provider: ProviderId) -> &'static str {
         ProviderId::OpenCode => "opencode-cookie",
         ProviderId::Gemini => "gemini-cookie",
         ProviderId::Antigravity => "antigravity-cookie",
-        ProviderId::Kilo => "kilo-token",
         ProviderId::Kiro => "kiro-cookie",
         ProviderId::VertexAI => "vertexai-token",
         ProviderId::Kimi => "kimi-cookie",

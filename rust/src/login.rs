@@ -7,6 +7,8 @@
 use std::process::{Command, Stdio};
 use std::io::{BufRead, BufReader};
 use regex_lite::Regex;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 /// Result of a login attempt
 #[derive(Debug, Clone)]
@@ -107,11 +109,17 @@ where
     on_phase(LoginPhase::Requesting);
 
     // Spawn process
-    let mut child = match Command::new(&binary_path)
-        .args(args)
+    #[cfg(windows)]
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    let mut cmd = Command::new(&binary_path);
+    cmd.args(args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let mut child = match cmd.spawn()
     {
         Ok(c) => c,
         Err(e) => {

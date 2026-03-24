@@ -9,7 +9,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{hash_map::DefaultHasher, HashMap};
 use std::hash::{Hash, Hasher};
 use tray_icon::{
-    menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu, CheckMenuItem},
     Icon, TrayIcon, TrayIconBuilder,
 };
 
@@ -56,11 +56,11 @@ impl SurpriseAnimation {
     pub fn duration_frames(&self) -> u32 {
         match self {
             SurpriseAnimation::None => 0,
-            SurpriseAnimation::Blink => 8,    // Quick flash
-            SurpriseAnimation::Wiggle => 20,  // Shake back and forth
-            SurpriseAnimation::Pulse => 30,   // Slow pulse
-            SurpriseAnimation::Rainbow => 40, // Color sweep
-            SurpriseAnimation::Tilt => 24,    // Tilt and return
+            SurpriseAnimation::Blink => 8,     // Quick flash
+            SurpriseAnimation::Wiggle => 20,   // Shake back and forth
+            SurpriseAnimation::Pulse => 30,    // Slow pulse
+            SurpriseAnimation::Rainbow => 40,  // Color sweep
+            SurpriseAnimation::Tilt => 24,     // Tilt and return
         }
     }
 }
@@ -173,16 +173,13 @@ impl TrayManager {
     pub fn update_usage(&self, session_percent: f64, weekly_percent: f64, provider_name: &str) {
         let tooltip = format!(
             "{}: Session {}% | Weekly {}%",
-            provider_name, session_percent as i32, weekly_percent as i32
+            provider_name,
+            session_percent as i32,
+            weekly_percent as i32
         );
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
 
-        if !self.should_update_usage(
-            session_percent,
-            weekly_percent,
-            provider_name,
-            IconOverlay::None,
-        ) {
+        if !self.should_update_usage(session_percent, weekly_percent, provider_name, IconOverlay::None) {
             return;
         }
 
@@ -191,13 +188,7 @@ impl TrayManager {
     }
 
     /// Update the tray icon with an overlay (error, stale, incident)
-    pub fn update_usage_with_overlay(
-        &self,
-        session_percent: f64,
-        weekly_percent: f64,
-        provider_name: &str,
-        overlay: IconOverlay,
-    ) {
+    pub fn update_usage_with_overlay(&self, session_percent: f64, weekly_percent: f64, provider_name: &str, overlay: IconOverlay) {
         let status_suffix = match overlay {
             IconOverlay::None => "",
             IconOverlay::Error => " (Error)",
@@ -208,7 +199,10 @@ impl TrayManager {
 
         let tooltip = format!(
             "{}: Session {}% | Weekly {}%{}",
-            provider_name, session_percent as i32, weekly_percent as i32, status_suffix
+            provider_name,
+            session_percent as i32,
+            weekly_percent as i32,
+            status_suffix
         );
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
 
@@ -231,19 +225,16 @@ impl TrayManager {
 
     /// Show stale data indicator
     #[allow(dead_code)]
-    pub fn show_stale(
-        &self,
-        session_percent: f64,
-        weekly_percent: f64,
-        provider_name: &str,
-        age_minutes: u64,
-    ) {
+    pub fn show_stale(&self, session_percent: f64, weekly_percent: f64, provider_name: &str, age_minutes: u64) {
         let icon = create_bar_icon(session_percent, weekly_percent, IconOverlay::Stale);
         let _ = self.tray_icon.set_icon(Some(icon));
 
         let tooltip = format!(
             "{}: Session {}% | Weekly {}% (data {}m old)",
-            provider_name, session_percent as i32, weekly_percent as i32, age_minutes
+            provider_name,
+            session_percent as i32,
+            weekly_percent as i32,
+            age_minutes
         );
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
     }
@@ -256,7 +247,8 @@ impl TrayManager {
 
         let tooltip = format!(
             "{}: Weekly quota exhausted | {:.0}% credits remaining",
-            provider_name, credits_percent
+            provider_name,
+            credits_percent
         );
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
     }
@@ -321,13 +313,7 @@ impl TrayManager {
     }
 
     /// Show a surprise animation frame
-    pub fn show_surprise(
-        &self,
-        animation: SurpriseAnimation,
-        frame: u32,
-        session_percent: f64,
-        weekly_percent: f64,
-    ) {
+    pub fn show_surprise(&self, animation: SurpriseAnimation, frame: u32, session_percent: f64, weekly_percent: f64) {
         let icon = create_surprise_icon(animation, frame, session_percent, weekly_percent);
         let _ = self.tray_icon.set_icon(Some(icon));
     }
@@ -351,11 +337,7 @@ impl TrayManager {
     }
 
     /// Update a single provider's menu item label with status prefix
-    pub fn update_provider_status(
-        &self,
-        provider_id: ProviderId,
-        status_level: IndicatorStatusLevel,
-    ) {
+    pub fn update_provider_status(&self, provider_id: ProviderId, status_level: IndicatorStatusLevel) {
         if let Some(check_item) = self.provider_menu_items.get(&provider_id) {
             let base_name = provider_id.display_name();
             let prefix = status_level.status_prefix();
@@ -394,12 +376,7 @@ impl TrayManager {
 }
 
 impl TrayManager {
-    fn usage_signature(
-        session_percent: f64,
-        weekly_percent: f64,
-        provider_name: &str,
-        overlay: IconOverlay,
-    ) -> u64 {
+    fn usage_signature(session_percent: f64, weekly_percent: f64, provider_name: &str, overlay: IconOverlay) -> u64 {
         let mut hasher = DefaultHasher::new();
         let session_tenths = (session_percent * 10.0).round() as i32;
         let weekly_tenths = (weekly_percent * 10.0).round() as i32;
@@ -410,15 +387,8 @@ impl TrayManager {
         hasher.finish()
     }
 
-    fn should_update_usage(
-        &self,
-        session_percent: f64,
-        weekly_percent: f64,
-        provider_name: &str,
-        overlay: IconOverlay,
-    ) -> bool {
-        let signature =
-            Self::usage_signature(session_percent, weekly_percent, provider_name, overlay);
+    fn should_update_usage(&self, session_percent: f64, weekly_percent: f64, provider_name: &str, overlay: IconOverlay) -> bool {
+        let signature = Self::usage_signature(session_percent, weekly_percent, provider_name, overlay);
         if self.last_usage_signature.get() == Some(signature) {
             return false;
         }
@@ -474,9 +444,7 @@ impl MultiTrayManager {
         // Remove icons for providers that are no longer enabled
         let enabled_set: std::collections::HashSet<_> = enabled_providers.iter().collect();
         self.provider_icons.retain(|id, _| enabled_set.contains(id));
-        self.provider_signatures
-            .borrow_mut()
-            .retain(|id, _| enabled_set.contains(id));
+        self.provider_signatures.borrow_mut().retain(|id, _| enabled_set.contains(id));
 
         // Add icons for newly enabled providers
         for provider_id in enabled_providers {
@@ -496,7 +464,7 @@ impl MultiTrayManager {
 
         // Provider name header (disabled menu item)
         let header = MenuItem::with_id(
-            format!("header_{}", provider_id.cli_name()),
+            &format!("header_{}", provider_id.cli_name()),
             provider_id.display_name(),
             false,
             None,
@@ -511,7 +479,7 @@ impl MultiTrayManager {
 
         // Refresh
         let refresh_item = MenuItem::with_id(
-            format!("refresh_{}", provider_id.cli_name()),
+            &format!("refresh_{}", provider_id.cli_name()),
             "Refresh",
             true,
             None,
@@ -543,19 +511,9 @@ impl MultiTrayManager {
     }
 
     /// Update a specific provider's tray icon
-    pub fn update_provider(
-        &self,
-        provider_id: ProviderId,
-        session_percent: f64,
-        weekly_percent: f64,
-    ) {
+    pub fn update_provider(&self, provider_id: ProviderId, session_percent: f64, weekly_percent: f64) {
         if let Some(tray_icon) = self.provider_icons.get(&provider_id) {
-            let signature = TrayManager::usage_signature(
-                session_percent,
-                weekly_percent,
-                provider_id.display_name(),
-                IconOverlay::None,
-            );
+            let signature = TrayManager::usage_signature(session_percent, weekly_percent, provider_id.display_name(), IconOverlay::None);
             let mut sigs = self.provider_signatures.borrow_mut();
             if sigs.get(&provider_id) != Some(&signature) {
                 sigs.insert(provider_id, signature);
@@ -583,12 +541,7 @@ impl MultiTrayManager {
         overlay: IconOverlay,
     ) {
         if let Some(tray_icon) = self.provider_icons.get(&provider_id) {
-            let signature = TrayManager::usage_signature(
-                session_percent,
-                weekly_percent,
-                provider_id.display_name(),
-                overlay,
-            );
+            let signature = TrayManager::usage_signature(session_percent, weekly_percent, provider_id.display_name(), overlay);
             let mut sigs = self.provider_signatures.borrow_mut();
             if sigs.get(&provider_id) != Some(&signature) {
                 sigs.insert(provider_id, signature);
@@ -617,22 +570,14 @@ impl MultiTrayManager {
     }
 
     /// Show loading state for a specific provider
-    pub fn show_provider_loading(
-        &self,
-        provider_id: ProviderId,
-        pattern: LoadingPattern,
-        phase: f64,
-    ) {
+    pub fn show_provider_loading(&self, provider_id: ProviderId, pattern: LoadingPattern, phase: f64) {
         if let Some(tray_icon) = self.provider_icons.get(&provider_id) {
             let primary = pattern.value(phase);
             let secondary = pattern.value(phase + pattern.secondary_offset());
 
             let icon = create_loading_icon(primary, secondary);
             let _ = tray_icon.set_icon(Some(icon));
-            let _ = tray_icon.set_tooltip(Some(&format!(
-                "{} - Loading...",
-                provider_id.display_name()
-            )));
+            let _ = tray_icon.set_tooltip(Some(&format!("{} - Loading...", provider_id.display_name())));
         }
     }
 
@@ -681,11 +626,11 @@ impl UnifiedTrayManager {
 
     /// Check if we need to recreate the manager due to mode change
     pub fn needs_mode_switch(&self, new_mode: TrayIconMode) -> bool {
-        matches!(
-            (self, new_mode),
-            (UnifiedTrayManager::Single(_), TrayIconMode::PerProvider)
-                | (UnifiedTrayManager::PerProvider(_), TrayIconMode::Single)
-        )
+        match (self, new_mode) {
+            (UnifiedTrayManager::Single(_), TrayIconMode::PerProvider) => true,
+            (UnifiedTrayManager::PerProvider(_), TrayIconMode::Single) => true,
+            _ => false,
+        }
     }
 
     /// Check for menu events (delegates to TrayManager's static method)
@@ -717,9 +662,7 @@ impl UnifiedTrayManager {
     /// Update usage for a single provider display
     pub fn update_usage(&self, session_percent: f64, weekly_percent: f64, tooltip_name: &str) {
         match self {
-            UnifiedTrayManager::Single(tm) => {
-                tm.update_usage(session_percent, weekly_percent, tooltip_name)
-            }
+            UnifiedTrayManager::Single(tm) => tm.update_usage(session_percent, weekly_percent, tooltip_name),
             UnifiedTrayManager::PerProvider(_) => {
                 // Per-provider mode doesn't use single update
             }
@@ -778,11 +721,7 @@ fn create_bar_icon(session_percent: f64, weekly_percent: f64, overlay: IconOverl
             }
             IconOverlay::Stale => {
                 // Dim colors by 40%
-                (
-                    (r as f32 * 0.6) as u8,
-                    (g as f32 * 0.6) as u8,
-                    (b as f32 * 0.6) as u8,
-                )
+                ((r as f32 * 0.6) as u8, (g as f32 * 0.6) as u8, (b as f32 * 0.6) as u8)
             }
             _ => (r, g, b),
         }
@@ -1070,12 +1009,7 @@ fn create_loading_icon(primary_percent: f64, secondary_percent: f64) -> Icon {
 }
 
 /// Create a surprise animation icon frame
-fn create_surprise_icon(
-    animation: SurpriseAnimation,
-    frame: u32,
-    session_percent: f64,
-    weekly_percent: f64,
-) -> Icon {
+fn create_surprise_icon(animation: SurpriseAnimation, frame: u32, session_percent: f64, weekly_percent: f64) -> Icon {
     let mut img: RgbaImage = ImageBuffer::new(ICON_SIZE, ICON_SIZE);
 
     // Fill with transparent background
@@ -1106,44 +1040,36 @@ fn create_surprise_icon(
         SurpriseAnimation::Blink => {
             // Flash to white and back
             let flash = if progress < 0.5 {
-                progress * 2.0 // Fade to white
+                progress * 2.0  // Fade to white
             } else {
-                (1.0 - progress) * 2.0 // Fade back
+                (1.0 - progress) * 2.0  // Fade back
             };
-            let blend = 1.0 + flash * 0.8; // Boost brightness
+            let blend = 1.0 + flash * 0.8;  // Boost brightness
             ((blend, blend, blend), 0, 0)
         }
         SurpriseAnimation::Wiggle => {
             // Shake left and right
-            let shake = (progress * std::f64::consts::PI * 6.0).sin(); // 3 full oscillations
-            let offset = (shake * 2.0) as i32; // +/- 2 pixels
+            let shake = (progress * std::f64::consts::PI * 6.0).sin();  // 3 full oscillations
+            let offset = (shake * 2.0) as i32;  // +/- 2 pixels
             ((1.0, 1.0, 1.0), offset, 0)
         }
         SurpriseAnimation::Pulse => {
             // Gentle pulse - grow and shrink brightness
-            let pulse = (progress * std::f64::consts::PI * 2.0).sin(); // One full cycle
-            let intensity = 1.0 + pulse * 0.3; // +/- 30% brightness
+            let pulse = (progress * std::f64::consts::PI * 2.0).sin();  // One full cycle
+            let intensity = 1.0 + pulse * 0.3;  // +/- 30% brightness
             ((intensity, intensity, intensity), 0, 0)
         }
         SurpriseAnimation::Rainbow => {
             // Sweep through rainbow colors
             let hue = progress * 360.0;
             let (r, g, b) = hsv_to_rgb(hue, 0.8, 1.0);
-            (
-                (
-                    r as f64 / 255.0 * 2.0,
-                    g as f64 / 255.0 * 2.0,
-                    b as f64 / 255.0 * 2.0,
-                ),
-                0,
-                0,
-            )
+            ((r as f64 / 255.0 * 2.0, g as f64 / 255.0 * 2.0, b as f64 / 255.0 * 2.0), 0, 0)
         }
         SurpriseAnimation::Tilt => {
             // Tilt effect - slight diagonal shift that returns
-            let tilt = (progress * std::f64::consts::PI).sin(); // 0 -> 1 -> 0
-            let x_off = (tilt * 2.0) as i32; // +2 pixels at peak
-            let y_off = (tilt * 1.0) as i32; // +1 pixel at peak (slight diagonal)
+            let tilt = (progress * std::f64::consts::PI).sin();  // 0 -> 1 -> 0
+            let x_off = (tilt * 2.0) as i32;  // +2 pixels at peak
+            let y_off = (tilt * 1.0) as i32;  // +1 pixel at peak (slight diagonal)
             ((1.0, 1.0, 1.0), x_off, y_off)
         }
     };
@@ -1159,20 +1085,16 @@ fn create_surprise_icon(
     // Track (gray)
     for y in 8..15 {
         for x in bar_left..bar_right {
-            let adjusted_x = (x as i32 + x_offset)
-                .max(bar_left as i32)
-                .min(bar_right as i32 - 1) as u32;
-            let adjusted_y = (y + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
+            let adjusted_x = (x as i32 + x_offset).max(bar_left as i32).min(bar_right as i32 - 1) as u32;
+            let adjusted_y = (y as i32 + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
             img.put_pixel(adjusted_x, adjusted_y, Rgba([80, 80, 90, 255]));
         }
     }
     // Fill (colored with animation)
     for y in 8..15 {
         for x in bar_left..(bar_left + session_fill).min(bar_right) {
-            let adjusted_x = (x as i32 + x_offset)
-                .max(bar_left as i32)
-                .min(bar_right as i32 - 1) as u32;
-            let adjusted_y = (y + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
+            let adjusted_x = (x as i32 + x_offset).max(bar_left as i32).min(bar_right as i32 - 1) as u32;
+            let adjusted_y = (y as i32 + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
             img.put_pixel(adjusted_x, adjusted_y, Rgba([sr, sg, sb, 255]));
         }
     }
@@ -1188,20 +1110,16 @@ fn create_surprise_icon(
     // Track (gray)
     for y in 18..23 {
         for x in bar_left..bar_right {
-            let adjusted_x = (x as i32 + x_offset)
-                .max(bar_left as i32)
-                .min(bar_right as i32 - 1) as u32;
-            let adjusted_y = (y + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
+            let adjusted_x = (x as i32 + x_offset).max(bar_left as i32).min(bar_right as i32 - 1) as u32;
+            let adjusted_y = (y as i32 + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
             img.put_pixel(adjusted_x, adjusted_y, Rgba([80, 80, 90, 255]));
         }
     }
     // Fill (colored with animation)
     for y in 18..23 {
         for x in bar_left..(bar_left + weekly_fill).min(bar_right) {
-            let adjusted_x = (x as i32 + x_offset)
-                .max(bar_left as i32)
-                .min(bar_right as i32 - 1) as u32;
-            let adjusted_y = (y + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
+            let adjusted_x = (x as i32 + x_offset).max(bar_left as i32).min(bar_right as i32 - 1) as u32;
+            let adjusted_y = (y as i32 + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
             img.put_pixel(adjusted_x, adjusted_y, Rgba([wr, wg, wb, 255]));
         }
     }
@@ -1246,15 +1164,7 @@ fn create_morph_icon(progress: f64, session_percent: f64, weekly_percent: f64) -
     let seg1_len = lerp(seg1_start_len, seg1_end_len, t);
     let seg1_thickness = lerp(3.5, 7.0, t);
 
-    draw_rotated_ribbon(
-        &mut img,
-        center_x,
-        seg1_y,
-        seg1_len,
-        seg1_thickness,
-        seg1_angle,
-        ribbon_color,
-    );
+    draw_rotated_ribbon(&mut img, center_x, seg1_y, seg1_len, seg1_thickness, seg1_angle, ribbon_color);
 
     // Segment 2: Lower ribbon -> bottom bar
     let seg2_start_y = center_y - 2.0;
@@ -1268,15 +1178,7 @@ fn create_morph_icon(progress: f64, session_percent: f64, weekly_percent: f64) -
     let seg2_len = lerp(seg2_start_len, seg2_end_len, t);
     let seg2_thickness = lerp(3.5, 5.0, t);
 
-    draw_rotated_ribbon(
-        &mut img,
-        center_x,
-        seg2_y,
-        seg2_len,
-        seg2_thickness,
-        seg2_angle,
-        ribbon_color,
-    );
+    draw_rotated_ribbon(&mut img, center_x, seg2_y, seg2_len, seg2_thickness, seg2_angle, ribbon_color);
 
     // Segment 3: Side ribbon that fades out
     let seg3_alpha = ((1.0 - t * 1.1).max(0.0) * 255.0) as u8;
@@ -1286,15 +1188,7 @@ fn create_morph_icon(progress: f64, session_percent: f64, weekly_percent: f64) -
         let seg3_len = lerp(16.0, 8.0, t);
         let seg3_thickness = lerp(3.5, 1.8, t);
         let fading_color = Rgba([200, 200, 210, seg3_alpha]);
-        draw_rotated_ribbon(
-            &mut img,
-            center_x,
-            seg3_y,
-            seg3_len,
-            seg3_thickness,
-            seg3_angle,
-            fading_color,
-        );
+        draw_rotated_ribbon(&mut img, center_x, seg3_y, seg3_len, seg3_thickness, seg3_angle, fading_color);
     }
 
     // Cross-fade in colored fill bars near the end of the morph
@@ -1341,15 +1235,7 @@ fn create_morph_icon(progress: f64, session_percent: f64, weekly_percent: f64) -
 }
 
 /// Draw a rotated ribbon/rounded rectangle
-fn draw_rotated_ribbon(
-    img: &mut RgbaImage,
-    cx: f32,
-    cy: f32,
-    length: f32,
-    thickness: f32,
-    angle_deg: f32,
-    color: Rgba<u8>,
-) {
+fn draw_rotated_ribbon(img: &mut RgbaImage, cx: f32, cy: f32, length: f32, thickness: f32, angle_deg: f32, color: Rgba<u8>) {
     let angle_rad = angle_deg.to_radians();
     let cos_a = angle_rad.cos();
     let sin_a = angle_rad.sin();
@@ -1378,11 +1264,7 @@ fn draw_rotated_ribbon(
                 let final_x = (cx + dx as f32) as i32;
                 let final_y = (cy + dy as f32) as i32;
 
-                if final_x >= 0
-                    && final_x < ICON_SIZE as i32
-                    && final_y >= 0
-                    && final_y < ICON_SIZE as i32
-                {
+                if final_x >= 0 && final_x < ICON_SIZE as i32 && final_y >= 0 && final_y < ICON_SIZE as i32 {
                     let existing = img.get_pixel(final_x as u32, final_y as u32);
                     let blended = blend_alpha(existing, &color);
                     img.put_pixel(final_x as u32, final_y as u32, blended);
@@ -1476,61 +1358,31 @@ mod tests {
 
         assert_eq!(sig1, sig1_repeat, "same inputs should yield same signature");
         assert_ne!(sig1, sig_overlay, "overlay changes should change signature");
-        assert_ne!(
-            sig1, sig_provider,
-            "provider name changes should change signature"
-        );
-        assert_ne!(
-            sig1, sig_values,
-            "usage values changes should change signature"
-        );
+        assert_ne!(sig1, sig_provider, "provider name changes should change signature");
+        assert_ne!(sig1, sig_values, "usage values changes should change signature");
     }
 
     #[test]
     fn test_merged_signature_tracks_list_content() {
         let providers_a = vec![
-            ProviderUsage {
-                name: "Claude".into(),
-                session_percent: 10.0,
-                weekly_percent: 20.0,
-            },
-            ProviderUsage {
-                name: "Codex".into(),
-                session_percent: 30.0,
-                weekly_percent: 40.0,
-            },
+            ProviderUsage { name: "Claude".into(), session_percent: 10.0, weekly_percent: 20.0 },
+            ProviderUsage { name: "Codex".into(), session_percent: 30.0, weekly_percent: 40.0 },
         ];
         let providers_b = vec![
-            ProviderUsage {
-                name: "Claude".into(),
-                session_percent: 10.0,
-                weekly_percent: 20.0,
-            },
-            ProviderUsage {
-                name: "Codex".into(),
-                session_percent: 30.0,
-                weekly_percent: 50.0,
-            },
+            ProviderUsage { name: "Claude".into(), session_percent: 10.0, weekly_percent: 20.0 },
+            ProviderUsage { name: "Codex".into(), session_percent: 30.0, weekly_percent: 50.0 },
         ];
-        let providers_c = vec![ProviderUsage {
-            name: "Claude".into(),
-            session_percent: 10.0,
-            weekly_percent: 20.0,
-        }];
+        let providers_c = vec![
+            ProviderUsage { name: "Claude".into(), session_percent: 10.0, weekly_percent: 20.0 },
+        ];
 
         let sig_a1 = TrayManager::merged_signature(&providers_a);
         let sig_a2 = TrayManager::merged_signature(&providers_a);
         let sig_b = TrayManager::merged_signature(&providers_b);
         let sig_c = TrayManager::merged_signature(&providers_c);
 
-        assert_eq!(
-            sig_a1, sig_a2,
-            "same provider list should yield stable signature"
-        );
+        assert_eq!(sig_a1, sig_a2, "same provider list should yield stable signature");
         assert_ne!(sig_a1, sig_b, "value change should alter signature");
-        assert_ne!(
-            sig_a1, sig_c,
-            "length/content change should alter signature"
-        );
+        assert_ne!(sig_a1, sig_c, "length/content change should alter signature");
     }
 }

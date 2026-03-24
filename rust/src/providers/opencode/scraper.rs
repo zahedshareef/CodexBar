@@ -11,10 +11,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
 /// OpenCode server IDs for API endpoints
-const WORKSPACES_SERVER_ID: &str =
-    "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f";
-const SUBSCRIPTION_SERVER_ID: &str =
-    "7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4";
+const WORKSPACES_SERVER_ID: &str = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f";
+const SUBSCRIPTION_SERVER_ID: &str = "7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4";
 const BASE_URL: &str = "https://opencode.ai";
 const SERVER_URL: &str = "https://opencode.ai/_server";
 
@@ -194,9 +192,7 @@ impl OpenCodeUsageFetcher {
             }
 
             if ids.is_empty() {
-                return Err(OpenCodeError::ParseFailed(
-                    "Missing workspace id".to_string(),
-                ));
+                return Err(OpenCodeError::ParseFailed("Missing workspace id".to_string()));
             }
         }
 
@@ -310,7 +306,9 @@ impl OpenCodeUsageFetcher {
 
         if request.method != "GET" {
             if let Some(args) = &request.args {
-                req = req.header("Content-Type", "application/json").json(args);
+                req = req
+                    .header("Content-Type", "application/json")
+                    .json(args);
             }
         }
 
@@ -352,7 +350,10 @@ impl OpenCodeUsageFetcher {
         if let Some(args) = args {
             if !args.is_empty() {
                 if let Ok(json_str) = serde_json::to_string(args) {
-                    url.push_str(&format!("&args={}", Self::url_encode(&json_str)));
+                    url.push_str(&format!(
+                        "&args={}",
+                        Self::url_encode(&json_str)
+                    ));
                 }
             }
         }
@@ -392,13 +393,18 @@ impl OpenCodeUsageFetcher {
             r#"rollingUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)"#,
             text,
         );
-        let rolling_reset =
-            Self::extract_int(r#"rollingUsage[^}]*?resetInSec\s*:\s*([0-9]+)"#, text);
+        let rolling_reset = Self::extract_int(
+            r#"rollingUsage[^}]*?resetInSec\s*:\s*([0-9]+)"#,
+            text,
+        );
         let weekly_percent = Self::extract_double(
             r#"weeklyUsage[^}]*?usagePercent\s*:\s*([0-9]+(?:\.[0-9]+)?)"#,
             text,
         );
-        let weekly_reset = Self::extract_int(r#"weeklyUsage[^}]*?resetInSec\s*:\s*([0-9]+)"#, text);
+        let weekly_reset = Self::extract_int(
+            r#"weeklyUsage[^}]*?resetInSec\s*:\s*([0-9]+)"#,
+            text,
+        );
 
         match (rolling_percent, rolling_reset, weekly_percent, weekly_reset) {
             (Some(rp), Some(rr), Some(wp), Some(wr)) => Ok(OpenCodeUsageSnapshot {
@@ -408,9 +414,7 @@ impl OpenCodeUsageFetcher {
                 weekly_reset_in_sec: wr,
                 updated_at: now,
             }),
-            _ => Err(OpenCodeError::ParseFailed(
-                "Missing usage fields".to_string(),
-            )),
+            _ => Err(OpenCodeError::ParseFailed("Missing usage fields".to_string())),
         }
     }
 
@@ -436,15 +440,16 @@ impl OpenCodeUsageFetcher {
     }
 
     /// Parse usage from a JSON object
-    fn parse_usage_dict(
-        json: &serde_json::Value,
-        now: DateTime<Utc>,
-    ) -> Option<OpenCodeUsageSnapshot> {
+    fn parse_usage_dict(json: &serde_json::Value, now: DateTime<Utc>) -> Option<OpenCodeUsageSnapshot> {
         let rolling_keys = ["rollingUsage", "rolling", "rolling_usage"];
         let weekly_keys = ["weeklyUsage", "weekly", "weekly_usage"];
 
-        let rolling = rolling_keys.iter().find_map(|k| json.get(k));
-        let weekly = weekly_keys.iter().find_map(|k| json.get(k));
+        let rolling = rolling_keys
+            .iter()
+            .find_map(|k| json.get(k));
+        let weekly = weekly_keys
+            .iter()
+            .find_map(|k| json.get(k));
 
         if let (Some(rolling), Some(weekly)) = (rolling, weekly) {
             let rolling_window = Self::parse_window(rolling, now)?;
@@ -474,7 +479,7 @@ impl OpenCodeUsageFetcher {
 
         match (percent, reset_in) {
             (Some(p), Some(r)) => {
-                let normalized_percent = if (0.0..=1.0).contains(&p) {
+                let normalized_percent = if p <= 1.0 && p >= 0.0 {
                     p * 100.0
                 } else {
                     p.clamp(0.0, 100.0)
@@ -495,9 +500,8 @@ impl OpenCodeUsageFetcher {
 
         // Fall back to regex for JavaScript object notation (unquoted keys)
         static WRK_ID_REGEX: OnceLock<Regex> = OnceLock::new();
-        let regex = WRK_ID_REGEX.get_or_init(|| {
-            Regex::new(r#""id"\s*:\s*"(wrk_[^"]+)"|id\s*:\s*"(wrk_[^"]+)""#).unwrap()
-        });
+        let regex =
+            WRK_ID_REGEX.get_or_init(|| Regex::new(r#""id"\s*:\s*"(wrk_[^"]+)"|id\s*:\s*"(wrk_[^"]+)""#).unwrap());
 
         regex
             .captures_iter(text)
@@ -546,7 +550,9 @@ impl OpenCodeUsageFetcher {
     /// Check if response indicates signed out
     fn looks_signed_out(text: &str) -> bool {
         let lower = text.to_lowercase();
-        lower.contains("login") || lower.contains("sign in") || lower.contains("auth/authorize")
+        lower.contains("login")
+            || lower.contains("sign in")
+            || lower.contains("auth/authorize")
     }
 
     /// Extract a double from text using regex
@@ -605,13 +611,9 @@ mod tests {
 
     #[test]
     fn test_looks_signed_out() {
-        assert!(OpenCodeUsageFetcher::looks_signed_out(
-            "Please login to continue"
-        ));
+        assert!(OpenCodeUsageFetcher::looks_signed_out("Please login to continue"));
         assert!(OpenCodeUsageFetcher::looks_signed_out("Sign in required"));
-        assert!(!OpenCodeUsageFetcher::looks_signed_out(
-            "Welcome to OpenCode"
-        ));
+        assert!(!OpenCodeUsageFetcher::looks_signed_out("Welcome to OpenCode"));
     }
 
     #[test]
@@ -621,7 +623,8 @@ mod tests {
             "weeklyUsage": {"usagePercent": 20.0, "resetInSec": 604800}
         }"#;
 
-        let snapshot = OpenCodeUsageFetcher::parse_subscription(json, Utc::now()).unwrap();
+        let snapshot =
+            OpenCodeUsageFetcher::parse_subscription(json, Utc::now()).unwrap();
         assert!((snapshot.rolling_usage_percent - 45.5).abs() < 0.01);
         assert!((snapshot.weekly_usage_percent - 20.0).abs() < 0.01);
         assert_eq!(snapshot.rolling_reset_in_sec, 3600);

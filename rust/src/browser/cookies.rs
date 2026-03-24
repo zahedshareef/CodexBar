@@ -120,18 +120,20 @@ impl CookieExtractor {
         // Get the encryption key from Local State
         let local_state_path = profile.local_state_path(&browser.user_data_dir);
         tracing::debug!("Local State path: {:?}", local_state_path);
-        let encryption_key = Self::get_chromium_encryption_key(&local_state_path).map_err(|e| {
-            tracing::debug!("Failed to get encryption key: {}", e);
-            e
-        })?;
+        let encryption_key = Self::get_chromium_encryption_key(&local_state_path)
+            .map_err(|e| {
+                tracing::debug!("Failed to get encryption key: {}", e);
+                e
+            })?;
         tracing::debug!("Got encryption key ({} bytes)", encryption_key.len());
 
         // Copy the database to a temp file (browser may have it locked)
         tracing::debug!("Copying cookies DB to temp...");
-        let temp_db = Self::copy_to_temp(&cookies_db).map_err(|e| {
-            tracing::debug!("Failed to copy cookies DB: {}", e);
-            e
-        })?;
+        let temp_db = Self::copy_to_temp(&cookies_db)
+            .map_err(|e| {
+                tracing::debug!("Failed to copy cookies DB: {}", e);
+                e
+            })?;
         tracing::debug!("Temp DB at: {:?}", temp_db);
 
         // Open and query the database
@@ -146,23 +148,19 @@ impl CookieExtractor {
 
         let domain_pattern = format!("%{}", domain);
         let dot_domain_pattern = format!(".{}", domain);
-        tracing::debug!(
-            "Searching for cookies matching: {} or {}",
-            domain_pattern,
-            dot_domain_pattern
-        );
+        tracing::debug!("Searching for cookies matching: {} or {}", domain_pattern, dot_domain_pattern);
 
         let mut cookies = Vec::new();
 
         let rows = stmt.query_map([&domain_pattern, &dot_domain_pattern], |row| {
             Ok((
-                row.get::<_, String>(0)?,   // name
-                row.get::<_, Vec<u8>>(1)?,  // encrypted_value
-                row.get::<_, String>(2)?,   // host_key
-                row.get::<_, String>(3)?,   // path
-                row.get::<_, i64>(4)?,      // expires_utc
-                row.get::<_, i32>(5)? != 0, // is_secure
-                row.get::<_, i32>(6)? != 0, // is_httponly
+                row.get::<_, String>(0)?,        // name
+                row.get::<_, Vec<u8>>(1)?,       // encrypted_value
+                row.get::<_, String>(2)?,        // host_key
+                row.get::<_, String>(3)?,        // path
+                row.get::<_, i64>(4)?,           // expires_utc
+                row.get::<_, i32>(5)? != 0,      // is_secure
+                row.get::<_, i32>(6)? != 0,      // is_httponly
             ))
         })?;
 
@@ -235,11 +233,13 @@ impl CookieExtractor {
     /// Decrypt data using Windows DPAPI
     #[cfg(windows)]
     fn dpapi_decrypt(encrypted_data: &[u8]) -> Result<Vec<u8>, CookieError> {
+        use windows::Win32::Security::Cryptography::{
+            CryptUnprotectData, CRYPT_INTEGER_BLOB,
+        };
         use windows::Win32::Foundation::{LocalFree, HLOCAL};
-        use windows::Win32::Security::Cryptography::{CryptUnprotectData, CRYPT_INTEGER_BLOB};
 
         unsafe {
-            let input_blob = CRYPT_INTEGER_BLOB {
+            let mut input_blob = CRYPT_INTEGER_BLOB {
                 cbData: encrypted_data.len() as u32,
                 pbData: encrypted_data.as_ptr() as *mut u8,
             };
@@ -249,8 +249,15 @@ impl CookieExtractor {
                 pbData: std::ptr::null_mut(),
             };
 
-            let result =
-                CryptUnprotectData(&input_blob, None, None, None, None, 0, &mut output_blob);
+            let result = CryptUnprotectData(
+                &mut input_blob,
+                None,
+                None,
+                None,
+                None,
+                0,
+                &mut output_blob,
+            );
 
             if result.is_err() {
                 return Err(CookieError::Dpapi(format!(
@@ -282,7 +289,10 @@ impl CookieExtractor {
     }
 
     /// Decrypt a Chromium cookie value
-    fn decrypt_chromium_cookie(encrypted_value: &[u8], key: &[u8]) -> Result<String, CookieError> {
+    fn decrypt_chromium_cookie(
+        encrypted_value: &[u8],
+        key: &[u8],
+    ) -> Result<String, CookieError> {
         if encrypted_value.is_empty() {
             return Ok(String::new());
         }
@@ -309,12 +319,17 @@ impl CookieExtractor {
 
             let nonce_obj = Nonce::from_slice(nonce);
 
-            let plaintext = cipher.decrypt(nonce_obj, ciphertext).map_err(|e| {
-                tracing::debug!("AES-GCM decrypt failed: {}", e);
-                CookieError::Decryption(format!("decrypt: {}", e))
-            })?;
+            let plaintext = cipher
+                .decrypt(nonce_obj, ciphertext)
+                .map_err(|e| {
+                    tracing::debug!("AES-GCM decrypt failed: {}", e);
+                    CookieError::Decryption(format!("decrypt: {}", e))
+                })?;
 
-            tracing::debug!("Decrypted {} bytes successfully", plaintext.len(),);
+            tracing::debug!(
+                "Decrypted {} bytes successfully",
+                plaintext.len(),
+            );
 
             // Modern Chromium (127+) adds a 32-byte prefix to the plaintext
             // (App-Bound Encryption wrapper). Try to find where the actual value starts.
@@ -322,16 +337,13 @@ impl CookieExtractor {
             // that could start a cookie value.
             let value_bytes = if plaintext.len() > 32 {
                 // Check if first 32 bytes are garbage (non-ASCII)
-                let has_garbage_prefix = plaintext[..32].iter().any(|&b| !(32..=127).contains(&b));
+                let has_garbage_prefix = plaintext[..32].iter().any(|&b| b > 127 || b < 32);
                 if has_garbage_prefix {
                     // Find where ASCII text starts (skip prefix)
-                    let start = plaintext
-                        .iter()
-                        .position(|&b| {
-                            // Look for common cookie value start chars
-                            b.is_ascii_alphanumeric() || b == b'"' || b == b'{'
-                        })
-                        .unwrap_or(0);
+                    let start = plaintext.iter().position(|&b| {
+                        // Look for common cookie value start chars
+                        b.is_ascii_alphanumeric() || b == b'"' || b == b'{'
+                    }).unwrap_or(0);
 
                     // But use a minimum of 32 bytes prefix for App-Bound Encryption
                     let actual_start = if start < 32 && plaintext.len() > 32 {
@@ -340,10 +352,7 @@ impl CookieExtractor {
                         start
                     };
 
-                    tracing::debug!(
-                        "Skipping {} byte prefix (App-Bound Encryption)",
-                        actual_start
-                    );
+                    tracing::debug!("Skipping {} byte prefix (App-Bound Encryption)", actual_start);
                     &plaintext[actual_start..]
                 } else {
                     &plaintext[..]
@@ -542,10 +551,7 @@ pub fn get_cookie_header(domain: &str) -> Result<String, CookieError> {
 }
 
 /// Get a cookie header string for a domain from a specific browser
-pub fn get_cookie_header_from_browser(
-    domain: &str,
-    browser: &super::detection::DetectedBrowser,
-) -> Result<String, CookieError> {
+pub fn get_cookie_header_from_browser(domain: &str, browser: &super::detection::DetectedBrowser) -> Result<String, CookieError> {
     let cookies = CookieExtractor::extract_for_domain(browser, domain)?;
     if cookies.is_empty() {
         return Err(CookieError::NotFound(domain.to_string()));
@@ -564,11 +570,7 @@ mod tests {
             Ok(cookies) => {
                 println!("Found {} cookies for claude.ai", cookies.len());
                 for cookie in &cookies {
-                    println!(
-                        "  {}={}",
-                        cookie.name,
-                        &cookie.value[..20.min(cookie.value.len())]
-                    );
+                    println!("  {}={}", cookie.name, &cookie.value[..20.min(cookie.value.len())]);
                 }
             }
             Err(e) => {

@@ -7,14 +7,16 @@ mod token_refresher;
 
 // Re-exports for OAuth token refresh
 #[allow(unused_imports)]
-pub use token_refresher::{RefreshError, VertexAIOAuthCredentials, VertexAITokenRefresher};
+pub use token_refresher::{VertexAIOAuthCredentials, VertexAITokenRefresher, RefreshError};
 
 use async_trait::async_trait;
 use std::path::PathBuf;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 use crate::core::{
-    FetchContext, Provider, ProviderError, ProviderFetchResult, ProviderId, ProviderMetadata,
-    RateWindow, SourceMode, UsageSnapshot,
+    FetchContext, Provider, ProviderId, ProviderError, ProviderFetchResult,
+    ProviderMetadata, RateWindow, SourceMode, UsageSnapshot,
 };
 
 /// Vertex AI provider
@@ -50,18 +52,11 @@ impl VertexAIProvider {
         // Default gcloud config location
         #[cfg(target_os = "windows")]
         {
-            dirs::config_dir().map(|p| {
-                p.join("gcloud")
-                    .join("application_default_credentials.json")
-            })
+            dirs::config_dir().map(|p| p.join("gcloud").join("application_default_credentials.json"))
         }
         #[cfg(not(target_os = "windows"))]
         {
-            dirs::home_dir().map(|p| {
-                p.join(".config")
-                    .join("gcloud")
-                    .join("application_default_credentials.json")
-            })
+            dirs::home_dir().map(|p| p.join(".config").join("gcloud").join("application_default_credentials.json"))
         }
     }
 
@@ -70,13 +65,9 @@ impl VertexAIProvider {
         let possible_paths = [
             which::which("gcloud").ok(),
             #[cfg(target_os = "windows")]
-            Some(PathBuf::from(
-                "C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd",
-            )),
+            Some(PathBuf::from("C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd")),
             #[cfg(target_os = "windows")]
-            Some(PathBuf::from(
-                "C:\\Users\\Public\\google-cloud-sdk\\bin\\gcloud.cmd",
-            )),
+            Some(PathBuf::from("C:\\Users\\Public\\google-cloud-sdk\\bin\\gcloud.cmd")),
             #[cfg(not(target_os = "windows"))]
             None,
         ];
@@ -86,40 +77,36 @@ impl VertexAIProvider {
 
     /// Read access token from gcloud config
     async fn get_access_token(&self) -> Result<String, ProviderError> {
-        let creds_path = Self::get_gcloud_config_path().ok_or_else(|| {
-            ProviderError::NotInstalled("Google Cloud credentials not found".to_string())
-        })?;
+        let creds_path = Self::get_gcloud_config_path()
+            .ok_or_else(|| ProviderError::NotInstalled("Google Cloud credentials not found".to_string()))?;
 
         if creds_path.exists() {
-            let content = tokio::fs::read_to_string(&creds_path)
-                .await
+            let content = tokio::fs::read_to_string(&creds_path).await
                 .map_err(|e| ProviderError::Other(e.to_string()))?;
 
-            let json: serde_json::Value =
-                serde_json::from_str(&content).map_err(|e| ProviderError::Parse(e.to_string()))?;
+            let json: serde_json::Value = serde_json::from_str(&content)
+                .map_err(|e| ProviderError::Parse(e.to_string()))?;
 
             // Check for refresh token flow
             if let Some(refresh_token) = json.get("refresh_token").and_then(|v| v.as_str()) {
-                let client_id = json
-                    .get("client_id")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default();
-                let client_secret = json
-                    .get("client_secret")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default();
+                let client_id = json.get("client_id").and_then(|v| v.as_str()).unwrap_or_default();
+                let client_secret = json.get("client_secret").and_then(|v| v.as_str()).unwrap_or_default();
 
-                return self
-                    .refresh_access_token(refresh_token, client_id, client_secret)
-                    .await;
+                return self.refresh_access_token(refresh_token, client_id, client_secret).await;
             }
         }
 
         // Try running gcloud auth print-access-token
         if let Some(gcloud) = Self::which_gcloud() {
-            let output = tokio::process::Command::new(gcloud)
-                .args(["auth", "print-access-token"])
-                .output()
+            #[cfg(windows)]
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            let mut cmd = tokio::process::Command::new(gcloud);
+            cmd.args(["auth", "print-access-token"]);
+            #[cfg(windows)]
+            cmd.creation_flags(CREATE_NO_WINDOW);
+
+            let output = cmd.output()
                 .await
                 .map_err(|e| ProviderError::Other(e.to_string()))?;
 
@@ -134,12 +121,7 @@ impl VertexAIProvider {
         Err(ProviderError::AuthRequired)
     }
 
-    async fn refresh_access_token(
-        &self,
-        refresh_token: &str,
-        client_id: &str,
-        client_secret: &str,
-    ) -> Result<String, ProviderError> {
+    async fn refresh_access_token(&self, refresh_token: &str, client_id: &str, client_secret: &str) -> Result<String, ProviderError> {
         let client = reqwest::Client::new();
 
         let resp = client
@@ -157,9 +139,7 @@ impl VertexAIProvider {
             return Err(ProviderError::AuthRequired);
         }
 
-        let json: serde_json::Value = resp
-            .json()
-            .await
+        let json: serde_json::Value = resp.json().await
             .map_err(|e| ProviderError::Parse(e.to_string()))?;
 
         json.get("access_token")
@@ -178,10 +158,7 @@ impl VertexAIProvider {
             .map_err(|e| ProviderError::Other(e.to_string()))?;
 
         // Get project ID from config
-        let project_id = self
-            .get_project_id()
-            .await
-            .unwrap_or_else(|_| "unknown".to_string());
+        let project_id = self.get_project_id().await.unwrap_or_else(|_| "unknown".to_string());
 
         // Vertex AI billing/quota API
         let resp = client
@@ -195,16 +172,14 @@ impl VertexAIProvider {
 
         match resp {
             Ok(r) if r.status().is_success() => {
-                let json: serde_json::Value = r
-                    .json()
-                    .await
+                let json: serde_json::Value = r.json().await
                     .map_err(|e| ProviderError::Parse(e.to_string()))?;
                 self.parse_usage_response(&json, &project_id)
             }
             _ => {
                 // Return placeholder with project info
                 let usage = UsageSnapshot::new(RateWindow::new(0.0))
-                    .with_login_method(format!("Vertex AI ({})", project_id));
+                    .with_login_method(&format!("Vertex AI ({})", project_id));
                 Ok(usage)
             }
         }
@@ -220,13 +195,11 @@ impl VertexAIProvider {
         #[cfg(target_os = "windows")]
         let config_path = dirs::config_dir().map(|p| p.join("gcloud").join("properties"));
         #[cfg(not(target_os = "windows"))]
-        let config_path =
-            dirs::home_dir().map(|p| p.join(".config").join("gcloud").join("properties"));
+        let config_path = dirs::home_dir().map(|p| p.join(".config").join("gcloud").join("properties"));
 
         if let Some(path) = config_path {
             if path.exists() {
-                let content = tokio::fs::read_to_string(&path)
-                    .await
+                let content = tokio::fs::read_to_string(&path).await
                     .map_err(|e| ProviderError::Other(e.to_string()))?;
 
                 for line in content.lines() {
@@ -242,19 +215,14 @@ impl VertexAIProvider {
         Err(ProviderError::Other("Project ID not found".to_string()))
     }
 
-    fn parse_usage_response(
-        &self,
-        json: &serde_json::Value,
-        project_id: &str,
-    ) -> Result<UsageSnapshot, ProviderError> {
+    fn parse_usage_response(&self, json: &serde_json::Value, project_id: &str) -> Result<UsageSnapshot, ProviderError> {
         // Parse project info - actual usage would require Cloud Billing API
-        let project_name = json
-            .get("name")
+        let project_name = json.get("name")
             .and_then(|v| v.as_str())
             .unwrap_or(project_id);
 
         let usage = UsageSnapshot::new(RateWindow::new(0.0))
-            .with_login_method(format!("Vertex AI ({})", project_name));
+            .with_login_method(&format!("Vertex AI ({})", project_name));
 
         Ok(usage)
     }
@@ -262,9 +230,7 @@ impl VertexAIProvider {
     /// Probe CLI for detection
     async fn probe_cli(&self) -> Result<UsageSnapshot, ProviderError> {
         let gcloud = Self::which_gcloud().ok_or_else(|| {
-            ProviderError::NotInstalled(
-                "gcloud CLI not found. Install from https://cloud.google.com/sdk".to_string(),
-            )
+            ProviderError::NotInstalled("gcloud CLI not found. Install from https://cloud.google.com/sdk".to_string())
         })?;
 
         if gcloud.exists() {
@@ -275,7 +241,8 @@ impl VertexAIProvider {
                 "Vertex AI (installed)".to_string()
             };
 
-            let usage = UsageSnapshot::new(RateWindow::new(0.0)).with_login_method(&label);
+            let usage = UsageSnapshot::new(RateWindow::new(0.0))
+                .with_login_method(&label);
             Ok(usage)
         } else {
             Err(ProviderError::NotInstalled("gcloud not found".to_string()))
@@ -318,7 +285,9 @@ impl Provider for VertexAIProvider {
                 let usage = self.probe_cli().await?;
                 Ok(ProviderFetchResult::new(usage, "cli"))
             }
-            SourceMode::OAuth => Err(ProviderError::UnsupportedSource(SourceMode::OAuth)),
+            SourceMode::OAuth => {
+                Err(ProviderError::UnsupportedSource(SourceMode::OAuth))
+            }
         }
     }
 

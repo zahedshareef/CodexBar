@@ -65,13 +65,12 @@ struct ClaudePricing;
 
 impl ClaudePricing {
     fn cost_usd(model: &str, input: u64, cache_create: u64, cache_read: u64, output: u64) -> f64 {
-        let (input_price, cache_create_price, cache_read_price, output_price) =
-            match model.to_lowercase().as_str() {
-                m if m.contains("opus") => (15.00, 18.75, 1.50, 75.00),
-                m if m.contains("sonnet") => (3.00, 3.75, 0.30, 15.00),
-                m if m.contains("haiku") => (0.25, 0.30, 0.03, 1.25),
-                _ => (3.00, 3.75, 0.30, 15.00), // Default to Sonnet
-            };
+        let (input_price, cache_create_price, cache_read_price, output_price) = match model.to_lowercase().as_str() {
+            m if m.contains("opus") => (15.00, 18.75, 1.50, 75.00),
+            m if m.contains("sonnet") => (3.00, 3.75, 0.30, 15.00),
+            m if m.contains("haiku") => (0.25, 0.30, 0.03, 1.25),
+            _ => (3.00, 3.75, 0.30, 15.00), // Default to Sonnet
+        };
 
         let input_cost = (input as f64 / 1_000_000.0) * input_price;
         let cache_create_cost = (cache_create as f64 / 1_000_000.0) * cache_create_price;
@@ -166,7 +165,7 @@ impl CostScanner {
             if let Ok(entries) = fs::read_dir(&day_dir) {
                 for entry in entries.flatten() {
                     let path = entry.path();
-                    if path.extension().is_some_and(|e| e == "jsonl") {
+                    if path.extension().map_or(false, |e| e == "jsonl") {
                         self.parse_codex_file(&path, &mut summary);
                     }
                 }
@@ -241,7 +240,7 @@ impl CostScanner {
         let mut session_cost = 0.0;
         let mut has_tokens = false;
 
-        for line in reader.lines().map_while(Result::ok) {
+        for line in reader.lines().flatten() {
             if let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) {
                 // Check for model in turn_context
                 if let Some(model) = event.get("model").and_then(|m| m.as_str()) {
@@ -251,18 +250,9 @@ impl CostScanner {
                 // Check for token_count events
                 if let Some(event_msg) = event.get("event_msg") {
                     if event_msg.get("type").and_then(|t| t.as_str()) == Some("token_count") {
-                        let input = event_msg
-                            .get("input_tokens")
-                            .and_then(|t| t.as_u64())
-                            .unwrap_or(0);
-                        let cached = event_msg
-                            .get("cached_input_tokens")
-                            .and_then(|t| t.as_u64())
-                            .unwrap_or(0);
-                        let output = event_msg
-                            .get("output_tokens")
-                            .and_then(|t| t.as_u64())
-                            .unwrap_or(0);
+                        let input = event_msg.get("input_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
+                        let cached = event_msg.get("cached_input_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
+                        let output = event_msg.get("output_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
 
                         summary.input_tokens += input;
                         summary.cached_tokens += cached;
@@ -294,7 +284,7 @@ impl CostScanner {
             let path = entry.path();
             if path.is_dir() {
                 self.scan_claude_dir(&path, cutoff, summary);
-            } else if path.extension().is_some_and(|e| e == "jsonl") {
+            } else if path.extension().map_or(false, |e| e == "jsonl") {
                 // Check file modification time
                 if let Ok(metadata) = fs::metadata(&path) {
                     if let Ok(modified) = metadata.modified() {
@@ -318,45 +308,26 @@ impl CostScanner {
         let mut session_cost = 0.0;
         let mut has_tokens = false;
 
-        for line in reader.lines().map_while(Result::ok) {
+        for line in reader.lines().flatten() {
             if let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) {
                 // Look for assistant messages with usage
                 if event.get("type").and_then(|t| t.as_str()) == Some("assistant") {
                     if let Some(message) = event.get("message") {
-                        let model = message
-                            .get("model")
+                        let model = message.get("model")
                             .and_then(|m| m.as_str())
                             .unwrap_or("claude-3-5-sonnet");
 
                         if let Some(usage) = message.get("usage") {
-                            let input = usage
-                                .get("input_tokens")
-                                .and_then(|t| t.as_u64())
-                                .unwrap_or(0);
-                            let output = usage
-                                .get("output_tokens")
-                                .and_then(|t| t.as_u64())
-                                .unwrap_or(0);
-                            let cache_create = usage
-                                .get("cache_creation_input_tokens")
-                                .and_then(|t| t.as_u64())
-                                .unwrap_or(0);
-                            let cache_read = usage
-                                .get("cache_read_input_tokens")
-                                .and_then(|t| t.as_u64())
-                                .unwrap_or(0);
+                            let input = usage.get("input_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
+                            let output = usage.get("output_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
+                            let cache_create = usage.get("cache_creation_input_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
+                            let cache_read = usage.get("cache_read_input_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
 
                             summary.input_tokens += input;
                             summary.output_tokens += output;
                             summary.cached_tokens += cache_create + cache_read;
 
-                            let cost = ClaudePricing::cost_usd(
-                                model,
-                                input,
-                                cache_create,
-                                cache_read,
-                                output,
-                            );
+                            let cost = ClaudePricing::cost_usd(model, input, cache_create, cache_read, output);
                             session_cost += cost;
                             has_tokens = true;
 
@@ -413,7 +384,7 @@ pub fn get_daily_cost_history(provider: &str, days: u32) -> Vec<(String, f64)> {
                         if let Ok(entries) = fs::read_dir(&day_dir) {
                             for entry in entries.flatten() {
                                 let path = entry.path();
-                                if path.extension().is_some_and(|e| e == "jsonl") {
+                                if path.extension().map_or(false, |e| e == "jsonl") {
                                     day_cost += scan_codex_file_cost(&path);
                                 }
                             }
@@ -455,7 +426,7 @@ fn scan_codex_file_cost(path: &PathBuf) -> f64 {
     let mut current_model = String::from("gpt-4o");
     let mut total_cost = 0.0;
 
-    for line in reader.lines().map_while(Result::ok) {
+    for line in reader.lines().flatten() {
         if let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) {
             if let Some(model) = event.get("model").and_then(|m| m.as_str()) {
                 current_model = model.to_string();
@@ -463,18 +434,9 @@ fn scan_codex_file_cost(path: &PathBuf) -> f64 {
 
             if let Some(event_msg) = event.get("event_msg") {
                 if event_msg.get("type").and_then(|t| t.as_str()) == Some("token_count") {
-                    let input = event_msg
-                        .get("input_tokens")
-                        .and_then(|t| t.as_u64())
-                        .unwrap_or(0);
-                    let cached = event_msg
-                        .get("cached_input_tokens")
-                        .and_then(|t| t.as_u64())
-                        .unwrap_or(0);
-                    let output = event_msg
-                        .get("output_tokens")
-                        .and_then(|t| t.as_u64())
-                        .unwrap_or(0);
+                    let input = event_msg.get("input_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
+                    let cached = event_msg.get("cached_input_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
+                    let output = event_msg.get("output_tokens").and_then(|t| t.as_u64()).unwrap_or(0);
 
                     total_cost += CodexPricing::cost_usd(&current_model, input, cached, output);
                 }

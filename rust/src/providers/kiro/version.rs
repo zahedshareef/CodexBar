@@ -5,6 +5,8 @@
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::OnceLock;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 /// Cached CLI path
 static CLI_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
@@ -183,10 +185,15 @@ pub fn detect_version() -> Option<String> {
         .get_or_init(|| {
             let cli_path = find_kiro_cli()?;
 
-            let output = Command::new(&cli_path)
-                .arg("--version")
-                .output()
-                .ok()?;
+            #[cfg(windows)]
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            let mut cmd = Command::new(&cli_path);
+            cmd.arg("--version");
+            #[cfg(windows)]
+            cmd.creation_flags(CREATE_NO_WINDOW);
+
+            let output = cmd.output().ok()?;
 
             if !output.status.success() {
                 return None;

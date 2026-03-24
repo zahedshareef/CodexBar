@@ -1,9 +1,9 @@
 //! CLI module - command-line interface
 //!
 //! Matches the original CodexBar CLI structure:
-//! - `codexbar` - defaults to usage command
+//! - `codexbar` - launches the menu bar GUI app (default)
+//! - `codexbar usage` - print usage from providers
 //! - `codexbar cost` - print local token cost usage
-//! - `codexbar menubar` - launch the menu bar GUI app
 //! - `codexbar autostart` - manage Windows auto-start
 
 #![allow(dead_code)]
@@ -29,7 +29,7 @@ pub mod exit_codes {
 /// CodexBar - Monitor AI provider usage limits
 ///
 /// A utility to track usage limits across multiple AI providers.
-/// Defaults to the usage command when no subcommand is given.
+/// Defaults to the menubar GUI when no subcommand is given.
 #[derive(Parser, Debug)]
 #[command(name = "codexbar")]
 #[command(author, version, about, long_about = None)]

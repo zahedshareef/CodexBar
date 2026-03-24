@@ -21,7 +21,6 @@ pub enum ProviderId {
     Copilot,
     Zai,
     MiniMax,
-    Kilo,
     Kiro,
     VertexAI,
     Augment,
@@ -49,7 +48,6 @@ impl ProviderId {
             ProviderId::Copilot,
             ProviderId::Zai,
             ProviderId::MiniMax,
-            ProviderId::Kilo,
             ProviderId::Kiro,
             ProviderId::VertexAI,
             ProviderId::Augment,
@@ -77,7 +75,6 @@ impl ProviderId {
             ProviderId::Copilot => "copilot",
             ProviderId::Zai => "zai",
             ProviderId::MiniMax => "minimax",
-            ProviderId::Kilo => "kilo",
             ProviderId::Kiro => "kiro",
             ProviderId::VertexAI => "vertexai",
             ProviderId::Augment => "augment",
@@ -105,7 +102,6 @@ impl ProviderId {
             ProviderId::Copilot => "Copilot",
             ProviderId::Zai => "z.ai",
             ProviderId::MiniMax => "MiniMax",
-            ProviderId::Kilo => "Kilo",
             ProviderId::Kiro => "Kiro",
             ProviderId::VertexAI => "Vertex AI",
             ProviderId::Augment => "Augment",
@@ -135,7 +131,6 @@ impl ProviderId {
             ProviderId::Kimi => Some("kimi.moonshot.cn"),
             ProviderId::KimiK2 => Some("platform.moonshot.cn"),
             ProviderId::MiniMax => Some("platform.minimaxi.com"),
-            ProviderId::Kilo => Some("app.kilo.ai"),
             ProviderId::OpenCode => Some("opencode.ai"),
             ProviderId::Augment => Some("app.augmentcode.com"),
             ProviderId::Amp => Some("sourcegraph.com"),
@@ -164,7 +159,6 @@ impl ProviderId {
             "copilot" | "github" => Some(ProviderId::Copilot),
             "zai" | "z.ai" | "zed" => Some(ProviderId::Zai),
             "minimax" => Some(ProviderId::MiniMax),
-            "kilo" | "kilo-ai" => Some(ProviderId::Kilo),
             "kiro" | "aws" => Some(ProviderId::Kiro),
             "vertexai" | "vertex" => Some(ProviderId::VertexAI),
             "augment" => Some(ProviderId::Augment),
@@ -408,7 +402,7 @@ mod tests {
     #[test]
     fn test_provider_id_all() {
         let all = ProviderId::all();
-        assert_eq!(all.len(), 22); // 21 + Kilo
+        assert_eq!(all.len(), 21); // 18 + 3 new providers (Warp, Ollama, OpenRouter)
         assert!(all.contains(&ProviderId::Claude));
         assert!(all.contains(&ProviderId::Codex));
         assert!(all.contains(&ProviderId::Kimi));

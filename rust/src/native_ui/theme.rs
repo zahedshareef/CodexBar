@@ -1,101 +1,43 @@
-//! Theme: Dark & Light Mode Support
+//! Theme: macOS-Style Dark
 //!
-//! A clean theme system supporting both dark and light modes.
-//! Dark mode uses macOS Monterey dark colors.
-//! Light mode uses macOS-inspired light colors.
-//! Mode is controlled at runtime via an atomic flag.
+//! A clean dark theme matching macOS dark mode appearance.
+//! Uses colors that approximate NSColor system colors.
 
 #![allow(dead_code)]
 
 use egui::Color32;
-use std::sync::atomic::{AtomicBool, Ordering};
 
-/// Global dark mode flag (true = dark, false = light)
-static IS_DARK: AtomicBool = AtomicBool::new(true);
-
-/// macOS-style theme with dark and light mode support
+/// macOS-Style Dark Theme
 pub struct Theme;
 
 impl Theme {
-    /// Set the active theme mode
-    pub fn set_dark(dark: bool) {
-        IS_DARK.store(dark, Ordering::Relaxed);
-    }
-
-    /// Check if dark mode is active
-    pub fn is_dark() -> bool {
-        IS_DARK.load(Ordering::Relaxed)
-    }
-
     // ═══════════════════════════════════════════════════════════════════
-    // BACKGROUNDS
+    // BACKGROUNDS - macOS dark mode style
     // ═══════════════════════════════════════════════════════════════════
 
-    /// Window background
-    pub fn bg_primary() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(30, 30, 30)
-        } else {
-            Color32::from_rgb(246, 246, 248)
-        }
-    }
+    /// Window background - matches macOS windowBackgroundColor (dark)
+    pub const BG_PRIMARY: Color32 = Color32::from_rgb(30, 30, 30);
 
     /// Secondary background - elevated layer
-    pub fn bg_secondary() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(38, 38, 38)
-        } else {
-            Color32::from_rgb(255, 255, 255)
-        }
-    }
+    pub const BG_SECONDARY: Color32 = Color32::from_rgb(38, 38, 38);
 
     /// Tertiary background - for nested elements
-    pub fn bg_tertiary() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(48, 48, 48)
-        } else {
-            Color32::from_rgb(238, 238, 240)
-        }
-    }
+    pub const BG_TERTIARY: Color32 = Color32::from_rgb(48, 48, 48);
 
     /// Card/panel background - slightly elevated
-    pub fn card_bg() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(44, 44, 46)
-        } else {
-            Color32::from_rgb(255, 255, 255)
-        }
-    }
+    pub const CARD_BG: Color32 = Color32::from_rgb(44, 44, 46);
 
     /// Card background on hover
-    pub fn card_bg_hover() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(54, 54, 56)
-        } else {
-            Color32::from_rgb(242, 242, 247)
-        }
-    }
+    pub const CARD_BG_HOVER: Color32 = Color32::from_rgb(54, 54, 56);
 
     /// Elevated surface (modals, popovers)
-    pub fn surface_elevated() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(50, 50, 52)
-        } else {
-            Color32::from_rgb(255, 255, 255)
-        }
-    }
+    pub const SURFACE_ELEVATED: Color32 = Color32::from_rgb(50, 50, 52);
 
     /// Input field background
-    pub fn input_bg() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(28, 28, 30)
-        } else {
-            Color32::from_rgb(239, 239, 244)
-        }
-    }
+    pub const INPUT_BG: Color32 = Color32::from_rgb(28, 28, 30);
 
     // ═══════════════════════════════════════════════════════════════════
-    // ACCENT COLORS - same in both modes
+    // ACCENT COLORS - macOS blue accent
     // ═══════════════════════════════════════════════════════════════════
 
     /// Primary accent - macOS systemBlue
@@ -118,123 +60,57 @@ impl Theme {
     // ═══════════════════════════════════════════════════════════════════
 
     /// Tab container background
-    pub fn tab_container() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(28, 28, 30)
-        } else {
-            Color32::from_rgb(229, 229, 234)
-        }
-    }
+    pub const TAB_CONTAINER: Color32 = Color32::from_rgb(28, 28, 30);
 
     /// Tab inactive state
-    pub fn tab_inactive() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(44, 44, 46)
-        } else {
-            Color32::from_rgb(242, 242, 247)
-        }
-    }
+    pub const TAB_INACTIVE: Color32 = Color32::from_rgb(44, 44, 46);
 
     /// Tab active state
     pub const TAB_ACTIVE: Color32 = Color32::from_rgb(10, 132, 255);
 
-    /// Tab text when inactive
-    pub fn tab_text_inactive() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(142, 142, 147)
-        } else {
-            Color32::from_rgb(108, 108, 112)
-        }
-    }
+    /// Tab text when inactive - secondaryLabelColor
+    pub const TAB_TEXT_INACTIVE: Color32 = Color32::from_rgb(142, 142, 147);
 
     /// Tab text when active
     pub const TAB_TEXT_ACTIVE: Color32 = Color32::WHITE;
 
     // ═══════════════════════════════════════════════════════════════════
-    // TEXT COLORS
+    // TEXT COLORS - macOS label colors
     // ═══════════════════════════════════════════════════════════════════
 
-    /// Primary text
-    pub fn text_primary() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(255, 255, 255)
-        } else {
-            Color32::from_rgb(0, 0, 0)
-        }
-    }
+    /// Primary text - labelColor (white in dark mode)
+    pub const TEXT_PRIMARY: Color32 = Color32::from_rgb(255, 255, 255);
 
-    /// Secondary text
-    pub fn text_secondary() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(142, 142, 147)
-        } else {
-            Color32::from_rgb(108, 108, 112)
-        }
-    }
+    /// Secondary text - secondaryLabelColor
+    pub const TEXT_SECONDARY: Color32 = Color32::from_rgb(142, 142, 147);
 
-    /// Muted text
-    pub fn text_muted() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(84, 84, 88)
-        } else {
-            Color32::from_rgb(142, 142, 147)
-        }
-    }
+    /// Muted text - tertiaryLabelColor
+    pub const TEXT_MUTED: Color32 = Color32::from_rgb(84, 84, 88);
 
-    /// Dimmed text
-    pub fn text_dim() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(60, 60, 67)
-        } else {
-            Color32::from_rgb(174, 174, 178)
-        }
-    }
+    /// Dimmed text - quaternaryLabelColor
+    pub const TEXT_DIM: Color32 = Color32::from_rgb(60, 60, 67);
 
     /// Section header text
-    pub fn text_section() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(142, 142, 147)
-        } else {
-            Color32::from_rgb(108, 108, 112)
-        }
-    }
+    pub const TEXT_SECTION: Color32 = Color32::from_rgb(142, 142, 147);
 
     // ═══════════════════════════════════════════════════════════════════
-    // BORDERS & SEPARATORS
+    // BORDERS & SEPARATORS - macOS separatorColor
     // ═══════════════════════════════════════════════════════════════════
 
-    /// Separator line
-    pub fn separator() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(56, 56, 58)
-        } else {
-            Color32::from_rgb(216, 216, 220)
-        }
-    }
+    /// Separator line - separatorColor
+    pub const SEPARATOR: Color32 = Color32::from_rgb(56, 56, 58);
 
     /// Card/panel border
-    pub fn card_border() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(56, 56, 58)
-        } else {
-            Color32::from_rgb(216, 216, 220)
-        }
-    }
+    pub const CARD_BORDER: Color32 = Color32::from_rgb(56, 56, 58);
 
     /// Focused/accent border
     pub const CARD_BORDER_ACCENT: Color32 = Color32::from_rgb(10, 132, 255);
 
     /// Subtle border for inputs
-    pub fn border_subtle() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgb(68, 68, 70)
-        } else {
-            Color32::from_rgb(209, 209, 214)
-        }
-    }
+    pub const BORDER_SUBTLE: Color32 = Color32::from_rgb(68, 68, 70);
 
     // ═══════════════════════════════════════════════════════════════════
-    // USAGE/STATUS COLORS - same in both modes
+    // USAGE/STATUS COLORS - macOS system colors
     // ═══════════════════════════════════════════════════════════════════
 
     /// Green - systemGreen (0-50% usage)
@@ -257,17 +133,13 @@ impl Theme {
     /// Cyan - systemCyan
     pub const CYAN: Color32 = Color32::from_rgb(100, 210, 255);
 
-    /// Progress bar track
+    /// Progress bar track - tertiaryLabelColor with opacity
     pub fn progress_track() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgba_unmultiplied(84, 84, 88, 56)
-        } else {
-            Color32::from_rgba_unmultiplied(120, 120, 128, 36)
-        }
+        Color32::from_rgba_unmultiplied(84, 84, 88, 56)
     }
 
     // ═══════════════════════════════════════════════════════════════════
-    // BADGES - same in both modes
+    // BADGES - Status indicators
     // ═══════════════════════════════════════════════════════════════════
 
     /// Success badge - systemGreen
@@ -288,65 +160,37 @@ impl Theme {
 
     /// Shadow color
     pub fn shadow() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgba_unmultiplied(0, 0, 0, 60)
-        } else {
-            Color32::from_rgba_unmultiplied(0, 0, 0, 20)
-        }
+        Color32::from_rgba_unmultiplied(0, 0, 0, 60)
     }
 
-    /// Selection overlay
+    /// Selection overlay - selectedContentBackgroundColor with opacity
     pub fn selection_overlay() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgba_unmultiplied(10, 132, 255, 30)
-        } else {
-            Color32::from_rgba_unmultiplied(10, 132, 255, 20)
-        }
+        Color32::from_rgba_unmultiplied(10, 132, 255, 30)
     }
 
     /// Hover overlay
     pub fn hover_overlay() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgba_unmultiplied(255, 255, 255, 8)
-        } else {
-            Color32::from_rgba_unmultiplied(0, 0, 0, 6)
-        }
+        Color32::from_rgba_unmultiplied(255, 255, 255, 8)
     }
 
     /// Glow overlay for active elements
     pub fn glow_overlay() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgba_unmultiplied(10, 132, 255, 25)
-        } else {
-            Color32::from_rgba_unmultiplied(10, 132, 255, 15)
-        }
+        Color32::from_rgba_unmultiplied(10, 132, 255, 25)
     }
 
     /// Progress glow
     pub fn progress_glow() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgba_unmultiplied(10, 132, 255, 35)
-        } else {
-            Color32::from_rgba_unmultiplied(10, 132, 255, 20)
-        }
+        Color32::from_rgba_unmultiplied(10, 132, 255, 35)
     }
 
     /// Gradient start (for backgrounds)
     pub fn gradient_start() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgba_unmultiplied(10, 132, 255, 10)
-        } else {
-            Color32::from_rgba_unmultiplied(10, 132, 255, 6)
-        }
+        Color32::from_rgba_unmultiplied(10, 132, 255, 10)
     }
 
     /// Gradient end
     pub fn gradient_end() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgba_unmultiplied(94, 92, 230, 8)
-        } else {
-            Color32::from_rgba_unmultiplied(94, 92, 230, 5)
-        }
+        Color32::from_rgba_unmultiplied(94, 92, 230, 8)
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -379,11 +223,7 @@ impl Theme {
 
     /// Get menu item hover background
     pub fn menu_hover() -> Color32 {
-        if Self::is_dark() {
-            Color32::from_rgba_unmultiplied(255, 255, 255, 8)
-        } else {
-            Color32::from_rgba_unmultiplied(0, 0, 0, 6)
-        }
+        Color32::from_rgba_unmultiplied(255, 255, 255, 8)
     }
 
     /// Button gradient top
@@ -406,7 +246,7 @@ pub fn status_color(level: StatusLevel) -> Color32 {
         StatusLevel::Degraded => Theme::YELLOW,
         StatusLevel::Partial => Theme::ORANGE,
         StatusLevel::Major => Theme::RED,
-        StatusLevel::Unknown => Theme::text_muted(),
+        StatusLevel::Unknown => Theme::TEXT_MUTED,
     }
 }
 
@@ -425,7 +265,6 @@ pub fn provider_icon(name: &str) -> &'static str {
         "antigravity" => "◉",
         "factory" | "droid" => "◎",
         "zai" | "z.ai" => "Z",
-        "kilo" => "⬢",
         "kiro" => "K",
         "vertexai" | "vertex ai" => "△",
         "augment" => "A",
@@ -443,31 +282,24 @@ pub fn provider_icon(name: &str) -> &'static str {
 /// Provider brand colors - matching original CodexBar
 pub fn provider_color(name: &str) -> Color32 {
     match name.to_lowercase().as_str() {
-        "claude" => Color32::from_rgb(204, 124, 94), // #CC7C5E - Warm terracotta
-        "codex" => Color32::from_rgb(73, 163, 176),  // #49A3B0 - Teal
-        "gemini" => Color32::from_rgb(171, 135, 234), // #AB87EA - Purple
-        "cursor" => Color32::from_rgb(0, 191, 165),  // #00BFA5 - Teal green
-        "copilot" => Color32::from_rgb(168, 85, 247), // #A855F7 - Vibrant purple
+        "claude" => Color32::from_rgb(204, 124, 94),        // #CC7C5E - Warm terracotta
+        "codex" => Color32::from_rgb(73, 163, 176),         // #49A3B0 - Teal
+        "gemini" => Color32::from_rgb(171, 135, 234),       // #AB87EA - Purple
+        "cursor" => Color32::from_rgb(0, 191, 165),         // #00BFA5 - Teal green
+        "copilot" => Color32::from_rgb(168, 85, 247),       // #A855F7 - Vibrant purple
         "jetbrains" | "jetbrains ai" => Color32::from_rgb(255, 51, 153), // #FF3399 - Hot pink
-        "antigravity" => Color32::from_rgb(96, 186, 126), // #60BA7E - Soft green
-        "augment" => Color32::from_rgb(99, 102, 241), // #6366F1 - Indigo
-        "amp" => Color32::from_rgb(220, 38, 38),     // #DC2626 - Red
+        "antigravity" => Color32::from_rgb(96, 186, 126),   // #60BA7E - Soft green
+        "augment" => Color32::from_rgb(99, 102, 241),       // #6366F1 - Indigo
+        "amp" => Color32::from_rgb(220, 38, 38),            // #DC2626 - Red
         "factory" | "droid" => Color32::from_rgb(255, 107, 53), // #FF6B35 - Orange
-        "kimi" => Color32::from_rgb(254, 96, 60),    // #FE603C - Coral
+        "kimi" => Color32::from_rgb(254, 96, 60),           // #FE603C - Coral
         "kimik2" | "kimi k2" => Color32::from_rgb(76, 0, 255), // #4C00FF - Electric blue
-        "kilo" => Color32::from_rgb(242, 112, 39),   // #F27027 - Kilo orange
-        "kiro" => Color32::from_rgb(255, 153, 0),    // #FF9900 - Amber
-        "opencode" => Color32::from_rgb(59, 130, 246), // #3B82F6 - Blue
-        "minimax" => Color32::from_rgb(254, 96, 60), // #FE603C - Coral (same as Kimi)
+        "kiro" => Color32::from_rgb(255, 153, 0),           // #FF9900 - Amber
+        "opencode" => Color32::from_rgb(59, 130, 246),      // #3B82F6 - Blue
+        "minimax" => Color32::from_rgb(254, 96, 60),        // #FE603C - Coral (same as Kimi)
         "vertexai" | "vertex ai" => Color32::from_rgb(66, 133, 244), // #4285F4 - Google blue
-        "zai" | "z.ai" => Color32::from_rgb(232, 90, 106), // #E85A6A - Rose
-        "synthetic" => {
-            if Theme::is_dark() {
-                Color32::from_rgb(20, 20, 20)
-            } else {
-                Color32::from_rgb(60, 60, 60)
-            }
-        }
+        "zai" | "z.ai" => Color32::from_rgb(232, 90, 106),  // #E85A6A - Rose
+        "synthetic" => Color32::from_rgb(20, 20, 20),       // #141414 - Near black
         _ => Theme::ACCENT_PRIMARY,
     }
 }
@@ -512,71 +344,4 @@ impl FontSize {
     pub const LG: f32 = 17.0;
     pub const XL: f32 = 18.0;
     pub const XXL: f32 = 22.0;
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_theme_dark_mode_default() {
-        Theme::set_dark(true);
-        assert!(Theme::is_dark());
-    }
-
-    #[test]
-    fn test_theme_light_mode_switch() {
-        Theme::set_dark(false);
-        assert!(!Theme::is_dark());
-        Theme::set_dark(true);
-    }
-
-    #[test]
-    fn test_dark_mode_colors() {
-        Theme::set_dark(true);
-        assert_eq!(Theme::bg_primary(), Color32::from_rgb(30, 30, 30));
-        assert_eq!(Theme::text_primary(), Color32::from_rgb(255, 255, 255));
-        assert_eq!(Theme::card_bg(), Color32::from_rgb(44, 44, 46));
-    }
-
-    #[test]
-    fn test_light_mode_colors() {
-        Theme::set_dark(false);
-        assert_eq!(Theme::bg_primary(), Color32::from_rgb(246, 246, 248));
-        assert_eq!(Theme::text_primary(), Color32::from_rgb(0, 0, 0));
-        assert_eq!(Theme::card_bg(), Color32::from_rgb(255, 255, 255));
-        Theme::set_dark(true);
-    }
-
-    #[test]
-    fn test_accent_colors_unchanged() {
-        Theme::set_dark(true);
-        let dark_accent = Theme::ACCENT_PRIMARY;
-        Theme::set_dark(false);
-        let light_accent = Theme::ACCENT_PRIMARY;
-        assert_eq!(dark_accent, light_accent);
-        Theme::set_dark(true);
-    }
-
-    #[test]
-    fn test_usage_colors() {
-        assert_eq!(Theme::usage_color(25.0), Theme::GREEN);
-        assert_eq!(Theme::usage_color(60.0), Theme::YELLOW);
-        assert_eq!(Theme::usage_color(80.0), Theme::ORANGE);
-        assert_eq!(Theme::usage_color(95.0), Theme::RED);
-    }
-
-    #[test]
-    fn test_provider_colors() {
-        assert_eq!(provider_color("claude"), Color32::from_rgb(204, 124, 94));
-        assert_eq!(provider_color("codex"), Color32::from_rgb(73, 163, 176));
-        assert_eq!(provider_color("unknown"), Theme::ACCENT_PRIMARY);
-    }
-
-    #[test]
-    fn test_provider_icons() {
-        assert_eq!(provider_icon("claude"), "◈");
-        assert_eq!(provider_icon("codex"), "◆");
-        assert_eq!(provider_icon("unknown"), "●");
-    }
 }

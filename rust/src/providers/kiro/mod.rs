@@ -13,14 +13,16 @@ pub use version::{
 
 use async_trait::async_trait;
 use chrono::Datelike;
-use regex_lite::Regex;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::process::Command;
+use regex_lite::Regex;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 use crate::core::{
-    FetchContext, Provider, ProviderError, ProviderFetchResult, ProviderId, ProviderMetadata,
-    RateWindow, SourceMode, UsageSnapshot,
+    FetchContext, Provider, ProviderId, ProviderError, ProviderFetchResult,
+    ProviderMetadata, RateWindow, SourceMode, UsageSnapshot,
 };
 
 /// Kiro provider (AWS AI assistant)
@@ -72,8 +74,7 @@ impl KiroProvider {
         #[cfg(target_os = "windows")]
         {
             let possible_paths = [
-                dirs::data_local_dir()
-                    .map(|p| p.join("Programs").join("Kiro").join("kiro-cli.exe")),
+                dirs::data_local_dir().map(|p| p.join("Programs").join("Kiro").join("kiro-cli.exe")),
                 Some(PathBuf::from("C:\\Program Files\\Kiro\\kiro-cli.exe")),
             ];
             for path in possible_paths.into_iter().flatten() {
@@ -89,9 +90,7 @@ impl KiroProvider {
     /// Check if user is logged in by running `kiro-cli whoami`
     async fn ensure_logged_in(&self) -> Result<(), ProviderError> {
         let cli_path = Self::which_kiro().ok_or_else(|| {
-            ProviderError::NotInstalled(
-                "kiro-cli not found. Install from https://kiro.dev".to_string(),
-            )
+            ProviderError::NotInstalled("kiro-cli not found. Install from https://kiro.dev".to_string())
         })?;
 
         #[cfg(windows)]
@@ -104,8 +103,7 @@ impl KiroProvider {
         #[cfg(windows)]
         cmd.creation_flags(CREATE_NO_WINDOW);
 
-        let output = cmd
-            .output()
+        let output = cmd.output()
             .await
             .map_err(|e| ProviderError::Other(format!("Failed to run kiro-cli: {}", e)))?;
 
@@ -132,8 +130,9 @@ impl KiroProvider {
         // First ensure we're logged in
         self.ensure_logged_in().await?;
 
-        let cli_path = Self::which_kiro()
-            .ok_or_else(|| ProviderError::NotInstalled("kiro-cli not found".to_string()))?;
+        let cli_path = Self::which_kiro().ok_or_else(|| {
+            ProviderError::NotInstalled("kiro-cli not found".to_string())
+        })?;
 
         // Run the usage command
         #[cfg(windows)]
@@ -147,18 +146,13 @@ impl KiroProvider {
         #[cfg(windows)]
         cmd.creation_flags(CREATE_NO_WINDOW);
 
-        let output = cmd
-            .output()
+        let output = cmd.output()
             .await
             .map_err(|e| ProviderError::Other(format!("Failed to run kiro-cli: {}", e)))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let combined = if stdout.trim().is_empty() {
-            &stderr
-        } else {
-            &stdout
-        };
+        let combined = if stdout.trim().is_empty() { &stderr } else { &stdout };
 
         // Check for login errors
         let lowered = combined.to_lowercase();
@@ -171,7 +165,7 @@ impl KiroProvider {
             return Err(ProviderError::AuthRequired);
         }
 
-        self.parse_cli_output(combined)
+        self.parse_cli_output(&combined)
     }
 
     /// Parse CLI output to extract usage information
@@ -180,16 +174,12 @@ impl KiroProvider {
         let trimmed = stripped.trim();
 
         if trimmed.is_empty() {
-            return Err(ProviderError::Parse(
-                "Empty output from kiro-cli".to_string(),
-            ));
+            return Err(ProviderError::Parse("Empty output from kiro-cli".to_string()));
         }
 
         let lowered = stripped.to_lowercase();
         if lowered.contains("could not retrieve usage information") {
-            return Err(ProviderError::Parse(
-                "Kiro CLI could not retrieve usage information".to_string(),
-            ));
+            return Err(ProviderError::Parse("Kiro CLI could not retrieve usage information".to_string()));
         }
 
         // Parse plan name from "| KIRO FREE" or similar (legacy format)
@@ -217,8 +207,8 @@ impl KiroProvider {
         }
 
         // Check if this is a managed plan with no usage data
-        let is_managed_plan =
-            lowered.contains("managed by admin") || lowered.contains("managed by organization");
+        let is_managed_plan = lowered.contains("managed by admin")
+            || lowered.contains("managed by organization");
 
         // Parse reset date from "resets on 01/01"
         let mut reset_date: Option<chrono::DateTime<chrono::Utc>> = None;
@@ -294,7 +284,8 @@ impl KiroProvider {
 
         // Managed plans in new format may omit usage metrics
         if matched_new_format && is_managed_plan && !matched_percent && !matched_credits {
-            let usage = UsageSnapshot::new(RateWindow::new(0.0)).with_login_method(&plan_name);
+            let usage = UsageSnapshot::new(RateWindow::new(0.0))
+                .with_login_method(&plan_name);
             return Ok(usage);
         }
 
@@ -302,12 +293,13 @@ impl KiroProvider {
         if !matched_percent && !matched_credits {
             if matched_new_format || plan_name != "Kiro" {
                 // We got a plan name but no usage data
-                let usage = UsageSnapshot::new(RateWindow::new(0.0)).with_login_method(&plan_name);
+                let usage = UsageSnapshot::new(RateWindow::new(0.0))
+                    .with_login_method(&plan_name);
                 return Ok(usage);
             }
             // If we have the CLI but can't parse, at least report it's installed
-            let usage =
-                UsageSnapshot::new(RateWindow::new(0.0)).with_login_method("Kiro (installed)");
+            let usage = UsageSnapshot::new(RateWindow::new(0.0))
+                .with_login_method("Kiro (installed)");
             return Ok(usage);
         }
 
@@ -318,7 +310,8 @@ impl KiroProvider {
             None,
         );
 
-        let mut usage = UsageSnapshot::new(primary).with_login_method(&plan_name);
+        let mut usage = UsageSnapshot::new(primary)
+            .with_login_method(&plan_name);
 
         if let Some(bonus) = bonus_window {
             usage = usage.with_secondary(bonus);
@@ -338,7 +331,7 @@ impl KiroProvider {
                 // Skip escape sequence
                 if chars.peek() == Some(&'[') {
                     chars.next(); // consume '['
-                                  // Skip until we hit a letter
+                    // Skip until we hit a letter
                     while let Some(&next) = chars.peek() {
                         chars.next();
                         if next.is_ascii_alphabetic() {
@@ -347,7 +340,7 @@ impl KiroProvider {
                     }
                 } else if chars.peek() == Some(&']') {
                     // OSC sequence - skip until BEL or ST
-                    for next in chars.by_ref() {
+                    while let Some(next) = chars.next() {
                         if next == '\x07' || next == '\\' {
                             break;
                         }
@@ -377,8 +370,7 @@ impl KiroProvider {
         // Try current year first
         if let Some(date) = chrono::NaiveDate::from_ymd_opt(current_year, month, day) {
             let datetime = date.and_hms_opt(0, 0, 0)?;
-            let utc =
-                chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(datetime, chrono::Utc);
+            let utc = chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(datetime, chrono::Utc);
             if utc > now {
                 return Some(utc);
             }
@@ -387,10 +379,7 @@ impl KiroProvider {
         // If in the past, use next year
         if let Some(date) = chrono::NaiveDate::from_ymd_opt(current_year + 1, month, day) {
             let datetime = date.and_hms_opt(0, 0, 0)?;
-            return Some(chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(
-                datetime,
-                chrono::Utc,
-            ));
+            return Some(chrono::DateTime::<chrono::Utc>::from_naive_utc_and_offset(datetime, chrono::Utc));
         }
 
         None
@@ -426,7 +415,9 @@ impl Provider for KiroProvider {
                 let usage = self.fetch_via_cli().await?;
                 Ok(ProviderFetchResult::new(usage, "cli"))
             }
-            SourceMode::OAuth => Err(ProviderError::UnsupportedSource(SourceMode::OAuth)),
+            SourceMode::OAuth => {
+                Err(ProviderError::UnsupportedSource(SourceMode::OAuth))
+            }
         }
     }
 

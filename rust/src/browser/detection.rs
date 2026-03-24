@@ -3,7 +3,7 @@
 
 #![allow(dead_code)]
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Supported browser types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -70,7 +70,7 @@ impl BrowserProfile {
     }
 
     /// Get the Local State file path (contains encryption key)
-    pub fn local_state_path(&self, user_data_dir: &Path) -> PathBuf {
+    pub fn local_state_path(&self, user_data_dir: &PathBuf) -> PathBuf {
         user_data_dir.join("Local State")
     }
 }
@@ -119,10 +119,7 @@ impl BrowserDetector {
         let app_data = dirs::data_dir()?;
 
         let path = match browser_type {
-            BrowserType::Chrome => local_app_data
-                .join("Google")
-                .join("Chrome")
-                .join("User Data"),
+            BrowserType::Chrome => local_app_data.join("Google").join("Chrome").join("User Data"),
             BrowserType::Edge => local_app_data
                 .join("Microsoft")
                 .join("Edge")
@@ -131,7 +128,9 @@ impl BrowserDetector {
                 .join("BraveSoftware")
                 .join("Brave-Browser")
                 .join("User Data"),
-            BrowserType::Arc => local_app_data.join("Arc").join("User Data"),
+            BrowserType::Arc => local_app_data
+                .join("Arc")
+                .join("User Data"),
             BrowserType::Chromium => local_app_data.join("Chromium").join("User Data"),
             BrowserType::Firefox => app_data.join("Mozilla").join("Firefox").join("Profiles"),
         };
