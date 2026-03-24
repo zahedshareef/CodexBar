@@ -224,68 +224,36 @@ impl AntigravityProvider {
             .and_then(|d| d.client_model_configs)
             .unwrap_or_default();
 
-        // Select models: prefer Claude (non-thinking), then Gemini Pro Low, then Gemini Flash
         let mut primary: Option<RateWindow> = None;
         let mut secondary: Option<RateWindow> = None;
         let mut tertiary: Option<RateWindow> = None;
 
         for config in &model_configs {
-            let label_lower = config.label.to_lowercase();
-
-            if primary.is_none()
-                && label_lower.contains("claude")
-                && !label_lower.contains("thinking")
-            {
-                if let Some(quota) = &config.quota_info {
-                    let remaining = quota.remaining_fraction.unwrap_or(1.0);
-                    let used_percent = (1.0 - remaining) * 100.0;
-                    primary = Some(RateWindow::with_details(
-                        used_percent,
-                        None,
-                        None,
-                        quota.reset_time.clone(),
-                    ));
+            let family = classify_model(&config.label);
+            match family {
+                ModelFamily::Claude if primary.is_none() => {
+                    if let Some(quota) = &config.quota_info {
+                        primary = Some(rate_window_from_quota(quota));
+                    }
                 }
-            } else if secondary.is_none()
-                && label_lower.contains("pro")
-                && label_lower.contains("low")
-            {
-                if let Some(quota) = &config.quota_info {
-                    let remaining = quota.remaining_fraction.unwrap_or(1.0);
-                    let used_percent = (1.0 - remaining) * 100.0;
-                    secondary = Some(RateWindow::with_details(
-                        used_percent,
-                        None,
-                        None,
-                        quota.reset_time.clone(),
-                    ));
+                ModelFamily::GeminiProLow if secondary.is_none() => {
+                    if let Some(quota) = &config.quota_info {
+                        secondary = Some(rate_window_from_quota(quota));
+                    }
                 }
-            } else if tertiary.is_none() && label_lower.contains("flash") {
-                if let Some(quota) = &config.quota_info {
-                    let remaining = quota.remaining_fraction.unwrap_or(1.0);
-                    let used_percent = (1.0 - remaining) * 100.0;
-                    tertiary = Some(RateWindow::with_details(
-                        used_percent,
-                        None,
-                        None,
-                        quota.reset_time.clone(),
-                    ));
+                ModelFamily::GeminiFlash if tertiary.is_none() => {
+                    if let Some(quota) = &config.quota_info {
+                        tertiary = Some(rate_window_from_quota(quota));
+                    }
                 }
+                _ => {}
             }
         }
 
-        // If no primary found, use first available model
         if primary.is_none() {
             if let Some(first) = model_configs.first() {
                 if let Some(quota) = &first.quota_info {
-                    let remaining = quota.remaining_fraction.unwrap_or(1.0);
-                    let used_percent = (1.0 - remaining) * 100.0;
-                    primary = Some(RateWindow::with_details(
-                        used_percent,
-                        None,
-                        None,
-                        quota.reset_time.clone(),
-                    ));
+                    primary = Some(rate_window_from_quota(quota));
                 }
             }
         }
@@ -404,4 +372,137 @@ struct ModelConfig {
 struct QuotaInfo {
     remaining_fraction: Option<f64>,
     reset_time: Option<String>,
+}
+
+// ── Model-family classification ──────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum ModelFamily {
+    Claude,
+    ClaudeThinking,
+    GeminiProLow,
+    GeminiFlash,
+    Other,
+}
+
+fn classify_model(label: &str) -> ModelFamily {
+    let lower = label.to_lowercase();
+    if lower.contains("claude") {
+        if lower.contains("thinking") {
+            ModelFamily::ClaudeThinking
+        } else {
+            ModelFamily::Claude
+        }
+    } else if lower.contains("gemini") && lower.contains("pro") && lower.contains("low") {
+        ModelFamily::GeminiProLow
+    } else if lower.contains("gemini") && lower.contains("flash") {
+        ModelFamily::GeminiFlash
+    } else if lower.contains("pro") && lower.contains("low") {
+        ModelFamily::GeminiProLow
+    } else if lower.contains("flash") {
+        ModelFamily::GeminiFlash
+    } else {
+        ModelFamily::Other
+    }
+}
+
+fn rate_window_from_quota(quota: &QuotaInfo) -> RateWindow {
+    let remaining = quota.remaining_fraction.unwrap_or(1.0);
+    let used_percent = (1.0 - remaining) * 100.0;
+    RateWindow::with_details(used_percent, None, None, quota.reset_time.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_classify_model_families() {
+        assert_eq!(classify_model("Claude 3.5 Sonnet"), ModelFamily::Claude);
+        assert_eq!(classify_model("claude-4-opus"), ModelFamily::Claude);
+        assert_eq!(
+            classify_model("Claude Thinking"),
+            ModelFamily::ClaudeThinking
+        );
+        assert_eq!(
+            classify_model("claude-3.5-sonnet-thinking"),
+            ModelFamily::ClaudeThinking
+        );
+        assert_eq!(
+            classify_model("Gemini 2.5 Pro Low"),
+            ModelFamily::GeminiProLow
+        );
+        assert_eq!(classify_model("gemini-pro-low"), ModelFamily::GeminiProLow);
+        assert_eq!(classify_model("Pro Low Latency"), ModelFamily::GeminiProLow);
+        assert_eq!(
+            classify_model("Gemini 2.5 Flash"),
+            ModelFamily::GeminiFlash
+        );
+        assert_eq!(classify_model("gemini-flash"), ModelFamily::GeminiFlash);
+        assert_eq!(classify_model("Flash Model"), ModelFamily::GeminiFlash);
+        assert_eq!(classify_model("GPT-4o"), ModelFamily::Other);
+        assert_eq!(classify_model("unknown-model"), ModelFamily::Other);
+    }
+
+    fn make_response(models: Vec<(&str, f64)>) -> UserStatusResponse {
+        let json = serde_json::json!({
+            "userStatus": {
+                "cascadeModelConfigData": {
+                    "clientModelConfigs": models.iter().map(|(label, remaining)| {
+                        serde_json::json!({
+                            "label": label,
+                            "quotaInfo": {
+                                "remainingFraction": remaining
+                            }
+                        })
+                    }).collect::<Vec<_>>()
+                }
+            }
+        });
+        serde_json::from_value(json).unwrap()
+    }
+
+    #[test]
+    fn test_parse_user_status_standard() {
+        let resp = make_response(vec![
+            ("Claude 3.5 Sonnet", 0.8),
+            ("Gemini 2.5 Pro Low", 0.5),
+            ("Gemini 2.5 Flash", 0.9),
+        ]);
+        let provider = AntigravityProvider::new();
+        let snap = provider.parse_user_status(resp).unwrap();
+
+        assert!((snap.primary.used_percent - 20.0).abs() < 0.1);
+        let sec = snap.secondary.unwrap();
+        assert!((sec.used_percent - 50.0).abs() < 0.1);
+        let ter = snap.model_specific.unwrap();
+        assert!((ter.used_percent - 10.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_parse_user_status_thinking_skipped() {
+        let resp = make_response(vec![
+            ("Claude Thinking", 0.6),
+            ("Claude 3.5 Sonnet", 0.7),
+            ("Gemini 2.5 Flash", 0.5),
+        ]);
+        let provider = AntigravityProvider::new();
+        let snap = provider.parse_user_status(resp).unwrap();
+
+        assert!((snap.primary.used_percent - 30.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_parse_user_status_fallback_first() {
+        let resp = make_response(vec![
+            ("GPT-4o", 0.4),
+            ("Mistral Large", 0.6),
+        ]);
+        let provider = AntigravityProvider::new();
+        let snap = provider.parse_user_status(resp).unwrap();
+
+        assert!((snap.primary.used_percent - 60.0).abs() < 0.1);
+        assert!(snap.secondary.is_none());
+        assert!(snap.model_specific.is_none());
+    }
 }
