@@ -163,10 +163,32 @@ impl KimiProvider {
         // Create secondary rate window (5-hour rate limit)
         let mut rate_limit = RateWindow::new(five_hour_percent);
 
-        // Calculate reset time (5 hours from now as fallback)
-        let five_hours_from_now = chrono::Utc::now() + chrono::Duration::hours(5);
-        rate_limit.resets_at = Some(five_hours_from_now);
-        rate_limit.window_minutes = Some(300); // 5 hours = 300 minutes
+        // Try to parse resetTime / reset_time from the response; fall back to 5h from now.
+        let resets_at = quota
+            .and_then(|q| q.get("resetTime").or_else(|| q.get("reset_time")))
+            .and_then(|v| {
+                if let Some(s) = v.as_str() {
+                    chrono::DateTime::parse_from_rfc3339(s)
+                        .map(|dt| dt.with_timezone(&chrono::Utc))
+                        .ok()
+                } else {
+                    v.as_i64().map(|ts| {
+                        chrono::DateTime::from_timestamp(ts, 0)
+                            .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(5))
+                    })
+                }
+            })
+            .unwrap_or_else(|| chrono::Utc::now() + chrono::Duration::hours(5));
+
+        rate_limit.resets_at = Some(resets_at);
+
+        // Try to parse windowMinutes / window_minutes; fall back to 300 (5 hours).
+        let window_minutes = quota
+            .and_then(|q| q.get("windowMinutes").or_else(|| q.get("window_minutes")))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(300);
+
+        rate_limit.window_minutes = Some(window_minutes as u32);
 
         let mut usage = UsageSnapshot::new(primary)
             .with_login_method(plan);
