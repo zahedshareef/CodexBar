@@ -390,6 +390,43 @@ fn load_usage_breakdown_points(
         .collect()
 }
 
+fn load_credits_history_points(
+    provider_id: ProviderId,
+    account_email: Option<&str>,
+) -> Vec<(String, f64)> {
+    if provider_id != ProviderId::Codex {
+        return Vec::new();
+    }
+
+    let Some(account_email) = account_email else {
+        return Vec::new();
+    };
+
+    let Some(cache) = OpenAIDashboardCacheStore::load() else {
+        return Vec::new();
+    };
+
+    if !cache.account_email.eq_ignore_ascii_case(account_email) {
+        return Vec::new();
+    }
+
+    let breakdown = if !cache.snapshot.daily_breakdown.is_empty() {
+        &cache.snapshot.daily_breakdown
+    } else if !cache.snapshot.usage_breakdown.is_empty() {
+        &cache.snapshot.usage_breakdown
+    } else {
+        return Vec::new();
+    };
+
+    let mut points: Vec<(String, f64)> = breakdown
+        .iter()
+        .map(|day| (day.day.clone(), day.total_credits_used))
+        .collect();
+
+    points.sort_by(|a, b| a.0.cmp(&b.0));
+    points
+}
+
 fn random_surprise_delay() -> Duration {
     use rand::Rng;
     let mut rng = rand::rng();
@@ -852,6 +889,13 @@ impl CodexBarApp {
                             if provider_name_lower == "codex" || provider_name_lower == "claude" {
                                 result.cost_history =
                                     get_daily_cost_history(&provider_name_lower, 30);
+                            }
+
+                            if result.error.is_none() {
+                                result.credits_history = load_credits_history_points(
+                                    id,
+                                    result.account.as_deref(),
+                                );
                             }
 
                             if let Ok(mut s) = state.lock() {
