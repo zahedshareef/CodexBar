@@ -178,7 +178,7 @@ impl CodexApi {
             .map(|s| s.to_string());
 
         // Extract rate limit info - handle multiple possible structures
-        let (primary, secondary) = self.extract_rate_limits(json);
+        let (primary, secondary, code_review) = self.extract_rate_limits(json);
 
         // Build login method string
         let login_method = plan_type.as_ref().map(|pt| {
@@ -200,6 +200,9 @@ impl CodexApi {
         if let Some(sec) = secondary {
             usage = usage.with_secondary(sec);
         }
+        if let Some(cr) = code_review {
+            usage = usage.with_model_specific(cr);
+        }
         if let Some(method) = login_method {
             usage = usage.with_login_method(method);
         }
@@ -210,7 +213,7 @@ impl CodexApi {
         Ok((usage, cost))
     }
 
-    fn extract_rate_limits(&self, json: &serde_json::Value) -> (RateWindow, Option<RateWindow>) {
+    fn extract_rate_limits(&self, json: &serde_json::Value) -> (RateWindow, Option<RateWindow>, Option<RateWindow>) {
         // Try rate_limit object
         if let Some(rate_limit) = json.get("rate_limit") {
             let primary = rate_limit.get("primary_window")
@@ -220,7 +223,10 @@ impl CodexApi {
             let secondary = rate_limit.get("secondary_window")
                 .map(|w| self.parse_window(w));
 
-            return (primary, secondary);
+            let code_review = rate_limit.get("code_review_window")
+                .map(|w| self.parse_window(w));
+
+            return (primary, secondary, code_review);
         }
 
         // Try rate_limits array
@@ -228,7 +234,8 @@ impl CodexApi {
             if let Some(first) = rate_limits.first() {
                 let primary = self.parse_window(first);
                 let secondary = rate_limits.get(1).map(|w| self.parse_window(w));
-                return (primary, secondary);
+                let code_review = rate_limits.get(2).map(|w| self.parse_window(w));
+                return (primary, secondary, code_review);
             }
         }
 
@@ -238,7 +245,7 @@ impl CodexApi {
             .and_then(|v| v.as_f64())
             .unwrap_or(0.0);
 
-        (RateWindow::new(used_percent), None)
+        (RateWindow::new(used_percent), None, None)
     }
 
     fn parse_window(&self, window: &serde_json::Value) -> RateWindow {
@@ -314,6 +321,18 @@ impl CodexApi {
                 )
             });
 
+        // Extract code review rate window
+        let code_review = response.rate_limit.as_ref()
+            .and_then(|rl| rl.code_review_window.as_ref())
+            .map(|window| {
+                RateWindow::with_details(
+                    window.used_percent as f64,
+                    window.limit_window_seconds.map(|s| (s / 60) as u32),
+                    timestamp_to_datetime(window.reset_at),
+                    None,
+                )
+            });
+
         // Build usage snapshot
         let login_method = response.plan_type.as_ref().map(|pt| {
             match pt.as_str() {
@@ -333,6 +352,9 @@ impl CodexApi {
         let mut usage = UsageSnapshot::new(primary);
         if let Some(sec) = secondary {
             usage = usage.with_secondary(sec);
+        }
+        if let Some(cr) = code_review {
+            usage = usage.with_model_specific(cr);
         }
         if let Some(method) = login_method {
             usage = usage.with_login_method(method);
@@ -381,6 +403,7 @@ struct UsageResponse {
 struct RateLimitDetails {
     primary_window: Option<WindowSnapshot>,
     secondary_window: Option<WindowSnapshot>,
+    code_review_window: Option<WindowSnapshot>,
 }
 
 #[derive(Debug, Deserialize)]
