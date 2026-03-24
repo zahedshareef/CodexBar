@@ -892,10 +892,8 @@ impl CodexBarApp {
                             }
 
                             if result.error.is_none() {
-                                result.credits_history = load_credits_history_points(
-                                    id,
-                                    result.account.as_deref(),
-                                );
+                                result.credits_history =
+                                    load_credits_history_points(id, result.account.as_deref());
                             }
 
                             if let Ok(mut s) = state.lock() {
@@ -1001,6 +999,7 @@ fn create_provider(id: ProviderId) -> Box<dyn Provider> {
         ProviderId::OpenRouter => Box::new(OpenRouterProvider::new()),
         ProviderId::Synthetic => Box::new(SyntheticProvider::new()),
         ProviderId::JetBrains => Box::new(JetBrainsProvider::new()),
+        ProviderId::Alibaba => Box::new(AlibabaProvider::new()),
     }
 }
 

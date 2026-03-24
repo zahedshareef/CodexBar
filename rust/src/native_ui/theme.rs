@@ -275,6 +275,7 @@ pub fn provider_icon(name: &str) -> &'static str {
         "amp" => "⚡",
         "synthetic" => "◇",
         "jetbrains" | "jetbrains ai" => "J",
+        "alibaba" | "tongyi" => "阿",
         _ => "●",
     }
 }
@@ -300,6 +301,7 @@ pub fn provider_color(name: &str) -> Color32 {
         "vertexai" | "vertex ai" => Color32::from_rgb(66, 133, 244), // #4285F4 - Google blue
         "zai" | "z.ai" => Color32::from_rgb(232, 90, 106), // #E85A6A - Rose
         "synthetic" => Color32::from_rgb(20, 20, 20), // #141414 - Near black
+        "alibaba" | "tongyi" => Color32::from_rgb(255, 106, 0), // #FF6A00 - Alibaba orange
         _ => Theme::ACCENT_PRIMARY,
     }
 }

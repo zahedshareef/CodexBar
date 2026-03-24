@@ -33,6 +33,7 @@ pub enum ProviderId {
     OpenRouter,
     Synthetic,
     JetBrains,
+    Alibaba,
 }
 
 impl ProviderId {
@@ -60,6 +61,7 @@ impl ProviderId {
             ProviderId::OpenRouter,
             ProviderId::Synthetic,
             ProviderId::JetBrains,
+            ProviderId::Alibaba,
         ]
     }
 
@@ -87,6 +89,7 @@ impl ProviderId {
             ProviderId::OpenRouter => "openrouter",
             ProviderId::Synthetic => "synthetic",
             ProviderId::JetBrains => "jetbrains",
+            ProviderId::Alibaba => "alibaba",
         }
     }
 
@@ -114,6 +117,7 @@ impl ProviderId {
             ProviderId::OpenRouter => "OpenRouter",
             ProviderId::Synthetic => "Synthetic",
             ProviderId::JetBrains => "JetBrains AI",
+            ProviderId::Alibaba => "Alibaba",
         }
     }
 
@@ -135,6 +139,7 @@ impl ProviderId {
             ProviderId::Augment => Some("app.augmentcode.com"),
             ProviderId::Amp => Some("sourcegraph.com"),
             ProviderId::Antigravity => Some("antigravity.ai"),
+            ProviderId::Alibaba => Some("tongyi.aliyun.com"),
             ProviderId::Ollama => Some("ollama.com"),
             // Token-based providers (don't use cookies)
             ProviderId::Copilot => None,
@@ -171,6 +176,7 @@ impl ProviderId {
             "openrouter" | "or" => Some(ProviderId::OpenRouter),
             "synthetic" => Some(ProviderId::Synthetic),
             "jetbrains" | "jetbrains-ai" | "intellij" => Some(ProviderId::JetBrains),
+            "alibaba" | "tongyi" | "qianwen" | "qwen" => Some(ProviderId::Alibaba),
             _ => None,
         }
     }
@@ -394,6 +400,9 @@ pub fn cli_name_map() -> HashMap<&'static str, ProviderId> {
     map.insert("warp-ai", ProviderId::Warp);
     map.insert("warp-terminal", ProviderId::Warp);
     map.insert("or", ProviderId::OpenRouter);
+    map.insert("tongyi", ProviderId::Alibaba);
+    map.insert("qianwen", ProviderId::Alibaba);
+    map.insert("qwen", ProviderId::Alibaba);
     map
 }
 
@@ -404,7 +413,7 @@ mod tests {
     #[test]
     fn test_provider_id_all() {
         let all = ProviderId::all();
-        assert_eq!(all.len(), 21); // 18 + 3 new providers (Warp, Ollama, OpenRouter)
+        assert_eq!(all.len(), 22);
         assert!(all.contains(&ProviderId::Claude));
         assert!(all.contains(&ProviderId::Codex));
         assert!(all.contains(&ProviderId::Kimi));
@@ -509,5 +518,28 @@ mod tests {
         assert_eq!(ProviderId::Zai.cookie_domain(), None);
         assert_eq!(ProviderId::VertexAI.cookie_domain(), None);
         assert_eq!(ProviderId::JetBrains.cookie_domain(), None);
+    }
+
+    #[test]
+    fn test_provider_id_alibaba() {
+        assert_eq!(ProviderId::Alibaba.cli_name(), "alibaba");
+        assert_eq!(ProviderId::Alibaba.display_name(), "Alibaba");
+        assert_eq!(
+            ProviderId::Alibaba.cookie_domain(),
+            Some("tongyi.aliyun.com")
+        );
+        assert_eq!(
+            ProviderId::from_cli_name("alibaba"),
+            Some(ProviderId::Alibaba)
+        );
+        assert_eq!(
+            ProviderId::from_cli_name("tongyi"),
+            Some(ProviderId::Alibaba)
+        );
+        assert_eq!(
+            ProviderId::from_cli_name("qianwen"),
+            Some(ProviderId::Alibaba)
+        );
+        assert_eq!(ProviderId::from_cli_name("qwen"), Some(ProviderId::Alibaba));
     }
 }

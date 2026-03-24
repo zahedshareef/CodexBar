@@ -2,6 +2,7 @@
 
 #![allow(dead_code)]
 
+pub mod alibaba;
 pub mod amp;
 pub mod antigravity;
 pub mod augment;
@@ -26,6 +27,7 @@ pub mod warp;
 pub mod zai;
 
 // Re-export provider implementations
+pub use alibaba::AlibabaProvider;
 pub use amp::AmpProvider;
 pub use antigravity::AntigravityProvider;
 pub use augment::AugmentProvider;

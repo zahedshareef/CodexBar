@@ -164,13 +164,13 @@ impl CursorApi {
                         plan.total_percent_used.unwrap_or(0.0) * 100.0
                     };
 
-                    let secondary = plan.auto_percent_used.map(|v| {
-                        RateWindow::with_details(v * 100.0, None, billing_end, None)
-                    });
+                    let secondary = plan
+                        .auto_percent_used
+                        .map(|v| RateWindow::with_details(v * 100.0, None, billing_end, None));
 
-                    let model_specific = plan.api_percent_used.map(|v| {
-                        RateWindow::with_details(v * 100.0, None, billing_end, None)
-                    });
+                    let model_specific = plan
+                        .api_percent_used
+                        .map(|v| RateWindow::with_details(v * 100.0, None, billing_end, None));
 
                     let mut cost = CostSnapshot::new(used_cents / 100.0, "USD", "Monthly");
                     if limit_cents > 0.0 {
@@ -188,12 +188,7 @@ impl CursorApi {
                 (0.0, None, None, None)
             };
 
-        let primary = RateWindow::with_details(
-            percent_used,
-            None,
-            billing_end,
-            None,
-        );
+        let primary = RateWindow::with_details(percent_used, None, billing_end, None);
 
         let plan_type = summary
             .membership_type
@@ -208,7 +203,14 @@ impl CursorApi {
 
         let email = user_info.as_ref().and_then(|u| u.email.clone());
 
-        Ok((primary, secondary, model_specific, cost_snapshot, email, plan_type))
+        Ok((
+            primary,
+            secondary,
+            model_specific,
+            cost_snapshot,
+            email,
+            plan_type,
+        ))
     }
 }
 

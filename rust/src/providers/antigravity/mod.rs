@@ -434,10 +434,7 @@ mod tests {
         );
         assert_eq!(classify_model("gemini-pro-low"), ModelFamily::GeminiProLow);
         assert_eq!(classify_model("Pro Low Latency"), ModelFamily::GeminiProLow);
-        assert_eq!(
-            classify_model("Gemini 2.5 Flash"),
-            ModelFamily::GeminiFlash
-        );
+        assert_eq!(classify_model("Gemini 2.5 Flash"), ModelFamily::GeminiFlash);
         assert_eq!(classify_model("gemini-flash"), ModelFamily::GeminiFlash);
         assert_eq!(classify_model("Flash Model"), ModelFamily::GeminiFlash);
         assert_eq!(classify_model("GPT-4o"), ModelFamily::Other);
@@ -494,10 +491,7 @@ mod tests {
 
     #[test]
     fn test_parse_user_status_fallback_first() {
-        let resp = make_response(vec![
-            ("GPT-4o", 0.4),
-            ("Mistral Large", 0.6),
-        ]);
+        let resp = make_response(vec![("GPT-4o", 0.4), ("Mistral Large", 0.6)]);
         let provider = AntigravityProvider::new();
         let snap = provider.parse_user_status(resp).unwrap();
 

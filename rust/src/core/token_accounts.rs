@@ -113,6 +113,7 @@ impl TokenAccountSupport {
             | ProviderId::Amp
             | ProviderId::Synthetic
             | ProviderId::JetBrains
+            | ProviderId::Alibaba
             | ProviderId::Warp
             | ProviderId::Ollama
             | ProviderId::OpenRouter => None,
