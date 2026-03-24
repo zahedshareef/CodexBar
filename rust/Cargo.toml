@@ -3,7 +3,7 @@ name = "codexbar"
 version = "1.2.3"
 edition = "2021"
 authors = ["CodexBar Contributors"]
-description = "Windows system tray app for monitoring AI provider usage limits"
+description = "Windows and WSL system tray app for monitoring AI provider usage limits"
 license = "MIT"
 repository = "https://github.com/Finesssee/Win-CodexBar"
 keywords = ["ai", "usage", "monitoring", "claude", "codex"]
@@ -62,20 +62,6 @@ resvg = "0.44"
 usvg = "0.44"
 tiny-skia = "0.11"
 
-# Windows-specific
-[target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = [
-    "Win32_Foundation",
-    "Win32_Security_Credentials",
-    "Win32_Security_Cryptography",
-    "Win32_System_Console",
-    "Win32_System_Memory",
-    "Win32_System_Registry",
-    "Win32_System_Threading",
-    "Win32_UI_Shell",
-    "Win32_UI_WindowsAndMessaging",
-] }
-
 # SQLite for reading browser cookies
 rusqlite = { version = "0.32", features = ["bundled"] }
 
@@ -113,7 +99,20 @@ open = "5"
 # Clipboard access
 arboard = "3.2"
 
-# Windows Registry access
+# Windows-only
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Security_Credentials",
+    "Win32_Security_Cryptography",
+    "Win32_System_Console",
+    "Win32_System_Memory",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 winreg = "0.55"
 
 [build-dependencies]

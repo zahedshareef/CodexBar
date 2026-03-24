@@ -294,6 +294,24 @@ impl NotificationManager {
 
     #[cfg(not(target_os = "windows"))]
     fn show_toast(&self, title: &str, body: &str) {
+        use std::process::Command;
+
+        // Try notify-send first (works on most Linux distros including WSL with WSLg)
+        if let Ok(output) = Command::new("notify-send")
+            .args([
+                "--app-name=CodexBar",
+                "--icon=dialog-information",
+                title,
+                body,
+            ])
+            .output()
+        {
+            if output.status.success() {
+                tracing::debug!("Sent notification via notify-send: {}", title);
+                return;
+            }
+        }
+
         tracing::info!("Notification: {} - {}", title, body);
     }
 }
