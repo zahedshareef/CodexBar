@@ -1,5 +1,7 @@
 # Win-CodexBar — Windows & WSL Port of CodexBar
 
+[简体中文说明](./README.zh-CN.md)
+
 A Windows (and WSL) port of [CodexBar](https://github.com/steipete/CodexBar) — the tiny menu bar app that keeps your AI provider usage limits visible.
 
 > **This is an unofficial port.** The original CodexBar is a macOS Swift app by [Peter Steinberger](https://github.com/steipete). This port is built with Rust + egui for native Windows and WSL support.
