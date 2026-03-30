@@ -55,10 +55,10 @@ fn get_exe_path() -> anyhow::Result<PathBuf> {
 /// Enable auto-start by adding registry entry
 #[cfg(target_os = "windows")]
 fn enable_autostart() -> anyhow::Result<()> {
-    use windows::core::PCWSTR;
     use windows::Win32::System::Registry::{
-        RegCloseKey, RegOpenKeyExW, RegSetValueExW, HKEY_CURRENT_USER, KEY_WRITE, REG_SZ,
+        HKEY_CURRENT_USER, KEY_WRITE, REG_SZ, RegCloseKey, RegOpenKeyExW, RegSetValueExW,
     };
+    use windows::core::PCWSTR;
 
     let exe_path = get_exe_path()?;
     let command = format!("\"{}\" menubar", exe_path.display());
@@ -118,10 +118,10 @@ fn enable_autostart() -> anyhow::Result<()> {
 /// Disable auto-start by removing registry entry
 #[cfg(target_os = "windows")]
 fn disable_autostart() -> anyhow::Result<()> {
-    use windows::core::PCWSTR;
     use windows::Win32::System::Registry::{
-        RegCloseKey, RegDeleteValueW, RegOpenKeyExW, HKEY_CURRENT_USER, KEY_WRITE,
+        HKEY_CURRENT_USER, KEY_WRITE, RegCloseKey, RegDeleteValueW, RegOpenKeyExW,
     };
+    use windows::core::PCWSTR;
 
     let subkey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     let subkey_wide: Vec<u16> = OsStr::new(subkey)
@@ -160,10 +160,10 @@ fn disable_autostart() -> anyhow::Result<()> {
 /// Check if auto-start is enabled
 #[cfg(target_os = "windows")]
 fn is_autostart_enabled() -> bool {
-    use windows::core::PCWSTR;
     use windows::Win32::System::Registry::{
-        RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY_CURRENT_USER, KEY_READ,
+        HKEY_CURRENT_USER, KEY_READ, RegCloseKey, RegOpenKeyExW, RegQueryValueExW,
     };
+    use windows::core::PCWSTR;
 
     let subkey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     let subkey_wide: Vec<u16> = OsStr::new(subkey)

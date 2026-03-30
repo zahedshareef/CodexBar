@@ -14,6 +14,32 @@ use std::path::PathBuf;
 
 use crate::core::ProviderId;
 
+/// UI language for the application
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Language {
+    /// English (default)
+    #[default]
+    English,
+    /// Chinese (Simplified)
+    Chinese,
+}
+
+impl Language {
+    /// Get the display name for this language
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            Language::English => "English",
+            Language::Chinese => "中文",
+        }
+    }
+
+    /// Get all available languages
+    pub fn all() -> &'static [Language] {
+        &[Language::English, Language::Chinese]
+    }
+}
+
 /// Update channel for receiving updates
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -198,6 +224,10 @@ pub struct Settings {
     /// Install pending updates when quitting the application
     #[serde(default)]
     pub install_updates_on_quit: bool,
+
+    /// UI language for the application (English default for backward compatibility)
+    #[serde(default)]
+    pub ui_language: Language,
 }
 
 fn default_true() -> bool {
@@ -239,6 +269,7 @@ impl Default for Settings {
             global_shortcut: default_global_shortcut(), // Ctrl+Shift+U by default
             auto_download_updates: true, // Auto-download updates by default
             install_updates_on_quit: false, // Don't auto-install on quit by default
+            ui_language: Language::default(), // English by default
         }
     }
 }
@@ -300,8 +331,8 @@ impl Settings {
 
         #[cfg(target_os = "windows")]
         {
-            use winreg::enums::*;
             use winreg::RegKey;
+            use winreg::enums::*;
 
             let hkcu = RegKey::predef(HKEY_CURRENT_USER);
             let run_key = hkcu.open_subkey_with_flags(
@@ -328,8 +359,8 @@ impl Settings {
     /// Check if start at login is actually enabled in registry
     #[cfg(target_os = "windows")]
     pub fn is_start_at_login_enabled() -> bool {
-        use winreg::enums::*;
         use winreg::RegKey;
+        use winreg::enums::*;
 
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         if let Ok(run_key) = hkcu.open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Run") {
@@ -735,7 +766,9 @@ pub fn get_api_key_providers() -> Vec<ProviderConfigInfo> {
             name: "Warp",
             requires_api_key: true,
             api_key_env_var: Some("WARP_API_KEY"),
-            api_key_help: Some("Get your API key from Warp → Settings → API Keys (docs.warp.dev/reference/cli/api-keys)"),
+            api_key_help: Some(
+                "Get your API key from Warp → Settings → API Keys (docs.warp.dev/reference/cli/api-keys)",
+            ),
             config_file_path: None,
             dashboard_url: Some("https://docs.warp.dev/reference/cli/api-keys"),
         },

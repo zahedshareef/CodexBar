@@ -11,7 +11,7 @@ use crate::providers::{
     OpenCodeProvider, OpenRouterProvider, SyntheticProvider, VertexAIProvider, WarpProvider,
     ZaiProvider,
 };
-use crate::status::{fetch_provider_status, ProviderStatus as StatusInfo, StatusLevel};
+use crate::status::{ProviderStatus as StatusInfo, StatusLevel, fetch_provider_status};
 
 /// Arguments for the usage command
 #[derive(Args, Debug, Default)]

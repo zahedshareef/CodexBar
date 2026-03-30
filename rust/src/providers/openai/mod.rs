@@ -8,10 +8,10 @@ pub mod scraper;
 // Re-exports for error handling and dashboard scraping
 #[allow(unused_imports)]
 pub use friendly_errors::{
-    extract_auth_status, extract_signed_in_email, friendly_error, is_logged_out, OpenAIWebErrorKind,
+    OpenAIWebErrorKind, extract_auth_status, extract_signed_in_email, friendly_error, is_logged_out,
 };
 #[allow(unused_imports)]
 pub use scraper::{
-    parse_dashboard_json, CreditsHistoryEntry, OpenAIDashboardData, UsageBreakdown,
-    OPENAI_DASHBOARD_SCRAPE_SCRIPT,
+    CreditsHistoryEntry, OPENAI_DASHBOARD_SCRAPE_SCRIPT, OpenAIDashboardData, UsageBreakdown,
+    parse_dashboard_json,
 };

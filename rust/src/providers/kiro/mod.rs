@@ -8,7 +8,7 @@ pub mod version;
 // Re-exports for version compatibility checking
 #[allow(unused_imports)]
 pub use version::{
-    detect_version, find_kiro_cli, get_version, is_compatible, is_installed, KiroVersion,
+    KiroVersion, detect_version, find_kiro_cli, get_version, is_compatible, is_installed,
 };
 
 use async_trait::async_trait;
@@ -340,7 +340,7 @@ impl KiroProvider {
                 // Skip escape sequence
                 if chars.peek() == Some(&'[') {
                     chars.next(); // consume '['
-                                  // Skip until we hit a letter
+                    // Skip until we hit a letter
                     while let Some(&next) = chars.peek() {
                         chars.next();
                         if next.is_ascii_alphabetic() {

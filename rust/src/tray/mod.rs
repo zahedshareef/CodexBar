@@ -19,9 +19,9 @@ pub use manager::{
     UnifiedTrayManager,
 };
 pub use menu_invalidation::{
-    MenuDirtyState, MenuInvalidationTracker, MenuSection, StalenessChecker, MENU_OPEN_REFRESH_DELAY,
+    MENU_OPEN_REFRESH_DELAY, MenuDirtyState, MenuInvalidationTracker, MenuSection, StalenessChecker,
 };
 pub use weekly_indicator::{
-    calculate_weekly_remaining, UsageDisplayMode, WeeklyIndicatorColors, WeeklyIndicatorConfig,
-    WeeklyIndicatorDrawData, WEEKLY_INDICATOR_HEIGHT,
+    UsageDisplayMode, WEEKLY_INDICATOR_HEIGHT, WeeklyIndicatorColors, WeeklyIndicatorConfig,
+    WeeklyIndicatorDrawData, calculate_weekly_remaining,
 };

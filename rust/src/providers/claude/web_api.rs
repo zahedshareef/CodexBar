@@ -1,7 +1,7 @@
 //! Claude Web API fetcher - uses browser cookies to fetch usage from claude.ai
 
 use chrono::{DateTime, Utc};
-use reqwest::{header, Client};
+use reqwest::{Client, header};
 use serde::Deserialize;
 
 use crate::browser::cookies::get_cookie_header;

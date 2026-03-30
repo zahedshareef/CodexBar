@@ -8,8 +8,8 @@
 use std::path::Path;
 
 use aes_gcm::{
-    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit},
 };
 use base64::Engine;
 use rusqlite::Connection;
@@ -235,8 +235,8 @@ impl CookieExtractor {
     /// Decrypt data using Windows DPAPI
     #[cfg(windows)]
     fn dpapi_decrypt(encrypted_data: &[u8]) -> Result<Vec<u8>, CookieError> {
-        use windows::Win32::Foundation::{LocalFree, HLOCAL};
-        use windows::Win32::Security::Cryptography::{CryptUnprotectData, CRYPT_INTEGER_BLOB};
+        use windows::Win32::Foundation::{HLOCAL, LocalFree};
+        use windows::Win32::Security::Cryptography::{CRYPT_INTEGER_BLOB, CryptUnprotectData};
 
         unsafe {
             let mut input_blob = CRYPT_INTEGER_BLOB {

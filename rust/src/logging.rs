@@ -1,6 +1,6 @@
 //! Logging configuration using tracing
 
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 /// Initialize the logging system
 pub fn init(verbose: bool, json: bool) -> anyhow::Result<()> {

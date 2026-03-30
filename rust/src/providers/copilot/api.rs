@@ -110,10 +110,10 @@ impl CopilotApi {
     fn try_load_credential(&self, target: &str) -> Option<String> {
         use std::ffi::OsStr;
         use std::os::windows::ffi::OsStrExt;
-        use windows::core::PCWSTR;
         use windows::Win32::Security::Credentials::{
-            CredFree, CredReadW, CREDENTIALW, CRED_TYPE_GENERIC,
+            CRED_TYPE_GENERIC, CREDENTIALW, CredFree, CredReadW,
         };
+        use windows::core::PCWSTR;
 
         let target_wide: Vec<u16> = OsStr::new(target)
             .encode_wide()

@@ -223,8 +223,8 @@ impl GeminiApi {
             .iter()
             .filter(|(k, _)| k.to_lowercase().contains("flash"))
             .min_by(|a, b| {
-                a.1 .0
-                    .partial_cmp(&b.1 .0)
+                a.1.0
+                    .partial_cmp(&b.1.0)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
 
@@ -232,8 +232,8 @@ impl GeminiApi {
             .iter()
             .filter(|(k, _)| k.to_lowercase().contains("pro"))
             .min_by(|a, b| {
-                a.1 .0
-                    .partial_cmp(&b.1 .0)
+                a.1.0
+                    .partial_cmp(&b.1.0)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
 

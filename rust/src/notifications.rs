@@ -6,7 +6,7 @@
 
 use crate::core::ProviderId;
 use crate::settings::Settings;
-use crate::sound::{play_alert, AlertSound};
+use crate::sound::{AlertSound, play_alert};
 
 /// Notification types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

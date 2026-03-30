@@ -8,4 +8,4 @@ pub mod wsl_paths;
 
 // Re-exports for future UI integration
 #[allow(unused_imports)]
-pub use watchdog::{global_watchdog, WatchdogConfig, WatchdogError, WebProbeWatchdog};
+pub use watchdog::{WatchdogConfig, WatchdogError, WebProbeWatchdog, global_watchdog};

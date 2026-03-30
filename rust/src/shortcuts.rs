@@ -5,11 +5,11 @@
 #![allow(dead_code)]
 
 use global_hotkey::{
-    hotkey::{Code, HotKey, Modifiers},
     GlobalHotKeyEvent, GlobalHotKeyManager,
+    hotkey::{Code, HotKey, Modifiers},
 };
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 /// Keyboard shortcut manager
 pub struct ShortcutManager {
