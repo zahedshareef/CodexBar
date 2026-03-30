@@ -10,12 +10,15 @@ use std::cell::RefCell;
 use std::sync::{Arc, Mutex};
 
 use super::provider_icons::ProviderIconCache;
-use super::theme::{provider_color, provider_icon, FontSize, Radius, Spacing, Theme};
+use super::theme::{FontSize, Radius, Spacing, Theme, provider_color, provider_icon};
 use crate::browser::cookies::get_cookie_header_from_browser;
 use crate::browser::detection::{BrowserDetector, BrowserType};
 use crate::core::{PersonalInfoRedactor, ProviderId, WidgetSnapshot, WidgetSnapshotStore};
 use crate::core::{ProviderAccountData, TokenAccount, TokenAccountStore, TokenAccountSupport};
-use crate::settings::{get_api_key_providers, ApiKeys, ManualCookies, Settings, TrayIconMode};
+use crate::locale::{LocaleKey, get_text as locale_text};
+use crate::settings::{
+    ApiKeys, Language, ManualCookies, Settings, TrayIconMode, get_api_key_providers,
+};
 use crate::shortcuts::format_shortcut;
 use std::collections::HashMap;
 
@@ -40,13 +43,13 @@ pub enum PreferencesTab {
 impl PreferencesTab {
     fn label(&self) -> &'static str {
         match self {
-            PreferencesTab::General => "通用",
-            PreferencesTab::Providers => "服务商",
-            PreferencesTab::Display => "显示",
-            PreferencesTab::ApiKeys => "API 密钥",
+            PreferencesTab::General => "General",
+            PreferencesTab::Providers => "Providers",
+            PreferencesTab::Display => "Display",
+            PreferencesTab::ApiKeys => "API Keys",
             PreferencesTab::Cookies => "Cookies",
-            PreferencesTab::Advanced => "高级",
-            PreferencesTab::About => "关于",
+            PreferencesTab::Advanced => "Advanced",
+            PreferencesTab::About => "About",
         }
     }
 
@@ -353,6 +356,43 @@ impl PreferencesWindow {
     }
 
     fn show_general_tab(&mut self, ui: &mut egui::Ui) {
+        // LANGUAGE section
+        section_header(ui, "Language");
+
+        settings_card(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("界面语言")
+                        .size(FontSize::MD)
+                        .color(Theme::TEXT_PRIMARY),
+                );
+                ui.add_space(Spacing::MD);
+
+                // Language selector ComboBox
+                let current_language = self.settings.ui_language;
+                let current_label = current_language.display_name();
+
+                egui::ComboBox::from_id_salt("language_selector")
+                    .selected_text(current_label)
+                    .show_ui(ui, |ui| {
+                        for lang in Language::all() {
+                            if ui
+                                .selectable_label(
+                                    self.settings.ui_language == *lang,
+                                    lang.display_name(),
+                                )
+                                .clicked()
+                            {
+                                self.settings.ui_language = *lang;
+                                self.settings_changed = true;
+                            }
+                        }
+                    });
+            });
+        });
+
+        ui.add_space(Spacing::LG);
+
         // STARTUP section
         section_header(ui, "Startup");
 
@@ -406,12 +446,8 @@ impl PreferencesWindow {
 
             // Sound effects toggle
             let mut sound_enabled = self.settings.sound_enabled;
-            if setting_toggle(
-                ui,
-                "声音提示",
-                "达到阈值时播放提示音",
-                &mut sound_enabled,
-            ) {
+            if setting_toggle(ui, "声音提示", "达到阈值时播放提示音", &mut sound_enabled)
+            {
                 self.settings.sound_enabled = sound_enabled;
                 self.settings_changed = true;
             }
@@ -1089,15 +1125,13 @@ impl PreferencesWindow {
                 if ui
                     .add_enabled(
                         can_import,
-                        egui::Button::new(
-                            RichText::new("导入 Cookies").size(FontSize::SM).color(
-                                if can_import {
-                                    Color32::WHITE
-                                } else {
-                                    Theme::TEXT_MUTED
-                                },
-                            ),
-                        )
+                        egui::Button::new(RichText::new("导入 Cookies").size(FontSize::SM).color(
+                            if can_import {
+                                Color32::WHITE
+                            } else {
+                                Theme::TEXT_MUTED
+                            },
+                        ))
                         .fill(if can_import {
                             Theme::ACCENT_PRIMARY
                         } else {
@@ -1134,8 +1168,12 @@ impl PreferencesWindow {
                                 }
                                 Ok(_) => {
                                     self.browser_import_status = Some((
-                                        format!("在 {} 的 {} 中未找到 Cookies。请先确认已登录。", browser_type.display_name(), domain),
-                                        true
+                                        format!(
+                                            "在 {} 的 {} 中未找到 Cookies。请先确认已登录。",
+                                            browser_type.display_name(),
+                                            domain
+                                        ),
+                                        true,
                                     ));
                                 }
                                 Err(e) => {
@@ -1479,8 +1517,7 @@ impl PreferencesWindow {
                                 None,
                             );
                             if let Err(e) = self.api_keys.save() {
-                                self.api_key_status_msg =
-                                    Some((format!("保存失败：{}", e), true));
+                                self.api_key_status_msg = Some((format!("保存失败：{}", e), true));
                             } else {
                                 self.api_key_status_msg =
                                     Some((format!("已保存 {} 的 API key", provider_name), false));
@@ -1516,11 +1553,9 @@ impl PreferencesWindow {
         section_header(ui, "Browser Cookies");
 
         ui.label(
-            RichText::new(
-                "Cookies 会自动从 Chrome、Edge、Brave 和 Firefox 中提取。",
-            )
-            .size(FontSize::SM)
-            .color(Theme::TEXT_MUTED),
+            RichText::new("Cookies 会自动从 Chrome、Edge、Brave 和 Firefox 中提取。")
+                .size(FontSize::SM)
+                .color(Theme::TEXT_MUTED),
         );
 
         ui.add_space(Spacing::LG);
@@ -2005,7 +2040,7 @@ fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
     {
         use windows::Win32::Foundation::RECT as WinRect;
         use windows::Win32::UI::WindowsAndMessaging::{
-            SystemParametersInfoW, SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+            SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
         };
 
         let mut rect = WinRect::default();
@@ -2047,11 +2082,11 @@ fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
 
 /// Render the settings UI inside the viewport using shared state
 fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
-    // Get current tab from shared state
-    let active_tab = if let Ok(state) = shared_state.lock() {
-        state.active_tab
+    // Get current tab and language from shared state
+    let (active_tab, ui_language) = if let Ok(state) = shared_state.lock() {
+        (state.active_tab, state.settings.ui_language)
     } else {
-        PreferencesTab::General
+        (PreferencesTab::General, Language::English)
     };
 
     ui.vertical(|ui| {
@@ -2132,10 +2167,22 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             } else {
                 Theme::TEXT_MUTED
             };
+
+            // Get localized tab label based on current language
+            let tab_label = match *tab {
+                PreferencesTab::General => locale_text(ui_language, LocaleKey::TabGeneral),
+                PreferencesTab::Providers => locale_text(ui_language, LocaleKey::TabProviders),
+                PreferencesTab::Display => locale_text(ui_language, LocaleKey::TabDisplay),
+                PreferencesTab::ApiKeys => locale_text(ui_language, LocaleKey::TabApiKeys),
+                PreferencesTab::Cookies => locale_text(ui_language, LocaleKey::TabCookies),
+                PreferencesTab::Advanced => locale_text(ui_language, LocaleKey::TabAdvanced),
+                PreferencesTab::About => locale_text(ui_language, LocaleKey::TabAbout),
+            };
+
             ui.painter().text(
                 egui::pos2(tab_rect.center().x, tab_rect.min.y + 44.0),
                 egui::Align2::CENTER_CENTER,
-                tab.label(),
+                tab_label,
                 egui::FontId::proportional(11.0),
                 label_color,
             );
@@ -3372,12 +3419,8 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             true
         };
 
-        if setting_toggle(
-            ui,
-            "声音提示",
-            "达到阈值时播放提示音",
-            &mut sound_enabled,
-        ) {
+        if setting_toggle(ui, "声音提示", "达到阈值时播放提示音", &mut sound_enabled)
+        {
             if let Ok(mut state) = shared_state.lock() {
                 state.settings.sound_enabled = sound_enabled;
                 state.settings_changed = true;
@@ -4071,8 +4114,7 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                             let value = state.new_api_key_value.trim().to_string();
                             state.api_keys.set(&provider, &value, None);
                             if let Err(e) = state.api_keys.save() {
-                                state.api_key_status_msg =
-                                    Some((format!("保存失败：{}", e), true));
+                                state.api_key_status_msg = Some((format!("保存失败：{}", e), true));
                             } else {
                                 state.api_key_status_msg =
                                     Some((format!("已保存 {} 的 API key", provider_name), false));
