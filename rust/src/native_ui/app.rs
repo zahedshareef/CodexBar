@@ -1869,16 +1869,24 @@ impl eframe::App for CodexBarApp {
 
         let mut refresh_requested = self.preferences_window.take_refresh_requested();
         let previous_enabled_provider_ids = self.settings.get_enabled_provider_ids();
+        let previous_ui_language = self.settings.ui_language;
 
         // Atomically consume settings changes so the flag is cleared in both
         // PreferencesWindow and the shared viewport state in one shot.
         if let Some(new_settings) = self.preferences_window.take_settings_if_changed() {
+            let language_changed = new_settings.ui_language != previous_ui_language;
             self.settings = new_settings;
             if let Err(e) = self.settings.save() {
                 tracing::error!("Failed to save settings: {}", e);
             }
             if previous_enabled_provider_ids != self.settings.get_enabled_provider_ids() {
                 refresh_requested = true;
+            }
+            // If language changed, refresh the tray menu/tooltip to update localized strings
+            if language_changed {
+                if let Some(ref tray_manager) = self.tray_manager {
+                    tray_manager.refresh_language();
+                }
             }
         }
 

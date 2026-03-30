@@ -15,6 +15,7 @@ use tray_icon::{
 
 use super::icon::{LoadingPattern, UsageLevel};
 use crate::core::ProviderId;
+use crate::locale::{self, IconOverlayStatus};
 use crate::settings::{Settings, TrayIconMode};
 use crate::status::IndicatorStatusLevel;
 
@@ -104,17 +105,28 @@ impl TrayManager {
     /// Create a new tray manager with default icon
     pub fn new() -> anyhow::Result<Self> {
         let settings = Settings::load();
+        let lang = settings.ui_language;
         let menu = Menu::new();
 
         // Open CodexBar
-        let open_item = MenuItem::with_id("open", "打开 CodexBar", true, None);
+        let open_item = MenuItem::with_id(
+            "open",
+            locale::get_text(lang, locale::LocaleKey::TrayOpenCodexBar),
+            true,
+            None,
+        );
         menu.append(&open_item)?;
 
         // Separator
         menu.append(&PredefinedMenuItem::separator())?;
 
         // Refresh All
-        let refresh_item = MenuItem::with_id("refresh", "全部刷新", true, None);
+        let refresh_item = MenuItem::with_id(
+            "refresh",
+            locale::get_text(lang, locale::LocaleKey::TrayRefreshAll),
+            true,
+            None,
+        );
         menu.append(&refresh_item)?;
 
         // Separator
@@ -122,7 +134,10 @@ impl TrayManager {
 
         // Providers submenu with check items
         // Build submenu items first, then add to parent menu to avoid Windows duplication bug
-        let providers_submenu = Submenu::new("服务商", true);
+        let providers_submenu = Submenu::new(
+            locale::get_text(lang, locale::LocaleKey::TrayProviders),
+            true,
+        );
         let mut provider_menu_items = HashMap::new();
         for provider_id in ProviderId::all() {
             let cli_name = provider_id.cli_name();
@@ -139,25 +154,41 @@ impl TrayManager {
         menu.append(&PredefinedMenuItem::separator())?;
 
         // Settings
-        let settings_item = MenuItem::with_id("settings", "设置...", true, None);
+        let settings_item = MenuItem::with_id(
+            "settings",
+            locale::get_text(lang, locale::LocaleKey::TraySettings),
+            true,
+            None,
+        );
         menu.append(&settings_item)?;
 
         // Check for Updates
-        let updates_item = MenuItem::with_id("updates", "检查更新", true, None);
+        let updates_item = MenuItem::with_id(
+            "updates",
+            locale::get_text(lang, locale::LocaleKey::TrayCheckForUpdates),
+            true,
+            None,
+        );
         menu.append(&updates_item)?;
 
         // Separator
         menu.append(&PredefinedMenuItem::separator())?;
 
         // Quit
-        let quit_item = MenuItem::with_id("quit", "退出", true, None);
+        let quit_item = MenuItem::with_id(
+            "quit",
+            locale::get_text(lang, locale::LocaleKey::TrayQuit),
+            true,
+            None,
+        );
         menu.append(&quit_item)?;
 
         let icon = create_bar_icon(0.0, 0.0, IconOverlay::None);
 
+        let lang = Settings::load().ui_language;
         let tray_icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
-            .with_tooltip("CodexBar - 加载中...")
+            .with_tooltip(locale::get_text(lang, locale::LocaleKey::TrayLoading))
             .with_icon(icon)
             .build()?;
 
@@ -171,10 +202,7 @@ impl TrayManager {
 
     /// Update the tray icon based on usage percentages (single provider mode)
     pub fn update_usage(&self, session_percent: f64, weekly_percent: f64, provider_name: &str) {
-        let tooltip = format!(
-            "{}：会话 {}% | 周度 {}%",
-            provider_name, session_percent as i32, weekly_percent as i32
-        );
+        let tooltip = locale::tray_tooltip(provider_name, session_percent, weekly_percent);
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
 
         if !self.should_update_usage(
@@ -198,17 +226,19 @@ impl TrayManager {
         provider_name: &str,
         overlay: IconOverlay,
     ) {
-        let status_suffix = match overlay {
-            IconOverlay::None => "",
-            IconOverlay::Error => "（错误）",
-            IconOverlay::Stale => "（数据过期）",
-            IconOverlay::Incident => "（故障）",
-            IconOverlay::Partial => "（部分中断）",
+        let status = match overlay {
+            IconOverlay::None => None,
+            IconOverlay::Error => Some(IconOverlayStatus::Error),
+            IconOverlay::Stale => Some(IconOverlayStatus::Stale),
+            IconOverlay::Incident => Some(IconOverlayStatus::Incident),
+            IconOverlay::Partial => Some(IconOverlayStatus::Partial),
         };
 
-        let tooltip = format!(
-            "{}：会话 {}% | 周度 {}%{}",
-            provider_name, session_percent as i32, weekly_percent as i32, status_suffix
+        let tooltip = locale::tray_tooltip_with_status(
+            provider_name,
+            session_percent,
+            weekly_percent,
+            status,
         );
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
 
@@ -254,10 +284,7 @@ impl TrayManager {
         let icon = create_credits_icon(credits_percent);
         let _ = self.tray_icon.set_icon(Some(icon));
 
-        let tooltip = format!(
-            "{}：周额度已用尽 | 剩余额度 {:.0}%",
-            provider_name, credits_percent
-        );
+        let tooltip = locale::tray_tooltip_credits(provider_name, credits_percent);
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
     }
 
@@ -266,7 +293,11 @@ impl TrayManager {
         if providers.is_empty() {
             let icon = create_bar_icon(0.0, 0.0, IconOverlay::None);
             let _ = self.tray_icon.set_icon(Some(icon));
-            let _ = self.tray_icon.set_tooltip(Some("CodexBar - 无可用服务商"));
+            let lang = Settings::load().ui_language;
+            let _ = self.tray_icon.set_tooltip(Some(locale::get_text(
+                lang,
+                locale::LocaleKey::TrayNoProviders,
+            )));
             return;
         }
 
@@ -309,7 +340,10 @@ impl TrayManager {
 
         let icon = create_loading_icon(primary, secondary);
         let _ = self.tray_icon.set_icon(Some(icon));
-        let _ = self.tray_icon.set_tooltip(Some("CodexBar - 加载中..."));
+        let lang = Settings::load().ui_language;
+        let _ = self
+            .tray_icon
+            .set_tooltip(Some(locale::get_text(lang, locale::LocaleKey::TrayLoading)));
     }
 
     /// Show morph animation on the tray icon (Unbraid effect)
@@ -317,7 +351,10 @@ impl TrayManager {
     pub fn show_morph(&self, progress: f64, session_percent: f64, weekly_percent: f64) {
         let icon = create_morph_icon(progress, session_percent, weekly_percent);
         let _ = self.tray_icon.set_icon(Some(icon));
-        let _ = self.tray_icon.set_tooltip(Some("CodexBar - 加载中..."));
+        let lang = Settings::load().ui_language;
+        let _ = self
+            .tray_icon
+            .set_tooltip(Some(locale::get_text(lang, locale::LocaleKey::TrayLoading)));
     }
 
     /// Show a surprise animation frame
@@ -390,6 +427,91 @@ impl TrayManager {
             }
         }
         None
+    }
+
+    /// Refresh the tray menu and tooltip with the current language
+    /// This is called when the user changes the language setting
+    pub fn refresh_language(&self) {
+        let settings = Settings::load();
+        let lang = settings.ui_language;
+
+        // Rebuild the menu with current language
+        let menu = Menu::new();
+
+        // Open CodexBar
+        let open_item = MenuItem::with_id(
+            "open",
+            locale::get_text(lang, locale::LocaleKey::TrayOpenCodexBar),
+            true,
+            None,
+        );
+        let _ = menu.append(&open_item);
+
+        let _ = menu.append(&PredefinedMenuItem::separator());
+
+        // Refresh All
+        let refresh_item = MenuItem::with_id(
+            "refresh",
+            locale::get_text(lang, locale::LocaleKey::TrayRefreshAll),
+            true,
+            None,
+        );
+        let _ = menu.append(&refresh_item);
+
+        let _ = menu.append(&PredefinedMenuItem::separator());
+
+        // Providers submenu
+        let providers_submenu = Submenu::new(
+            locale::get_text(lang, locale::LocaleKey::TrayProviders),
+            true,
+        );
+        for provider_id in ProviderId::all() {
+            let cli_name = provider_id.cli_name();
+            let display_name = provider_id.display_name();
+            let is_enabled = settings.is_provider_enabled(*provider_id);
+            let item_id = format!("provider_{}", cli_name);
+            let check_item = CheckMenuItem::with_id(&item_id, display_name, true, is_enabled, None);
+            let _ = providers_submenu.append(&check_item);
+        }
+        let _ = menu.append(&providers_submenu);
+
+        let _ = menu.append(&PredefinedMenuItem::separator());
+
+        // Settings
+        let settings_item = MenuItem::with_id(
+            "settings",
+            locale::get_text(lang, locale::LocaleKey::TraySettings),
+            true,
+            None,
+        );
+        let _ = menu.append(&settings_item);
+
+        // Check for Updates
+        let updates_item = MenuItem::with_id(
+            "updates",
+            locale::get_text(lang, locale::LocaleKey::TrayCheckForUpdates),
+            true,
+            None,
+        );
+        let _ = menu.append(&updates_item);
+
+        let _ = menu.append(&PredefinedMenuItem::separator());
+
+        // Quit
+        let quit_item = MenuItem::with_id(
+            "quit",
+            locale::get_text(lang, locale::LocaleKey::TrayQuit),
+            true,
+            None,
+        );
+        let _ = menu.append(&quit_item);
+
+        // Update the tray icon's menu
+        let _ = self.tray_icon.set_menu(Some(Box::new(menu)));
+
+        // Update the tooltip with current language
+        let tooltip = locale::get_text(lang, locale::LocaleKey::TrayLoading);
+        let _ = self.tray_icon.set_tooltip(Some(tooltip));
     }
 }
 
@@ -492,6 +614,7 @@ impl MultiTrayManager {
 
     /// Create a tray icon for a specific provider
     fn create_provider_icon(&self, provider_id: ProviderId) -> anyhow::Result<TrayIcon> {
+        let lang = Settings::load().ui_language;
         let menu = Menu::new();
 
         // Provider name header (disabled menu item)
@@ -506,13 +629,18 @@ impl MultiTrayManager {
         menu.append(&PredefinedMenuItem::separator())?;
 
         // Open CodexBar
-        let open_item = MenuItem::with_id("open", "打开 CodexBar", true, None);
+        let open_item = MenuItem::with_id(
+            "open",
+            locale::get_text(lang, locale::LocaleKey::TrayProviderOpen),
+            true,
+            None,
+        );
         menu.append(&open_item)?;
 
         // Refresh
         let refresh_item = MenuItem::with_id(
             &format!("refresh_{}", provider_id.cli_name()),
-            "刷新",
+            locale::get_text(lang, locale::LocaleKey::TrayProviderRefresh),
             true,
             None,
         );
@@ -521,17 +649,28 @@ impl MultiTrayManager {
         menu.append(&PredefinedMenuItem::separator())?;
 
         // Settings
-        let settings_item = MenuItem::with_id("settings", "设置...", true, None);
+        let settings_item = MenuItem::with_id(
+            "settings",
+            locale::get_text(lang, locale::LocaleKey::TrayProviderSettings),
+            true,
+            None,
+        );
         menu.append(&settings_item)?;
 
         menu.append(&PredefinedMenuItem::separator())?;
 
         // Quit
-        let quit_item = MenuItem::with_id("quit", "退出", true, None);
+        let quit_item = MenuItem::with_id(
+            "quit",
+            locale::get_text(lang, locale::LocaleKey::TrayProviderQuit),
+            true,
+            None,
+        );
         menu.append(&quit_item)?;
 
         let icon = create_bar_icon(0.0, 0.0, IconOverlay::None);
-        let tooltip = format!("{} - 加载中...", provider_id.display_name());
+        let loading_tooltip = locale::get_text(lang, locale::LocaleKey::TrayLoading);
+        let tooltip = format!("{} - {}", provider_id.display_name(), loading_tooltip);
 
         let tray_icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
@@ -564,12 +703,8 @@ impl MultiTrayManager {
             let icon = create_bar_icon(session_percent, weekly_percent, IconOverlay::None);
             let _ = tray_icon.set_icon(Some(icon));
 
-            let tooltip = format!(
-                "{}：会话 {}% | 周度 {}%",
-                provider_id.display_name(),
-                session_percent as i32,
-                weekly_percent as i32
-            );
+            let tooltip =
+                locale::tray_tooltip(provider_id.display_name(), session_percent, weekly_percent);
             let _ = tray_icon.set_tooltip(Some(&tooltip));
         }
     }
@@ -597,20 +732,19 @@ impl MultiTrayManager {
             let icon = create_bar_icon(session_percent, weekly_percent, overlay);
             let _ = tray_icon.set_icon(Some(icon));
 
-            let status_suffix = match overlay {
-                IconOverlay::None => "",
-                IconOverlay::Error => "（错误）",
-                IconOverlay::Stale => "（数据过期）",
-                IconOverlay::Incident => "（故障）",
-                IconOverlay::Partial => "（部分中断）",
+            let status = match overlay {
+                IconOverlay::None => None,
+                IconOverlay::Error => Some(IconOverlayStatus::Error),
+                IconOverlay::Stale => Some(IconOverlayStatus::Stale),
+                IconOverlay::Incident => Some(IconOverlayStatus::Incident),
+                IconOverlay::Partial => Some(IconOverlayStatus::Partial),
             };
 
-            let tooltip = format!(
-                "{}：会话 {}% | 周度 {}%{}",
+            let tooltip = locale::tray_tooltip_with_status(
                 provider_id.display_name(),
-                session_percent as i32,
-                weekly_percent as i32,
-                status_suffix
+                session_percent,
+                weekly_percent,
+                status,
             );
             let _ = tray_icon.set_tooltip(Some(&tooltip));
         }
@@ -629,8 +763,13 @@ impl MultiTrayManager {
 
             let icon = create_loading_icon(primary, secondary);
             let _ = tray_icon.set_icon(Some(icon));
-            let _ =
-                tray_icon.set_tooltip(Some(&format!("{} - 加载中...", provider_id.display_name())));
+            let lang = Settings::load().ui_language;
+            let loading = locale::get_text(lang, locale::LocaleKey::TrayLoading);
+            let _ = tray_icon.set_tooltip(Some(&format!(
+                "{} - {}",
+                provider_id.display_name(),
+                loading
+            )));
         }
     }
 
@@ -652,6 +791,76 @@ impl MultiTrayManager {
     /// Check if a provider has an icon
     pub fn has_provider(&self, provider_id: ProviderId) -> bool {
         self.provider_icons.contains_key(&provider_id)
+    }
+
+    /// Refresh all provider tray icons with the current language
+    /// This rebuilds menus and updates tooltips for all provider icons
+    pub fn refresh_language(&self) {
+        let lang = Settings::load().ui_language;
+        let loading = locale::get_text(lang, locale::LocaleKey::TrayLoading);
+
+        // Rebuild menus for all provider icons
+        for (provider_id, tray_icon) in &self.provider_icons {
+            let menu = Menu::new();
+
+            // Provider name header (disabled menu item)
+            let header = MenuItem::with_id(
+                &format!("header_{}", provider_id.cli_name()),
+                provider_id.display_name(),
+                false,
+                None,
+            );
+            let _ = menu.append(&header);
+
+            let _ = menu.append(&PredefinedMenuItem::separator());
+
+            // Open CodexBar
+            let open_item = MenuItem::with_id(
+                "open",
+                locale::get_text(lang, locale::LocaleKey::TrayProviderOpen),
+                true,
+                None,
+            );
+            let _ = menu.append(&open_item);
+
+            // Refresh
+            let refresh_item = MenuItem::with_id(
+                &format!("refresh_{}", provider_id.cli_name()),
+                locale::get_text(lang, locale::LocaleKey::TrayProviderRefresh),
+                true,
+                None,
+            );
+            let _ = menu.append(&refresh_item);
+
+            let _ = menu.append(&PredefinedMenuItem::separator());
+
+            // Settings
+            let settings_item = MenuItem::with_id(
+                "settings",
+                locale::get_text(lang, locale::LocaleKey::TrayProviderSettings),
+                true,
+                None,
+            );
+            let _ = menu.append(&settings_item);
+
+            let _ = menu.append(&PredefinedMenuItem::separator());
+
+            // Quit
+            let quit_item = MenuItem::with_id(
+                "quit",
+                locale::get_text(lang, locale::LocaleKey::TrayProviderQuit),
+                true,
+                None,
+            );
+            let _ = menu.append(&quit_item);
+
+            // Update the menu
+            let _ = tray_icon.set_menu(Some(Box::new(menu)));
+
+            // Update tooltip with loading state
+            let tooltip = format!("{} - {}", provider_id.display_name(), loading);
+            let _ = tray_icon.set_tooltip(Some(&tooltip));
+        }
     }
 }
 
@@ -736,6 +945,15 @@ impl UnifiedTrayManager {
                     }
                 }
             }
+        }
+    }
+
+    /// Refresh tray menu and tooltip with the current language
+    /// This is called when the user changes the language setting
+    pub fn refresh_language(&self) {
+        match self {
+            UnifiedTrayManager::Single(tm) => tm.refresh_language(),
+            UnifiedTrayManager::PerProvider(multi) => multi.refresh_language(),
         }
     }
 }

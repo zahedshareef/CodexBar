@@ -4,6 +4,7 @@
 //! The locale is determined by the user's language setting in Settings.
 
 use crate::settings::Language;
+use crate::settings::Settings;
 
 /// Get the localized string for a given key in the specified language
 pub fn get_text(lang: Language, key: LocaleKey) -> &'static str {
@@ -11,6 +12,75 @@ pub fn get_text(lang: Language, key: LocaleKey) -> &'static str {
         Language::English => key.english(),
         Language::Chinese => key.chinese(),
     }
+}
+
+/// Get the current UI language from settings
+pub fn current_language() -> Language {
+    Settings::load().ui_language
+}
+
+/// Get the localized tooltip for single-tray usage display
+/// Format: "Provider: Session X% | Weekly Y%"
+pub fn tray_tooltip(provider_name: &str, session_percent: f64, weekly_percent: f64) -> String {
+    let lang = current_language();
+    let session_label = get_text(lang, LocaleKey::TraySessionPercent);
+    let weekly_label = get_text(lang, LocaleKey::TrayWeeklyPercent);
+    format!(
+        "{}: {} | {}",
+        provider_name,
+        session_label.replace("{}", &format!("{}", session_percent as i32)),
+        weekly_label.replace("{}", &format!("{}", weekly_percent as i32))
+    )
+}
+
+/// Get the localized tooltip for single-tray usage display with status overlay
+/// Format: "Provider: Session X% | Weekly Y% (Status)"
+pub fn tray_tooltip_with_status(
+    provider_name: &str,
+    session_percent: f64,
+    weekly_percent: f64,
+    status: Option<IconOverlayStatus>,
+) -> String {
+    let lang = current_language();
+    let session_label = get_text(lang, LocaleKey::TraySessionPercent);
+    let weekly_label = get_text(lang, LocaleKey::TrayWeeklyPercent);
+    let status_suffix = match status {
+        None => "",
+        Some(IconOverlayStatus::Error) => get_text(lang, LocaleKey::TrayStatusError),
+        Some(IconOverlayStatus::Stale) => get_text(lang, LocaleKey::TrayStatusStale),
+        Some(IconOverlayStatus::Incident) => get_text(lang, LocaleKey::TrayStatusIncident),
+        Some(IconOverlayStatus::Partial) => get_text(lang, LocaleKey::TrayStatusPartial),
+    };
+    format!(
+        "{}: {} | {}{}",
+        provider_name,
+        session_label.replace("{}", &format!("{}", session_percent as i32)),
+        weekly_label.replace("{}", &format!("{}", weekly_percent as i32)),
+        status_suffix
+    )
+}
+
+/// Status overlay types for tray tooltips
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IconOverlayStatus {
+    Error,
+    Stale,
+    Incident,
+    Partial,
+}
+
+/// Get the localized tooltip for credits mode
+/// Format: "Provider: Weekly quota exhausted | Credits remaining X%"
+pub fn tray_tooltip_credits(provider_name: &str, credits_percent: f64) -> String {
+    let lang = current_language();
+    let exhausted = get_text(lang, LocaleKey::TrayWeeklyExhausted);
+    let credits = get_text(lang, LocaleKey::TrayCreditsRemaining);
+    format!(
+        "{}: {} | {}",
+        provider_name,
+        exhausted,
+        credits.replace("{}", &format!("{:.0}", credits_percent))
+    )
 }
 
 /// Locale keys for app-owned UI strings
@@ -202,6 +272,30 @@ pub enum LocaleKey {
     // Main popup - Section titles
     SectionUsageBreakdown,
     SectionCost,
+
+    // Tray - Single icon mode
+    TrayOpenCodexBar,
+    TrayRefreshAll,
+    TrayProviders,
+    TraySettings,
+    TrayCheckForUpdates,
+    TrayQuit,
+    TrayLoading,
+    TrayNoProviders,
+    TraySessionPercent,
+    TrayWeeklyPercent,
+    TrayStatusError,
+    TrayStatusStale,
+    TrayStatusIncident,
+    TrayStatusPartial,
+    TrayWeeklyExhausted,
+    TrayCreditsRemaining,
+
+    // Tray - Per-provider mode
+    TrayProviderOpen,
+    TrayProviderRefresh,
+    TrayProviderSettings,
+    TrayProviderQuit,
 }
 
 impl LocaleKey {
@@ -397,6 +491,30 @@ impl LocaleKey {
             // Main popup - Section titles
             LocaleKey::SectionUsageBreakdown => "Usage Breakdown",
             LocaleKey::SectionCost => "Cost",
+
+            // Tray - Single icon mode
+            LocaleKey::TrayOpenCodexBar => "Open CodexBar",
+            LocaleKey::TrayRefreshAll => "Refresh All",
+            LocaleKey::TrayProviders => "Providers",
+            LocaleKey::TraySettings => "Settings...",
+            LocaleKey::TrayCheckForUpdates => "Check for Updates",
+            LocaleKey::TrayQuit => "Quit",
+            LocaleKey::TrayLoading => "CodexBar - Loading...",
+            LocaleKey::TrayNoProviders => "CodexBar - No providers available",
+            LocaleKey::TraySessionPercent => "Session {}%",
+            LocaleKey::TrayWeeklyPercent => "Weekly {}%",
+            LocaleKey::TrayStatusError => " (Error)",
+            LocaleKey::TrayStatusStale => " (Stale data)",
+            LocaleKey::TrayStatusIncident => " (Incident)",
+            LocaleKey::TrayStatusPartial => " (Partial outage)",
+            LocaleKey::TrayWeeklyExhausted => "Weekly quota exhausted",
+            LocaleKey::TrayCreditsRemaining => "Credits remaining {}%",
+
+            // Tray - Per-provider mode
+            LocaleKey::TrayProviderOpen => "Open CodexBar",
+            LocaleKey::TrayProviderRefresh => "Refresh",
+            LocaleKey::TrayProviderSettings => "Settings...",
+            LocaleKey::TrayProviderQuit => "Quit",
         }
     }
 
@@ -588,6 +706,30 @@ impl LocaleKey {
             // Main popup - Section titles
             LocaleKey::SectionUsageBreakdown => "用量明细",
             LocaleKey::SectionCost => "费用",
+
+            // Tray - Single icon mode
+            LocaleKey::TrayOpenCodexBar => "打开 CodexBar",
+            LocaleKey::TrayRefreshAll => "刷新全部",
+            LocaleKey::TrayProviders => "服务商",
+            LocaleKey::TraySettings => "设置...",
+            LocaleKey::TrayCheckForUpdates => "检查更新",
+            LocaleKey::TrayQuit => "退出",
+            LocaleKey::TrayLoading => "CodexBar - 加载中...",
+            LocaleKey::TrayNoProviders => "CodexBar - 无可用服务商",
+            LocaleKey::TraySessionPercent => "本次会话 {}%",
+            LocaleKey::TrayWeeklyPercent => "本周 {}%",
+            LocaleKey::TrayStatusError => "（错误）",
+            LocaleKey::TrayStatusStale => "（数据过期）",
+            LocaleKey::TrayStatusIncident => "（故障）",
+            LocaleKey::TrayStatusPartial => "（部分中断）",
+            LocaleKey::TrayWeeklyExhausted => "周额度已用尽",
+            LocaleKey::TrayCreditsRemaining => "剩余额度 {}%",
+
+            // Tray - Per-provider mode
+            LocaleKey::TrayProviderOpen => "打开 CodexBar",
+            LocaleKey::TrayProviderRefresh => "刷新",
+            LocaleKey::TrayProviderSettings => "设置...",
+            LocaleKey::TrayProviderQuit => "退出",
         }
     }
 }
