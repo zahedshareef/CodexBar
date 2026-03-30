@@ -5,7 +5,7 @@ description: Prepare the working tree for a milestone by switching to the correc
 
 # Branch Prep Worker
 
-NOTE: Startup and cleanup are handled by `worker-base`. This skill defines the work procedure.
+NOTE: Startup and cleanup are handled by `mission-worker-base`. This skill defines the work procedure.
 
 ## When to Use This Skill
 

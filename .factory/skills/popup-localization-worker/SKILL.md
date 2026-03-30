@@ -5,7 +5,7 @@ description: Finish popup-only localization work in locale.rs and native_ui/app.
 
 # Popup Localization Worker
 
-NOTE: Startup and cleanup are handled by `worker-base`. This skill defines the work procedure.
+NOTE: Startup and cleanup are handled by `mission-worker-base`. This skill defines the work procedure.
 
 ## When to Use This Skill
 

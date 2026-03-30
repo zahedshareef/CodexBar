@@ -5,7 +5,7 @@ description: Implement runtime localization and persisted language behavior acro
 
 # UI I18N Worker
 
-NOTE: Startup and cleanup are handled by `worker-base`. This skill defines the work procedure.
+NOTE: Startup and cleanup are handled by `mission-worker-base`. This skill defines the work procedure.
 
 ## When to Use This Skill
 

@@ -1,6 +1,6 @@
 commands:
   install: cargo fetch --manifest-path "/home/fsos/Developer/Win-CodexBar/rust/Cargo.toml"
-  test: cargo test --manifest-path "/home/fsos/Developer/Win-CodexBar/rust/Cargo.toml"
+  test: cargo test --manifest-path "/home/fsos/Developer/Win-CodexBar/rust/Cargo.toml" --target x86_64-unknown-linux-gnu
   typecheck: cargo check --manifest-path "/home/fsos/Developer/Win-CodexBar/rust/Cargo.toml" --target x86_64-unknown-linux-gnu
   lint: cargo fmt --manifest-path "/home/fsos/Developer/Win-CodexBar/rust/Cargo.toml" --all --check
   build: cargo build --manifest-path "/home/fsos/Developer/Win-CodexBar/rust/Cargo.toml" --bin codexbar --release --target x86_64-pc-windows-gnu

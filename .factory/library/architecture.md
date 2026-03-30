@@ -44,6 +44,7 @@ Invariant: adding a new preference must be backward-compatible for existing user
 - `rust/src/native_ui/preferences.rs`
 - Holds the heaviest concentration of app-owned text and recovery-adjacent settings surfaces
 - Also contains cookie import, API key management, and update/about surfaces used by this mission
+- The active viewport path is `show()` -> `render_settings_ui()` -> `render_*`; older `show_*` / `draw_*` helpers are legacy and should not be treated as the primary user-facing surface unless a feature explicitly targets them
 
 ### Main popup / provider detail
 
