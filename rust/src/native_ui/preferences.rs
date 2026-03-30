@@ -303,7 +303,10 @@ impl PreferencesWindow {
         };
 
         let mut builder = egui::ViewportBuilder::default()
-            .with_title("CodexBar 设置")
+            .with_title(locale_text(
+                self.settings.ui_language,
+                LocaleKey::AboutTitle,
+            ))
             .with_inner_size([settings_size.x, settings_size.y])
             .with_min_inner_size([settings_min_size.x, settings_min_size.y])
             .with_clamp_size_to_monitor_size(true)
@@ -356,13 +359,15 @@ impl PreferencesWindow {
     }
 
     fn show_general_tab(&mut self, ui: &mut egui::Ui) {
+        let lang = self.settings.ui_language;
+
         // LANGUAGE section
-        section_header(ui, "Language");
+        section_header(ui, locale_text(lang, LocaleKey::InterfaceLanguage));
 
         settings_card(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("界面语言")
+                    RichText::new(locale_text(lang, LocaleKey::InterfaceLanguage))
                         .size(FontSize::MD)
                         .color(Theme::TEXT_PRIMARY),
                 );
@@ -394,14 +399,14 @@ impl PreferencesWindow {
         ui.add_space(Spacing::LG);
 
         // STARTUP section
-        section_header(ui, "Startup");
+        section_header(ui, locale_text(lang, LocaleKey::StartupSettings));
 
         settings_card(ui, |ui| {
             let mut start_at_login = self.settings.start_at_login;
             if setting_toggle(
                 ui,
-                "开机启动",
-                "登录后自动启动 CodexBar",
+                locale_text(lang, LocaleKey::StartAtLogin),
+                locale_text(lang, LocaleKey::StartAtLoginHelper),
                 &mut start_at_login,
             ) {
                 if let Err(e) = self.settings.set_start_at_login(start_at_login) {
@@ -416,8 +421,8 @@ impl PreferencesWindow {
             let mut start_minimized = self.settings.start_minimized;
             if setting_toggle(
                 ui,
-                "最小化启动",
-                "启动后停留在系统托盘",
+                locale_text(lang, LocaleKey::StartMinimized),
+                locale_text(lang, LocaleKey::StartMinimizedHelper),
                 &mut start_minimized,
             ) {
                 self.settings.start_minimized = start_minimized;
@@ -428,14 +433,14 @@ impl PreferencesWindow {
         ui.add_space(Spacing::LG);
 
         // NOTIFICATIONS section
-        section_header(ui, "Notifications");
+        section_header(ui, locale_text(lang, LocaleKey::ShowNotifications));
 
         settings_card(ui, |ui| {
             let mut show_notifications = self.settings.show_notifications;
             if setting_toggle(
                 ui,
-                "显示通知",
-                "达到用量阈值时提醒",
+                locale_text(lang, LocaleKey::ShowNotifications),
+                locale_text(lang, LocaleKey::ShowNotificationsHelper),
                 &mut show_notifications,
             ) {
                 self.settings.show_notifications = show_notifications;
@@ -446,8 +451,12 @@ impl PreferencesWindow {
 
             // Sound effects toggle
             let mut sound_enabled = self.settings.sound_enabled;
-            if setting_toggle(ui, "声音提示", "达到阈值时播放提示音", &mut sound_enabled)
-            {
+            if setting_toggle(
+                ui,
+                locale_text(lang, LocaleKey::SoundEnabled),
+                locale_text(lang, LocaleKey::SoundEnabledHelper),
+                &mut sound_enabled,
+            ) {
                 self.settings.sound_enabled = sound_enabled;
                 self.settings_changed = true;
             }
@@ -462,7 +471,7 @@ impl PreferencesWindow {
                     // Title row with volume badge on right
                     ui.horizontal(|ui| {
                         ui.label(
-                            RichText::new("提示音音量")
+                            RichText::new(locale_text(lang, LocaleKey::SoundVolume))
                                 .size(FontSize::MD)
                                 .color(Theme::TEXT_PRIMARY),
                         );
@@ -484,7 +493,7 @@ impl PreferencesWindow {
 
                     ui.add_space(2.0);
                     ui.label(
-                        RichText::new("告警提示音音量")
+                        RichText::new(locale_text(lang, LocaleKey::SoundVolume))
                             .size(FontSize::SM)
                             .color(Theme::TEXT_MUTED),
                     );
@@ -516,7 +525,7 @@ impl PreferencesWindow {
                 // Title row with percentage badge on right
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("高位预警")
+                        RichText::new(locale_text(lang, LocaleKey::HighUsageAlert))
                             .size(FontSize::MD)
                             .color(Theme::TEXT_PRIMARY),
                     );
@@ -539,7 +548,7 @@ impl PreferencesWindow {
 
                 ui.add_space(2.0);
                 ui.label(
-                    RichText::new("在该用量水平显示预警")
+                    RichText::new(locale_text(lang, LocaleKey::HighUsageThresholdHelper))
                         .size(FontSize::SM)
                         .color(Theme::TEXT_MUTED),
                 );
@@ -572,7 +581,7 @@ impl PreferencesWindow {
                 // Title row with percentage badge on right
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("严重告警")
+                        RichText::new(locale_text(lang, LocaleKey::CriticalUsageAlert))
                             .size(FontSize::MD)
                             .color(Theme::TEXT_PRIMARY),
                     );
@@ -595,7 +604,7 @@ impl PreferencesWindow {
 
                 ui.add_space(2.0);
                 ui.label(
-                    RichText::new("在该水平显示严重告警")
+                    RichText::new(locale_text(lang, LocaleKey::CriticalUsageThresholdHelper))
                         .size(FontSize::SM)
                         .color(Theme::TEXT_MUTED),
                 );
@@ -821,6 +830,7 @@ impl PreferencesWindow {
     }
 
     fn draw_provider_detail_panel(&mut self, ui: &mut egui::Ui, provider_id: &ProviderId) {
+        let lang = self.settings.ui_language;
         let provider_name = provider_id.cli_name();
         let display_name = provider_id.display_name();
         let is_enabled = self.settings.enabled_providers.contains(provider_name);
@@ -898,7 +908,7 @@ impl PreferencesWindow {
         // ═══════════════════════════════════════════════════════════
         // INFO SECTION - Provider-specific information
         // ═══════════════════════════════════════════════════════════
-        section_header(ui, "Info");
+        section_header(ui, locale_text(lang, LocaleKey::ProviderInfo));
 
         settings_card(ui, |ui| {
             // Authentication type
@@ -909,7 +919,7 @@ impl PreferencesWindow {
                 "windsurf" => "浏览器会话",
                 _ => "浏览器会话",
             };
-            self.draw_info_row(ui, "认证方式", auth_type);
+            self.draw_info_row(ui, locale_text(lang, LocaleKey::AuthType), auth_type);
             setting_divider(ui);
 
             // Data source
@@ -924,7 +934,7 @@ impl PreferencesWindow {
                 "kimi" => "Kimi Web Console",
                 _ => "Provider API",
             };
-            self.draw_info_row(ui, "数据来源", data_source);
+            self.draw_info_row(ui, locale_text(lang, LocaleKey::DataSource), data_source);
             setting_divider(ui);
 
             // Rate limit info
@@ -935,7 +945,7 @@ impl PreferencesWindow {
                 "gemini" => "每分钟请求数",
                 _ => "用量追踪",
             };
-            self.draw_info_row(ui, "追踪项", rate_info);
+            self.draw_info_row(ui, locale_text(lang, LocaleKey::TrackingItem), rate_info);
         });
 
         ui.add_space(Spacing::LG);
@@ -943,7 +953,7 @@ impl PreferencesWindow {
         // ═══════════════════════════════════════════════════════════
         // USAGE SECTION - Link to main window
         // ═══════════════════════════════════════════════════════════
-        section_header(ui, "Usage");
+        section_header(ui, locale_text(lang, LocaleKey::ProviderUsage));
 
         settings_card(ui, |ui| {
             if is_enabled {
@@ -1000,7 +1010,7 @@ impl PreferencesWindow {
         // ═══════════════════════════════════════════════════════════
         // QUICK ACTIONS
         // ═══════════════════════════════════════════════════════════
-        section_header(ui, "Quick Actions");
+        section_header(ui, locale_text(lang, LocaleKey::QuickActions));
 
         settings_card(ui, |ui| {
             // Provider-specific quick actions
@@ -1061,7 +1071,8 @@ impl PreferencesWindow {
     }
 
     fn draw_browser_cookie_import(&mut self, ui: &mut egui::Ui, provider_id: &ProviderId) {
-        section_header(ui, "Browser Cookie Import");
+        let lang = self.settings.ui_language;
+        section_header(ui, locale_text(lang, LocaleKey::BrowserCookieImport));
 
         settings_card(ui, |ui| {
             let domain = provider_id.cookie_domain().unwrap_or("unknown");
@@ -1201,7 +1212,8 @@ impl PreferencesWindow {
     }
 
     fn show_display_tab(&mut self, ui: &mut egui::Ui) {
-        section_header(ui, "Usage Display");
+        let lang = self.settings.ui_language;
+        section_header(ui, locale_text(lang, LocaleKey::UsageDisplay));
 
         settings_card(ui, |ui| {
             let mut show_as_used = self.settings.show_as_used;
@@ -1244,7 +1256,7 @@ impl PreferencesWindow {
 
         ui.add_space(Spacing::SM);
 
-        section_header(ui, "Tray Icon");
+        section_header(ui, locale_text(lang, LocaleKey::TrayIcon));
 
         settings_card(ui, |ui| {
             let mut merge_icons = self.settings.merge_tray_icons;
@@ -3342,7 +3354,14 @@ fn render_accounts_section(
 
 /// Render General tab for viewport
 fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
-    section_header(ui, "Startup");
+    // Get current language from shared state
+    let ui_language = if let Ok(state) = shared_state.lock() {
+        state.settings.ui_language
+    } else {
+        Language::English
+    };
+
+    section_header(ui, locale_text(ui_language, LocaleKey::StartupSettings));
 
     settings_card(ui, |ui| {
         let mut start_at_login = if let Ok(state) = shared_state.lock() {
@@ -3353,8 +3372,8 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         if setting_toggle(
             ui,
-            "开机启动",
-            "登录后自动启动 CodexBar",
+            locale_text(ui_language, LocaleKey::StartAtLogin),
+            locale_text(ui_language, LocaleKey::StartAtLoginHelper),
             &mut start_at_login,
         ) {
             if let Ok(mut state) = shared_state.lock() {
@@ -3376,8 +3395,8 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         if setting_toggle(
             ui,
-            "最小化启动",
-            "启动后停留在系统托盘",
+            locale_text(ui_language, LocaleKey::StartMinimized),
+            locale_text(ui_language, LocaleKey::StartMinimizedHelper),
             &mut start_minimized,
         ) {
             if let Ok(mut state) = shared_state.lock() {
@@ -3389,7 +3408,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
     ui.add_space(Spacing::LG);
 
-    section_header(ui, "Notifications");
+    section_header(ui, locale_text(ui_language, LocaleKey::ShowNotifications));
 
     settings_card(ui, |ui| {
         let mut show_notifications = if let Ok(state) = shared_state.lock() {
@@ -3400,8 +3419,8 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         if setting_toggle(
             ui,
-            "显示通知",
-            "达到用量阈值时提醒",
+            locale_text(ui_language, LocaleKey::ShowNotifications),
+            locale_text(ui_language, LocaleKey::ShowNotificationsHelper),
             &mut show_notifications,
         ) {
             if let Ok(mut state) = shared_state.lock() {
@@ -3419,8 +3438,12 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             true
         };
 
-        if setting_toggle(ui, "声音提示", "达到阈值时播放提示音", &mut sound_enabled)
-        {
+        if setting_toggle(
+            ui,
+            locale_text(ui_language, LocaleKey::SoundEnabled),
+            locale_text(ui_language, LocaleKey::SoundEnabledHelper),
+            &mut sound_enabled,
+        ) {
             if let Ok(mut state) = shared_state.lock() {
                 state.settings.sound_enabled = sound_enabled;
                 state.settings_changed = true;
@@ -3441,7 +3464,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 // Title row with volume badge on right
                 ui.horizontal(|ui| {
                     ui.label(
-                        RichText::new("提示音音量")
+                        RichText::new(locale_text(ui_language, LocaleKey::SoundVolume))
                             .size(FontSize::MD)
                             .color(Theme::TEXT_PRIMARY),
                     );
@@ -3463,7 +3486,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
                 ui.add_space(2.0);
                 ui.label(
-                    RichText::new("告警提示音音量")
+                    RichText::new(locale_text(ui_language, LocaleKey::SoundVolume))
                         .size(FontSize::SM)
                         .color(Theme::TEXT_MUTED),
                 );
@@ -3499,7 +3522,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             // Title row with percentage badge on right
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("高位预警")
+                    RichText::new(locale_text(ui_language, LocaleKey::HighUsageAlert))
                         .size(FontSize::MD)
                         .color(Theme::TEXT_PRIMARY),
                 );
@@ -3521,9 +3544,12 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
             ui.add_space(2.0);
             ui.label(
-                RichText::new("在该用量水平显示预警")
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_MUTED),
+                RichText::new(locale_text(
+                    ui_language,
+                    LocaleKey::HighUsageThresholdHelper,
+                ))
+                .size(FontSize::SM)
+                .color(Theme::TEXT_MUTED),
             );
             ui.add_space(6.0);
 
@@ -3558,7 +3584,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             // Title row with percentage badge on right
             ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new("严重告警")
+                    RichText::new(locale_text(ui_language, LocaleKey::CriticalUsageAlert))
                         .size(FontSize::MD)
                         .color(Theme::TEXT_PRIMARY),
                 );
@@ -3580,9 +3606,12 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
             ui.add_space(2.0);
             ui.label(
-                RichText::new("在该水平显示严重告警")
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_MUTED),
+                RichText::new(locale_text(
+                    ui_language,
+                    LocaleKey::CriticalUsageThresholdHelper,
+                ))
+                .size(FontSize::SM)
+                .color(Theme::TEXT_MUTED),
             );
             ui.add_space(6.0);
 
@@ -3784,7 +3813,14 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
 /// Render Display tab for viewport
 fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
-    section_header(ui, "Appearance");
+    // Get current language from shared state
+    let ui_language = if let Ok(state) = shared_state.lock() {
+        state.settings.ui_language
+    } else {
+        Language::English
+    };
+
+    section_header(ui, locale_text(ui_language, LocaleKey::Appearance));
 
     settings_card(ui, |ui| {
         let mut relative_time = if let Ok(state) = shared_state.lock() {
@@ -3795,8 +3831,8 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         if setting_toggle(
             ui,
-            "Relative time",
-            "Show reset time as relative (3h 45m) instead of absolute",
+            locale_text(ui_language, LocaleKey::ResetTimeRelative),
+            locale_text(ui_language, LocaleKey::ResetTimeRelativeHelper),
             &mut relative_time,
         ) {
             if let Ok(mut state) = shared_state.lock() {
@@ -3815,7 +3851,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         if setting_toggle(
             ui,
-            "Surprise animations",
+            locale_text(ui_language, LocaleKey::Fun),
             "Show occasional fun animations in the tray icon",
             &mut surprise,
         ) {
@@ -3825,14 +3861,113 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             }
         }
     });
+
+    ui.add_space(Spacing::LG);
+
+    section_header(ui, locale_text(ui_language, LocaleKey::ShowUsageAsUsed));
+
+    settings_card(ui, |ui| {
+        let mut show_as_used = if let Ok(state) = shared_state.lock() {
+            state.settings.show_as_used
+        } else {
+            false
+        };
+
+        if setting_toggle(
+            ui,
+            locale_text(ui_language, LocaleKey::ShowUsageAsUsed),
+            locale_text(ui_language, LocaleKey::ShowUsageAsUsedHelper),
+            &mut show_as_used,
+        ) {
+            if let Ok(mut state) = shared_state.lock() {
+                state.settings.show_as_used = show_as_used;
+                state.settings_changed = true;
+            }
+        }
+
+        setting_divider(ui);
+
+        let mut show_credits_extra = if let Ok(state) = shared_state.lock() {
+            state.settings.show_credits_extra_usage
+        } else {
+            true
+        };
+
+        if setting_toggle(
+            ui,
+            locale_text(ui_language, LocaleKey::ShowCreditsExtra),
+            locale_text(ui_language, LocaleKey::ShowCreditsExtraHelper),
+            &mut show_credits_extra,
+        ) {
+            if let Ok(mut state) = shared_state.lock() {
+                state.settings.show_credits_extra_usage = show_credits_extra;
+                state.settings_changed = true;
+            }
+        }
+    });
+
+    ui.add_space(Spacing::LG);
+
+    section_header(ui, locale_text(ui_language, LocaleKey::MergeTrayIcons));
+
+    settings_card(ui, |ui| {
+        let mut merge_icons = if let Ok(state) = shared_state.lock() {
+            state.settings.merge_tray_icons
+        } else {
+            true
+        };
+
+        if setting_toggle(
+            ui,
+            locale_text(ui_language, LocaleKey::MergeTrayIcons),
+            locale_text(ui_language, LocaleKey::MergeTrayIconsHelper),
+            &mut merge_icons,
+        ) {
+            if let Ok(mut state) = shared_state.lock() {
+                state.settings.merge_tray_icons = merge_icons;
+                state.settings_changed = true;
+            }
+        }
+
+        setting_divider(ui);
+
+        let mut per_provider = if let Ok(state) = shared_state.lock() {
+            state.settings.tray_icon_mode == TrayIconMode::PerProvider
+        } else {
+            false
+        };
+
+        if setting_toggle(
+            ui,
+            locale_text(ui_language, LocaleKey::PerProviderTrayIcons),
+            locale_text(ui_language, LocaleKey::PerProviderTrayIconsHelper),
+            &mut per_provider,
+        ) {
+            if let Ok(mut state) = shared_state.lock() {
+                state.settings.tray_icon_mode = if per_provider {
+                    TrayIconMode::PerProvider
+                } else {
+                    TrayIconMode::Single
+                };
+                state.settings_changed = true;
+            }
+        }
+    });
 }
 
 /// Render API Keys tab for viewport
 fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
-    section_header(ui, "API Keys");
+    // Get current language from shared state
+    let ui_language = if let Ok(state) = shared_state.lock() {
+        state.settings.ui_language
+    } else {
+        Language::English
+    };
+
+    section_header(ui, locale_text(ui_language, LocaleKey::ApiKeysTitle));
 
     ui.label(
-        RichText::new("为需要认证的服务商配置访问令牌。")
+        RichText::new(locale_text(ui_language, LocaleKey::ApiKeysDescription))
             .size(FontSize::SM)
             .color(Theme::TEXT_MUTED),
     );
