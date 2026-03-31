@@ -169,6 +169,7 @@ impl ClaudeProvider {
         // Send /usage command
         if let Some(mut stdin) = child.stdin.take() {
             let _ = stdin.write_all(b"/usage\n").await;
+            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
             let _ = stdin.write_all(b"/exit\n").await;
             drop(stdin);
         }
@@ -207,6 +208,7 @@ impl ClaudeProvider {
     /// Parse Claude CLI /usage output
     fn parse_cli_output(&self, output: &str) -> Result<ProviderFetchResult, ProviderError> {
         let clean = strip_ansi(output);
+        let clean_lower = clean.to_lowercase();
 
         if clean.trim().is_empty() {
             return Err(ProviderError::Parse(
@@ -257,6 +259,16 @@ impl ClaudeProvider {
         // Extract reset times
         let session_reset = extract_reset_description(&clean, "current session");
         let weekly_reset = extract_reset_description(&clean, "current week");
+        let short_form_reset = if clean_lower.contains("out of extra usage") {
+            extract_inline_reset_description(&clean)
+        } else {
+            None
+        };
+        let session_reset = session_reset.or(short_form_reset);
+
+        if session_percent.is_none() && clean_lower.contains("out of extra usage") {
+            session_percent = Some(100.0);
+        }
 
         // Build usage snapshot
         let session_used = session_percent.unwrap_or(0.0);
@@ -517,6 +529,13 @@ fn extract_reset_description(text: &str, label: &str) -> Option<String> {
     None
 }
 
+/// Extract a "resets ..." suffix from a short single-line status.
+fn extract_inline_reset_description(text: &str) -> Option<String> {
+    let lower = text.to_lowercase();
+    let pos = lower.find("resets")?;
+    Some(text[pos..].trim().to_string())
+}
+
 /// Clean up a plan name by removing ANSI codes and extra whitespace
 fn clean_plan_name(text: &str) -> String {
     let cleaned = strip_ansi(text);
@@ -524,4 +543,62 @@ fn clean_plan_name(text: &str) -> String {
     let re = Regex::new(r"\[\d+m").unwrap_or_else(|_| Regex::new(".^").unwrap());
     let result = re.replace_all(&cleaned, "");
     result.trim().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_current_cli_usage_screen() {
+        let provider = ClaudeProvider::new();
+        let output = r#"
+Status   Config   Usage
+
+  Current session
+  ██████████████████████████████████████████████████ 100% used
+  Resets 12pm (America/Bogota)
+
+  Current week (all models)
+  ████████████████████████▌                          49% used
+  Resets Apr 3, 2pm (America/Bogota)
+
+  Extra usage
+  ██▍                                                4% used
+  $3.31 / $70.00 spent · Resets Apr 1 (America/Bogota)
+"#;
+
+        let result = provider.parse_cli_output(output).expect("should parse");
+
+        assert_eq!(result.source_label, "cli");
+        assert_eq!(result.usage.primary.used_percent, 100.0);
+        assert_eq!(
+            result.usage.primary.reset_description.as_deref(),
+            Some("Resets 12pm (America/Bogota)")
+        );
+
+        let weekly = result
+            .usage
+            .secondary
+            .expect("weekly usage should be present");
+        assert_eq!(weekly.used_percent, 49.0);
+        assert_eq!(
+            weekly.reset_description.as_deref(),
+            Some("Resets Apr 3, 2pm (America/Bogota)")
+        );
+    }
+
+    #[test]
+    fn parses_exhausted_short_form_as_full_session_usage() {
+        let provider = ClaudeProvider::new();
+        let output = "You're out of extra usage · resets 12pm (America/Bogota)";
+
+        let result = provider.parse_cli_output(output).expect("should parse");
+
+        assert_eq!(result.usage.primary.used_percent, 100.0);
+        assert_eq!(
+            result.usage.primary.reset_description.as_deref(),
+            Some("resets 12pm (America/Bogota)")
+        );
+    }
 }

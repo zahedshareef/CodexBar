@@ -332,7 +332,7 @@ impl ClaudeOAuthFetcher {
 
     /// Convert OAuth usage window to RateWindow
     fn to_rate_window(window: &UsageWindow, window_minutes: Option<u32>) -> Option<RateWindow> {
-        let utilization = window.utilization?;
+        let utilization = normalize_utilization(window.utilization?);
 
         let resets_at = window
             .resets_at
@@ -356,6 +356,14 @@ impl Default for ClaudeOAuthFetcher {
     }
 }
 
+fn normalize_utilization(utilization: f64) -> f64 {
+    if utilization > 0.0 && utilization <= 1.0 {
+        utilization * 100.0
+    } else {
+        utilization
+    }
+}
+
 /// Parse an ISO8601 date string
 fn parse_iso8601_date(s: &str) -> Option<DateTime<Utc>> {
     // Try parsing with various formats
@@ -373,4 +381,33 @@ fn parse_iso8601_date(s: &str) -> Option<DateTime<Utc>> {
 /// Format a reset date for display
 fn format_reset_date(date: DateTime<Utc>) -> String {
     date.format("%b %-d at %-I:%M%p").to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ClaudeOAuthFetcher, UsageWindow};
+
+    #[test]
+    fn converts_fractional_utilization_to_percent() {
+        let window = UsageWindow {
+            utilization: Some(0.23),
+            resets_at: None,
+        };
+
+        let rate = ClaudeOAuthFetcher::to_rate_window(&window, Some(300)).expect("rate window");
+
+        assert!((rate.used_percent - 23.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn preserves_existing_percentage_utilization() {
+        let window = UsageWindow {
+            utilization: Some(23.0),
+            resets_at: None,
+        };
+
+        let rate = ClaudeOAuthFetcher::to_rate_window(&window, Some(300)).expect("rate window");
+
+        assert!((rate.used_percent - 23.0).abs() < f64::EPSILON);
+    }
 }

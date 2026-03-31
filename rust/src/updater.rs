@@ -31,6 +31,12 @@ impl Default for UpdateState {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateDelivery {
+    Installer,
+    Manual,
+}
+
 #[derive(Debug, Clone)]
 pub struct UpdateInfo {
     pub version: String,
@@ -39,6 +45,17 @@ pub struct UpdateInfo {
     pub release_url: String,
     #[allow(dead_code)]
     pub release_notes: String,
+    pub delivery: UpdateDelivery,
+}
+
+impl UpdateInfo {
+    pub fn supports_auto_apply(&self) -> bool {
+        self.delivery == UpdateDelivery::Installer
+    }
+
+    pub fn supports_auto_download(&self) -> bool {
+        self.delivery == UpdateDelivery::Installer
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -123,24 +140,39 @@ pub async fn check_for_updates_with_channel(channel: UpdateChannel) -> Option<Up
 
     // Compare versions
     if is_newer_version(remote_version, CURRENT_VERSION) {
-        // Find the installer or exe asset
-        let download_url = release
-            .assets
-            .iter()
-            .find(|a| a.name.ends_with("-Setup.exe"))
-            .or_else(|| release.assets.iter().find(|a| a.name.ends_with(".exe")))
-            .map(|a| a.browser_download_url.clone())
-            .unwrap_or_else(|| release.html_url.clone());
-
-        Some(UpdateInfo {
-            version: release.tag_name,
-            download_url,
-            release_url: release.html_url,
-            release_notes: release.body.unwrap_or_default(),
-        })
+        select_release_target(&release)
     } else {
         None
     }
+}
+
+fn select_release_target(release: &GitHubRelease) -> Option<UpdateInfo> {
+    let installer = release
+        .assets
+        .iter()
+        .find(|a| is_installer_asset_name(&a.name));
+
+    let (download_url, delivery) = if let Some(asset) = installer {
+        (
+            asset.browser_download_url.clone(),
+            UpdateDelivery::Installer,
+        )
+    } else {
+        (release.html_url.clone(), UpdateDelivery::Manual)
+    };
+
+    Some(UpdateInfo {
+        version: release.tag_name.clone(),
+        download_url,
+        release_url: release.html_url.clone(),
+        release_notes: release.body.clone().unwrap_or_default(),
+        delivery,
+    })
+}
+
+fn is_installer_asset_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    lower.ends_with("-setup.exe") || lower.ends_with(".msi")
 }
 
 /// Compare semantic versions, returns true if remote is newer
@@ -179,6 +211,10 @@ pub async fn download_update(
     update_info: &UpdateInfo,
     progress_tx: watch::Sender<UpdateState>,
 ) -> Result<PathBuf, String> {
+    if !update_info.supports_auto_download() {
+        return Err("This update must be downloaded manually from the release page.".to_string());
+    }
+
     let download_dir =
         get_download_dir().ok_or_else(|| "Could not determine download directory".to_string())?;
 
@@ -371,6 +407,17 @@ pub fn apply_update(installer_path: &PathBuf) -> Result<(), String> {
         return Err(format!("Installer not found: {:?}", installer_path));
     }
 
+    let file_name = installer_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    if !is_installer_asset_name(file_name) {
+        return Err(
+            "Downloaded update is not an installer. Open the release page to update manually."
+                .to_string(),
+        );
+    }
+
     // Spawn the installer process
     // Using /SILENT for NSIS-style installers, or /quiet for MSI
     // The installer should detect the running app and wait or prompt
@@ -434,5 +481,58 @@ mod tests {
         assert!(!is_newer_version("1.0.0", "1.0.0"));
         assert!(!is_newer_version("0.9.0", "1.0.0"));
         assert!(is_newer_version("1.0.0", "0.1.0"));
+    }
+
+    #[test]
+    fn prefers_installer_asset_for_auto_update() {
+        let release = GitHubRelease {
+            tag_name: "v1.2.6".to_string(),
+            html_url: "https://github.com/Finesssee/Win-CodexBar/releases/tag/v1.2.6".to_string(),
+            body: None,
+            assets: vec![
+                GitHubAsset {
+                    name: "codexbar.exe".to_string(),
+                    browser_download_url: "https://example.com/codexbar.exe".to_string(),
+                },
+                GitHubAsset {
+                    name: "CodexBar-1.2.6-Setup.exe".to_string(),
+                    browser_download_url: "https://example.com/CodexBar-1.2.6-Setup.exe"
+                        .to_string(),
+                },
+            ],
+            draft: false,
+            prerelease: false,
+        };
+
+        let update = select_release_target(&release).expect("update target");
+
+        assert_eq!(
+            update.download_url,
+            "https://example.com/CodexBar-1.2.6-Setup.exe"
+        );
+        assert!(update.supports_auto_apply());
+    }
+
+    #[test]
+    fn falls_back_to_manual_release_when_only_portable_exe_exists() {
+        let release = GitHubRelease {
+            tag_name: "v1.2.6".to_string(),
+            html_url: "https://github.com/Finesssee/Win-CodexBar/releases/tag/v1.2.6".to_string(),
+            body: None,
+            assets: vec![GitHubAsset {
+                name: "codexbar.exe".to_string(),
+                browser_download_url: "https://example.com/codexbar.exe".to_string(),
+            }],
+            draft: false,
+            prerelease: false,
+        };
+
+        let update = select_release_target(&release).expect("update target");
+
+        assert_eq!(
+            update.download_url,
+            "https://github.com/Finesssee/Win-CodexBar/releases/tag/v1.2.6"
+        );
+        assert!(!update.supports_auto_apply());
     }
 }
