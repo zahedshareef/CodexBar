@@ -371,7 +371,7 @@ fn strip_ansi(text: &str) -> String {
                 }
             // Skip OSC sequences: ESC]...BEL
             } else if chars.peek() == Some(&']') {
-                while let Some(next) = chars.next() {
+                for next in chars.by_ref() {
                     if next == '\x07' || next == '\\' {
                         break;
                     }
@@ -412,9 +412,12 @@ fn parse_percent_line(line: &str) -> Option<f64> {
     // Match patterns like "45% used" or "55% left"
     let re = Regex::new(r"(\d{1,3})\s*%\s*(used|left)").ok()?;
 
-    if let Some(caps) = re.captures(&line.to_lowercase()) {
-        let value: f64 = caps.get(1)?.as_str().parse().ok()?;
-        let kind = caps.get(2)?.as_str();
+    if let Some(caps) = re.captures(&line.to_lowercase())
+        && let Some(value_match) = caps.get(1)
+        && let Some(kind_match) = caps.get(2)
+    {
+        let value: f64 = value_match.as_str().parse().ok()?;
+        let kind = kind_match.as_str();
 
         // Convert to "used" percentage
         if kind == "left" {
@@ -438,16 +441,16 @@ fn extract_all_percents(text: &str) -> Vec<f64> {
     let lower = text.to_lowercase();
 
     for caps in re.captures_iter(&lower) {
-        if let (Some(val_match), Some(kind_match)) = (caps.get(1), caps.get(2)) {
-            if let Ok(val) = val_match.as_str().parse::<f64>() {
-                let kind = kind_match.as_str();
-                let used = if kind == "left" {
-                    (100.0 - val).max(0.0)
-                } else {
-                    val.min(100.0)
-                };
-                results.push(used);
-            }
+        if let (Some(val_match), Some(kind_match)) = (caps.get(1), caps.get(2))
+            && let Ok(val) = val_match.as_str().parse::<f64>()
+        {
+            let kind = kind_match.as_str();
+            let used = if kind == "left" {
+                (100.0 - val).max(0.0)
+            } else {
+                val.min(100.0)
+            };
+            results.push(used);
         }
     }
 
@@ -464,12 +467,11 @@ fn extract_email(text: &str) -> Option<String> {
     ];
 
     for pattern in patterns {
-        if let Ok(re) = Regex::new(pattern) {
-            if let Some(caps) = re.captures(text) {
-                if let Some(m) = caps.get(1) {
-                    return Some(m.as_str().trim().to_string());
-                }
-            }
+        if let Ok(re) = Regex::new(pattern)
+            && let Some(caps) = re.captures(text)
+            && let Some(m) = caps.get(1)
+        {
+            return Some(m.as_str().trim().to_string());
         }
     }
 
@@ -479,26 +481,24 @@ fn extract_email(text: &str) -> Option<String> {
 /// Extract login method / plan name from text
 fn extract_login_method(text: &str) -> Option<String> {
     // Look for explicit "Login method:" line
-    if let Ok(re) = Regex::new(r"(?i)login\s+method:\s*(.+)") {
-        if let Some(caps) = re.captures(text) {
-            if let Some(m) = caps.get(1) {
-                let method = m.as_str().trim();
-                if !method.is_empty() {
-                    return Some(clean_plan_name(method));
-                }
-            }
+    if let Ok(re) = Regex::new(r"(?i)login\s+method:\s*(.+)")
+        && let Some(caps) = re.captures(text)
+        && let Some(m) = caps.get(1)
+    {
+        let method = m.as_str().trim();
+        if !method.is_empty() {
+            return Some(clean_plan_name(method));
         }
     }
 
     // Look for "Claude <plan>" patterns
-    if let Ok(re) = Regex::new(r"(?i)(claude\s+(?:max|pro|ultra|team|free)[a-z0-9\s._-]*)") {
-        if let Some(caps) = re.captures(text) {
-            if let Some(m) = caps.get(1) {
-                let plan = m.as_str().trim();
-                if !plan.to_lowercase().contains("code") {
-                    return Some(clean_plan_name(plan));
-                }
-            }
+    if let Ok(re) = Regex::new(r"(?i)(claude\s+(?:max|pro|ultra|team|free)[a-z0-9\s._-]*)")
+        && let Some(caps) = re.captures(text)
+        && let Some(m) = caps.get(1)
+    {
+        let plan = m.as_str().trim();
+        if !plan.to_lowercase().contains("code") {
+            return Some(clean_plan_name(plan));
         }
     }
 

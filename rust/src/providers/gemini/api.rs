@@ -163,20 +163,18 @@ impl GeminiApi {
         // Fall back to environment variables if CLI not found
         if let Some(home) = dirs::home_dir() {
             let cli_config = home.join(".gemini").join("client_config.json");
-            if cli_config.exists() {
-                if let Ok(content) = std::fs::read_to_string(&cli_config) {
-                    if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let (Some(id), Some(secret)) = (
-                            config.get("client_id").and_then(|v| v.as_str()),
-                            config.get("client_secret").and_then(|v| v.as_str()),
-                        ) {
-                            return Ok(OAuthClientCredentials {
-                                client_id: id.to_string(),
-                                client_secret: secret.to_string(),
-                            });
-                        }
-                    }
-                }
+            if cli_config.exists()
+                && let Ok(content) = std::fs::read_to_string(&cli_config)
+                && let Ok(config) = serde_json::from_str::<serde_json::Value>(&content)
+                && let (Some(id), Some(secret)) = (
+                    config.get("client_id").and_then(|v| v.as_str()),
+                    config.get("client_secret").and_then(|v| v.as_str()),
+                )
+            {
+                return Ok(OAuthClientCredentials {
+                    client_id: id.to_string(),
+                    client_secret: secret.to_string(),
+                });
             }
         }
 

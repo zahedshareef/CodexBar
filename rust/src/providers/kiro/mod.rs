@@ -155,9 +155,9 @@ impl KiroProvider {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         let combined = if stdout.trim().is_empty() {
-            &stderr
+            stderr.as_ref()
         } else {
-            &stdout
+            stdout.as_ref()
         };
 
         // Check for login errors
@@ -171,7 +171,7 @@ impl KiroProvider {
             return Err(ProviderError::AuthRequired);
         }
 
-        self.parse_cli_output(&combined)
+        self.parse_cli_output(combined)
     }
 
     /// Parse CLI output to extract usage information
@@ -194,25 +194,23 @@ impl KiroProvider {
 
         // Parse plan name from "| KIRO FREE" or similar (legacy format)
         let mut plan_name = "Kiro".to_string();
-        if let Ok(re) = Regex::new(r"\|\s*(KIRO\s+\w+)") {
-            if let Some(caps) = re.captures(&stripped) {
-                if let Some(m) = caps.get(1) {
-                    plan_name = m.as_str().trim().to_string();
-                }
-            }
+        if let Ok(re) = Regex::new(r"\|\s*(KIRO\s+\w+)")
+            && let Some(caps) = re.captures(&stripped)
+            && let Some(m) = caps.get(1)
+        {
+            plan_name = m.as_str().trim().to_string();
         }
 
         // Parse plan name from "Plan: Q Developer Pro" (new format, kiro-cli 1.24+)
         let mut matched_new_format = false;
-        if let Ok(re) = Regex::new(r"Plan:\s*(.+)") {
-            if let Some(caps) = re.captures(&stripped) {
-                if let Some(m) = caps.get(1) {
-                    let plan_line = m.as_str().trim();
-                    if let Some(first_line) = plan_line.lines().next() {
-                        plan_name = first_line.trim().to_string();
-                        matched_new_format = true;
-                    }
-                }
+        if let Ok(re) = Regex::new(r"Plan:\s*(.+)")
+            && let Some(caps) = re.captures(&stripped)
+            && let Some(m) = caps.get(1)
+        {
+            let plan_line = m.as_str().trim();
+            if let Some(first_line) = plan_line.lines().next() {
+                plan_name = first_line.trim().to_string();
+                matched_new_format = true;
             }
         }
 
@@ -222,38 +220,35 @@ impl KiroProvider {
 
         // Parse reset date from "resets on 01/01"
         let mut reset_date: Option<chrono::DateTime<chrono::Utc>> = None;
-        if let Ok(re) = Regex::new(r"resets on (\d{2}/\d{2})") {
-            if let Some(caps) = re.captures(&stripped) {
-                if let Some(m) = caps.get(1) {
-                    reset_date = Self::parse_reset_date(m.as_str());
-                }
-            }
+        if let Ok(re) = Regex::new(r"resets on (\d{2}/\d{2})")
+            && let Some(caps) = re.captures(&stripped)
+            && let Some(m) = caps.get(1)
+        {
+            reset_date = Self::parse_reset_date(m.as_str());
         }
 
         // Parse credits percentage from progress bar like "████...█ X%"
         let mut credits_percent: f64 = 0.0;
         let mut matched_percent = false;
-        if let Ok(re) = Regex::new(r"█+\s*(\d+)%") {
-            if let Some(caps) = re.captures(&stripped) {
-                if let Some(m) = caps.get(1) {
-                    credits_percent = m.as_str().parse().unwrap_or(0.0);
-                    matched_percent = true;
-                }
-            }
+        if let Ok(re) = Regex::new(r"█+\s*(\d+)%")
+            && let Some(caps) = re.captures(&stripped)
+            && let Some(m) = caps.get(1)
+        {
+            credits_percent = m.as_str().parse().unwrap_or(0.0);
+            matched_percent = true;
         }
 
         // Parse credits used/total from "(X.XX of Y covered in plan)"
         let mut credits_used: f64 = 0.0;
         let mut credits_total: f64 = 50.0; // default free tier
         let mut matched_credits = false;
-        if let Ok(re) = Regex::new(r"\((\d+\.?\d*)\s+of\s+(\d+)\s+covered") {
-            if let Some(caps) = re.captures(&stripped) {
-                if let (Some(used), Some(total)) = (caps.get(1), caps.get(2)) {
-                    credits_used = used.as_str().parse().unwrap_or(0.0);
-                    credits_total = total.as_str().parse().unwrap_or(50.0);
-                    matched_credits = true;
-                }
-            }
+        if let Ok(re) = Regex::new(r"\((\d+\.?\d*)\s+of\s+(\d+)\s+covered")
+            && let Some(caps) = re.captures(&stripped)
+            && let (Some(used), Some(total)) = (caps.get(1), caps.get(2))
+        {
+            credits_used = used.as_str().parse().unwrap_or(0.0);
+            credits_total = total.as_str().parse().unwrap_or(50.0);
+            matched_credits = true;
         }
 
         // Calculate percent from credits if we didn't get it from the progress bar
@@ -263,32 +258,30 @@ impl KiroProvider {
 
         // Parse bonus credits from "Bonus credits: X.XX/Y credits used, expires in Z days"
         let mut bonus_window: Option<RateWindow> = None;
-        if let Ok(re) = Regex::new(r"Bonus credits:\s*(\d+\.?\d*)/(\d+)") {
-            if let Some(caps) = re.captures(&stripped) {
-                if let (Some(used), Some(total)) = (caps.get(1), caps.get(2)) {
-                    let bonus_used: f64 = used.as_str().parse().unwrap_or(0.0);
-                    let bonus_total: f64 = total.as_str().parse().unwrap_or(0.0);
-                    if bonus_total > 0.0 {
-                        let bonus_percent = (bonus_used / bonus_total) * 100.0;
+        if let Ok(re) = Regex::new(r"Bonus credits:\s*(\d+\.?\d*)/(\d+)")
+            && let Some(caps) = re.captures(&stripped)
+            && let (Some(used), Some(total)) = (caps.get(1), caps.get(2))
+        {
+            let bonus_used: f64 = used.as_str().parse().unwrap_or(0.0);
+            let bonus_total: f64 = total.as_str().parse().unwrap_or(0.0);
+            if bonus_total > 0.0 {
+                let bonus_percent = (bonus_used / bonus_total) * 100.0;
 
-                        // Try to get expiry days
-                        let mut expiry_desc: Option<String> = None;
-                        if let Ok(exp_re) = Regex::new(r"expires in (\d+) days?") {
-                            if let Some(exp_caps) = exp_re.captures(&stripped) {
-                                if let Some(days) = exp_caps.get(1) {
-                                    expiry_desc = Some(format!("expires in {}d", days.as_str()));
-                                }
-                            }
-                        }
-
-                        bonus_window = Some(RateWindow::with_details(
-                            bonus_percent,
-                            None,
-                            None,
-                            expiry_desc,
-                        ));
-                    }
+                // Try to get expiry days
+                let mut expiry_desc: Option<String> = None;
+                if let Ok(exp_re) = Regex::new(r"expires in (\d+) days?")
+                    && let Some(exp_caps) = exp_re.captures(&stripped)
+                    && let Some(days) = exp_caps.get(1)
+                {
+                    expiry_desc = Some(format!("expires in {}d", days.as_str()));
                 }
+
+                bonus_window = Some(RateWindow::with_details(
+                    bonus_percent,
+                    None,
+                    None,
+                    expiry_desc,
+                ));
             }
         }
 
@@ -347,7 +340,7 @@ impl KiroProvider {
                     }
                 } else if chars.peek() == Some(&']') {
                     // OSC sequence - skip until BEL or ST
-                    while let Some(next) = chars.next() {
+                    for next in chars.by_ref() {
                         if next == '\x07' || next == '\\' {
                             break;
                         }

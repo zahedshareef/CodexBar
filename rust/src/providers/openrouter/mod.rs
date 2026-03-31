@@ -87,10 +87,10 @@ impl OpenRouterProvider {
 
     /// Get API token from ctx, Windows Credential Manager, or env
     fn get_api_token(api_key: Option<&str>) -> Result<String, ProviderError> {
-        if let Some(key) = api_key {
-            if !key.is_empty() {
-                return Ok(key.to_string());
-            }
+        if let Some(key) = api_key
+            && !key.is_empty()
+        {
+            return Ok(key.to_string());
         }
 
         match keyring::Entry::new(OPENROUTER_CREDENTIAL_TARGET, "api_token") {
@@ -150,7 +150,7 @@ impl OpenRouterProvider {
         primary.reset_description = Some(format!("${:.2} remaining", balance));
 
         let mut usage =
-            UsageSnapshot::new(primary).with_login_method(&format!("${:.2} balance", balance));
+            UsageSnapshot::new(primary).with_login_method(format!("${:.2} balance", balance));
 
         // Try to enrich with /key endpoint data (optional, short timeout)
         let key_url = format!("{}/key", OPENROUTER_API_BASE);
@@ -165,23 +165,17 @@ impl OpenRouterProvider {
             .header("Accept", "application/json")
             .send()
             .await
+            && key_resp.status().is_success()
+            && let Ok(key_data) = key_resp.json::<KeyResponse>().await
+            && let (Some(limit), Some(key_usage)) = (key_data.data.limit, key_data.data.usage)
+            && limit > 0.0
         {
-            if key_resp.status().is_success() {
-                if let Ok(key_data) = key_resp.json::<KeyResponse>().await {
-                    // If the key has per-key limits, show them as secondary
-                    if let (Some(limit), Some(key_usage)) =
-                        (key_data.data.limit, key_data.data.usage)
-                    {
-                        if limit > 0.0 {
-                            let key_percent = ((key_usage / limit) * 100.0).min(100.0).max(0.0);
-                            let key_desc = format!("${:.2}/${:.2} key quota", key_usage, limit);
-                            let mut key_window = RateWindow::new(key_percent);
-                            key_window.reset_description = Some(key_desc);
-                            usage = usage.with_secondary(key_window);
-                        }
-                    }
-                }
-            }
+            // If the key has per-key limits, show them as secondary
+            let key_percent = ((key_usage / limit) * 100.0).clamp(0.0, 100.0);
+            let key_desc = format!("${:.2}/${:.2} key quota", key_usage, limit);
+            let mut key_window = RateWindow::new(key_percent);
+            key_window.reset_description = Some(key_desc);
+            usage = usage.with_secondary(key_window);
         }
 
         Ok(usage)

@@ -145,10 +145,11 @@ pub fn friendly_error(
 
     // Empty page
     if trimmed.is_empty() {
-        return Some(format!(
+        return Some(
             "OpenAI web dashboard returned an empty page. \
              Sign in to chatgpt.com and update OpenAI cookies in Providers → Codex."
-        ));
+                .to_string(),
+        );
     }
 
     // Detect error kind
@@ -162,36 +163,37 @@ pub fn friendly_error(
 
     // Handle specific error kinds
     match error_kind {
-        OpenAIWebErrorKind::EmptyResponse => Some(format!(
+        OpenAIWebErrorKind::EmptyResponse => Some(
             "OpenAI web dashboard returned an empty page. \
              Sign in to chatgpt.com and update OpenAI cookies in Providers → Codex."
-        )),
+                .to_string(),
+        ),
 
-        OpenAIWebErrorKind::CloudflareChallenge => Some(format!(
+        OpenAIWebErrorKind::CloudflareChallenge => Some(
             "OpenAI is showing a Cloudflare challenge. \
              Please visit chatgpt.com in your browser to complete the challenge, \
              then update cookies in Providers → Codex."
-        )),
+                .to_string(),
+        ),
 
-        OpenAIWebErrorKind::RateLimited => Some(format!(
-            "OpenAI rate limit reached. Please wait a few minutes and try again."
-        )),
+        OpenAIWebErrorKind::RateLimited => {
+            Some("OpenAI rate limit reached. Please wait a few minutes and try again.".to_string())
+        }
 
-        OpenAIWebErrorKind::ServerError => Some(format!(
-            "OpenAI is experiencing server issues. Please try again later."
-        )),
+        OpenAIWebErrorKind::ServerError => {
+            Some("OpenAI is experiencing server issues. Please try again later.".to_string())
+        }
 
         OpenAIWebErrorKind::NotLoggedIn | OpenAIWebErrorKind::PublicLanding => {
             // Check for cookie import status
-            if let Some(status) = status {
-                if status.contains("cookies do not match Codex account")
-                    || status.to_lowercase().contains("cookie import failed")
-                {
-                    return Some(format!(
-                        "{} Sign in to chatgpt.com as {}, then update OpenAI cookies in Providers → Codex.",
-                        status, target_label
-                    ));
-                }
+            if let Some(status) = status
+                && (status.contains("cookies do not match Codex account")
+                    || status.to_lowercase().contains("cookie import failed"))
+            {
+                return Some(format!(
+                    "{} Sign in to chatgpt.com as {}, then update OpenAI cookies in Providers → Codex.",
+                    status, target_label
+                ));
             }
 
             Some(format!(

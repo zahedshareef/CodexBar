@@ -150,15 +150,15 @@ impl MiniMaxLocalStorageImporter {
 
         for entry in entries.flatten() {
             let entry_path = entry.path();
-            if let Some(ext) = entry_path.extension() {
-                if ext == "ldb" || ext == "log" {
-                    // Read file and search for MiniMax data
-                    if let Ok(contents) = std::fs::read(&entry_path) {
-                        // Search for MiniMax-related JSON in the binary content
-                        if let Some(data) = Self::extract_minimax_json(&contents) {
-                            minimax_data = Some(data);
-                            break;
-                        }
+            if let Some(ext) = entry_path.extension()
+                && (ext == "ldb" || ext == "log")
+            {
+                // Read file and search for MiniMax data
+                if let Ok(contents) = std::fs::read(&entry_path) {
+                    // Search for MiniMax-related JSON in the binary content
+                    if let Some(data) = Self::extract_minimax_json(&contents) {
+                        minimax_data = Some(data);
+                        break;
                     }
                 }
             }

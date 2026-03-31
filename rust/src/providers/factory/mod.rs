@@ -85,16 +85,16 @@ impl FactoryProvider {
 
         // Try each browser to find Factory cookies
         for browser in &browsers {
-            if let Ok(cookies) = CookieExtractor::extract_for_domain(browser, "app.factory.ai") {
-                if !cookies.is_empty() {
-                    // Convert to cookie header string
-                    let cookie_str = cookies
-                        .iter()
-                        .map(|c| c.to_header_value())
-                        .collect::<Vec<_>>()
-                        .join("; ");
-                    return Ok(cookie_str);
-                }
+            if let Ok(cookies) = CookieExtractor::extract_for_domain(browser, "app.factory.ai")
+                && !cookies.is_empty()
+            {
+                // Convert to cookie header string
+                let cookie_str = cookies
+                    .iter()
+                    .map(|c| c.to_header_value())
+                    .collect::<Vec<_>>()
+                    .join("; ");
+                return Ok(cookie_str);
             }
         }
 
@@ -204,10 +204,10 @@ impl FactoryProvider {
 
         // Add auth info
         if let Some(auth) = auth_info {
-            if let Some(user) = auth.user {
-                if let Some(email) = user.email {
-                    usage = usage.with_email(email);
-                }
+            if let Some(user) = auth.user
+                && let Some(email) = user.email
+            {
+                usage = usage.with_email(email);
             }
             if let Some(org) = auth.organization {
                 // Build login method from tier and plan

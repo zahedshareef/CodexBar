@@ -91,10 +91,10 @@ impl OllamaProvider {
     /// Resolve cookie header from manual cookies, browser import, or context
     fn resolve_cookie_header(&self, ctx: &FetchContext) -> Result<String, ProviderError> {
         // Check manual cookie header first
-        if let Some(ref cookie) = ctx.manual_cookie_header {
-            if !cookie.is_empty() {
-                return Ok(cookie.clone());
-            }
+        if let Some(ref cookie) = ctx.manual_cookie_header
+            && !cookie.is_empty()
+        {
+            return Ok(cookie.clone());
         }
 
         // Try browser cookie extraction
@@ -153,18 +153,18 @@ impl OllamaProvider {
 
                 // Try "XX% used" pattern
                 let used_re = Regex::new(r"(\d+(?:\.\d+)?)\s*%\s*used").ok()?;
-                if let Some(caps) = used_re.captures(window) {
-                    if let Ok(val) = caps[1].parse::<f64>() {
-                        return Some(val);
-                    }
+                if let Some(caps) = used_re.captures(window)
+                    && let Ok(val) = caps[1].parse::<f64>()
+                {
+                    return Some(val);
                 }
 
                 // Try "width: XX%" pattern (progress bar CSS)
                 let width_re = Regex::new(r"width:\s*(\d+(?:\.\d+)?)%").ok()?;
-                if let Some(caps) = width_re.captures(window) {
-                    if let Ok(val) = caps[1].parse::<f64>() {
-                        return Some(val);
-                    }
+                if let Some(caps) = width_re.captures(window)
+                    && let Ok(val) = caps[1].parse::<f64>()
+                {
+                    return Some(val);
                 }
             }
         }

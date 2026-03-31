@@ -153,7 +153,7 @@ impl VertexAITokenRefresher {
         let email = json
             .get("id_token")
             .and_then(|v| v.as_str())
-            .and_then(|token| Self::extract_email_from_id_token(token))
+            .and_then(Self::extract_email_from_id_token)
             .or(credentials.email.clone());
 
         let new_credentials = VertexAIOAuthCredentials {
@@ -178,10 +178,10 @@ impl VertexAITokenRefresher {
         credentials: VertexAIOAuthCredentials,
     ) -> Result<String, RefreshError> {
         // Check cache first
-        if let Some(cached) = self.cached_credentials.read().await.clone() {
-            if cached.is_valid() {
-                return Ok(cached.access_token);
-            }
+        if let Some(cached) = self.cached_credentials.read().await.clone()
+            && cached.is_valid()
+        {
+            return Ok(cached.access_token);
         }
 
         // Check if provided credentials are still valid

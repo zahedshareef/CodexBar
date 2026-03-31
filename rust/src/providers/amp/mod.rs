@@ -61,10 +61,10 @@ impl AmpProvider {
     /// Read Amp/Sourcegraph access token
     async fn read_access_token(&self, ctx: &FetchContext) -> Result<String, ProviderError> {
         // Check ctx.api_key first (from settings)
-        if let Some(ref api_key) = ctx.api_key {
-            if !api_key.is_empty() {
-                return Ok(api_key.clone());
-            }
+        if let Some(ref api_key) = ctx.api_key
+            && !api_key.is_empty()
+        {
+            return Ok(api_key.clone());
         }
 
         // Check environment variables as fallback
@@ -78,28 +78,24 @@ impl AmpProvider {
         // Check Amp config
         if let Some(amp_path) = Self::get_amp_config_path() {
             let config_file = amp_path.join("config.json");
-            if config_file.exists() {
-                if let Ok(content) = tokio::fs::read_to_string(&config_file).await {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(token) = json.get("accessToken").and_then(|v| v.as_str()) {
-                            return Ok(token.to_string());
-                        }
-                    }
-                }
+            if config_file.exists()
+                && let Ok(content) = tokio::fs::read_to_string(&config_file).await
+                && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+                && let Some(token) = json.get("accessToken").and_then(|v| v.as_str())
+            {
+                return Ok(token.to_string());
             }
         }
 
         // Check Cody/Sourcegraph config
         if let Some(cody_path) = Self::get_cody_config_path() {
             let config_file = cody_path.join("config.json");
-            if config_file.exists() {
-                if let Ok(content) = tokio::fs::read_to_string(&config_file).await {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(token) = json.get("accessToken").and_then(|v| v.as_str()) {
-                            return Ok(token.to_string());
-                        }
-                    }
-                }
+            if config_file.exists()
+                && let Ok(content) = tokio::fs::read_to_string(&config_file).await
+                && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+                && let Some(token) = json.get("accessToken").and_then(|v| v.as_str())
+            {
+                return Ok(token.to_string());
             }
         }
 

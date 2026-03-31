@@ -72,11 +72,12 @@ impl CopilotApi {
 
     fn load_token(&self, api_key: Option<&str>) -> Result<String, ProviderError> {
         // Check api_key first (from settings/ctx)
-        if let Some(key) = api_key {
-            if !key.is_empty() && key.chars().all(|c| c.is_ascii_graphic()) {
-                tracing::debug!("Using Copilot token from settings");
-                return Ok(key.to_string());
-            }
+        if let Some(key) = api_key
+            && !key.is_empty()
+            && key.chars().all(|c| c.is_ascii_graphic())
+        {
+            tracing::debug!("Using Copilot token from settings");
+            return Ok(key.to_string());
         }
 
         // Try each credential target as fallback

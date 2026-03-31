@@ -52,10 +52,10 @@ impl CodexApi {
             .header("Accept", "application/json")
             .timeout(std::time::Duration::from_secs(30));
 
-        if let Some(account_id) = &creds.account_id {
-            if !account_id.is_empty() {
-                request = request.header("ChatGPT-Account-Id", account_id);
-            }
+        if let Some(account_id) = &creds.account_id
+            && !account_id.is_empty()
+        {
+            request = request.header("ChatGPT-Account-Id", account_id);
         }
 
         let response = request.send().await?;
@@ -166,21 +166,21 @@ impl CodexApi {
             self.home_dir.join(".codex").join("config.toml")
         };
 
-        if let Ok(content) = std::fs::read_to_string(&config_path) {
-            if let Some(base_url) = parse_chatgpt_base_url(&content) {
-                let normalized = normalize_base_url(&base_url);
-                // Only allow HTTPS URLs for custom base URLs to prevent token exfiltration
-                if normalized.starts_with("https://")
-                    || normalized.starts_with("http://127.0.0.1")
-                    || normalized.starts_with("http://localhost")
-                {
-                    return normalized;
-                }
-                tracing::warn!(
-                    "Ignoring insecure custom chatgpt_base_url (must be HTTPS): {}",
-                    normalized
-                );
+        if let Ok(content) = std::fs::read_to_string(&config_path)
+            && let Some(base_url) = parse_chatgpt_base_url(&content)
+        {
+            let normalized = normalize_base_url(&base_url);
+            // Only allow HTTPS URLs for custom base URLs to prevent token exfiltration
+            if normalized.starts_with("https://")
+                || normalized.starts_with("http://127.0.0.1")
+                || normalized.starts_with("http://localhost")
+            {
+                return normalized;
             }
+            tracing::warn!(
+                "Ignoring insecure custom chatgpt_base_url (must be HTTPS): {}",
+                normalized
+            );
         }
 
         DEFAULT_BASE_URL.to_string()
@@ -253,13 +253,13 @@ impl CodexApi {
         }
 
         // Try rate_limits array
-        if let Some(rate_limits) = json.get("rate_limits").and_then(|v| v.as_array()) {
-            if let Some(first) = rate_limits.first() {
-                let primary = self.parse_window(first);
-                let secondary = rate_limits.get(1).map(|w| self.parse_window(w));
-                let code_review = rate_limits.get(2).map(|w| self.parse_window(w));
-                return (primary, secondary, code_review);
-            }
+        if let Some(rate_limits) = json.get("rate_limits").and_then(|v| v.as_array())
+            && let Some(first) = rate_limits.first()
+        {
+            let primary = self.parse_window(first);
+            let secondary = rate_limits.get(1).map(|w| self.parse_window(w));
+            let code_review = rate_limits.get(2).map(|w| self.parse_window(w));
+            return (primary, secondary, code_review);
         }
 
         // Try direct fields

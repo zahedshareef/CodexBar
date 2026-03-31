@@ -211,7 +211,7 @@ impl VertexAIProvider {
             _ => {
                 // Return placeholder with project info
                 let usage = UsageSnapshot::new(RateWindow::new(0.0))
-                    .with_login_method(&format!("Vertex AI ({})", project_id));
+                    .with_login_method(format!("Vertex AI ({})", project_id));
                 Ok(usage)
             }
         }
@@ -230,18 +230,18 @@ impl VertexAIProvider {
         let config_path =
             dirs::home_dir().map(|p| p.join(".config").join("gcloud").join("properties"));
 
-        if let Some(path) = config_path {
-            if path.exists() {
-                let content = tokio::fs::read_to_string(&path)
-                    .await
-                    .map_err(|e| ProviderError::Other(e.to_string()))?;
+        if let Some(path) = config_path
+            && path.exists()
+        {
+            let content = tokio::fs::read_to_string(&path)
+                .await
+                .map_err(|e| ProviderError::Other(e.to_string()))?;
 
-                for line in content.lines() {
-                    if line.starts_with("project") {
-                        if let Some(proj) = line.split('=').nth(1) {
-                            return Ok(proj.trim().to_string());
-                        }
-                    }
+            for line in content.lines() {
+                if line.starts_with("project")
+                    && let Some(proj) = line.split('=').nth(1)
+                {
+                    return Ok(proj.trim().to_string());
                 }
             }
         }
@@ -261,7 +261,7 @@ impl VertexAIProvider {
             .unwrap_or(project_id);
 
         let usage = UsageSnapshot::new(RateWindow::new(0.0))
-            .with_login_method(&format!("Vertex AI ({})", project_name));
+            .with_login_method(format!("Vertex AI ({})", project_name));
 
         Ok(usage)
     }

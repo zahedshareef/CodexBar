@@ -178,10 +178,10 @@ impl OpenCodeProvider {
         let now = Utc::now();
 
         // Try to parse as JSON
-        if let Ok(json) = serde_json::from_str::<Value>(text) {
-            if let Some(snapshot) = self.parse_usage_json(&json, now) {
-                return Ok(snapshot);
-            }
+        if let Ok(json) = serde_json::from_str::<Value>(text)
+            && let Some(snapshot) = self.parse_usage_json(&json, now)
+        {
+            return Ok(snapshot);
         }
 
         // Fall back to regex-based parsing
@@ -191,14 +191,14 @@ impl OpenCodeProvider {
         let primary = RateWindow::with_details(
             rolling.0,
             Some(300), // 5 hours
-            Some(now + chrono::Duration::seconds(rolling.1 as i64)),
+            Some(now + chrono::Duration::seconds(rolling.1)),
             None,
         );
 
         let secondary = RateWindow::with_details(
             weekly.0,
             Some(10080), // 7 days
-            Some(now + chrono::Duration::seconds(weekly.1 as i64)),
+            Some(now + chrono::Duration::seconds(weekly.1)),
             None,
         );
 
@@ -219,14 +219,14 @@ impl OpenCodeProvider {
         let primary = RateWindow::with_details(
             rolling.0,
             Some(300),
-            Some(now + chrono::Duration::seconds(rolling.1 as i64)),
+            Some(now + chrono::Duration::seconds(rolling.1)),
             None,
         );
 
         let secondary = RateWindow::with_details(
             weekly.0,
             Some(10080),
-            Some(now + chrono::Duration::seconds(weekly.1 as i64)),
+            Some(now + chrono::Duration::seconds(weekly.1)),
             None,
         );
 
@@ -240,10 +240,10 @@ impl OpenCodeProvider {
     /// Find usage window in JSON by keys
     fn find_usage_window(&self, json: &Value, keys: &[&str]) -> Option<(f64, i64)> {
         for key in keys {
-            if let Some(obj) = json.get(key) {
-                if let Some(window) = self.parse_window(obj) {
-                    return Some(window);
-                }
+            if let Some(obj) = json.get(key)
+                && let Some(window) = self.parse_window(obj)
+            {
+                return Some(window);
             }
         }
 
@@ -293,10 +293,10 @@ impl OpenCodeProvider {
                 .get("limit")
                 .or(obj.get("total"))
                 .and_then(|v| v.as_f64());
-            if let (Some(u), Some(l)) = (used, limit) {
-                if l > 0.0 {
-                    percent = Some((u / l) * 100.0);
-                }
+            if let (Some(u), Some(l)) = (used, limit)
+                && l > 0.0
+            {
+                percent = Some((u / l) * 100.0);
             }
         }
 

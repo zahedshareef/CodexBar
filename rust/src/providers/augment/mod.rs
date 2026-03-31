@@ -112,16 +112,13 @@ impl AugmentProvider {
                 .join("auth.json")
         });
 
-        if let Some(path) = settings_path {
-            if path.exists() {
-                if let Ok(content) = tokio::fs::read_to_string(&path).await {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(token) = json.get("accessToken").and_then(|v| v.as_str()) {
-                            return Some(token.to_string());
-                        }
-                    }
-                }
-            }
+        if let Some(path) = settings_path
+            && path.exists()
+            && let Ok(content) = tokio::fs::read_to_string(&path).await
+            && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+            && let Some(token) = json.get("accessToken").and_then(|v| v.as_str())
+        {
+            return Some(token.to_string());
         }
 
         None

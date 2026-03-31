@@ -145,10 +145,9 @@ impl AntigravityProvider {
                 .body("{}")
                 .send()
                 .await
+                && (resp.status().as_u16() == 200 || resp.status().as_u16() == 401)
             {
-                if resp.status().as_u16() == 200 || resp.status().as_u16() == 401 {
-                    return Ok(port);
-                }
+                return Ok(port);
             }
         }
 
@@ -250,12 +249,11 @@ impl AntigravityProvider {
             }
         }
 
-        if primary.is_none() {
-            if let Some(first) = model_configs.first() {
-                if let Some(quota) = &first.quota_info {
-                    primary = Some(rate_window_from_quota(quota));
-                }
-            }
+        if primary.is_none()
+            && let Some(first) = model_configs.first()
+            && let Some(quota) = &first.quota_info
+        {
+            primary = Some(rate_window_from_quota(quota));
         }
 
         let primary = primary.unwrap_or_else(|| RateWindow::new(0.0));

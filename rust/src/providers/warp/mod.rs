@@ -139,10 +139,10 @@ impl WarpProvider {
 
     /// Get API token from ctx, Windows Credential Manager, or env
     fn get_api_token(api_key: Option<&str>) -> Result<String, ProviderError> {
-        if let Some(key) = api_key {
-            if !key.is_empty() {
-                return Ok(key.to_string());
-            }
+        if let Some(key) = api_key
+            && !key.is_empty()
+        {
+            return Ok(key.to_string());
         }
 
         match keyring::Entry::new(WARP_CREDENTIAL_TARGET, "api_token") {
@@ -214,17 +214,16 @@ impl WarpProvider {
             .map_err(|e| ProviderError::Parse(e.to_string()))?;
 
         // Check for GraphQL errors
-        if let Some(errors) = &gql_response.errors {
-            if !errors.is_empty() {
-                let messages: Vec<String> =
-                    errors.iter().filter_map(|e| e.message.clone()).collect();
-                let summary = if messages.is_empty() {
-                    "GraphQL request failed".to_string()
-                } else {
-                    messages.join(" | ")
-                };
-                return Err(ProviderError::Other(summary));
-            }
+        if let Some(errors) = &gql_response.errors
+            && !errors.is_empty()
+        {
+            let messages: Vec<String> = errors.iter().filter_map(|e| e.message.clone()).collect();
+            let summary = if messages.is_empty() {
+                "GraphQL request failed".to_string()
+            } else {
+                messages.join(" | ")
+            };
+            return Err(ProviderError::Other(summary));
         }
 
         let data = gql_response
@@ -248,9 +247,7 @@ impl WarpProvider {
         let used_percent = if is_unlimited {
             0.0
         } else if request_limit > 0 {
-            ((requests_used as f64) / (request_limit as f64) * 100.0)
-                .min(100.0)
-                .max(0.0)
+            ((requests_used as f64) / (request_limit as f64) * 100.0).clamp(0.0, 100.0)
         } else {
             0.0
         };
@@ -275,10 +272,10 @@ impl WarpProvider {
         }
         if let Some(ref workspaces) = user.workspaces {
             for ws in workspaces {
-                if let Some(ref info) = ws.bonus_grants_info {
-                    if let Some(ref grants) = info.grants {
-                        all_grants.extend(grants.iter());
-                    }
+                if let Some(ref info) = ws.bonus_grants_info
+                    && let Some(ref grants) = info.grants
+                {
+                    all_grants.extend(grants.iter());
                 }
             }
         }
@@ -295,9 +292,7 @@ impl WarpProvider {
         if bonus_total > 0 || bonus_remaining > 0 {
             let bonus_used = bonus_total - bonus_remaining;
             let bonus_percent = if bonus_total > 0 {
-                ((bonus_used as f64) / (bonus_total as f64) * 100.0)
-                    .min(100.0)
-                    .max(0.0)
+                ((bonus_used as f64) / (bonus_total as f64) * 100.0).clamp(0.0, 100.0)
             } else if bonus_remaining > 0 {
                 0.0
             } else {

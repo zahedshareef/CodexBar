@@ -170,24 +170,24 @@ impl ClaudeWebApiFetcher {
         let mut result = ProviderFetchResult::new(snapshot, "web");
 
         // Add cost info if available
-        if let Some(extra) = extra_usage {
-            if extra.is_enabled.unwrap_or(false) {
-                let used_cents = extra.used_credits.unwrap_or(0.0);
-                let limit_cents = extra.monthly_credit_limit;
-                let currency = extra.currency.unwrap_or_else(|| "USD".to_string());
+        if let Some(extra) = extra_usage
+            && extra.is_enabled.unwrap_or(false)
+        {
+            let used_cents = extra.used_credits.unwrap_or(0.0);
+            let limit_cents = extra.monthly_credit_limit;
+            let currency = extra.currency.unwrap_or_else(|| "USD".to_string());
 
-                let mut cost = CostSnapshot::new(
-                    used_cents / 100.0, // Convert cents to dollars
-                    currency,
-                    "Monthly",
-                );
+            let mut cost = CostSnapshot::new(
+                used_cents / 100.0, // Convert cents to dollars
+                currency,
+                "Monthly",
+            );
 
-                if let Some(limit) = limit_cents {
-                    cost = cost.with_limit(limit / 100.0);
-                }
-
-                result = result.with_cost(cost);
+            if let Some(limit) = limit_cents {
+                cost = cost.with_limit(limit / 100.0);
             }
+
+            result = result.with_cost(cost);
         }
 
         Ok(result)
@@ -322,7 +322,7 @@ impl ClaudeWebApiFetcher {
             .as_ref()
             .and_then(|s| Self::parse_iso8601(s));
 
-        let reset_description = resets_at.map(|dt| Self::format_reset_time(dt));
+        let reset_description = resets_at.map(Self::format_reset_time);
 
         RateWindow::with_details(used_percent, window_minutes, resets_at, reset_description)
     }

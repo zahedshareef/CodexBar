@@ -49,10 +49,10 @@ impl SyntheticProvider {
     /// Read Synthetic access token
     async fn read_access_token(&self, ctx: &FetchContext) -> Result<String, ProviderError> {
         // Check ctx.api_key first (from settings)
-        if let Some(ref api_key) = ctx.api_key {
-            if !api_key.is_empty() {
-                return Ok(api_key.clone());
-            }
+        if let Some(ref api_key) = ctx.api_key
+            && !api_key.is_empty()
+        {
+            return Ok(api_key.clone());
         }
 
         // Check environment variables as fallback
@@ -66,34 +66,28 @@ impl SyntheticProvider {
         // Check config file
         if let Some(config_path) = Self::get_synthetic_config_path() {
             let config_file = config_path.join("config.json");
-            if config_file.exists() {
-                if let Ok(content) = tokio::fs::read_to_string(&config_file).await {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(token) = json
-                            .get("apiKey")
-                            .or_else(|| json.get("accessToken"))
-                            .and_then(|v| v.as_str())
-                        {
-                            return Ok(token.to_string());
-                        }
-                    }
-                }
+            if config_file.exists()
+                && let Ok(content) = tokio::fs::read_to_string(&config_file).await
+                && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+                && let Some(token) = json
+                    .get("apiKey")
+                    .or_else(|| json.get("accessToken"))
+                    .and_then(|v| v.as_str())
+            {
+                return Ok(token.to_string());
             }
 
             // Also check credentials.json
             let creds_file = config_path.join("credentials.json");
-            if creds_file.exists() {
-                if let Ok(content) = tokio::fs::read_to_string(&creds_file).await {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(token) = json
-                            .get("apiKey")
-                            .or_else(|| json.get("token"))
-                            .and_then(|v| v.as_str())
-                        {
-                            return Ok(token.to_string());
-                        }
-                    }
-                }
+            if creds_file.exists()
+                && let Ok(content) = tokio::fs::read_to_string(&creds_file).await
+                && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+                && let Some(token) = json
+                    .get("apiKey")
+                    .or_else(|| json.get("token"))
+                    .and_then(|v| v.as_str())
+            {
+                return Ok(token.to_string());
             }
         }
 

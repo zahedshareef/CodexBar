@@ -38,30 +38,28 @@ impl KimiK2Provider {
     /// Get API key from environment or config
     fn get_api_key() -> Option<String> {
         // Check environment variable first
-        if let Ok(key) = std::env::var("MOONSHOT_API_KEY") {
-            if !key.is_empty() {
-                return Some(key);
-            }
+        if let Ok(key) = std::env::var("MOONSHOT_API_KEY")
+            && !key.is_empty()
+        {
+            return Some(key);
         }
 
         // Check KIMI_API_KEY
-        if let Ok(key) = std::env::var("KIMI_API_KEY") {
-            if !key.is_empty() {
-                return Some(key);
-            }
+        if let Ok(key) = std::env::var("KIMI_API_KEY")
+            && !key.is_empty()
+        {
+            return Some(key);
         }
 
         // Check config file
         if let Some(config_dir) = dirs::config_dir() {
             let config_file = config_dir.join("moonshot").join("config.json");
-            if config_file.exists() {
-                if let Ok(content) = std::fs::read_to_string(&config_file) {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        if let Some(key) = json.get("api_key").and_then(|v| v.as_str()) {
-                            return Some(key.to_string());
-                        }
-                    }
-                }
+            if config_file.exists()
+                && let Ok(content) = std::fs::read_to_string(&config_file)
+                && let Ok(json) = serde_json::from_str::<serde_json::Value>(&content)
+                && let Some(key) = json.get("api_key").and_then(|v| v.as_str())
+            {
+                return Some(key.to_string());
             }
         }
 
@@ -151,12 +149,12 @@ impl KimiK2Provider {
         let mut usage = UsageSnapshot::new(primary).with_login_method("API Key");
 
         // Add secondary window for cash balance if available
-        if let Some(cash) = cash_balance {
-            if cash > 0.0 {
-                // Show cash balance as secondary metric
-                let secondary = RateWindow::new(0.0); // Not a percentage, but we'll show it
-                usage = usage.with_secondary(secondary);
-            }
+        if let Some(cash) = cash_balance
+            && cash > 0.0
+        {
+            // Show cash balance as secondary metric
+            let secondary = RateWindow::new(0.0); // Not a percentage, but we'll show it
+            usage = usage.with_secondary(secondary);
         }
 
         Ok(usage)

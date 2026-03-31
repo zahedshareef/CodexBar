@@ -134,23 +134,21 @@ impl JetBrainsProvider {
         for line in content.lines() {
             let line = line.trim();
 
-            if line.contains("usedCredits")
+            if (line.contains("usedCredits")
                 || line.contains("used_credits")
-                || line.contains("creditsUsed")
+                || line.contains("creditsUsed"))
+                && let Some(value) = Self::extract_xml_value(line)
             {
-                if let Some(value) = Self::extract_xml_value(line) {
-                    used_credits = value;
-                }
+                used_credits = value;
             }
 
-            if line.contains("creditLimit")
+            if (line.contains("creditLimit")
                 || line.contains("credit_limit")
                 || line.contains("creditsLimit")
-                || line.contains("monthlyLimit")
+                || line.contains("monthlyLimit"))
+                && let Some(value) = Self::extract_xml_value(line)
             {
-                if let Some(value) = Self::extract_xml_value(line) {
-                    credit_limit = value;
-                }
+                credit_limit = value;
             }
         }
 

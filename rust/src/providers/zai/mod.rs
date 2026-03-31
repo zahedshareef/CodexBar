@@ -73,10 +73,10 @@ impl ZaiProvider {
     /// Get API token from ctx, Windows Credential Manager, or env
     fn get_api_token(api_key: Option<&str>) -> Result<String, ProviderError> {
         // Check ctx.api_key first (from settings)
-        if let Some(key) = api_key {
-            if !key.is_empty() {
-                return Ok(key.to_string());
-            }
+        if let Some(key) = api_key
+            && !key.is_empty()
+        {
+            return Ok(key.to_string());
         }
 
         // Try Windows Credential Manager

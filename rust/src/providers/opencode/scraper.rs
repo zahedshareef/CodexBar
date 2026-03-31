@@ -263,12 +263,12 @@ impl OpenCodeUsageFetcher {
         // Try to parse as URL
         if let Ok(url) = url::Url::parse(trimmed) {
             let parts: Vec<&str> = url.path_segments().map(|s| s.collect()).unwrap_or_default();
-            if let Some(idx) = parts.iter().position(|&p| p == "workspace") {
-                if parts.len() > idx + 1 {
-                    let candidate = parts[idx + 1];
-                    if candidate.starts_with("wrk_") && candidate.len() > 4 {
-                        return Some(candidate.to_string());
-                    }
+            if let Some(idx) = parts.iter().position(|&p| p == "workspace")
+                && parts.len() > idx + 1
+            {
+                let candidate = parts[idx + 1];
+                if candidate.starts_with("wrk_") && candidate.len() > 4 {
+                    return Some(candidate.to_string());
                 }
             }
         }
@@ -308,10 +308,10 @@ impl OpenCodeUsageFetcher {
             .header("Referer", &request.referer)
             .header("Accept", "text/javascript, application/json;q=0.9, */*;q=0.8");
 
-        if request.method != "GET" {
-            if let Some(args) = &request.args {
-                req = req.header("Content-Type", "application/json").json(args);
-            }
+        if request.method != "GET"
+            && let Some(args) = &request.args
+        {
+            req = req.header("Content-Type", "application/json").json(args);
         }
 
         let response = req
@@ -349,12 +349,11 @@ impl OpenCodeUsageFetcher {
         }
 
         let mut url = format!("{}?id={}", SERVER_URL, server_id);
-        if let Some(args) = args {
-            if !args.is_empty() {
-                if let Ok(json_str) = serde_json::to_string(args) {
-                    url.push_str(&format!("&args={}", Self::url_encode(&json_str)));
-                }
-            }
+        if let Some(args) = args
+            && !args.is_empty()
+            && let Ok(json_str) = serde_json::to_string(args)
+        {
+            url.push_str(&format!("&args={}", Self::url_encode(&json_str)));
         }
         url
     }
@@ -425,10 +424,10 @@ impl OpenCodeUsageFetcher {
 
         // Try nested keys
         for key in ["data", "result", "usage", "billing", "payload"] {
-            if let Some(nested) = json.get(key) {
-                if let Some(snapshot) = Self::parse_usage_dict(nested, now) {
-                    return Some(snapshot);
-                }
+            if let Some(nested) = json.get(key)
+                && let Some(snapshot) = Self::parse_usage_dict(nested, now)
+            {
+                return Some(snapshot);
             }
         }
 
@@ -474,7 +473,7 @@ impl OpenCodeUsageFetcher {
 
         match (percent, reset_in) {
             (Some(p), Some(r)) => {
-                let normalized_percent = if p <= 1.0 && p >= 0.0 {
+                let normalized_percent = if (0.0..=1.0).contains(&p) {
                     p * 100.0
                 } else {
                     p.clamp(0.0, 100.0)
