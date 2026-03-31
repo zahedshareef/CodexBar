@@ -189,7 +189,7 @@ pub enum UsageDisplayMode {
 
 impl UsageDisplayMode {
     /// Convert a usage percent to display percent based on mode
-    pub fn to_display_percent(&self, used_percent: f64) -> f64 {
+    pub fn to_display_percent(self, used_percent: f64) -> f64 {
         match self {
             UsageDisplayMode::Remaining => 100.0 - used_percent,
             UsageDisplayMode::Used => used_percent,

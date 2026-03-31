@@ -11,9 +11,10 @@ const GITHUB_REPO: &str = "Finesssee/Win-CodexBar";
 const CURRENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// State of the update download process
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum UpdateState {
     /// No update available or not checked
+    #[default]
     Idle,
     /// Update available but not downloaded
     Available,
@@ -23,12 +24,6 @@ pub enum UpdateState {
     Ready(PathBuf),
     /// Download or install failed
     Failed(String),
-}
-
-impl Default for UpdateState {
-    fn default() -> Self {
-        UpdateState::Idle
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -226,7 +221,7 @@ pub async fn download_update(
     let filename = update_info
         .download_url
         .split('/')
-        .last()
+        .next_back()
         .unwrap_or("CodexBar-Setup.exe")
         .to_string();
 

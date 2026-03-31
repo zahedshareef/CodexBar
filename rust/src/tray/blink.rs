@@ -181,10 +181,10 @@ impl EyeBlinkSystem {
         if self.enabled {
             return true;
         }
-        if let Some(until) = self.force_until {
-            if until > Instant::now() {
-                return true;
-            }
+        if let Some(until) = self.force_until
+            && until > Instant::now()
+        {
+            return true;
         }
         false
     }
@@ -194,7 +194,7 @@ impl EyeBlinkSystem {
         let now = Instant::now();
         self.force_until = Some(now + Duration::from_millis(600));
 
-        let state = self.states.entry(provider).or_insert_with(BlinkState::new);
+        let state = self.states.entry(provider).or_default();
         state.blink_start = Some(now);
         state.pending_second_start = None;
         state.effect = MotionEffect::random_for_provider(provider);
@@ -203,7 +203,7 @@ impl EyeBlinkSystem {
 
     /// Seed blink state for a provider if not already present
     pub fn seed_provider(&mut self, provider: ProviderId) {
-        self.states.entry(provider).or_insert_with(BlinkState::new);
+        self.states.entry(provider).or_default();
     }
 
     /// Tick the animation system for a provider
@@ -219,14 +219,14 @@ impl EyeBlinkSystem {
         let mut rng = rand::rng();
 
         // Get or create state
-        let state = self.states.entry(provider).or_insert_with(BlinkState::new);
+        let state = self.states.entry(provider).or_default();
 
         // Check for pending double-blink
-        if let Some(pending) = state.pending_second_start {
-            if now >= pending {
-                state.blink_start = Some(now);
-                state.pending_second_start = None;
-            }
+        if let Some(pending) = state.pending_second_start
+            && now >= pending
+        {
+            state.blink_start = Some(now);
+            state.pending_second_start = None;
         }
 
         let output = if let Some(start) = state.blink_start {

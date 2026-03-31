@@ -18,7 +18,7 @@ pub use indicators::{
 };
 
 /// Status level for a provider
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum StatusLevel {
     /// All systems operational
@@ -30,13 +30,8 @@ pub enum StatusLevel {
     /// Major outage
     Major,
     /// Unknown status
+    #[default]
     Unknown,
-}
-
-impl Default for StatusLevel {
-    fn default() -> Self {
-        StatusLevel::Unknown
-    }
 }
 
 impl StatusLevel {

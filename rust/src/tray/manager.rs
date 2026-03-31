@@ -596,7 +596,7 @@ impl TrayManager {
         let _ = menu.append(&quit_item);
 
         // Update the tray icon's menu
-        let _ = self.tray_icon.set_menu(Some(Box::new(menu)));
+        self.tray_icon.set_menu(Some(Box::new(menu)));
 
         // Relocalize the tooltip based on the current state (not reset to loading)
         let tooltip = self.relocalize_tooltip(lang);
@@ -779,10 +779,10 @@ impl MultiTrayManager {
 
         // Add icons for newly enabled providers
         for provider_id in enabled_providers {
-            if !self.provider_icons.contains_key(provider_id) {
-                if let Ok(icon) = self.create_provider_icon(*provider_id) {
-                    self.provider_icons.insert(*provider_id, icon);
-                }
+            if !self.provider_icons.contains_key(provider_id)
+                && let Ok(icon) = self.create_provider_icon(*provider_id)
+            {
+                self.provider_icons.insert(*provider_id, icon);
             }
         }
 
@@ -796,7 +796,7 @@ impl MultiTrayManager {
 
         // Provider name header (disabled menu item)
         let header = MenuItem::with_id(
-            &format!("header_{}", provider_id.cli_name()),
+            format!("header_{}", provider_id.cli_name()),
             provider_id.display_name(),
             false,
             None,
@@ -816,7 +816,7 @@ impl MultiTrayManager {
 
         // Refresh
         let refresh_item = MenuItem::with_id(
-            &format!("refresh_{}", provider_id.cli_name()),
+            format!("refresh_{}", provider_id.cli_name()),
             locale::get_text(lang, locale::LocaleKey::TrayProviderRefresh),
             true,
             None,
@@ -1013,7 +1013,7 @@ impl MultiTrayManager {
 
             // Provider name header (disabled menu item)
             let header = MenuItem::with_id(
-                &format!("header_{}", provider_id.cli_name()),
+                format!("header_{}", provider_id.cli_name()),
                 provider_id.display_name(),
                 false,
                 None,
@@ -1033,7 +1033,7 @@ impl MultiTrayManager {
 
             // Refresh
             let refresh_item = MenuItem::with_id(
-                &format!("refresh_{}", provider_id.cli_name()),
+                format!("refresh_{}", provider_id.cli_name()),
                 locale::get_text(lang, locale::LocaleKey::TrayProviderRefresh),
                 true,
                 None,
@@ -1063,7 +1063,7 @@ impl MultiTrayManager {
             let _ = menu.append(&quit_item);
 
             // Update the menu
-            let _ = tray_icon.set_menu(Some(Box::new(menu)));
+            tray_icon.set_menu(Some(Box::new(menu)));
 
             // Relocalize the tooltip based on the preserved state (not reset to loading)
             let tooltip = self.relocalize_provider_tooltip(*provider_id, lang);
@@ -1152,11 +1152,11 @@ impl UnifiedTrayManager {
 
     /// Check if we need to recreate the manager due to mode change
     pub fn needs_mode_switch(&self, new_mode: TrayIconMode) -> bool {
-        match (self, new_mode) {
-            (UnifiedTrayManager::Single(_), TrayIconMode::PerProvider) => true,
-            (UnifiedTrayManager::PerProvider(_), TrayIconMode::Single) => true,
-            _ => false,
-        }
+        matches!(
+            (self, new_mode),
+            (UnifiedTrayManager::Single(_), TrayIconMode::PerProvider)
+                | (UnifiedTrayManager::PerProvider(_), TrayIconMode::Single)
+        )
     }
 
     /// Check for menu events (delegates to TrayManager's static method)
@@ -1642,7 +1642,7 @@ fn create_surprise_icon(
             let adjusted_x = (x as i32 + x_offset)
                 .max(bar_left as i32)
                 .min(bar_right as i32 - 1) as u32;
-            let adjusted_y = (y as i32 + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
+            let adjusted_y = (y + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
             img.put_pixel(adjusted_x, adjusted_y, Rgba([80, 80, 90, 255]));
         }
     }
@@ -1652,7 +1652,7 @@ fn create_surprise_icon(
             let adjusted_x = (x as i32 + x_offset)
                 .max(bar_left as i32)
                 .min(bar_right as i32 - 1) as u32;
-            let adjusted_y = (y as i32 + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
+            let adjusted_y = (y + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
             img.put_pixel(adjusted_x, adjusted_y, Rgba([sr, sg, sb, 255]));
         }
     }
@@ -1671,7 +1671,7 @@ fn create_surprise_icon(
             let adjusted_x = (x as i32 + x_offset)
                 .max(bar_left as i32)
                 .min(bar_right as i32 - 1) as u32;
-            let adjusted_y = (y as i32 + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
+            let adjusted_y = (y + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
             img.put_pixel(adjusted_x, adjusted_y, Rgba([80, 80, 90, 255]));
         }
     }
@@ -1681,7 +1681,7 @@ fn create_surprise_icon(
             let adjusted_x = (x as i32 + x_offset)
                 .max(bar_left as i32)
                 .min(bar_right as i32 - 1) as u32;
-            let adjusted_y = (y as i32 + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
+            let adjusted_y = (y + y_offset).max(4).min(ICON_SIZE as i32 - 4) as u32;
             img.put_pixel(adjusted_x, adjusted_y, Rgba([wr, wg, wb, 255]));
         }
     }
