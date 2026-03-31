@@ -232,11 +232,11 @@ impl PreferencesWindow {
 
     /// Check if a refresh was requested and reset the flag
     pub fn take_refresh_requested(&mut self) -> bool {
-        if let Ok(mut state) = self.shared_state.lock() {
-            if state.refresh_requested {
-                state.refresh_requested = false;
-                return true;
-            }
+        if let Ok(mut state) = self.shared_state.lock()
+            && state.refresh_requested
+        {
+            state.refresh_requested = false;
+            return true;
         }
         false
     }
@@ -245,13 +245,13 @@ impl PreferencesWindow {
     /// Clears the flag in both `PreferencesWindow` and the shared viewport state
     /// so duplicate saves cannot happen across frames.
     pub fn take_settings_if_changed(&mut self) -> Option<Settings> {
-        if let Ok(mut state) = self.shared_state.lock() {
-            if state.settings_changed {
-                state.settings_changed = false;
-                self.settings = state.settings.clone();
-                self.settings_changed = false;
-                return Some(self.settings.clone());
-            }
+        if let Ok(mut state) = self.shared_state.lock()
+            && state.settings_changed
+        {
+            state.settings_changed = false;
+            self.settings = state.settings.clone();
+            self.settings_changed = false;
+            return Some(self.settings.clone());
         }
         self.settings_changed = false;
         None
@@ -317,10 +317,10 @@ impl PreferencesWindow {
 
         ctx.show_viewport_immediate(settings_viewport_id, builder, |ctx, _class| {
             // Check if window was closed
-            if ctx.input(|i| i.viewport().close_requested()) {
-                if let Ok(mut state) = shared_state.lock() {
-                    state.is_open = false;
-                }
+            if ctx.input(|i| i.viewport().close_requested())
+                && let Ok(mut state) = shared_state.lock()
+            {
+                state.is_open = false;
             }
 
             // Apply dark theme
@@ -634,12 +634,12 @@ impl PreferencesWindow {
 
         // Ensure a provider is selected
         if self.selected_provider.is_none() && !providers.is_empty() {
-            self.selected_provider = Some(providers[0].clone());
+            self.selected_provider = Some(providers[0]);
         }
 
         // Calculate dimensions - responsive sidebar width
         let total_width = ui.available_width();
-        let sidebar_width = (total_width * 0.45).min(180.0).max(140.0); // 45% of width, 140-180px range
+        let sidebar_width = (total_width * 0.45).clamp(140.0, 180.0); // 45% of width, 140-180px range
         let gap = Spacing::SM;
         let detail_width = (total_width - sidebar_width - gap).max(150.0);
         let panel_height = available_height;
@@ -775,7 +775,7 @@ impl PreferencesWindow {
                             let is_hovered = row_response.hovered();
 
                             if row_response.clicked() {
-                                self.selected_provider = Some(provider_id.clone());
+                                self.selected_provider = Some(*provider_id);
                             }
 
                             // Draw the selection/hover ring on top
@@ -794,7 +794,7 @@ impl PreferencesWindow {
     }
 
     fn draw_provider_detail(&mut self, ui: &mut egui::Ui, available_height: f32) {
-        if let Some(ref selected_id) = self.selected_provider.clone() {
+        if let Some(selected_id) = self.selected_provider {
             egui::Frame::none()
                 .fill(Theme::BG_SECONDARY)
                 .rounding(Rounding::same(Radius::LG))
@@ -1385,12 +1385,10 @@ impl PreferencesWindow {
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
                                         ui.add_space(Spacing::XS);
-                                        if !has_key {
-                                            if primary_button(ui, "+ 添加密钥") {
-                                                self.new_api_key_provider = provider_id.to_string();
-                                                self.show_api_key_input = true;
-                                                self.new_api_key_value.clear();
-                                            }
+                                        if !has_key && primary_button(ui, "+ 添加密钥") {
+                                            self.new_api_key_provider = provider_id.to_string();
+                                            self.show_api_key_input = true;
+                                            self.new_api_key_value.clear();
                                         }
                                     },
                                 );
@@ -1449,14 +1447,17 @@ impl PreferencesWindow {
                                         egui::Layout::right_to_left(egui::Align::Center),
                                         |ui| {
                                             ui.add_space(Spacing::XS);
-                                            if let Some(url) = provider_info.dashboard_url {
-                                                if text_button(
-                                                    ui,
-                                                    "Get key →",
-                                                    Theme::ACCENT_PRIMARY,
-                                                ) {
+                                            match provider_info.dashboard_url {
+                                                Some(url)
+                                                    if text_button(
+                                                        ui,
+                                                        "Get key →",
+                                                        Theme::ACCENT_PRIMARY,
+                                                    ) =>
+                                                {
                                                     let _ = open::that(url);
                                                 }
+                                                _ => {}
                                             }
                                         },
                                     );
@@ -1645,16 +1646,18 @@ impl PreferencesWindow {
                         .show_ui(ui, |ui| {
                             let web_providers = ["claude", "cursor", "kimi"];
                             for provider_name in web_providers {
-                                if let Some(id) = ProviderId::from_cli_name(provider_name) {
-                                    if ui
-                                        .selectable_label(
-                                            self.new_cookie_provider == provider_name,
-                                            id.display_name(),
-                                        )
-                                        .clicked()
+                                match ProviderId::from_cli_name(provider_name) {
+                                    Some(id)
+                                        if ui
+                                            .selectable_label(
+                                                self.new_cookie_provider == provider_name,
+                                                id.display_name(),
+                                            )
+                                            .clicked() =>
                                     {
                                         self.new_cookie_provider = provider_name.to_string();
                                     }
+                                    _ => {}
                                 }
                             }
                         });
@@ -2199,10 +2202,10 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 label_color,
             );
 
-            if response.clicked() {
-                if let Ok(mut state) = shared_state.lock() {
-                    state.active_tab = *tab;
-                }
+            if response.clicked()
+                && let Ok(mut state) = shared_state.lock()
+            {
+                state.active_tab = *tab;
             }
         }
 
@@ -2261,7 +2264,7 @@ fn render_providers_tab_macos(
 
     // Get selected provider
     let selected_provider = if let Ok(state) = shared_state.lock() {
-        state.selected_provider.clone()
+        state.selected_provider
     } else {
         None
     };
@@ -2461,10 +2464,10 @@ fn render_providers_tab_macos(
                                 }
 
                                 // Handle clicks
-                                if response.clicked() {
-                                    if let Ok(mut state) = shared_state.lock() {
-                                        state.selected_provider = Some(*provider_id);
-                                    }
+                                if response.clicked()
+                                    && let Ok(mut state) = shared_state.lock()
+                                {
+                                    state.selected_provider = Some(*provider_id);
                                 }
 
                                 ui.add_space(2.0);
@@ -2607,16 +2610,15 @@ fn render_provider_detail_panel(
                 ui,
                 egui::Id::new(format!("detail_toggle_{}", provider_id.cli_name())),
                 &mut enabled,
-            ) {
-                if let Ok(mut state) = shared_state.lock() {
-                    let name = provider_id.cli_name().to_string();
-                    if enabled {
-                        state.settings.enabled_providers.insert(name);
-                    } else {
-                        state.settings.enabled_providers.remove(&name);
-                    }
-                    state.settings_changed = true;
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                let name = provider_id.cli_name().to_string();
+                if enabled {
+                    state.settings.enabled_providers.insert(name);
+                } else {
+                    state.settings.enabled_providers.remove(&name);
                 }
+                state.settings_changed = true;
             }
 
             ui.add_space(16.0);
@@ -2635,10 +2637,9 @@ fn render_provider_detail_panel(
                     .min_size(Vec2::new(32.0, 32.0)),
                 )
                 .clicked()
+                && let Ok(mut state) = shared_state.lock()
             {
-                if let Ok(mut state) = shared_state.lock() {
-                    state.refresh_requested = true;
-                }
+                state.refresh_requested = true;
             }
         });
     });
@@ -2815,8 +2816,8 @@ fn render_provider_detail_panel(
 
     // Code review (if available and no tertiary rate)
     // Note: code_review_remaining_percent is the REMAINING percent, so convert to used
-    if tertiary_rate.is_none() {
-        if let Some(remaining) = code_review_percent {
+    match code_review_percent {
+        Some(remaining) if tertiary_rate.is_none() => {
             let used = 100.0 - remaining;
             let (percent, label) = usage_display(used, show_as_used, ui_language);
             usage_bar_row(
@@ -2828,6 +2829,7 @@ fn render_provider_detail_panel(
                 brand_color,
             );
         }
+        _ => {}
     }
 
     ui.add_space(Spacing::LG);
@@ -2876,11 +2878,10 @@ fn render_provider_detail_panel(
                                         metric_preference_text(*metric, ui_language),
                                     )
                                     .changed()
+                                    && let Ok(mut state) = shared_state.lock()
                                 {
-                                    if let Ok(mut state) = shared_state.lock() {
-                                        state.settings.set_provider_metric(provider_id, selected);
-                                        state.settings_changed = true;
-                                    }
+                                    state.settings.set_provider_metric(provider_id, selected);
+                                    state.settings_changed = true;
                                 }
                             }
                         });
@@ -3303,25 +3304,25 @@ fn render_accounts_section(
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     // Remove button
                     let account_id = account.id;
-                    if small_button(ui, locale_text(ui_language, LocaleKey::Remove), Theme::RED) {
-                        if let Ok(mut state) = shared_state.lock() {
-                            if let Some(data) = state.token_accounts.get_mut(&provider_id) {
-                                data.remove_account(account_id);
-                            }
-                            // Save to disk
-                            let store = TokenAccountStore::new();
-                            if let Err(e) = store.save(&state.token_accounts) {
-                                state.token_account_status_msg = Some((
-                                    locale_text(ui_language, LocaleKey::SaveFailed)
-                                        .replace("{}", &e.to_string()),
-                                    true,
-                                ));
-                            } else {
-                                state.token_account_status_msg = Some((
-                                    locale_text(ui_language, LocaleKey::AccountRemoved).to_string(),
-                                    false,
-                                ));
-                            }
+                    if small_button(ui, locale_text(ui_language, LocaleKey::Remove), Theme::RED)
+                        && let Ok(mut state) = shared_state.lock()
+                    {
+                        if let Some(data) = state.token_accounts.get_mut(&provider_id) {
+                            data.remove_account(account_id);
+                        }
+                        // Save to disk
+                        let store = TokenAccountStore::new();
+                        if let Err(e) = store.save(&state.token_accounts) {
+                            state.token_account_status_msg = Some((
+                                locale_text(ui_language, LocaleKey::SaveFailed)
+                                    .replace("{}", &e.to_string()),
+                                true,
+                            ));
+                        } else {
+                            state.token_account_status_msg = Some((
+                                locale_text(ui_language, LocaleKey::AccountRemoved).to_string(),
+                                false,
+                            ));
                         }
                     }
                 });
@@ -3365,10 +3366,10 @@ fn render_accounts_section(
                 let label_edit = egui::TextEdit::singleline(&mut label)
                     .desired_width(ui.available_width())
                     .hint_text(locale_text(ui_language, LocaleKey::AccountLabelHint));
-                if ui.add(label_edit).changed() {
-                    if let Ok(mut state) = shared_state.lock() {
-                        state.new_account_label = label;
-                    }
+                if ui.add(label_edit).changed()
+                    && let Ok(mut state) = shared_state.lock()
+                {
+                    state.new_account_label = label;
                 }
 
                 ui.add_space(Spacing::SM);
@@ -3388,10 +3389,10 @@ fn render_accounts_section(
                     .password(true)
                     .desired_width(ui.available_width())
                     .hint_text(support.placeholder);
-                if ui.add(token_edit).changed() {
-                    if let Ok(mut state) = shared_state.lock() {
-                        state.new_account_token = token;
-                    }
+                if ui.add(token_edit).changed()
+                    && let Ok(mut state) = shared_state.lock()
+                {
+                    state.new_account_token = token;
                 }
 
                 ui.add_space(Spacing::MD);
@@ -3426,32 +3427,31 @@ fn render_accounts_section(
                             .min_size(Vec2::new(80.0, 32.0)),
                         )
                         .clicked()
+                        && let Ok(mut state) = shared_state.lock()
                     {
-                        if let Ok(mut state) = shared_state.lock() {
-                            // Create new account
-                            let account = TokenAccount::new(label_val.trim(), token_val.trim());
+                        // Create new account
+                        let account = TokenAccount::new(label_val.trim(), token_val.trim());
 
-                            // Add to provider data
-                            let data = state.token_accounts.entry(provider_id).or_default();
-                            data.add_account(account);
+                        // Add to provider data
+                        let data = state.token_accounts.entry(provider_id).or_default();
+                        data.add_account(account);
 
-                            // Save to disk
-                            let store = TokenAccountStore::new();
-                            if let Err(e) = store.save(&state.token_accounts) {
-                                state.token_account_status_msg = Some((
-                                    locale_text(ui_language, LocaleKey::SaveFailed)
-                                        .replace("{}", &e.to_string()),
-                                    true,
-                                ));
-                            } else {
-                                state.token_account_status_msg = Some((
-                                    locale_text(ui_language, LocaleKey::AccountAdded).to_string(),
-                                    false,
-                                ));
-                                state.new_account_label.clear();
-                                state.new_account_token.clear();
-                                state.show_add_account_input = false;
-                            }
+                        // Save to disk
+                        let store = TokenAccountStore::new();
+                        if let Err(e) = store.save(&state.token_accounts) {
+                            state.token_account_status_msg = Some((
+                                locale_text(ui_language, LocaleKey::SaveFailed)
+                                    .replace("{}", &e.to_string()),
+                                true,
+                            ));
+                        } else {
+                            state.token_account_status_msg = Some((
+                                locale_text(ui_language, LocaleKey::AccountAdded).to_string(),
+                                false,
+                            ));
+                            state.new_account_label.clear();
+                            state.new_account_token.clear();
+                            state.show_add_account_input = false;
                         }
                     }
 
@@ -3469,25 +3469,24 @@ fn render_accounts_section(
                             .rounding(Rounding::same(Radius::SM)),
                         )
                         .clicked()
+                        && let Ok(mut state) = shared_state.lock()
                     {
-                        if let Ok(mut state) = shared_state.lock() {
-                            state.show_add_account_input = false;
-                            state.new_account_label.clear();
-                            state.new_account_token.clear();
-                        }
+                        state.show_add_account_input = false;
+                        state.new_account_label.clear();
+                        state.new_account_token.clear();
                     }
                 });
             });
     } else {
         // Add Account button
         let add_account_text = format!("+ {}", locale_text(ui_language, LocaleKey::AddAccount));
-        if primary_button(ui, &add_account_text) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.show_add_account_input = true;
-                state.new_account_label.clear();
-                state.new_account_token.clear();
-                state.token_account_status_msg = None;
-            }
+        if primary_button(ui, &add_account_text)
+            && let Ok(mut state) = shared_state.lock()
+        {
+            state.show_add_account_input = true;
+            state.new_account_label.clear();
+            state.new_account_token.clear();
+            state.token_account_status_msg = None;
         }
     }
 }
@@ -3529,11 +3528,10 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                         if ui
                             .selectable_label(is_selected, lang.display_name())
                             .clicked()
+                            && let Ok(mut state) = shared_state.lock()
                         {
-                            if let Ok(mut state) = shared_state.lock() {
-                                state.settings.ui_language = *lang;
-                                state.settings_changed = true;
-                            }
+                            state.settings.ui_language = *lang;
+                            state.settings_changed = true;
                         }
                     }
                 });
@@ -3556,13 +3554,12 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::StartAtLogin),
             locale_text(ui_language, LocaleKey::StartAtLoginHelper),
             &mut start_at_login,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                if let Err(e) = state.settings.set_start_at_login(start_at_login) {
-                    tracing::error!("Failed to set start at login: {}", e);
-                } else {
-                    state.settings_changed = true;
-                }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            if let Err(e) = state.settings.set_start_at_login(start_at_login) {
+                tracing::error!("Failed to set start at login: {}", e);
+            } else {
+                state.settings_changed = true;
             }
         }
 
@@ -3579,11 +3576,10 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::StartMinimized),
             locale_text(ui_language, LocaleKey::StartMinimizedHelper),
             &mut start_minimized,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.start_minimized = start_minimized;
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.start_minimized = start_minimized;
+            state.settings_changed = true;
         }
     });
 
@@ -3603,11 +3599,10 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::ShowNotifications),
             locale_text(ui_language, LocaleKey::ShowNotificationsHelper),
             &mut show_notifications,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.show_notifications = show_notifications;
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.show_notifications = show_notifications;
+            state.settings_changed = true;
         }
 
         setting_divider(ui);
@@ -3624,11 +3619,10 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::SoundEnabled),
             locale_text(ui_language, LocaleKey::SoundEnabledHelper),
             &mut sound_enabled,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.sound_enabled = sound_enabled;
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.sound_enabled = sound_enabled;
+            state.settings_changed = true;
         }
 
         // Sound volume slider (only show if sound is enabled)
@@ -3681,11 +3675,11 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                         .trailing_fill(true),
                 );
 
-                if slider.changed() {
-                    if let Ok(mut state) = shared_state.lock() {
-                        state.settings.sound_volume = volume as u8;
-                        state.settings_changed = true;
-                    }
+                if slider.changed()
+                    && let Ok(mut state) = shared_state.lock()
+                {
+                    state.settings.sound_volume = volume as u8;
+                    state.settings_changed = true;
                 }
             });
         }
@@ -3742,11 +3736,11 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .trailing_fill(true),
             );
 
-            if slider.changed() {
-                if let Ok(mut state) = shared_state.lock() {
-                    state.settings.high_usage_threshold = threshold as f64;
-                    state.settings_changed = true;
-                }
+            if slider.changed()
+                && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.high_usage_threshold = threshold as f64;
+                state.settings_changed = true;
             }
         });
 
@@ -3804,11 +3798,11 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .trailing_fill(true),
             );
 
-            if slider.changed() {
-                if let Ok(mut state) = shared_state.lock() {
-                    state.settings.critical_usage_threshold = threshold as f64;
-                    state.settings_changed = true;
-                }
+            if slider.changed()
+                && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.critical_usage_threshold = threshold as f64;
+                state.settings_changed = true;
             }
         });
     });
@@ -3829,11 +3823,10 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             "隐藏个人信息",
             "遮蔽邮箱和账号名称（适合直播时使用）",
             &mut hide_personal_info,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.hide_personal_info = hide_personal_info;
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.hide_personal_info = hide_personal_info;
+            state.settings_changed = true;
         }
     });
 
@@ -3886,11 +3879,10 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                             .show_ui(ui, |ui| {
                                 for (channel, label) in channels {
                                     if ui.selectable_value(&mut selected, channel, label).changed()
+                                        && let Ok(mut state) = shared_state.lock()
                                     {
-                                        if let Ok(mut state) = shared_state.lock() {
-                                            state.settings.update_channel = selected;
-                                            state.settings_changed = true;
-                                        }
+                                        state.settings.update_channel = selected;
+                                        state.settings_changed = true;
                                     }
                                 }
                             });
@@ -3946,10 +3938,10 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                             .hint_text("e.g., Ctrl+Shift+U");
                         let response = ui.add(text_edit);
 
-                        if response.changed() {
-                            if let Ok(mut state) = shared_state.lock() {
-                                state.shortcut_input = shortcut_input.clone();
-                            }
+                        if response.changed()
+                            && let Ok(mut state) = shared_state.lock()
+                        {
+                            state.shortcut_input = shortcut_input.clone();
                         }
 
                         if response.lost_focus() {
@@ -4015,11 +4007,10 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::ResetTimeRelative),
             locale_text(ui_language, LocaleKey::ResetTimeRelativeHelper),
             &mut relative_time,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.reset_time_relative = relative_time;
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.reset_time_relative = relative_time;
+            state.settings_changed = true;
         }
 
         setting_divider(ui);
@@ -4035,11 +4026,10 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::Fun),
             "Show occasional fun animations in the tray icon",
             &mut surprise,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.surprise_animations = surprise;
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.surprise_animations = surprise;
+            state.settings_changed = true;
         }
     });
 
@@ -4059,11 +4049,10 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::ShowUsageAsUsed),
             locale_text(ui_language, LocaleKey::ShowUsageAsUsedHelper),
             &mut show_as_used,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.show_as_used = show_as_used;
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.show_as_used = show_as_used;
+            state.settings_changed = true;
         }
 
         setting_divider(ui);
@@ -4079,11 +4068,10 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::ShowCreditsExtra),
             locale_text(ui_language, LocaleKey::ShowCreditsExtraHelper),
             &mut show_credits_extra,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.show_credits_extra_usage = show_credits_extra;
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.show_credits_extra_usage = show_credits_extra;
+            state.settings_changed = true;
         }
     });
 
@@ -4103,11 +4091,10 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::MergeTrayIcons),
             locale_text(ui_language, LocaleKey::MergeTrayIconsHelper),
             &mut merge_icons,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.merge_tray_icons = merge_icons;
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.merge_tray_icons = merge_icons;
+            state.settings_changed = true;
         }
 
         setting_divider(ui);
@@ -4123,15 +4110,14 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             locale_text(ui_language, LocaleKey::PerProviderTrayIcons),
             locale_text(ui_language, LocaleKey::PerProviderTrayIconsHelper),
             &mut per_provider,
-        ) {
-            if let Ok(mut state) = shared_state.lock() {
-                state.settings.tray_icon_mode = if per_provider {
-                    TrayIconMode::PerProvider
-                } else {
-                    TrayIconMode::Single
-                };
-                state.settings_changed = true;
-            }
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.tray_icon_mode = if per_provider {
+                TrayIconMode::PerProvider
+            } else {
+                TrayIconMode::Single
+            };
+            state.settings_changed = true;
         }
     });
 }
@@ -4282,18 +4268,16 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
                                     ui.add_space(Spacing::XS);
-                                    if !has_key {
-                                        if primary_button(
+                                    if !has_key
+                                        && primary_button(
                                             ui,
                                             locale_text(ui_language, LocaleKey::AddKey),
-                                        ) {
-                                            if let Ok(mut state) = shared_state.lock() {
-                                                state.new_api_key_provider =
-                                                    provider_id.to_string();
-                                                state.show_api_key_input = true;
-                                                state.new_api_key_value.clear();
-                                            }
-                                        }
+                                        )
+                                        && let Ok(mut state) = shared_state.lock()
+                                    {
+                                        state.new_api_key_provider = provider_id.to_string();
+                                        state.show_api_key_input = true;
+                                        state.new_api_key_value.clear();
                                     }
                                 },
                             );
@@ -4339,19 +4323,15 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                                             ui,
                                             locale_text(ui_language, LocaleKey::Remove),
                                             Theme::RED,
-                                        ) {
-                                            if let Ok(mut state) = shared_state.lock() {
-                                                state.api_keys.remove(provider_id);
-                                                let _ = state.api_keys.save();
-                                                state.api_key_status_msg = Some((
-                                                    locale_text(
-                                                        ui_language,
-                                                        LocaleKey::ApiKeyRemoved,
-                                                    )
+                                        ) && let Ok(mut state) = shared_state.lock()
+                                        {
+                                            state.api_keys.remove(provider_id);
+                                            let _ = state.api_keys.save();
+                                            state.api_key_status_msg = Some((
+                                                locale_text(ui_language, LocaleKey::ApiKeyRemoved)
                                                     .replace("{}", provider_info.name),
-                                                    false,
-                                                ));
-                                            }
+                                                false,
+                                            ));
                                         }
                                     },
                                 );
@@ -4360,14 +4340,14 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                                     egui::Layout::right_to_left(egui::Align::Center),
                                     |ui| {
                                         ui.add_space(Spacing::XS);
-                                        if let Some(url) = provider_info.dashboard_url {
-                                            if text_button(
+                                        if let Some(url) = provider_info.dashboard_url
+                                            && text_button(
                                                 ui,
                                                 locale_text(ui_language, LocaleKey::GetKey),
                                                 Theme::ACCENT_PRIMARY,
-                                            ) {
-                                                let _ = open::that(url);
-                                            }
+                                            )
+                                        {
+                                            let _ = open::that(url);
                                         }
                                     },
                                 );
@@ -4421,10 +4401,10 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                     .hint_text(locale_text(ui_language, LocaleKey::PasteApiKeyHere));
                 let response = ui.add(text_edit);
 
-                if response.changed() {
-                    if let Ok(mut state) = shared_state.lock() {
-                        state.new_api_key_value = current_value.clone();
-                    }
+                if response.changed()
+                    && let Ok(mut state) = shared_state.lock()
+                {
+                    state.new_api_key_value = current_value.clone();
                 }
 
                 ui.add_space(Spacing::MD);
@@ -4449,26 +4429,25 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                             .min_size(Vec2::new(80.0, 32.0)),
                         )
                         .clicked()
+                        && let Ok(mut state) = shared_state.lock()
                     {
-                        if let Ok(mut state) = shared_state.lock() {
-                            let provider = state.new_api_key_provider.clone();
-                            let value = state.new_api_key_value.trim().to_string();
-                            state.api_keys.set(&provider, &value, None);
-                            if let Err(e) = state.api_keys.save() {
-                                state.api_key_status_msg = Some((
-                                    locale_text(ui_language, LocaleKey::SaveFailed)
-                                        .replace("{}", &e.to_string()),
-                                    true,
-                                ));
-                            } else {
-                                state.api_key_status_msg = Some((
-                                    locale_text(ui_language, LocaleKey::ApiKeySaved)
-                                        .replace("{}", provider_name),
-                                    false,
-                                ));
-                                state.show_api_key_input = false;
-                                state.new_api_key_value.clear();
-                            }
+                        let provider = state.new_api_key_provider.clone();
+                        let value = state.new_api_key_value.trim().to_string();
+                        state.api_keys.set(&provider, &value, None);
+                        if let Err(e) = state.api_keys.save() {
+                            state.api_key_status_msg = Some((
+                                locale_text(ui_language, LocaleKey::SaveFailed)
+                                    .replace("{}", &e.to_string()),
+                                true,
+                            ));
+                        } else {
+                            state.api_key_status_msg = Some((
+                                locale_text(ui_language, LocaleKey::ApiKeySaved)
+                                    .replace("{}", provider_name),
+                                false,
+                            ));
+                            state.show_api_key_input = false;
+                            state.new_api_key_value.clear();
                         }
                     }
 
@@ -4486,11 +4465,10 @@ fn render_api_keys_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                             .rounding(Rounding::same(Radius::SM)),
                         )
                         .clicked()
+                        && let Ok(mut state) = shared_state.lock()
                     {
-                        if let Ok(mut state) = shared_state.lock() {
-                            state.show_api_key_input = false;
-                            state.new_api_key_value.clear();
-                        }
+                        state.show_api_key_input = false;
+                        state.new_api_key_value.clear();
                     }
                 });
             });
@@ -4566,16 +4544,16 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 }
             }
 
-            if let Some(provider_id) = to_remove {
-                if let Ok(mut state) = shared_state.lock() {
-                    state.cookies.remove(&provider_id);
-                    let _ = state.cookies.save();
-                    state.cookie_status_msg = Some((
-                        locale_text(ui_language, LocaleKey::CookieRemovedForProvider)
-                            .replace("{}", &provider_id),
-                        false,
-                    ));
-                }
+            if let Some(provider_id) = to_remove
+                && let Ok(mut state) = shared_state.lock()
+            {
+                state.cookies.remove(&provider_id);
+                let _ = state.cookies.save();
+                state.cookie_status_msg = Some((
+                    locale_text(ui_language, LocaleKey::CookieRemovedForProvider)
+                        .replace("{}", &provider_id),
+                    false,
+                ));
             }
         });
 
@@ -4610,18 +4588,16 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .show_ui(ui, |ui| {
                         let web_providers = ["claude", "cursor", "kimi"];
                         for provider_name in web_providers {
-                            if let Some(id) = ProviderId::from_cli_name(provider_name) {
-                                if ui
+                            if let Some(id) = ProviderId::from_cli_name(provider_name)
+                                && ui
                                     .selectable_label(
                                         current_provider == provider_name,
                                         id.display_name(),
                                     )
                                     .clicked()
-                                {
-                                    if let Ok(mut state) = shared_state.lock() {
-                                        state.new_cookie_provider = provider_name.to_string();
-                                    }
-                                }
+                                && let Ok(mut state) = shared_state.lock()
+                            {
+                                state.new_cookie_provider = provider_name.to_string();
                             }
                         }
                     });
@@ -4662,10 +4638,10 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .hint_text(locale_text(ui_language, LocaleKey::PasteHere));
                 let response = ui.add(text_edit);
 
-                if response.changed() {
-                    if let Ok(mut state) = shared_state.lock() {
-                        state.new_cookie_value = current_value.clone();
-                    }
+                if response.changed()
+                    && let Ok(mut state) = shared_state.lock()
+                {
+                    state.new_cookie_value = current_value.clone();
                 }
             });
 
@@ -4709,29 +4685,27 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 .min_size(Vec2::new(120.0, 36.0)),
             )
             .clicked()
+            && let Ok(mut state) = shared_state.lock()
         {
-            if let Ok(mut state) = shared_state.lock() {
-                let provider = state.new_cookie_provider.clone();
-                let value = state.new_cookie_value.clone();
-                state.cookies.set(&provider, &value);
-                if let Err(e) = state.cookies.save() {
-                    state.cookie_status_msg = Some((
-                        locale_text(ui_language, LocaleKey::SaveFailed)
-                            .replace("{}", &e.to_string()),
-                        true,
-                    ));
-                } else {
-                    let provider_name = ProviderId::from_cli_name(&provider)
-                        .map(|id| id.display_name().to_string())
-                        .unwrap_or_else(|| provider.clone());
-                    state.cookie_status_msg = Some((
-                        locale_text(ui_language, LocaleKey::CookieSavedForProvider)
-                            .replace("{}", &provider_name),
-                        false,
-                    ));
-                    state.new_cookie_provider.clear();
-                    state.new_cookie_value.clear();
-                }
+            let provider = state.new_cookie_provider.clone();
+            let value = state.new_cookie_value.clone();
+            state.cookies.set(&provider, &value);
+            if let Err(e) = state.cookies.save() {
+                state.cookie_status_msg = Some((
+                    locale_text(ui_language, LocaleKey::SaveFailed).replace("{}", &e.to_string()),
+                    true,
+                ));
+            } else {
+                let provider_name = ProviderId::from_cli_name(&provider)
+                    .map(|id| id.display_name().to_string())
+                    .unwrap_or_else(|| provider.clone());
+                state.cookie_status_msg = Some((
+                    locale_text(ui_language, LocaleKey::CookieSavedForProvider)
+                        .replace("{}", &provider_name),
+                    false,
+                ));
+                state.new_cookie_provider.clear();
+                state.new_cookie_value.clear();
             }
         }
     });
@@ -4782,11 +4756,10 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
                             if ui
                                 .selectable_label(current_interval == value, label)
                                 .clicked()
+                                && let Ok(mut state) = shared_state.lock()
                             {
-                                if let Ok(mut state) = shared_state.lock() {
-                                    state.settings.refresh_interval_secs = value;
-                                    state.settings_changed = true;
-                                }
+                                state.settings.refresh_interval_secs = value;
+                                state.settings_changed = true;
                             }
                         }
                     });
@@ -4976,16 +4949,15 @@ fn render_providers_tab(
                         ui,
                         egui::Id::new(format!("provider_{}", provider_id.cli_name())),
                         &mut enabled,
-                    ) {
-                        if let Ok(mut state) = shared_state.lock() {
-                            let name = provider_id.cli_name().to_string();
-                            if enabled {
-                                state.settings.enabled_providers.insert(name);
-                            } else {
-                                state.settings.enabled_providers.remove(&name);
-                            }
-                            state.settings_changed = true;
+                    ) && let Ok(mut state) = shared_state.lock()
+                    {
+                        let name = provider_id.cli_name().to_string();
+                        if enabled {
+                            state.settings.enabled_providers.insert(name);
+                        } else {
+                            state.settings.enabled_providers.remove(&name);
                         }
+                        state.settings_changed = true;
                     }
                 });
             });

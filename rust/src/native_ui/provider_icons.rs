@@ -106,10 +106,10 @@ impl ProviderIconCache {
         let key = normalize_provider_name(provider_name);
         let cache_key = format!("{}_{}", key, size);
 
-        if !self.textures.contains_key(&cache_key) {
-            if let Some(texture) = load_provider_icon(ctx, &key, size) {
-                self.textures.insert(cache_key.clone(), texture);
-            }
+        if !self.textures.contains_key(&cache_key)
+            && let Some(texture) = load_provider_icon(ctx, &key, size)
+        {
+            self.textures.insert(cache_key.clone(), texture);
         }
 
         self.textures.get(&cache_key)

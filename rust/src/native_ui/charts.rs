@@ -184,7 +184,7 @@ impl CostHistoryChart {
             // Check hover
             let is_hovered = response
                 .hover_pos()
-                .map_or(false, |pos| pos.x >= x && pos.x <= x + bar_width);
+                .is_some_and(|pos| pos.x >= x && pos.x <= x + bar_width);
 
             if is_hovered {
                 self.selected_index = Some(i);
@@ -225,8 +225,8 @@ impl CostHistoryChart {
         }
 
         // Hover selection highlight
-        if let Some(idx) = self.selected_index {
-            if idx < self.points.len() {
+        match self.selected_index {
+            Some(idx) if idx < self.points.len() => {
                 let x = rect.left() + (idx as f32 * (bar_width + bar_spacing));
                 let highlight_rect = egui::Rect::from_min_size(
                     egui::pos2(x, rect.top()),
@@ -238,6 +238,7 @@ impl CostHistoryChart {
                     Color32::from_rgba_unmultiplied(255, 255, 255, 20),
                 );
             }
+            _ => {}
         }
 
         // Reset selection if not hovering
@@ -246,24 +247,24 @@ impl CostHistoryChart {
         }
 
         // Compact: Only show detail on hover, no default text
-        if let Some(idx) = self.selected_index {
-            if let Some(point) = self.points.get(idx) {
-                let date_display = format_date_display(&point.date);
-                let cost_display = format!("${:.2}", point.value);
+        if let Some(idx) = self.selected_index
+            && let Some(point) = self.points.get(idx)
+        {
+            let date_display = format_date_display(&point.date);
+            let cost_display = format!("${:.2}", point.value);
 
-                let detail = if let Some(tokens) = point.tokens {
-                    format!(
-                        "{}: {} · {} tokens",
-                        date_display,
-                        cost_display,
-                        format_tokens(tokens)
-                    )
-                } else {
-                    format!("{}: {}", date_display, cost_display)
-                };
+            let detail = if let Some(tokens) = point.tokens {
+                format!(
+                    "{}: {} · {} tokens",
+                    date_display,
+                    cost_display,
+                    format_tokens(tokens)
+                )
+            } else {
+                format!("{}: {}", date_display, cost_display)
+            };
 
-                ui.label(RichText::new(detail).size(10.0).color(Color32::GRAY));
-            }
+            ui.label(RichText::new(detail).size(10.0).color(Color32::GRAY));
         }
         // Removed: "Hover a bar for details" and "Total (30d)" texts for compact layout
     }
@@ -337,7 +338,7 @@ impl CreditsHistoryChart {
             // Check hover
             let is_hovered = response
                 .hover_pos()
-                .map_or(false, |pos| pos.x >= x && pos.x <= x + bar_width);
+                .is_some_and(|pos| pos.x >= x && pos.x <= x + bar_width);
 
             if is_hovered {
                 self.selected_index = Some(i);
@@ -580,7 +581,7 @@ impl UsageBreakdownChart {
             // Check hover
             let is_hovered = response
                 .hover_pos()
-                .map_or(false, |pos| pos.x >= x && pos.x <= x + bar_width);
+                .is_some_and(|pos| pos.x >= x && pos.x <= x + bar_width);
 
             if is_hovered {
                 self.selected_index = Some(i);
@@ -636,29 +637,29 @@ impl UsageBreakdownChart {
         ui.add_space(6.0);
 
         // Detail text on hover
-        if let Some(idx) = self.selected_index {
-            if let Some(point) = self.points.get(idx) {
-                let date_display = format_date_display(&point.day);
-                let total_display = format!("{:.1}", point.total_credits_used);
+        if let Some(idx) = self.selected_index
+            && let Some(point) = self.points.get(idx)
+        {
+            let date_display = format_date_display(&point.day);
+            let total_display = format!("{:.1}", point.total_credits_used);
 
-                // Show top services
-                let top_services: String = point
-                    .services
-                    .iter()
-                    .filter(|s| s.credits_used > 0.0)
-                    .take(3)
-                    .map(|s| format!("{} {:.1}", s.service, s.credits_used))
-                    .collect::<Vec<_>>()
-                    .join(" · ");
+            // Show top services
+            let top_services: String = point
+                .services
+                .iter()
+                .filter(|s| s.credits_used > 0.0)
+                .take(3)
+                .map(|s| format!("{} {:.1}", s.service, s.credits_used))
+                .collect::<Vec<_>>()
+                .join(" · ");
 
-                ui.label(
-                    RichText::new(format!("{}: {} credits", date_display, total_display))
-                        .size(10.0)
-                        .color(Color32::GRAY),
-                );
-                if !top_services.is_empty() {
-                    ui.label(RichText::new(top_services).size(10.0).color(Color32::GRAY));
-                }
+            ui.label(
+                RichText::new(format!("{}: {} credits", date_display, total_display))
+                    .size(10.0)
+                    .color(Color32::GRAY),
+            );
+            if !top_services.is_empty() {
+                ui.label(RichText::new(top_services).size(10.0).color(Color32::GRAY));
             }
         }
 

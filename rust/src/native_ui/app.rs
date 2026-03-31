@@ -339,10 +339,9 @@ fn format_reset_time(
             local_time.format("%I:%M %p").to_string()
         } else if reset_date == today + chrono::Days::new(1) {
             let tomorrow_template = locale_text(lang, LocaleKey::TomorrowAt);
-            format!(
-                "{}",
-                tomorrow_template.replace("{}", &local_time.format("%I:%M %p").to_string())
-            )
+            tomorrow_template
+                .replace("{}", &local_time.format("%I:%M %p").to_string())
+                .to_string()
         } else {
             local_time.format("%b %d, %I:%M %p").to_string()
         }
@@ -1043,10 +1042,10 @@ impl CodexBarApp {
                                     load_credits_history_points(id, result.account.as_deref());
                             }
 
-                            if let Ok(mut s) = state.lock() {
-                                if idx < s.providers.len() {
-                                    s.providers[idx] = result;
-                                }
+                            if let Ok(mut s) = state.lock()
+                                && idx < s.providers.len()
+                            {
+                                s.providers[idx] = result;
                             }
                         })
                     })
@@ -1574,14 +1573,13 @@ impl eframe::App for CodexBarApp {
 
                                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                             // Dismiss button
-                                            if ui.add(
-                                                egui::Button::new(RichText::new("✕").size(FontSize::SM).color(Color32::WHITE))
-                                                    .fill(Color32::TRANSPARENT)
-                                                    .stroke(Stroke::NONE)
-                                            ).clicked() {
-                                                if let Ok(mut s) = self.state.lock() {
-                                                    s.update_dismissed = true;
-                                                }
+                                        if ui.add(
+                                            egui::Button::new(RichText::new("✕").size(FontSize::SM).color(Color32::WHITE))
+                                                .fill(Color32::TRANSPARENT)
+                                                .stroke(Stroke::NONE)
+                                        ).clicked()
+                                            && let Ok(mut s) = self.state.lock() {
+                                                s.update_dismissed = true;
                                             }
 
                                             // Action button based on state
@@ -1597,11 +1595,10 @@ impl eframe::App for CodexBarApp {
                                                             )
                                                             .fill(Color32::WHITE)
                                                             .rounding(Rounding::same(Radius::SM))
-                                                        ).clicked() {
-                                                            if let Err(e) = updater::apply_update(&installer_path) {
+                                                        ).clicked()
+                                                            && let Err(e) = updater::apply_update(&installer_path) {
                                                                 tracing::error!("Failed to apply update: {}", e);
                                                             }
-                                                        }
                                                     } else if ui.add(
                                                         egui::Button::new(
                                                             RichText::new(locale_text(ui_lang, LocaleKey::UpdateDownload))
@@ -1618,8 +1615,8 @@ impl eframe::App for CodexBarApp {
                                                     ui.spinner();
                                                 }
                                                 UpdateState::Failed(_) => {
-                                                    if update.supports_auto_download() {
-                                                        if ui.add(
+                                                    if update.supports_auto_download()
+                                                        && ui.add(
                                                             egui::Button::new(
                                                                 RichText::new(locale_text(ui_lang, LocaleKey::UpdateRetry))
                                                                     .size(FontSize::SM)
@@ -1633,7 +1630,6 @@ impl eframe::App for CodexBarApp {
                                                                 update.clone(),
                                                             );
                                                         }
-                                                    }
                                                     if ui.add(
                                                         egui::Button::new(
                                                             RichText::new(locale_text(ui_lang, LocaleKey::UpdateDownload))
@@ -1793,11 +1789,10 @@ impl eframe::App for CodexBarApp {
                                             ui.painter().circle_filled(dot_center, dot_radius, dot_color);
                                         }
 
-                                        if response.clicked() {
-                                            if let Ok(mut state) = self.state.lock() {
+                                        if response.clicked()
+                                            && let Ok(mut state) = self.state.lock() {
                                                 state.selected_provider_idx = *original_idx;
                                             }
-                                        }
 
                                         // End row after 4 columns
                                         if (i + 1) % columns == 0 {
@@ -1858,13 +1853,12 @@ impl eframe::App for CodexBarApp {
                             }
 
                             // Handle account switch request - open preferences to Providers tab with provider selected
-                            if let Some(provider_name) = account_switch_provider {
-                                if let Some(provider_id) = ProviderId::from_cli_name(&provider_name) {
+                            if let Some(provider_name) = account_switch_provider
+                                && let Some(provider_id) = ProviderId::from_cli_name(&provider_name) {
                                     self.preferences_window.active_tab = super::preferences::PreferencesTab::Providers;
                                     self.preferences_window.selected_provider = Some(provider_id);
                                     self.preferences_window.open();
                                 }
-                            }
                         } else if is_refreshing {
                             egui::Frame::none()
                                 .fill(Theme::CARD_BG)
@@ -1971,10 +1965,8 @@ impl eframe::App for CodexBarApp {
                 refresh_requested = true;
             }
             // If language changed, refresh the tray menu/tooltip to update localized strings
-            if language_changed {
-                if let Some(ref tray_manager) = self.tray_manager {
-                    tray_manager.refresh_language();
-                }
+            if language_changed && let Some(ref tray_manager) = self.tray_manager {
+                tray_manager.refresh_language();
             }
         }
 
@@ -2010,8 +2002,6 @@ fn draw_provider_detail_card(
     let mut refresh_requested = false;
     let mut account_switch_requested: Option<String> = None;
     let brand_color = provider_color(&provider.name);
-    let content_width = ui.available_width() - 32.0; // 16px padding each side
-
     // Main VStack with spacing: 4 (compact)
     ui.vertical(|ui| {
         ui.add_space(1.0); // Top padding
@@ -2085,10 +2075,11 @@ fn draw_provider_detail_card(
                 });
 
                 // Row 3: Status description (if non-Operational)
-                if provider.status_level != StatusLevel::Operational
-                    && provider.status_level != StatusLevel::Unknown
-                {
-                    if let Some(ref status_desc) = provider.status_description {
+                match &provider.status_description {
+                    Some(status_desc)
+                        if provider.status_level != StatusLevel::Operational
+                            && provider.status_level != StatusLevel::Unknown =>
+                    {
                         ui.add_space(2.0);
                         ui.horizontal(|ui| {
                             let status_col = status_color(provider.status_level);
@@ -2100,6 +2091,7 @@ fn draw_provider_detail_card(
                             );
                         });
                     }
+                    _ => {}
                 }
             });
         });
@@ -2128,15 +2120,16 @@ fn draw_provider_detail_card(
             if let Some(session_pct) = provider.session_percent {
                 draw_metric_row(
                     ui,
-                    locale_text(ui_language, LocaleKey::ProviderSession),
-                    session_pct,
-                    show_as_used,
-                    provider.session_reset.as_deref(),
-                    brand_color,
-                    content_width,
-                    None, // No pace for session
-                    false,
-                    ui_language,
+                    MetricRow {
+                        title: locale_text(ui_language, LocaleKey::ProviderSession),
+                        percent: session_pct,
+                        show_as_used,
+                        reset_text: provider.session_reset.as_deref(),
+                        color: brand_color,
+                        pace_percent: None, // No pace for session
+                        pace_lasts_to_reset: false,
+                        ui_language,
+                    },
                 );
             }
 
@@ -2146,15 +2139,16 @@ fn draw_provider_detail_card(
 
                 draw_metric_row(
                     ui,
-                    locale_text(ui_language, LocaleKey::ProviderWeekly),
-                    weekly_pct,
-                    show_as_used,
-                    provider.weekly_reset.as_deref(),
-                    brand_color,
-                    content_width,
-                    provider.pace_percent,
-                    provider.pace_lasts_to_reset,
-                    ui_language,
+                    MetricRow {
+                        title: locale_text(ui_language, LocaleKey::ProviderWeekly),
+                        percent: weekly_pct,
+                        show_as_used,
+                        reset_text: provider.weekly_reset.as_deref(),
+                        color: brand_color,
+                        pace_percent: provider.pace_percent,
+                        pace_lasts_to_reset: provider.pace_lasts_to_reset,
+                        ui_language,
+                    },
                 );
             }
 
@@ -2168,15 +2162,16 @@ fn draw_provider_detail_card(
                     .unwrap_or(locale_text(ui_language, LocaleKey::ProviderModel));
                 draw_metric_row(
                     ui,
-                    model_label,
-                    model_pct,
-                    show_as_used,
-                    None,
-                    brand_color,
-                    content_width,
-                    None, // No pace for model
-                    false,
-                    ui_language,
+                    MetricRow {
+                        title: model_label,
+                        percent: model_pct,
+                        show_as_used,
+                        reset_text: None,
+                        color: brand_color,
+                        pace_percent: None, // No pace for model
+                        pace_lasts_to_reset: false,
+                        ui_language,
+                    },
                 );
             }
 
@@ -2197,87 +2192,79 @@ fn draw_provider_detail_card(
         // ═══════════════════════════════════════════════════════════════════
         // CREDITS SECTION - macOS CreditsBarContent style
         // ═══════════════════════════════════════════════════════════════════
-        if show_credits_extra {
-            if let Some(credits) = provider.credits_remaining {
-                if has_metrics {
-                    draw_horizontal_separator(ui, 0.0);
-                }
-                ui.add_space(12.0);
+        if show_credits_extra && let Some(credits) = provider.credits_remaining {
+            if has_metrics {
+                draw_horizontal_separator(ui, 0.0);
+            }
+            ui.add_space(12.0);
 
-                let bar_width = ui.available_width();
+            let bar_width = ui.available_width();
 
-                // Title: "Credits" - .font(.body).fontWeight(.medium)
-                ui.label(
-                    RichText::new(locale_text(ui_language, LocaleKey::CreditsTitle))
-                        .size(FontSize::BASE)
-                        .color(Theme::TEXT_PRIMARY)
-                        .strong(),
-                );
+            // Title: "Credits" - .font(.body).fontWeight(.medium)
+            ui.label(
+                RichText::new(locale_text(ui_language, LocaleKey::CreditsTitle))
+                    .size(FontSize::BASE)
+                    .color(Theme::TEXT_PRIMARY)
+                    .strong(),
+            );
 
-                // Progress bar
-                if let Some(credits_pct) = provider.credits_percent {
-                    ui.add_space(6.0);
-                    let bar_height = 8.0;
-                    let (rect, _) = ui.allocate_exact_size(
-                        Vec2::new(bar_width, bar_height),
-                        egui::Sense::hover(),
-                    );
-
-                    ui.painter()
-                        .rect_filled(rect, Rounding::same(4.0), Theme::progress_track());
-
-                    let fill_w = rect.width() * (credits_pct as f32 / 100.0).clamp(0.0, 1.0);
-                    if fill_w > 0.0 {
-                        let fill_rect =
-                            Rect::from_min_size(rect.min, Vec2::new(fill_w, bar_height));
-                        ui.painter()
-                            .rect_filled(fill_rect, Rounding::same(4.0), brand_color);
-                    }
-                }
-
-                // Info row: X left (left) | 1K tokens (right) - .font(.caption)
+            // Progress bar
+            if let Some(credits_pct) = provider.credits_percent {
                 ui.add_space(6.0);
-                ui.horizontal(|ui| {
-                    let remaining_template = locale_text(ui_language, LocaleKey::RemainingAmount);
-                    ui.label(
-                        RichText::new(
-                            remaining_template.replace("{:.2}", &format!("{:.2}", credits)),
-                        )
+                let bar_height = 8.0;
+                let (rect, _) =
+                    ui.allocate_exact_size(Vec2::new(bar_width, bar_height), egui::Sense::hover());
+
+                ui.painter()
+                    .rect_filled(rect, Rounding::same(4.0), Theme::progress_track());
+
+                let fill_w = rect.width() * (credits_pct as f32 / 100.0).clamp(0.0, 1.0);
+                if fill_w > 0.0 {
+                    let fill_rect = Rect::from_min_size(rect.min, Vec2::new(fill_w, bar_height));
+                    ui.painter()
+                        .rect_filled(fill_rect, Rounding::same(4.0), brand_color);
+                }
+            }
+
+            // Info row: X left (left) | 1K tokens (right) - .font(.caption)
+            ui.add_space(6.0);
+            ui.horizontal(|ui| {
+                let remaining_template = locale_text(ui_language, LocaleKey::RemainingAmount);
+                ui.label(
+                    RichText::new(remaining_template.replace("{:.2}", &format!("{:.2}", credits)))
                         .size(FontSize::XS)
                         .color(Theme::TEXT_PRIMARY),
+                );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.label(
+                        RichText::new(locale_text(ui_language, LocaleKey::Tokens1K))
+                            .size(FontSize::XS)
+                            .color(Theme::TEXT_SECONDARY),
                     );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            RichText::new(locale_text(ui_language, LocaleKey::Tokens1K))
-                                .size(FontSize::XS)
-                                .color(Theme::TEXT_SECONDARY),
-                        );
-                    });
                 });
+            });
 
-                // Buy Credits link
-                ui.add_space(6.0);
-                if draw_menu_item(
-                    ui,
-                    "⊕",
-                    locale_text(ui_language, LocaleKey::ActionBuyCredits),
-                ) {
-                    if let Some(ref url) = provider.dashboard_url {
-                        let _ = open::that(url);
-                    }
-                }
+            // Buy Credits link
+            ui.add_space(6.0);
+            if draw_menu_item(
+                ui,
+                "⊕",
+                locale_text(ui_language, LocaleKey::ActionBuyCredits),
+            ) && let Some(ref url) = provider.dashboard_url
+            {
+                let _ = open::that(url);
+            }
 
-                // Credits history chart
-                if !provider.credits_history.is_empty() {
-                    ui.add_space(8.0);
-                    let chart_points: Vec<ChartPoint> = provider
-                        .credits_history
-                        .iter()
-                        .map(|(date, value)| ChartPoint::new(date.clone(), *value))
-                        .collect();
-                    let mut chart = CreditsHistoryChart::new(chart_points);
-                    chart.show(ui);
-                }
+            // Credits history chart
+            if !provider.credits_history.is_empty() {
+                ui.add_space(8.0);
+                let chart_points: Vec<ChartPoint> = provider
+                    .credits_history
+                    .iter()
+                    .map(|(date, value)| ChartPoint::new(date.clone(), *value))
+                    .collect();
+                let mut chart = CreditsHistoryChart::new(chart_points);
+                chart.show(ui);
             }
         }
 
@@ -2382,14 +2369,12 @@ fn draw_provider_detail_card(
             // Switch Account link - only show for providers that support token accounts
             if TokenAccountSupport::is_supported(
                 ProviderId::from_cli_name(&provider.name).unwrap_or(ProviderId::Claude),
+            ) && draw_menu_item(
+                ui,
+                "->",
+                locale_text(ui_language, LocaleKey::ActionSwitchAccount),
             ) {
-                if draw_menu_item(
-                    ui,
-                    "->",
-                    locale_text(ui_language, LocaleKey::ActionSwitchAccount),
-                ) {
-                    account_switch_requested = Some(provider.name.clone());
-                }
+                account_switch_requested = Some(provider.name.clone());
             }
 
             // Usage Dashboard link
@@ -2405,14 +2390,14 @@ fn draw_provider_detail_card(
             }
 
             // Status Page link
-            if let Some(status_url) = get_status_page_url(&provider.name) {
-                if draw_menu_item(
+            if let Some(status_url) = get_status_page_url(&provider.name)
+                && draw_menu_item(
                     ui,
                     "⚡",
                     locale_text(ui_language, LocaleKey::ActionStatusPage),
-                ) {
-                    let _ = open::that(status_url);
-                }
+                )
+            {
+                let _ = open::that(status_url);
             }
 
             // Copy Error link
@@ -2422,10 +2407,9 @@ fn draw_provider_detail_card(
                     ui,
                     "📋",
                     locale_text(ui_language, LocaleKey::ActionCopyError),
-                ) {
-                    if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                        let _ = clipboard.set_text(&error_text);
-                    }
+                ) && let Ok(mut clipboard) = arboard::Clipboard::new()
+                {
+                    let _ = clipboard.set_text(&error_text);
                 }
             }
 
@@ -2484,24 +2468,34 @@ fn draw_text_menu_item(ui: &mut egui::Ui, label: &str, _ui_language: Language) -
     response.clicked()
 }
 
-/// Draw a single metric row - macOS style matching SwiftUI MetricRow
-/// Structure: Title (.body.medium) → Progress bar (with optional pace marker) → X% used | Pace status | Resets in Xh (.footnote)
-///
-/// # Arguments
-/// * `pace_percent` - Optional pace difference (actual - expected). Positive means ahead of expected, negative means behind.
-/// * `pace_lasts_to_reset` - Whether current usage will last until reset (on track or ahead)
-fn draw_metric_row(
-    ui: &mut egui::Ui,
-    title: &str,
+/// Draw a single metric row - macOS style matching SwiftUI MetricRow.
+/// Structure: Title (.body.medium) → Progress bar (with optional pace marker) →
+/// X% used | Pace status | Resets in Xh (.footnote)
+struct MetricRow<'a> {
+    title: &'a str,
     percent: f64,
     show_as_used: bool,
-    reset_text: Option<&str>,
+    reset_text: Option<&'a str>,
     color: Color32,
-    _content_width: f32,
+    /// Difference between actual and expected usage. Positive means ahead of expected, negative means behind.
     pace_percent: Option<f64>,
+    /// Whether current usage will last until reset (on track or ahead).
     pace_lasts_to_reset: bool,
     ui_language: Language,
-) {
+}
+
+fn draw_metric_row(ui: &mut egui::Ui, metric: MetricRow<'_>) {
+    let MetricRow {
+        title,
+        percent,
+        show_as_used,
+        reset_text,
+        color,
+        pace_percent,
+        pace_lasts_to_reset,
+        ui_language,
+    } = metric;
+
     // Title - .font(.body).fontWeight(.medium)
     ui.label(
         RichText::new(title)
