@@ -768,7 +768,7 @@ impl LocaleKey {
             LocaleKey::TabProviders => "服务商",
             LocaleKey::TabDisplay => "显示",
             LocaleKey::TabApiKeys => "API 密钥",
-            LocaleKey::TabCookies => "Cookies",
+            LocaleKey::TabCookies => "Cookie",
             LocaleKey::TabAdvanced => "高级",
             LocaleKey::TabAbout => "关于",
 
@@ -1118,6 +1118,7 @@ mod tests {
     #[test]
     fn test_locale_key_chinese() {
         assert_eq!(get_text(Language::Chinese, LocaleKey::TabGeneral), "通用");
+        assert_eq!(get_text(Language::Chinese, LocaleKey::TabCookies), "Cookie");
         assert_eq!(
             get_text(Language::Chinese, LocaleKey::InterfaceLanguage),
             "界面语言"
