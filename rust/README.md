@@ -33,7 +33,9 @@ A Windows port of [CodexBar](https://github.com/steipete/CodexBar) - a system tr
 Download the latest release from the [Releases](https://github.com/Finesssee/Win-CodexBar/releases) page.
 
 - Recommended: `CodexBar-<version>-Setup.exe`
+  - This installer now installs the required Microsoft Visual C++ runtime on clean Windows machines before launching CodexBar.
 - Portable: `codexbar.exe`
+  - Best for machines that already have the Microsoft Visual C++ runtime installed.
 
 ### Build from Source
 

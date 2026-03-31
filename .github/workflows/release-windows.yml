@@ -45,6 +45,14 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
 
+      - name: Download Visual C++ Runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force rust\target\installer-deps | Out-Null
+          Invoke-WebRequest `
+            -Uri "https://aka.ms/vc14/vc_redist.x64.exe" `
+            -OutFile "rust\target\installer-deps\vc_redist.x64.exe"
+
       - name: Build installer
         shell: pwsh
         run: |
@@ -60,6 +68,7 @@ jobs:
               /Qp `
               "/DAppVersion=$env:APP_VERSION" `
               "/DTargetBinDir=..\target\x86_64-pc-windows-msvc\release" `
+              "/DVCRedistPath=..\target\installer-deps\vc_redist.x64.exe" `
               "/DOutputDir=..\target\installer" `
               "/DOutputBaseFilename=CodexBar-$env:APP_VERSION-Setup" `
               codexbar.iss

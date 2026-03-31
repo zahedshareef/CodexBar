@@ -560,7 +560,7 @@ dependencies = [
 
 [[package]]
 name = "codexbar"
-version = "1.2.7"
+version = "1.2.8"
 dependencies = [
  "aes-gcm",
  "anyhow",

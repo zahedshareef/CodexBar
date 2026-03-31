@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.8] — 2026-03-31
+
+### Changed
+- The Windows installer now bundles Microsoft's Visual C++ redistributable and installs it before launching CodexBar on clean machines.
+
+### Fixed
+- Fixed clean-Windows installer runs failing to launch CodexBar because the required Visual C++ runtime was missing.
+
+---
+
 ## [1.2.7] — 2026-03-31
 
 ### Changed
@@ -150,6 +160,7 @@ Complete porting of Swift CodexBar features to Rust Windows version:
 
 ---
 
-[Unreleased]: https://github.com/Finesssee/Win-CodexBar/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.8...HEAD
+[1.2.8]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.7...v1.2.8
 [1.0.1]: https://github.com/Finesssee/Win-CodexBar/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Finesssee/Win-CodexBar/releases/tag/v1.0.0

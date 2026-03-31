@@ -580,9 +580,17 @@ mod tests {
     #[test]
     fn finds_newest_pending_installer_and_ignores_portable_exe() {
         let temp = tempfile::tempdir().expect("temp dir");
+        let (major, minor, patch) = parse_version_triplet(CURRENT_VERSION);
         let portable = temp.path().join("codexbar.exe");
-        let older = temp.path().join("CodexBar-1.2.7-Setup.exe");
-        let newer = temp.path().join("CodexBar-1.2.8-Setup.exe");
+        let older = temp
+            .path()
+            .join(format!("CodexBar-{}.{}.{}-Setup.exe", major, minor, patch));
+        let newer = temp.path().join(format!(
+            "CodexBar-{}.{}.{}-Setup.exe",
+            major,
+            minor,
+            patch + 1
+        ));
 
         std::fs::write(&portable, b"portable").expect("write portable");
         std::fs::write(&older, b"older installer").expect("write older installer");
@@ -596,8 +604,16 @@ mod tests {
     #[test]
     fn ignores_cached_installers_for_current_or_older_versions() {
         let temp = tempfile::tempdir().expect("temp dir");
-        let current = temp.path().join("CodexBar-1.2.6-Setup.exe");
-        let older = temp.path().join("CodexBar-1.2.5-Setup.exe");
+        let (major, minor, patch) = parse_version_triplet(CURRENT_VERSION);
+        let current = temp
+            .path()
+            .join(format!("CodexBar-{}.{}.{}-Setup.exe", major, minor, patch));
+        let older = temp.path().join(format!(
+            "CodexBar-{}.{}.{}-Setup.exe",
+            major,
+            minor,
+            patch.saturating_sub(1)
+        ));
 
         std::fs::write(&current, b"current installer").expect("write current installer");
         std::fs::write(&older, b"older installer").expect("write older installer");
@@ -607,9 +623,15 @@ mod tests {
 
     #[test]
     fn parses_prerelease_installer_names_for_beta_updates() {
+        let (major, minor, patch) = parse_version_triplet(CURRENT_VERSION);
         assert_eq!(
-            installer_version_from_name("CodexBar-1.2.8-beta.1-Setup.exe"),
-            Some((1, 2, 8))
+            installer_version_from_name(&format!(
+                "CodexBar-{}.{}.{}-beta.1-Setup.exe",
+                major,
+                minor,
+                patch + 1
+            )),
+            Some((major, minor, patch + 1))
         );
     }
 }

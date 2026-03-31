@@ -8,9 +8,12 @@ VERSION="${1:-$(sed -n 's/^version = "\(.*\)"/\1/p' "$RUST_DIR/Cargo.toml" | hea
 TARGET_TRIPLE="${INSTALLER_TARGET_TRIPLE:-x86_64-pc-windows-gnu}"
 TARGET_BIN_DIR="$RUST_DIR/target/$TARGET_TRIPLE/release"
 OUTPUT_DIR="$RUST_DIR/target/installer"
+INSTALLER_DEPS_DIR="$RUST_DIR/target/installer-deps"
 INSTALLER_PATH="$OUTPUT_DIR/CodexBar-${VERSION}-Setup.exe"
 INNO_IMAGE="${INNO_SETUP_IMAGE:-amake/innosetup}"
 CONTAINER_NAME="codexbar-inno-${VERSION//./-}-$$"
+VC_REDIST_URL="${VC_REDIST_URL:-https://aka.ms/vc14/vc_redist.x64.exe}"
+VC_REDIST_PATH="$INSTALLER_DEPS_DIR/vc_redist.x64.exe"
 
 for required_file in "$TARGET_BIN_DIR/codexbar.exe" "$RUST_DIR/icons/icon.ico"; do
   if [[ ! -f "$required_file" ]]; then
@@ -21,6 +24,9 @@ for required_file in "$TARGET_BIN_DIR/codexbar.exe" "$RUST_DIR/icons/icon.ico"; 
 done
 
 mkdir -p "$OUTPUT_DIR"
+mkdir -p "$INSTALLER_DEPS_DIR"
+
+curl -L "$VC_REDIST_URL" -o "$VC_REDIST_PATH"
 
 cleanup() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
@@ -33,7 +39,7 @@ docker create \
   -w /work/rust/installer \
   --entrypoint /bin/sh \
   "$INNO_IMAGE" \
-  -lc "/opt/bin/iscc /Qp /DAppVersion=$VERSION /DTargetBinDir=..\\\\target\\\\$TARGET_TRIPLE\\\\release /DOutputDir=C:\\\\inno-out /DOutputBaseFilename=CodexBar-$VERSION-Setup codexbar.iss" \
+  -lc "/opt/bin/iscc /Qp /DAppVersion=$VERSION /DTargetBinDir=..\\\\target\\\\$TARGET_TRIPLE\\\\release /DVCRedistPath=..\\\\target\\\\installer-deps\\\\vc_redist.x64.exe /DOutputDir=C:\\\\inno-out /DOutputBaseFilename=CodexBar-$VERSION-Setup codexbar.iss" \
   >/dev/null
 
 docker start -a "$CONTAINER_NAME" >/dev/null
