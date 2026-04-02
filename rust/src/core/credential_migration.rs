@@ -333,6 +333,7 @@ pub fn account_name_for_provider(provider: ProviderId) -> &'static str {
         ProviderId::Warp => "warp-token",
         ProviderId::Ollama => "ollama-cookie",
         ProviderId::OpenRouter => "openrouter-token",
+        ProviderId::NanoGPT => "nanogpt-api-token",
     }
 }
 

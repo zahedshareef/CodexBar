@@ -107,6 +107,7 @@ impl WeeklyIndicatorColors {
             ProviderId::Warp => (1, 217, 166, 255),     // Warp teal
             ProviderId::Ollama => (255, 255, 255, 255), // Ollama white
             ProviderId::OpenRouter => (110, 65, 226, 255), // OpenRouter purple
+            ProviderId::NanoGPT => (59, 130, 246, 255), // Blue
         }
     }
 

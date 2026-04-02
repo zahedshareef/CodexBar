@@ -34,6 +34,7 @@ pub enum ProviderId {
     Synthetic,
     JetBrains,
     Alibaba,
+    NanoGPT,
 }
 
 impl ProviderId {
@@ -62,6 +63,7 @@ impl ProviderId {
             ProviderId::Synthetic,
             ProviderId::JetBrains,
             ProviderId::Alibaba,
+            ProviderId::NanoGPT,
         ]
     }
 
@@ -90,6 +92,7 @@ impl ProviderId {
             ProviderId::Synthetic => "synthetic",
             ProviderId::JetBrains => "jetbrains",
             ProviderId::Alibaba => "alibaba",
+            ProviderId::NanoGPT => "nanogpt",
         }
     }
 
@@ -118,6 +121,7 @@ impl ProviderId {
             ProviderId::Synthetic => "Synthetic",
             ProviderId::JetBrains => "JetBrains AI",
             ProviderId::Alibaba => "Alibaba",
+            ProviderId::NanoGPT => "NanoGPT",
         }
     }
 
@@ -149,6 +153,7 @@ impl ProviderId {
             ProviderId::Synthetic => None,
             ProviderId::Warp => None,
             ProviderId::OpenRouter => None,
+            ProviderId::NanoGPT => None,
         }
     }
 
@@ -177,6 +182,7 @@ impl ProviderId {
             "synthetic" => Some(ProviderId::Synthetic),
             "jetbrains" | "jetbrains-ai" | "intellij" => Some(ProviderId::JetBrains),
             "alibaba" | "tongyi" | "qianwen" | "qwen" => Some(ProviderId::Alibaba),
+            "nanogpt" | "nano-gpt" => Some(ProviderId::NanoGPT),
             _ => None,
         }
     }
