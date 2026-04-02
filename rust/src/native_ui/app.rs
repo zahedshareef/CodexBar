@@ -305,6 +305,30 @@ impl ProviderData {
     }
 }
 
+fn provider_metric_labels(provider_name: &str) -> (String, String) {
+    ProviderId::from_cli_name(provider_name)
+        .map(|id| {
+            let metadata = create_provider(id).metadata().clone();
+            (
+                metadata.session_label.to_string(),
+                metadata.weekly_label.to_string(),
+            )
+        })
+        .unwrap_or_else(|| {
+            (
+                locale_text(Language::English, LocaleKey::ProviderSessionLabel).to_string(),
+                locale_text(Language::English, LocaleKey::ProviderWeeklyLabel).to_string(),
+            )
+        })
+}
+
+fn should_show_provider(provider: &ProviderData) -> bool {
+    provider.session_percent.is_some()
+        || provider.weekly_percent.is_some()
+        || provider.model_percent.is_some()
+        || provider.error.is_some()
+}
+
 fn format_reset_time(
     reset: chrono::DateTime<chrono::Utc>,
     relative: bool,
@@ -486,7 +510,8 @@ fn random_surprise_delay() -> Duration {
 
 struct SharedState {
     providers: Vec<ProviderData>,
-    selected_provider_idx: usize, // Index of selected provider in grid
+    summary_providers: Vec<ProviderData>,
+    selected_tab: SelectedTab,
     last_refresh: Instant,
     is_refreshing: bool,
     loading_pattern: LoadingPattern,
@@ -502,6 +527,12 @@ struct SharedState {
     login_provider: Option<String>,
     login_phase: LoginPhase,
     login_message: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SelectedTab {
+    Summary,
+    Provider(ProviderId),
 }
 
 fn open_update_destination(update: &UpdateInfo) {
@@ -720,8 +751,9 @@ impl CodexBarApp {
             .collect();
 
         let state = Arc::new(Mutex::new(SharedState {
-            providers: placeholders,
-            selected_provider_idx: 0, // Select first provider by default
+            providers: placeholders.clone(),
+            summary_providers: placeholders,
+            selected_tab: SelectedTab::Summary,
             last_refresh: Instant::now() - Duration::from_secs(999),
             is_refreshing: false,
             loading_pattern: LoadingPattern::random(),
@@ -950,8 +982,10 @@ impl CodexBarApp {
                     .iter()
                     .map(|&id| ProviderData::placeholder(id))
                     .collect();
-                if s.selected_provider_idx >= s.providers.len() {
-                    s.selected_provider_idx = 0;
+                if let SelectedTab::Provider(id) = s.selected_tab
+                    && !enabled_ids.contains(&id)
+                {
+                    s.selected_tab = SelectedTab::Summary;
                 }
             }
 
@@ -1107,6 +1141,7 @@ impl CodexBarApp {
             });
 
             if let Ok(mut s) = state.lock() {
+                s.summary_providers = s.providers.clone();
                 s.last_refresh = Instant::now();
                 s.is_refreshing = false;
             }
@@ -1322,7 +1357,8 @@ impl eframe::App for CodexBarApp {
         // Get state
         let (
             providers,
-            selected_idx,
+            summary_providers,
+            selected_tab,
             is_refreshing,
             loading_pattern,
             loading_phase,
@@ -1378,7 +1414,8 @@ impl eframe::App for CodexBarApp {
 
                 (
                     state.providers.clone(),
-                    state.selected_provider_idx,
+                    state.summary_providers.clone(),
+                    state.selected_tab,
                     state.is_refreshing,
                     state.loading_pattern,
                     state.loading_phase,
@@ -1390,7 +1427,8 @@ impl eframe::App for CodexBarApp {
             } else {
                 (
                     Vec::new(),
-                    0,
+                    Vec::new(),
+                    SelectedTab::Summary,
                     false,
                     LoadingPattern::default(),
                     0.0,
@@ -1726,10 +1764,10 @@ impl eframe::App for CodexBarApp {
                     if !providers.is_empty() {
                         let visible_providers: Vec<(usize, &ProviderData)> = providers.iter()
                             .enumerate()
-                            .filter(|(_, p)| p.session_percent.is_some() || p.error.is_some())
+                            .filter(|(_, p)| should_show_provider(p))
                             .collect();
 
-                        if !visible_providers.is_empty() {
+                        if !visible_providers.is_empty() || !summary_providers.is_empty() {
                             // Provider grid - 4 columns with icons and names (compact)
                             let columns = 4;
                             let available_width = ui.available_width();
@@ -1740,16 +1778,60 @@ impl eframe::App for CodexBarApp {
                                 .num_columns(columns)
                                 .spacing([0.0, 2.0])
                                 .show(ui, |ui| {
-                                    for (i, (original_idx, provider)) in visible_providers.iter().enumerate() {
-                                        let is_selected = *original_idx == selected_idx;
+                                    let summary_selected = matches!(selected_tab, SelectedTab::Summary);
+                                    let (rect, response) = ui.allocate_exact_size(
+                                        Vec2::new(cell_width, cell_height),
+                                        egui::Sense::click(),
+                                    );
+                                    let summary_color = Theme::ACCENT_PRIMARY;
+
+                                    if summary_selected {
+                                        ui.painter().rect_filled(
+                                            rect,
+                                            Rounding::same(Radius::SM),
+                                            summary_color,
+                                        );
+                                    } else if response.hovered() {
+                                        ui.painter().rect_filled(
+                                            rect,
+                                            Rounding::same(Radius::SM),
+                                            Theme::CARD_BG_HOVER,
+                                        );
+                                    }
+
+                                    let summary_text_color = if summary_selected {
+                                        Color32::WHITE
+                                    } else {
+                                        summary_color
+                                    };
+                                    ui.painter().text(
+                                        rect.center(),
+                                        egui::Align2::CENTER_CENTER,
+                                        locale_text(self.settings.ui_language, LocaleKey::SummaryTab),
+                                        egui::FontId::proportional(10.0),
+                                        summary_text_color,
+                                    );
+
+                                    if response.clicked()
+                                        && let Ok(mut state) = self.state.lock()
+                                    {
+                                        state.selected_tab = SelectedTab::Summary;
+                                    }
+
+                                    for (i, (_, provider)) in visible_providers.iter().enumerate() {
+                                        let is_selected = matches!(
+                                            selected_tab,
+                                            SelectedTab::Provider(selected_id)
+                                                if ProviderId::from_cli_name(&provider.name)
+                                                    == Some(selected_id)
+                                        );
                                         let brand_color = provider_color(&provider.name);
 
                                         let (rect, response) = ui.allocate_exact_size(
                                             Vec2::new(cell_width, cell_height),
-                                            egui::Sense::click()
+                                            egui::Sense::click(),
                                         );
 
-                                        // Selection/hover background
                                         if is_selected {
                                             ui.painter().rect_filled(
                                                 rect,
@@ -1764,25 +1846,37 @@ impl eframe::App for CodexBarApp {
                                             );
                                         }
 
-                                        // Icon (centered horizontally, near top)
                                         let icon_color = if is_selected { Color32::WHITE } else { brand_color };
                                         let icon_size = 18.0;
                                         let icon_center_y = rect.min.y + 14.0;
                                         let icon_min = egui::pos2(
                                             rect.center().x - icon_size / 2.0,
-                                            icon_center_y - icon_size / 2.0
+                                            icon_center_y - icon_size / 2.0,
                                         );
 
-                                        if let Some(texture) = self.icon_cache.get_icon(ui.ctx(), &provider.name, icon_size as u32) {
-                                            let img_rect = Rect::from_min_size(icon_min, Vec2::splat(icon_size));
+                                        if let Some(texture) = self.icon_cache.get_icon(
+                                            ui.ctx(),
+                                            &provider.name,
+                                            icon_size as u32,
+                                        ) {
+                                            let img_rect =
+                                                Rect::from_min_size(icon_min, Vec2::splat(icon_size));
                                             ui.painter().image(
                                                 texture.id(),
                                                 img_rect,
-                                                Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                                                Rect::from_min_max(
+                                                    egui::pos2(0.0, 0.0),
+                                                    egui::pos2(1.0, 1.0),
+                                                ),
                                                 icon_color,
                                             );
                                         } else {
-                                            let letter = provider.display_name.chars().next().unwrap_or('?').to_string();
+                                            let letter = provider
+                                                .display_name
+                                                .chars()
+                                                .next()
+                                                .unwrap_or('?')
+                                                .to_string();
                                             ui.painter().text(
                                                 egui::pos2(rect.center().x, icon_center_y),
                                                 egui::Align2::CENTER_CENTER,
@@ -1792,10 +1886,12 @@ impl eframe::App for CodexBarApp {
                                             );
                                         }
 
-                                        // Provider name below icon
-                                        let text_color = if is_selected { Color32::WHITE } else { Theme::TEXT_SECONDARY };
+                                        let text_color = if is_selected {
+                                            Color32::WHITE
+                                        } else {
+                                            Theme::TEXT_SECONDARY
+                                        };
                                         let name_y = rect.min.y + 32.0;
-                                        // Truncate long names
                                         let display_name = if provider.display_name.len() > 7 {
                                             format!("{}…", &provider.display_name[..6])
                                         } else {
@@ -1809,24 +1905,28 @@ impl eframe::App for CodexBarApp {
                                             text_color,
                                         );
 
-                                        // Status dot overlay for non-Operational statuses
-                                        if provider.status_level != StatusLevel::Operational && provider.status_level != StatusLevel::Unknown {
+                                        if provider.status_level != StatusLevel::Operational
+                                            && provider.status_level != StatusLevel::Unknown
+                                        {
                                             let dot_radius = 4.0;
                                             let dot_center = egui::pos2(
                                                 rect.max.x - dot_radius - 4.0,
                                                 rect.min.y + dot_radius + 4.0,
                                             );
                                             let dot_color = status_color(provider.status_level);
-                                            ui.painter().circle_filled(dot_center, dot_radius, dot_color);
+                                            ui.painter()
+                                                .circle_filled(dot_center, dot_radius, dot_color);
                                         }
 
                                         if response.clicked()
-                                            && let Ok(mut state) = self.state.lock() {
-                                                state.selected_provider_idx = *original_idx;
-                                            }
+                                            && let Ok(mut state) = self.state.lock()
+                                            && let Some(provider_id) =
+                                                ProviderId::from_cli_name(&provider.name)
+                                        {
+                                            state.selected_tab = SelectedTab::Provider(provider_id);
+                                        }
 
-                                        // End row after 4 columns
-                                        if (i + 1) % columns == 0 {
+                                        if (i + 2) % columns == 0 {
                                             ui.end_row();
                                         }
                                     }
@@ -1851,7 +1951,25 @@ impl eframe::App for CodexBarApp {
                             let show_as_used = self.settings.show_as_used;
                             let hide_personal_info = self.settings.hide_personal_info;
                             let ui_language = self.settings.ui_language;
-                            if let Some((_, selected_provider)) = visible_providers.iter().find(|(idx, _)| *idx == selected_idx) {
+                            if matches!(selected_tab, SelectedTab::Summary) {
+                                manual_refresh_requested = draw_summary_card(
+                                    ui,
+                                    &summary_providers,
+                                    is_refreshing,
+                                    show_as_used,
+                                    ui_language,
+                                );
+                            } else if let Some((_, selected_provider)) = visible_providers
+                                .iter()
+                                .find(|(_, provider)| {
+                                    matches!(
+                                        selected_tab,
+                                        SelectedTab::Provider(selected_id)
+                                            if ProviderId::from_cli_name(&provider.name)
+                                                == Some(selected_id)
+                                    )
+                                })
+                            {
                                 let (refresh, switch) = draw_provider_detail_card(
                                     ui,
                                     selected_provider,
@@ -2016,6 +2134,206 @@ impl eframe::App for CodexBarApp {
             self.was_refreshing = is_refreshing;
         }
     }
+}
+
+fn summary_metric_text(
+    label: &str,
+    percent: Option<f64>,
+    reset_text: Option<&str>,
+    show_as_used: bool,
+    ui_language: Language,
+) -> Option<String> {
+    percent.map(|used_percent| {
+        let display_percent = usage_display_percent(used_percent, show_as_used);
+        let mut text = format!(
+            "{} {}",
+            label,
+            usage_display_label(display_percent, show_as_used, ui_language)
+        );
+
+        if let Some(reset) = reset_text {
+            text.push_str(&format!(
+                " • {} {}",
+                locale_text(ui_language, LocaleKey::MetricResetsIn),
+                reset
+            ));
+        }
+
+        text
+    })
+}
+
+struct SummaryMetricDisplay<'a> {
+    label: &'a str,
+    used_percent: f64,
+    detail_text: String,
+}
+
+fn summary_metric_display<'a>(
+    label: &'a str,
+    percent: Option<f64>,
+    reset_text: Option<&str>,
+    show_as_used: bool,
+    ui_language: Language,
+) -> Option<SummaryMetricDisplay<'a>> {
+    percent.map(|used_percent| SummaryMetricDisplay {
+        label,
+        used_percent,
+        detail_text: summary_metric_text(
+            label,
+            Some(used_percent),
+            reset_text,
+            show_as_used,
+            ui_language,
+        )
+        .unwrap_or_default(),
+    })
+}
+
+fn draw_summary_metric_bar(ui: &mut egui::Ui, metric: &SummaryMetricDisplay<'_>, color: Color32) {
+    ui.label(
+        RichText::new(metric.label)
+            .size(FontSize::XS)
+            .color(Theme::TEXT_PRIMARY)
+            .strong(),
+    );
+    ui.add_space(2.0);
+
+    let bar_width = ui.available_width();
+    let bar_height = 6.0;
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(bar_width, bar_height), egui::Sense::hover());
+
+    ui.painter()
+        .rect_filled(rect, Rounding::same(3.0), Theme::progress_track());
+
+    let fill_width = rect.width() * (metric.used_percent as f32 / 100.0).clamp(0.0, 1.0);
+    if fill_width > 0.0 {
+        let fill_rect = Rect::from_min_size(rect.min, Vec2::new(fill_width, bar_height));
+        ui.painter()
+            .rect_filled(fill_rect, Rounding::same(3.0), color);
+    }
+
+    ui.add_space(2.0);
+    ui.label(
+        RichText::new(&metric.detail_text)
+            .size(FontSize::XS)
+            .color(Theme::TEXT_SECONDARY),
+    );
+}
+
+fn draw_summary_card(
+    ui: &mut egui::Ui,
+    providers: &[ProviderData],
+    is_refreshing: bool,
+    show_as_used: bool,
+    ui_language: Language,
+) -> bool {
+    let mut refresh_requested = false;
+
+    ui.vertical(|ui| {
+        if is_refreshing {
+            ui.horizontal(|ui| {
+                ui.add_space(16.0);
+                ui.label(
+                    RichText::new(locale_text(
+                        ui_language,
+                        LocaleKey::StateSummaryRefreshPending,
+                    ))
+                    .size(FontSize::XS)
+                    .color(Theme::TEXT_SECONDARY),
+                );
+            });
+            ui.add_space(4.0);
+        }
+
+        draw_horizontal_separator(ui, 0.0);
+        ui.add_space(4.0);
+
+        ui.horizontal(|ui| {
+            ui.add_space(16.0);
+            ui.vertical(|ui| {
+                let visible_providers: Vec<&ProviderData> = providers
+                    .iter()
+                    .filter(|provider| should_show_provider(provider))
+                    .collect();
+
+                if visible_providers.is_empty() {
+                    ui.label(
+                        RichText::new(locale_text(ui_language, LocaleKey::StateNoProviderData))
+                            .size(FontSize::SM)
+                            .color(Theme::TEXT_SECONDARY),
+                    );
+                } else {
+                    for (index, provider) in visible_providers.iter().enumerate() {
+                        if index > 0 {
+                            ui.add_space(8.0);
+                            draw_horizontal_separator(ui, 0.0);
+                            ui.add_space(8.0);
+                        }
+
+                        let brand_color = provider_color(&provider.name);
+                        let (session_label, weekly_label) = provider_metric_labels(&provider.name);
+                        let session_metric = summary_metric_display(
+                            &session_label,
+                            provider.session_percent,
+                            provider.session_reset.as_deref(),
+                            show_as_used,
+                            ui_language,
+                        );
+                        let weekly_metric = summary_metric_display(
+                            &weekly_label,
+                            provider.weekly_percent,
+                            provider.weekly_reset.as_deref(),
+                            show_as_used,
+                            ui_language,
+                        );
+
+                        ui.label(
+                            RichText::new(&provider.display_name)
+                                .size(FontSize::BASE)
+                                .color(brand_color)
+                                .strong(),
+                        );
+
+                        if let Some(error) = &provider.error {
+                            ui.add_space(2.0);
+                            ui.label(RichText::new(error).size(FontSize::XS).color(Theme::RED));
+                        } else {
+                            if let Some(session_metric) = session_metric {
+                                ui.add_space(2.0);
+                                draw_summary_metric_bar(ui, &session_metric, brand_color);
+                            }
+
+                            if let Some(weekly_metric) = weekly_metric {
+                                ui.add_space(6.0);
+                                draw_summary_metric_bar(ui, &weekly_metric, brand_color);
+                            }
+                        }
+
+                        if let Some(plan) = &provider.plan {
+                            ui.add_space(2.0);
+                            ui.label(
+                                RichText::new(plan)
+                                    .size(FontSize::XS)
+                                    .color(Theme::TEXT_SECONDARY),
+                            );
+                        }
+                    }
+                }
+            });
+        });
+
+        ui.add_space(8.0);
+        draw_horizontal_separator(ui, 0.0);
+        ui.add_space(6.0);
+
+        if draw_menu_item(ui, "↻", locale_text(ui_language, LocaleKey::ActionRefresh)) {
+            refresh_requested = true;
+        }
+
+        refresh_requested
+    })
+    .inner
 }
 
 /// Draw a provider detail card - macOS UsageMenuCardView style
@@ -2700,7 +3018,39 @@ pub fn run() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::remote_session_error_message;
+    use super::{
+        ProviderData, remote_session_error_message, should_show_provider, summary_metric_display,
+        summary_metric_text,
+    };
+    use crate::settings::Language;
+    use crate::status::StatusLevel;
+
+    fn test_provider() -> ProviderData {
+        ProviderData {
+            name: "codex".to_string(),
+            display_name: "Codex".to_string(),
+            account: None,
+            session_percent: None,
+            session_reset: None,
+            weekly_percent: None,
+            weekly_reset: None,
+            model_percent: None,
+            model_name: None,
+            plan: None,
+            error: None,
+            dashboard_url: None,
+            pace_percent: None,
+            pace_lasts_to_reset: false,
+            cost_used: None,
+            credits_remaining: None,
+            credits_percent: None,
+            status_level: StatusLevel::Unknown,
+            status_description: None,
+            cost_history: Vec::new(),
+            credits_history: Vec::new(),
+            usage_breakdown: Vec::new(),
+        }
+    }
 
     #[test]
     fn remote_session_error_mentions_cli_and_log() {
@@ -2709,5 +3059,60 @@ mod tests {
         assert!(message.contains("Remote Desktop"));
         assert!(message.contains("codexbar usage -p claude"));
         assert!(message.contains("%TEMP%\\codexbar_launch.log"));
+    }
+
+    #[test]
+    fn should_show_provider_when_any_usage_exists() {
+        let mut provider = test_provider();
+        provider.weekly_percent = Some(42.0);
+
+        assert!(should_show_provider(&provider));
+    }
+
+    #[test]
+    fn should_show_provider_when_error_exists() {
+        let mut provider = test_provider();
+        provider.error = Some("Auth required".to_string());
+
+        assert!(should_show_provider(&provider));
+    }
+
+    #[test]
+    fn should_hide_provider_without_usage_or_error() {
+        let provider = test_provider();
+
+        assert!(!should_show_provider(&provider));
+    }
+
+    #[test]
+    fn summary_metric_text_uses_remaining_mode() {
+        let text = summary_metric_text(
+            "Weekly",
+            Some(20.0),
+            Some("3h 0m"),
+            false,
+            Language::English,
+        )
+        .expect("metric text");
+
+        assert!(text.contains("Weekly"));
+        assert!(text.contains("80%"));
+        assert!(text.contains("3h 0m"));
+    }
+
+    #[test]
+    fn summary_metric_display_preserves_used_percent_for_bar_fill() {
+        let display = summary_metric_display(
+            "Session",
+            Some(65.0),
+            Some("1h 30m"),
+            false,
+            Language::English,
+        )
+        .expect("metric display");
+
+        assert_eq!(display.label, "Session");
+        assert!((display.used_percent - 65.0).abs() < f64::EPSILON);
+        assert!(display.detail_text.contains("35%"));
     }
 }

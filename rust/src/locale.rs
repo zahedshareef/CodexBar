@@ -222,11 +222,13 @@ pub enum LocaleKey {
     ProviderNextReset,
     ProviderNoRecentUsage,
     ProviderNotSignedIn,
+    SummaryTab,
 
     // Main popup - Loading/Empty/Error states (non-happy-path)
     StateLoadingProviders,
     StateNoProviderData,
     StateNoProviderSelected,
+    StateSummaryRefreshPending,
     StateError,
     StateRetry,
     StateDownload,
@@ -560,11 +562,13 @@ impl LocaleKey {
             LocaleKey::ProviderNextReset => "Next Reset",
             LocaleKey::ProviderNoRecentUsage => "No recent usage",
             LocaleKey::ProviderNotSignedIn => "Not signed in",
+            LocaleKey::SummaryTab => "Summary",
 
             // Main popup - Loading/Empty/Error states
             LocaleKey::StateLoadingProviders => "Loading providers...",
             LocaleKey::StateNoProviderData => "No provider data.",
             LocaleKey::StateNoProviderSelected => "No provider selected.",
+            LocaleKey::StateSummaryRefreshPending => "Updating after all provider refreshes finish",
             LocaleKey::StateError => "Error",
             LocaleKey::StateRetry => "Retry",
             LocaleKey::StateDownload => "Download",
@@ -909,11 +913,13 @@ impl LocaleKey {
             LocaleKey::ProviderNextReset => "下次重置",
             LocaleKey::ProviderNoRecentUsage => "暂无用量",
             LocaleKey::ProviderNotSignedIn => "未登录",
+            LocaleKey::SummaryTab => "汇总",
 
             // Main popup - Loading/Empty/Error states
             LocaleKey::StateLoadingProviders => "正在加载服务商...",
             LocaleKey::StateNoProviderData => "暂无服务商数据。",
             LocaleKey::StateNoProviderSelected => "尚未选择服务商。",
+            LocaleKey::StateSummaryRefreshPending => "将在全部服务商刷新完成后更新",
             LocaleKey::StateError => "错误",
             LocaleKey::StateRetry => "重试",
             LocaleKey::StateDownload => "下载",
@@ -1194,10 +1200,12 @@ mod tests {
             LocaleKey::ProviderNextReset,
             LocaleKey::ProviderNoRecentUsage,
             LocaleKey::ProviderNotSignedIn,
+            LocaleKey::SummaryTab,
             // Main popup - Loading/Empty/Error states
             LocaleKey::StateLoadingProviders,
             LocaleKey::StateNoProviderData,
             LocaleKey::StateNoProviderSelected,
+            LocaleKey::StateSummaryRefreshPending,
             LocaleKey::StateError,
             LocaleKey::StateRetry,
             LocaleKey::StateDownload,
