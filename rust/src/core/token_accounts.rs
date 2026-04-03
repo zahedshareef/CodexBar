@@ -116,7 +116,8 @@ impl TokenAccountSupport {
             | ProviderId::Alibaba
             | ProviderId::Warp
             | ProviderId::Ollama
-            | ProviderId::OpenRouter => None,
+            | ProviderId::OpenRouter
+            | ProviderId::NanoGPT => None,
         }
     }
 

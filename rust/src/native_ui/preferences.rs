@@ -921,7 +921,7 @@ impl PreferencesWindow {
         settings_card(ui, |ui| {
             // Authentication type
             let auth_type = match provider_name {
-                "openai" | "gemini" | "openrouter" => "API 密钥",
+                "openai" | "gemini" | "openrouter" | "nanogpt" => "API 密钥",
                 "claude" | "cursor" | "kimi" => "浏览器会话",
                 "ollama" => "本地运行（无需认证）",
                 "windsurf" => "浏览器会话",
@@ -938,6 +938,7 @@ impl PreferencesWindow {
                 "cursor" => "Cursor Settings API",
                 "ollama" => "Local Ollama Server",
                 "openrouter" => "OpenRouter Dashboard",
+                "nanogpt" => "NanoGPT Subscription API",
                 "windsurf" => "Windsurf API",
                 "kimi" => "Kimi Web Console",
                 _ => "Provider API",
@@ -951,6 +952,7 @@ impl PreferencesWindow {
                 "cursor" => "每月请求上限",
                 "openai" => "Token 用量与额度",
                 "gemini" => "每分钟请求数",
+                "nanogpt" => "订阅用量单位与上限",
                 _ => "用量追踪",
             };
             self.draw_info_row(ui, locale_text(lang, LocaleKey::TrackingItem), rate_info);
@@ -1041,6 +1043,11 @@ impl PreferencesWindow {
                 "cursor" => {
                     if text_button(ui, "→ 打开 Cursor 设置", Theme::ACCENT_PRIMARY) {
                         let _ = open::that("https://www.cursor.com/settings");
+                    }
+                }
+                "nanogpt" => {
+                    if text_button(ui, "→ 打开 NanoGPT 仪表盘", Theme::ACCENT_PRIMARY) {
+                        let _ = open::that("https://nano-gpt.com/usage");
                     }
                 }
                 "ollama" => {

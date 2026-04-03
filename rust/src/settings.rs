@@ -766,6 +766,15 @@ pub fn get_api_key_providers() -> Vec<ProviderConfigInfo> {
             config_file_path: None,
             dashboard_url: Some("https://openrouter.ai/settings/credits"),
         },
+        ProviderConfigInfo {
+            id: ProviderId::NanoGPT,
+            name: "NanoGPT",
+            requires_api_key: true,
+            api_key_env_var: Some("NANOGPT_API_KEY"),
+            api_key_help: Some("Get your API key from nano-gpt.com/api"),
+            config_file_path: None,
+            dashboard_url: Some("https://nano-gpt.com/api"),
+        },
     ]
 }
 

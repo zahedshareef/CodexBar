@@ -7,9 +7,9 @@ use crate::core::{FetchContext, Provider, ProviderFetchResult, ProviderId, Sourc
 use crate::providers::{
     AlibabaProvider, AmpProvider, AntigravityProvider, AugmentProvider, ClaudeProvider,
     CodexProvider, CopilotProvider, CursorProvider, FactoryProvider, GeminiProvider,
-    JetBrainsProvider, KimiK2Provider, KimiProvider, KiroProvider, MiniMaxProvider, OllamaProvider,
-    OpenCodeProvider, OpenRouterProvider, SyntheticProvider, VertexAIProvider, WarpProvider,
-    ZaiProvider,
+    JetBrainsProvider, KimiK2Provider, KimiProvider, KiroProvider, MiniMaxProvider,
+    NanoGPTProvider, OllamaProvider, OpenCodeProvider, OpenRouterProvider, SyntheticProvider,
+    VertexAIProvider, WarpProvider, ZaiProvider,
 };
 use crate::status::{ProviderStatus as StatusInfo, StatusLevel, fetch_provider_status};
 
@@ -160,6 +160,7 @@ fn create_provider(id: ProviderId) -> Box<dyn Provider> {
         ProviderId::Synthetic => Box::new(SyntheticProvider::new()),
         ProviderId::JetBrains => Box::new(JetBrainsProvider::new()),
         ProviderId::Alibaba => Box::new(AlibabaProvider::new()),
+        ProviderId::NanoGPT => Box::new(NanoGPTProvider::new()),
     }
 }
 
@@ -289,6 +290,7 @@ pub fn render_text_with_status(
     use_color: bool,
 ) -> String {
     let mut lines = Vec::new();
+    let metadata = create_provider(provider).metadata().clone();
 
     // Header with optional status indicator
     let status_indicator = if let Some(s) = status {
@@ -349,8 +351,11 @@ pub fn render_text_with_status(
         .map(|c| format!(" (resets in {})", c))
         .unwrap_or_default();
     lines.push(format!(
-        "  Session: {} {:.0}% used{}",
-        session_bar, primary.used_percent, session_reset
+        "  {:<8} {} {:.0}% used{}",
+        format!("{}:", metadata.session_label),
+        session_bar,
+        primary.used_percent,
+        session_reset
     ));
 
     // Secondary window
@@ -361,8 +366,11 @@ pub fn render_text_with_status(
             .map(|c| format!(" (resets in {})", c))
             .unwrap_or_default();
         lines.push(format!(
-            "  Weekly:  {} {:.0}% used{}",
-            weekly_bar, secondary.used_percent, weekly_reset
+            "  {:<8} {} {:.0}% used{}",
+            format!("{}:", metadata.weekly_label),
+            weekly_bar,
+            secondary.used_percent,
+            weekly_reset
         ));
     }
 
