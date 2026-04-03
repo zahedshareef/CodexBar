@@ -63,7 +63,7 @@ impl NanoGPTProvider {
                 id: ProviderId::NanoGPT,
                 display_name: "NanoGPT",
                 session_label: "Daily",
-                weekly_label: "Monthly",
+                weekly_label: "Weekly",
                 supports_opus: false,
                 supports_credits: false,
                 default_enabled: false,
