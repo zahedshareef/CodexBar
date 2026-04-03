@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.10] — 2026-04-03
+
+### Added
+- Added NanoGPT as a supported provider on current `main`, including daily/monthly usage parsing and the related Windows preferences wiring.
+
+### Fixed
+- Aligned the CLI help text with the actual supported provider set so `nanogpt` now appears in both top-level help and `codexbar usage --help`.
+
+---
+
 ## [1.2.9] — 2026-04-03
 
 ### Changed
@@ -172,7 +182,8 @@ Complete porting of Swift CodexBar features to Rust Windows version:
 
 ---
 
-[Unreleased]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.9...HEAD
+[Unreleased]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.10...HEAD
+[1.2.10]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.9...v1.2.10
 [1.2.9]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.8...v1.2.9
 [1.2.8]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.7...v1.2.8
 [1.0.1]: https://github.com/Finesssee/Win-CodexBar/compare/v1.0.0...v1.0.1
