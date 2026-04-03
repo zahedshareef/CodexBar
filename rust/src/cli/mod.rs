@@ -55,8 +55,7 @@ pub struct Cli {
     pub command: Option<Commands>,
 
     // === Top-level args for the default usage command ===
-    /// Provider to query (codex, claude, cursor, gemini, copilot, zed, antigravity, factory, all, both)
-    #[arg(short, long)]
+    #[arg(short, long, help = usage::PROVIDER_ARG_HELP)]
     pub provider: Option<String>,
 
     /// Output format: text or json
@@ -139,5 +138,38 @@ impl Cli {
             web_debug_dump_html: self.web_debug_dump_html,
             antigravity_plan_debug: self.antigravity_plan_debug,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::CommandFactory;
+
+    #[test]
+    fn top_level_help_mentions_nanogpt_provider() {
+        let mut command = Cli::command();
+        let mut output = Vec::new();
+        command
+            .write_long_help(&mut output)
+            .expect("top-level help should render");
+
+        let help = String::from_utf8(output).expect("help should be valid utf-8");
+        assert!(help.contains("nanogpt"));
+    }
+
+    #[test]
+    fn usage_subcommand_help_mentions_nanogpt_provider() {
+        let mut command = Cli::command();
+        let usage = command
+            .find_subcommand_mut("usage")
+            .expect("usage subcommand should exist");
+        let mut output = Vec::new();
+        usage
+            .write_long_help(&mut output)
+            .expect("usage help should render");
+
+        let help = String::from_utf8(output).expect("help should be valid utf-8");
+        assert!(help.contains("nanogpt"));
     }
 }

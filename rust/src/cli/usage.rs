@@ -13,11 +13,13 @@ use crate::providers::{
 };
 use crate::status::{ProviderStatus as StatusInfo, StatusLevel, fetch_provider_status};
 
+pub const PROVIDER_ARG_HELP: &str =
+    "Provider to query (for example: codex, claude, gemini, zai, nanogpt, all, both)";
+
 /// Arguments for the usage command
 #[derive(Args, Debug, Default)]
 pub struct UsageArgs {
-    /// Provider to query (codex, claude, cursor, gemini, copilot, zai, antigravity, factory, all, both)
-    #[arg(short, long)]
+    #[arg(short, long, help = PROVIDER_ARG_HELP)]
     pub provider: Option<String>,
 
     /// Output format: text or json
