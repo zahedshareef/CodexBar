@@ -140,6 +140,16 @@ fn run() -> i32 {
             #[cfg(windows)]
             hide_console_window();
 
+            let log_path = std::env::temp_dir().join("codexbar_launch.log");
+            let _ = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)
+                .and_then(|mut f| {
+                    use std::io::Write;
+                    writeln!(f, "Launching native_ui::run() from menubar")
+                });
+
             if wsl::is_wsl() {
                 tracing::info!(
                     "Running in WSL — GUI requires WSLg or an X server. \
@@ -159,7 +169,17 @@ fn run() -> i32 {
 
             match native_ui::run() {
                 Ok(()) => exit_codes::SUCCESS,
-                Err(_) => exit_codes::UNEXPECTED_FAILURE,
+                Err(e) => {
+                    let _ = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&log_path)
+                        .and_then(|mut f| {
+                            use std::io::Write;
+                            writeln!(f, "native_ui error: {:?}", e)
+                        });
+                    exit_codes::UNEXPECTED_FAILURE
+                }
             }
         }
         Some(Commands::Autostart(args)) => rt.block_on(async {

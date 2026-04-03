@@ -239,7 +239,7 @@ impl CookieExtractor {
         use windows::Win32::Security::Cryptography::{CRYPT_INTEGER_BLOB, CryptUnprotectData};
 
         unsafe {
-            let mut input_blob = CRYPT_INTEGER_BLOB {
+            let input_blob = CRYPT_INTEGER_BLOB {
                 cbData: encrypted_data.len() as u32,
                 pbData: encrypted_data.as_ptr() as *mut u8,
             };
@@ -250,7 +250,7 @@ impl CookieExtractor {
             };
 
             let result =
-                CryptUnprotectData(&mut input_blob, None, None, None, None, 0, &mut output_blob);
+                CryptUnprotectData(&input_blob, None, None, None, None, 0, &mut output_blob);
 
             if result.is_err() {
                 return Err(CookieError::Dpapi(format!(

@@ -25,8 +25,8 @@ In `../homebrew-tap`, add/update the cask at `Casks/codexbar.rb`:
 ## 2b) Update the Homebrew tap formula (Linux CLI)
 In `../homebrew-tap`, add/update the formula at `Formula/codexbar.rb`:
 - `url` points at the GitHub release assets:
-  - `.../releases/download/v<version>/CodexBarCLI-v<version>-linux-aarch64.tar.gz`
-  - `.../releases/download/v<version>/CodexBarCLI-v<version>-linux-x86_64.tar.gz`
+  - `.../releases/download/v<version>/codexbar-v<version>-linux-aarch64.tar.gz`
+  - `.../releases/download/v<version>/codexbar-v<version>-linux-x86_64.tar.gz`
 - Update both `sha256` values to match those tarballs.
 
 ## 3) Verify install

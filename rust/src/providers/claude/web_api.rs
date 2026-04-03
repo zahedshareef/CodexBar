@@ -82,10 +82,15 @@ impl ClaudeWebApiFetcher {
         }
     }
 
-    /// Fetch usage using browser cookies
+    /// Fetch usage using browser cookies or env-var session key
     pub async fn fetch_with_cookies(&self) -> Result<ProviderFetchResult, ProviderError> {
+        if let Some(session_key) = Self::resolve_session_key_from_env() {
+            tracing::debug!("Using Claude session key from environment variable");
+            let cookie_header = format!("sessionKey={session_key}");
+            return self.fetch_with_cookie_header(&cookie_header).await;
+        }
+
         // Try multiple domains - Claude uses different domains for different services
-        // console.anthropic.com has the sessionKey for API access
         let domains = [
             "claude.ai",
             "claude.com",
@@ -118,18 +123,20 @@ impl ClaudeWebApiFetcher {
     ) -> Result<ProviderFetchResult, ProviderError> {
         tracing::debug!("Fetching Claude usage via web API");
 
+        let headers = Self::build_headers(cookie_header);
+
         // Step 1: Get organization ID
-        let org_id = self.get_organization_id(cookie_header).await?;
+        let org_id = self.get_organization_id(&headers).await?;
         tracing::debug!("Got organization ID: {}", org_id);
 
         // Step 2: Fetch usage data
-        let usage = self.get_usage(&org_id, cookie_header).await?;
+        let usage = self.get_usage(&org_id, &headers).await?;
 
         // Step 3: Fetch extra usage (credits) - optional
-        let extra_usage = self.get_extra_usage(&org_id, cookie_header).await.ok();
+        let extra_usage = self.get_extra_usage(&org_id, &headers).await.ok();
 
         // Step 4: Fetch account info - optional
-        let account = self.get_account_info(cookie_header).await.ok();
+        let account = self.get_account_info(&headers).await.ok();
 
         // Build the result
         let primary = usage
@@ -193,15 +200,72 @@ impl ClaudeWebApiFetcher {
         Ok(result)
     }
 
+    fn build_headers(cookie_header: &str) -> reqwest::header::HeaderMap {
+        use reqwest::header::HeaderValue;
+
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Ok(cookie) = HeaderValue::from_str(cookie_header) {
+            headers.insert(header::COOKIE, cookie);
+        }
+        headers.insert(header::ACCEPT, HeaderValue::from_static("application/json"));
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("https://claude.ai"),
+        );
+        headers.insert(
+            header::REFERER,
+            HeaderValue::from_static("https://claude.ai/settings/usage"),
+        );
+        headers.insert(
+            header::USER_AGENT,
+            HeaderValue::from_static(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+                 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36",
+            ),
+        );
+        headers.insert(
+            reqwest::header::HeaderName::from_static("anthropic-client-platform"),
+            HeaderValue::from_static("web_claude_ai"),
+        );
+
+        headers
+    }
+
+    fn resolve_session_key_from_env() -> Option<String> {
+        for env_name in ["CLAUDE_AI_SESSION_KEY", "CLAUDE_WEB_SESSION_KEY"] {
+            let Ok(value) = std::env::var(env_name) else {
+                continue;
+            };
+
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+
+            let normalized = trimmed
+                .strip_prefix("sessionKey=")
+                .unwrap_or(trimmed)
+                .trim();
+
+            if !normalized.is_empty() {
+                return Some(normalized.to_string());
+            }
+        }
+
+        None
+    }
+
     /// Get the organization ID
-    async fn get_organization_id(&self, cookie_header: &str) -> Result<String, ProviderError> {
+    async fn get_organization_id(
+        &self,
+        headers: &reqwest::header::HeaderMap,
+    ) -> Result<String, ProviderError> {
         let url = format!("{}/organizations", Self::BASE_URL);
 
         let response = self
             .client
             .get(&url)
-            .header(header::COOKIE, cookie_header)
-            .header(header::ACCEPT, "application/json")
+            .headers(headers.clone())
             .send()
             .await?;
 
@@ -227,15 +291,14 @@ impl ClaudeWebApiFetcher {
     async fn get_usage(
         &self,
         org_id: &str,
-        cookie_header: &str,
+        headers: &reqwest::header::HeaderMap,
     ) -> Result<UsageResponse, ProviderError> {
         let url = format!("{}/organizations/{}/usage", Self::BASE_URL, org_id);
 
         let response = self
             .client
             .get(&url)
-            .header(header::COOKIE, cookie_header)
-            .header(header::ACCEPT, "application/json")
+            .headers(headers.clone())
             .send()
             .await?;
 
@@ -256,7 +319,7 @@ impl ClaudeWebApiFetcher {
     async fn get_extra_usage(
         &self,
         org_id: &str,
-        cookie_header: &str,
+        headers: &reqwest::header::HeaderMap,
     ) -> Result<ExtraUsageResponse, ProviderError> {
         let url = format!(
             "{}/organizations/{}/overage_spend_limit",
@@ -267,8 +330,7 @@ impl ClaudeWebApiFetcher {
         let response = self
             .client
             .get(&url)
-            .header(header::COOKIE, cookie_header)
-            .header(header::ACCEPT, "application/json")
+            .headers(headers.clone())
             .send()
             .await?;
 
@@ -288,15 +350,14 @@ impl ClaudeWebApiFetcher {
     /// Get account info
     async fn get_account_info(
         &self,
-        cookie_header: &str,
+        headers: &reqwest::header::HeaderMap,
     ) -> Result<AccountResponse, ProviderError> {
         let url = format!("{}/account", Self::BASE_URL);
 
         let response = self
             .client
             .get(&url)
-            .header(header::COOKIE, cookie_header)
-            .header(header::ACCEPT, "application/json")
+            .headers(headers.clone())
             .send()
             .await?;
 
@@ -374,6 +435,13 @@ fn normalize_utilization(utilization: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::{ClaudeWebApiFetcher, UsageWindow};
+    use reqwest::header;
+    use std::sync::{Mutex, OnceLock};
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn converts_fractional_utilization_to_percent() {
@@ -397,5 +465,81 @@ mod tests {
         let rate = ClaudeWebApiFetcher::new().to_rate_window(&window, Some(300));
 
         assert!((rate.used_percent - 23.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn resolves_raw_session_key_from_primary_env_var() {
+        let _guard = env_lock().lock().expect("env lock");
+        unsafe {
+            std::env::remove_var("CLAUDE_AI_SESSION_KEY");
+            std::env::remove_var("CLAUDE_WEB_SESSION_KEY");
+            std::env::set_var("CLAUDE_AI_SESSION_KEY", "sk-ant-primary");
+            std::env::set_var("CLAUDE_WEB_SESSION_KEY", "sk-ant-secondary");
+        }
+
+        let session_key = ClaudeWebApiFetcher::resolve_session_key_from_env();
+
+        assert_eq!(session_key.as_deref(), Some("sk-ant-primary"));
+
+        unsafe {
+            std::env::remove_var("CLAUDE_AI_SESSION_KEY");
+            std::env::remove_var("CLAUDE_WEB_SESSION_KEY");
+        }
+    }
+
+    #[test]
+    fn resolves_session_key_assignment_from_env_var() {
+        let _guard = env_lock().lock().expect("env lock");
+        unsafe {
+            std::env::remove_var("CLAUDE_AI_SESSION_KEY");
+            std::env::remove_var("CLAUDE_WEB_SESSION_KEY");
+            std::env::set_var("CLAUDE_WEB_SESSION_KEY", "sessionKey=sk-ant-cookie-format");
+        }
+
+        let session_key = ClaudeWebApiFetcher::resolve_session_key_from_env();
+
+        assert_eq!(session_key.as_deref(), Some("sk-ant-cookie-format"));
+
+        unsafe {
+            std::env::remove_var("CLAUDE_AI_SESSION_KEY");
+            std::env::remove_var("CLAUDE_WEB_SESSION_KEY");
+        }
+    }
+
+    #[test]
+    fn build_headers_include_required_browser_context() {
+        let headers = ClaudeWebApiFetcher::build_headers("sessionKey=sk-ant-cookie-format");
+
+        assert_eq!(
+            headers
+                .get(header::COOKIE)
+                .and_then(|value| value.to_str().ok()),
+            Some("sessionKey=sk-ant-cookie-format")
+        );
+        assert_eq!(
+            headers
+                .get(header::ACCEPT)
+                .and_then(|value| value.to_str().ok()),
+            Some("application/json")
+        );
+        assert_eq!(
+            headers
+                .get(header::ORIGIN)
+                .and_then(|value| value.to_str().ok()),
+            Some("https://claude.ai")
+        );
+        assert_eq!(
+            headers
+                .get(header::REFERER)
+                .and_then(|value| value.to_str().ok()),
+            Some("https://claude.ai/settings/usage")
+        );
+        assert_eq!(
+            headers
+                .get("anthropic-client-platform")
+                .and_then(|value| value.to_str().ok()),
+            Some("web_claude_ai")
+        );
+        assert!(headers.contains_key(header::USER_AGENT));
     }
 }
