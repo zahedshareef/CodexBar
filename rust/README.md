@@ -36,6 +36,8 @@ Download the latest release from the [Releases](https://github.com/Finesssee/Win
   - This installer now installs the required Microsoft Visual C++ runtime on clean Windows machines before launching CodexBar.
 - Portable: `codexbar.exe`
   - Best for machines that already have the Microsoft Visual C++ runtime installed.
+- Linux CLI: `codexbar-v<version>-linux-x86_64.tar.gz` or `codexbar-v<version>-linux-aarch64.tar.gz`
+  - Includes the standalone `codexbar` CLI binary plus README and license files.
 
 ### Build from Source
 
@@ -135,7 +137,7 @@ Each provider has different authentication methods:
 
 | Provider | Auth Method |
 |----------|-------------|
-| Claude | Browser cookies (Chrome/Edge), OAuth |
+| Claude | Browser cookies (Chrome/Edge), OAuth, session env vars |
 | Codex | Local CLI, Browser cookies |
 | Cursor | Browser cookies |
 | Gemini | gcloud CLI credentials |
@@ -147,6 +149,17 @@ Each provider has different authentication methods:
 | Vertex AI | gcloud OAuth |
 | Augment | VS Code extension |
 | MiniMax | API key |
+
+### Claude session env vars
+
+When browser cookie extraction is unreliable, Claude can also read a session key from the environment:
+
+```powershell
+$env:CLAUDE_AI_SESSION_KEY = "sk-ant-..."
+codexbar -p claude
+```
+
+`CLAUDE_AI_SESSION_KEY` and `CLAUDE_WEB_SESSION_KEY` both work. Each accepts either the raw token or the full cookie-style value, for example `sessionKey=sk-ant-...`.
 
 ## Screenshots
 
@@ -179,6 +192,12 @@ A badge appears in the corner for status issues:
 
 ```powershell
 cargo test
+```
+
+On Linux hosts, override the repo's default Windows target:
+
+```bash
+cargo test --target x86_64-unknown-linux-gnu
 ```
 
 ### Project Structure

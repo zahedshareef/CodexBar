@@ -139,7 +139,7 @@ impl CopilotApi {
         let token = unsafe {
             let cred = &*credential;
             if cred.CredentialBlobSize == 0 || cred.CredentialBlob.is_null() {
-                let _ = CredFree(credential as *mut std::ffi::c_void);
+                CredFree(credential as *mut std::ffi::c_void);
                 return None;
             }
 
@@ -147,7 +147,7 @@ impl CopilotApi {
                 std::slice::from_raw_parts(cred.CredentialBlob, cred.CredentialBlobSize as usize);
 
             let token = String::from_utf8_lossy(blob).to_string();
-            let _ = CredFree(credential as *mut std::ffi::c_void);
+            CredFree(credential as *mut std::ffi::c_void);
             token
         };
 

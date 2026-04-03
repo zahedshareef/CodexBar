@@ -2,89 +2,170 @@ name: CI
 
 on:
   push:
-    branches: ["*"]
+    branches:
+      - "**"
   pull_request:
 
 jobs:
-  lint-build-test:
-    runs-on: macos-latest
+  rust-quality-linux:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
 
-      - name: Select Xcode 26.1.1 (if present) or fallback to default
+      - name: Install Linux system dependencies
         run: |
           set -euo pipefail
-          for candidate in /Applications/Xcode_26.1.1.app /Applications/Xcode_26.1.app /Applications/Xcode.app; do
-            if [[ -d "$candidate" ]]; then
-              sudo xcode-select -s "$candidate"
-              echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
-              break
-            fi
-          done
-          /usr/bin/xcodebuild -version
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev
 
-      - name: Install Swift 6.2 toolchain
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Check formatting
+        run: cargo fmt --manifest-path rust/Cargo.toml --all --check
+
+      - name: Run clippy
+        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets --target x86_64-unknown-linux-gnu -- -D warnings
+
+      - name: Run tests
+        run: cargo test --manifest-path rust/Cargo.toml --target x86_64-unknown-linux-gnu
+
+  windows-build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: x86_64-pc-windows-msvc
+
+      - name: Run clippy
+        shell: bash
+        run: cargo clippy --manifest-path rust/Cargo.toml --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+
+      - name: Run tests
+        shell: bash
+        run: cargo test --manifest-path rust/Cargo.toml --target x86_64-pc-windows-msvc
+
+      - name: Build release binary
+        shell: bash
         run: |
-          curl -L https://download.swift.org/swift-6.2-release/xcode/swift-6.2-RELEASE/swift-6.2-RELEASE-osx.pkg -o /tmp/swift.pkg
-          # Verify Apple package signature before installing
-          pkgutil --check-signature /tmp/swift.pkg
-          sudo installer -pkg /tmp/swift.pkg -target /
-          echo "/Library/Developer/Toolchains/swift-6.2-RELEASE.xctoolchain/usr/bin" >> "$GITHUB_PATH"
-          echo "TOOLCHAINS=swift-6.2-RELEASE" >> "$GITHUB_ENV"
+          set -euo pipefail
+          cargo build \
+            --manifest-path rust/Cargo.toml \
+            --release \
+            --target x86_64-pc-windows-msvc \
+            --bin codexbar
 
-      - name: Install lint tools
-        run: brew install swiftlint swiftformat
+      - name: Smoke test Windows CLI
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "rust\target\x86_64-pc-windows-msvc\release\codexbar.exe"
+          $log = Join-Path $env:TEMP "codexbar_launch.log"
+          Remove-Item $log -Force -ErrorAction SilentlyContinue
 
-      - name: SwiftFormat (lint)
-        run: swiftformat Sources Tests --lint
+          $proc = Start-Process -FilePath $exe -ArgumentList "--version" -WindowStyle Hidden -PassThru
+          $proc.WaitForExit()
+          $proc.Refresh()
 
-      - name: SwiftLint
-        run: swiftlint --strict
+          if ($proc.ExitCode -ne 0) {
+            if (Test-Path $log) {
+              Write-Host (Get-Content $log -Raw)
+            }
+            throw "codexbar.exe --version exited with code $($proc.ExitCode)"
+          }
 
-      - name: Swift Test
-        run: swift test --parallel
+          if (-not (Test-Path $log)) {
+            throw "codexbar.exe --version did not create the expected launch log"
+          }
 
-  build-linux-cli:
+          $logContent = Get-Content $log -Raw
+          Write-Host "codexbar.exe --version exit code: $($proc.ExitCode)"
+          Write-Host $logContent
+
+          if ($logContent -notmatch '--version') {
+            throw "codexbar.exe --version launch log did not record the CLI arguments"
+          }
+
+      - name: Smoke test Windows menubar launch
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "rust\target\x86_64-pc-windows-msvc\release\codexbar.exe"
+          $log = Join-Path $env:TEMP "codexbar_launch.log"
+          Remove-Item $log -Force -ErrorAction SilentlyContinue
+          $proc = Start-Process -FilePath $exe -ArgumentList "menubar" -WindowStyle Hidden -PassThru
+          $stillRunning = -not $proc.WaitForExit(8000)
+          $proc.Refresh()
+
+          if (-not (Test-Path $log)) {
+            throw "codexbar menubar did not create the expected launch log"
+          }
+
+          $logContent = Get-Content $log -Raw
+          Write-Host "codexbar menubar exit code: $($proc.ExitCode)"
+          Write-Host $logContent
+
+          if ($logContent -notmatch 'menubar') {
+            throw "codexbar menubar launch log did not record the command"
+          }
+
+          if ($stillRunning) {
+            Stop-Process -Id $proc.Id -Force
+            Wait-Process -Id $proc.Id -Timeout 15 -ErrorAction SilentlyContinue
+            return
+          }
+
+          if (
+            $logContent -match 'Remote Desktop' -or
+            $logContent -match 'egui_glow: OpenGL: egui_glow requires opengl 2\.0\+'
+          ) {
+            Write-Host "codexbar menubar exited because the GitHub Windows runner lacks a usable interactive graphics session; treating that as expected for CI."
+            return
+          }
+
+          throw "codexbar menubar exited before the smoke check completed"
+
+  linux-cli-smoke:
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: linux-x64
             runs-on: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            arch: x86_64
           - name: linux-arm64
             runs-on: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: aarch64
     runs-on: ${{ matrix.runs-on }}
     steps:
       - uses: actions/checkout@v6
 
-      - name: Runner info
+      - name: Install Linux system dependencies
         run: |
           set -euo pipefail
-          uname -a
-          uname -m
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev
 
-      - name: Setup Swift 6.2.1
-        uses: swift-actions/setup-swift@v3
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          swift-version: "6.2.1"
+          targets: ${{ matrix.target }}
 
-      - name: Build CodexBarCLI (release, static Swift stdlib)
-        run: swift build -c release --product CodexBarCLI --static-swift-stdlib
+      - name: Build Linux CLI
+        run: cargo build --manifest-path rust/Cargo.toml --release --target ${{ matrix.target }} --bin codexbar
 
-      - name: Swift Test (Linux only)
-        run: swift test --parallel
-
-      - name: Smoke test CodexBarCLI
+      - name: Smoke test CLI
         shell: bash
         run: |
           set -euo pipefail
-          BIN_DIR="$(swift build -c release --product CodexBarCLI --static-swift-stdlib --show-bin-path)"
-          BIN="$BIN_DIR/CodexBarCLI"
+          BIN="rust/target/${{ matrix.target }}/release/codexbar"
           "$BIN" --help >/dev/null
           "$BIN" --version >/dev/null
-          if "$BIN" usage --provider codex --web >/dev/null 2>&1; then
-            echo "Expected --web to fail on Linux"
-            exit 1
-          fi
-          "$BIN" usage --provider codex --web 2>&1 | tee /tmp/codexbarcli-stderr.txt >/dev/null || true
-          grep -q "macOS" /tmp/codexbarcli-stderr.txt
+          "$BIN" usage --help >/dev/null

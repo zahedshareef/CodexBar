@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.9] — 2026-04-03
+
+### Changed
+- Added a Summary view to the Windows popup so enabled providers can be scanned together without switching cards one by one, while keeping the native Windows title bar and resize behavior intact.
+- Replaced the stale root Swift CI and Linux release workflows with Rust-native automation that validates and packages the `codexbar` binary from `rust/`.
+
+### Fixed
+- Claude web usage fetching now accepts `CLAUDE_AI_SESSION_KEY` and `CLAUDE_WEB_SESSION_KEY` values as either raw session tokens or `sessionKey=...`, and it sends the shared browser-style headers Claude expects on every API request.
+- Localized the new Summary-view strings in both English and Chinese instead of shipping hardcoded English labels.
+
+---
+
 ## [1.2.8] — 2026-03-31
 
 ### Changed
@@ -160,7 +172,8 @@ Complete porting of Swift CodexBar features to Rust Windows version:
 
 ---
 
-[Unreleased]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.8...HEAD
+[Unreleased]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.9...HEAD
+[1.2.9]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.8...v1.2.9
 [1.2.8]: https://github.com/Finesssee/Win-CodexBar/compare/v1.2.7...v1.2.8
 [1.0.1]: https://github.com/Finesssee/Win-CodexBar/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Finesssee/Win-CodexBar/releases/tag/v1.0.0
