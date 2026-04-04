@@ -36,6 +36,7 @@ pub enum UpdateDelivery {
 pub struct UpdateInfo {
     pub version: String,
     pub download_url: String,
+    pub expected_sha256: Option<String>,
     #[allow(dead_code)]
     pub release_url: String,
     #[allow(dead_code)]
@@ -49,7 +50,7 @@ impl UpdateInfo {
     }
 
     pub fn supports_auto_download(&self) -> bool {
-        self.delivery == UpdateDelivery::Installer
+        self.delivery == UpdateDelivery::Installer && self.expected_sha256.is_some()
     }
 }
 
@@ -70,6 +71,8 @@ struct GitHubRelease {
 struct GitHubAsset {
     name: String,
     browser_download_url: String,
+    #[serde(default)]
+    digest: Option<String>,
 }
 
 /// Check for updates from GitHub releases
@@ -147,18 +150,24 @@ fn select_release_target(release: &GitHubRelease) -> Option<UpdateInfo> {
         .iter()
         .find(|a| is_installer_asset_name(&a.name));
 
-    let (download_url, delivery) = if let Some(asset) = installer {
+    let (download_url, delivery, expected_sha256) = if let Some(asset) = installer {
         (
             asset.browser_download_url.clone(),
             UpdateDelivery::Installer,
+            asset
+                .digest
+                .as_deref()
+                .and_then(parse_sha256_digest)
+                .map(str::to_string),
         )
     } else {
-        (release.html_url.clone(), UpdateDelivery::Manual)
+        (release.html_url.clone(), UpdateDelivery::Manual, None)
     };
 
     Some(UpdateInfo {
         version: release.tag_name.clone(),
         download_url,
+        expected_sha256,
         release_url: release.html_url.clone(),
         release_notes: release.body.clone().unwrap_or_default(),
         delivery,
@@ -202,6 +211,20 @@ fn installer_version_from_name(name: &str) -> Option<(u32, u32, u32)> {
     }
 
     Some(version)
+}
+
+fn parse_sha256_digest(digest: &str) -> Option<&str> {
+    let (algo, hex) = digest.split_once(':')?;
+    if !algo.eq_ignore_ascii_case("sha256") {
+        return None;
+    }
+
+    let hex = hex.trim();
+    if hex.len() == 64 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        Some(hex)
+    } else {
+        None
+    }
 }
 
 /// Compare semantic versions, returns true if remote is newer
@@ -308,8 +331,15 @@ pub async fn download_update(
         .await
         .map_err(|e| format!("Failed to flush file: {}", e))?;
 
-    // Verify download integrity using SHA256 checksum from release
-    verify_download_hash(&client, &update_info.download_url, &file_path).await?;
+    // Verify download integrity using SHA256 checksum from release metadata
+    verify_download_hash(
+        &file_path,
+        update_info
+            .expected_sha256
+            .as_deref()
+            .ok_or_else(|| "Missing SHA256 digest for update asset".to_string())?,
+    )
+    .await?;
 
     // Signal download complete
     let _ = progress_tx.send(UpdateState::Ready(file_path.clone()));
@@ -317,49 +347,14 @@ pub async fn download_update(
     Ok(file_path)
 }
 
-/// Verify the SHA256 hash of a downloaded file against a .sha256 sidecar file
-async fn verify_download_hash(
-    client: &reqwest::Client,
-    download_url: &str,
-    file_path: &PathBuf,
-) -> Result<(), String> {
+/// Verify the SHA256 hash of a downloaded file against release metadata.
+async fn verify_download_hash(file_path: &PathBuf, expected_hash: &str) -> Result<(), String> {
+    let expected = expected_hash.trim().to_ascii_lowercase();
+    if expected.len() != 64 || !expected.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err("Invalid SHA256 digest provided for update asset".to_string());
+    }
+
     use sha2::{Digest, Sha256};
-
-    let hash_url = format!("{}.sha256", download_url);
-
-    let hash_resp = client
-        .get(&hash_url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch checksum: {}", e))?;
-
-    if !hash_resp.status().is_success() {
-        tracing::warn!(
-            "No SHA256 checksum file found at {}. Skipping verification — consider publishing a .sha256 sidecar.",
-            hash_url
-        );
-        return Ok(());
-    }
-
-    let expected_hash = hash_resp
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read checksum: {}", e))?;
-
-    // Parse hash (format: "hash  filename" or just "hash")
-    let expected = expected_hash
-        .split_whitespace()
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_lowercase();
-
-    if expected.len() != 64 {
-        return Err(format!(
-            "Invalid SHA256 hash length: {} chars",
-            expected.len()
-        ));
-    }
 
     let file_bytes = tokio::fs::read(file_path)
         .await
@@ -372,10 +367,7 @@ async fn verify_download_hash(
     if actual != expected {
         // Delete the corrupted file
         let _ = tokio::fs::remove_file(file_path).await;
-        return Err(format!(
-            "SHA256 mismatch: expected {}, got {}. Download may be corrupted or tampered.",
-            expected, actual
-        ));
+        return Err("SHA256 mismatch. Download may be corrupted or tampered.".to_string());
     }
 
     tracing::info!("SHA256 verification passed for {:?}", file_path);
@@ -534,11 +526,16 @@ mod tests {
                 GitHubAsset {
                     name: "codexbar.exe".to_string(),
                     browser_download_url: "https://example.com/codexbar.exe".to_string(),
+                    digest: None,
                 },
                 GitHubAsset {
                     name: "CodexBar-1.2.6-Setup.exe".to_string(),
                     browser_download_url: "https://example.com/CodexBar-1.2.6-Setup.exe"
                         .to_string(),
+                    digest: Some(
+                        "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                            .to_string(),
+                    ),
                 },
             ],
             draft: false,
@@ -552,6 +549,7 @@ mod tests {
             "https://example.com/CodexBar-1.2.6-Setup.exe"
         );
         assert!(update.supports_auto_apply());
+        assert!(update.supports_auto_download());
     }
 
     #[test]
@@ -563,6 +561,7 @@ mod tests {
             assets: vec![GitHubAsset {
                 name: "codexbar.exe".to_string(),
                 browser_download_url: "https://example.com/codexbar.exe".to_string(),
+                digest: None,
             }],
             draft: false,
             prerelease: false,
