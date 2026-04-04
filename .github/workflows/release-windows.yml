@@ -49,9 +49,20 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force rust\target\installer-deps | Out-Null
+          $vcRedistPath = "rust\target\installer-deps\vc_redist.x64.exe"
           Invoke-WebRequest `
             -Uri "https://aka.ms/vc14/vc_redist.x64.exe" `
-            -OutFile "rust\target\installer-deps\vc_redist.x64.exe"
+            -OutFile $vcRedistPath
+
+          $signature = Get-AuthenticodeSignature -FilePath $vcRedistPath
+          if ($signature.Status -ne 'Valid') {
+            throw "vc_redist.x64.exe signature is not valid. Status: $($signature.Status)"
+          }
+
+          $subject = $signature.SignerCertificate.Subject
+          if ($subject -notlike '*Microsoft Corporation*') {
+            throw "vc_redist.x64.exe signer is unexpected: $subject"
+          }
 
       - name: Build installer
         shell: pwsh
