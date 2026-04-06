@@ -38,7 +38,9 @@ use crate::updater::{self, UpdateInfo, UpdateState};
 #[cfg(windows)]
 fn restore_main_window() {
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, IsIconic, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindow,
+        BringWindowToTop, FindWindowW, HWND_NOTOPMOST, HWND_TOP, HWND_TOPMOST, IsIconic,
+        SW_RESTORE, SW_SHOW, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow,
+        SetWindowPos, ShowWindow,
     };
     use windows::core::w;
 
@@ -51,6 +53,36 @@ fn restore_main_window() {
             } else {
                 let _ = ShowWindow(hwnd, SW_SHOW);
             }
+            // On the 2019 Parallels guest, ShowWindow + SetForegroundWindow alone can
+            // leave the window behind Parallels Tools. Nudge the Z-order explicitly first.
+            let _ = SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+            );
+            let _ = SetWindowPos(
+                hwnd,
+                HWND_NOTOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+            );
+            let _ = SetWindowPos(
+                hwnd,
+                HWND_TOP,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
+            );
+            let _ = BringWindowToTop(hwnd);
             let _ = SetForegroundWindow(hwnd);
         }
     }
@@ -58,7 +90,10 @@ fn restore_main_window() {
 
 #[cfg(windows)]
 fn show_main_window_no_focus() {
-    use windows::Win32::UI::WindowsAndMessaging::{FindWindowW, SW_SHOWNOACTIVATE, ShowWindow};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowW, HWND_TOP, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SWP_SHOWWINDOW, SetWindowPos, ShowWindow,
+    };
     use windows::core::w;
 
     unsafe {
@@ -66,6 +101,15 @@ fn show_main_window_no_focus() {
             && !hwnd.is_invalid()
         {
             let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            let _ = SetWindowPos(
+                hwnd,
+                HWND_TOP,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOACTIVATE,
+            );
         }
     }
 }
