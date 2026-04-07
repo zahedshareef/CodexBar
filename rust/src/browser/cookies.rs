@@ -134,16 +134,6 @@ impl CookieExtractor {
         })?;
         tracing::debug!("Temp DB at: {:?}", temp_db);
 
-        // Open and query the database
-        let conn = Connection::open(&temp_db)?;
-
-        // Query cookies for the domain
-        let mut stmt = conn.prepare(
-            "SELECT name, encrypted_value, host_key, path, expires_utc, is_secure, is_httponly
-             FROM cookies
-             WHERE host_key LIKE ?1 OR host_key LIKE ?2",
-        )?;
-
         let domain_pattern = format!("%{}", domain);
         let dot_domain_pattern = format!(".{}", domain);
         tracing::debug!(
@@ -153,45 +143,55 @@ impl CookieExtractor {
         );
 
         let mut cookies = Vec::new();
+        {
+            // Keep SQLite handles scoped so Windows can delete the temp DB afterward.
+            let conn = Connection::open(&temp_db)?;
 
-        let rows = stmt.query_map([&domain_pattern, &dot_domain_pattern], |row| {
-            Ok((
-                row.get::<_, String>(0)?,   // name
-                row.get::<_, Vec<u8>>(1)?,  // encrypted_value
-                row.get::<_, String>(2)?,   // host_key
-                row.get::<_, String>(3)?,   // path
-                row.get::<_, i64>(4)?,      // expires_utc
-                row.get::<_, i32>(5)? != 0, // is_secure
-                row.get::<_, i32>(6)? != 0, // is_httponly
-            ))
-        })?;
+            let mut stmt = conn.prepare(
+                "SELECT name, encrypted_value, host_key, path, expires_utc, is_secure, is_httponly
+                 FROM cookies
+                 WHERE host_key LIKE ?1 OR host_key LIKE ?2",
+            )?;
 
-        for row in rows {
-            let (name, encrypted_value, host_key, path, expires_utc, is_secure, is_http_only) =
-                row?;
+            let rows = stmt.query_map([&domain_pattern, &dot_domain_pattern], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,   // name
+                    row.get::<_, Vec<u8>>(1)?,  // encrypted_value
+                    row.get::<_, String>(2)?,   // host_key
+                    row.get::<_, String>(3)?,   // path
+                    row.get::<_, i64>(4)?,      // expires_utc
+                    row.get::<_, i32>(5)? != 0, // is_secure
+                    row.get::<_, i32>(6)? != 0, // is_httponly
+                ))
+            })?;
 
-            // Decrypt the cookie value
-            let value = match Self::decrypt_chromium_cookie(&encrypted_value, &encryption_key) {
-                Ok(v) => v,
-                Err(e) => {
-                    tracing::debug!("Failed to decrypt cookie {}: {}", name, e);
-                    continue;
-                }
-            };
+            for row in rows {
+                let (name, encrypted_value, host_key, path, expires_utc, is_secure, is_http_only) =
+                    row?;
 
-            cookies.push(Cookie {
-                name,
-                value,
-                domain: host_key,
-                path,
-                expires: if expires_utc > 0 {
-                    Some(expires_utc)
-                } else {
-                    None
-                },
-                is_secure,
-                is_http_only,
-            });
+                // Decrypt the cookie value
+                let value = match Self::decrypt_chromium_cookie(&encrypted_value, &encryption_key) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::debug!("Failed to decrypt cookie {}: {}", name, e);
+                        continue;
+                    }
+                };
+
+                cookies.push(Cookie {
+                    name,
+                    value,
+                    domain: host_key,
+                    path,
+                    expires: if expires_utc > 0 {
+                        Some(expires_utc)
+                    } else {
+                        None
+                    },
+                    is_secure,
+                    is_http_only,
+                });
+            }
         }
 
         tracing::debug!("Found {} cookies for {}", cookies.len(), domain);
@@ -395,33 +395,35 @@ impl CookieExtractor {
         // Copy to temp (browser may have it locked)
         let temp_db = Self::copy_to_temp(&cookies_db)?;
 
-        let conn = Connection::open(&temp_db)?;
-
-        let mut stmt = conn.prepare(
-            "SELECT name, value, host, path, expiry, isSecure, isHttpOnly
-             FROM moz_cookies
-             WHERE host LIKE ?1 OR host LIKE ?2",
-        )?;
-
         let domain_pattern = format!("%{}", domain);
         let dot_domain_pattern = format!(".{}", domain);
 
         let mut cookies = Vec::new();
+        {
+            // Keep SQLite handles scoped so Windows can delete the temp DB afterward.
+            let conn = Connection::open(&temp_db)?;
 
-        let rows = stmt.query_map([&domain_pattern, &dot_domain_pattern], |row| {
-            Ok(Cookie {
-                name: row.get(0)?,
-                value: row.get(1)?,
-                domain: row.get(2)?,
-                path: row.get(3)?,
-                expires: row.get(4).ok(),
-                is_secure: row.get::<_, i32>(5)? != 0,
-                is_http_only: row.get::<_, i32>(6)? != 0,
-            })
-        })?;
+            let mut stmt = conn.prepare(
+                "SELECT name, value, host, path, expiry, isSecure, isHttpOnly
+                 FROM moz_cookies
+                 WHERE host LIKE ?1 OR host LIKE ?2",
+            )?;
 
-        for row in rows {
-            cookies.push(row?);
+            let rows = stmt.query_map([&domain_pattern, &dot_domain_pattern], |row| {
+                Ok(Cookie {
+                    name: row.get(0)?,
+                    value: row.get(1)?,
+                    domain: row.get(2)?,
+                    path: row.get(3)?,
+                    expires: row.get(4).ok(),
+                    is_secure: row.get::<_, i32>(5)? != 0,
+                    is_http_only: row.get::<_, i32>(6)? != 0,
+                })
+            })?;
+
+            for row in rows {
+                cookies.push(row?);
+            }
         }
 
         // Clean up
