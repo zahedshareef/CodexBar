@@ -116,6 +116,30 @@ pub(crate) struct PreferencesDebugStatusMessage {
 pub(crate) struct PreferencesDebugSettingsSnapshot {
     pub enabled_providers: Vec<String>,
     pub refresh_interval_secs: u64,
+    pub reset_time_relative: bool,
+    pub surprise_animations: bool,
+    pub show_as_used: bool,
+    pub show_credits_extra_usage: bool,
+    pub merge_tray_icons: bool,
+    pub tray_icon_mode: String,
+}
+
+fn set_merge_tray_icons(settings: &mut Settings, enabled: bool) {
+    settings.merge_tray_icons = enabled;
+    if enabled {
+        settings.tray_icon_mode = TrayIconMode::Single;
+    }
+}
+
+fn set_per_provider_tray_icons(settings: &mut Settings, enabled: bool) {
+    settings.tray_icon_mode = if enabled {
+        TrayIconMode::PerProvider
+    } else {
+        TrayIconMode::Single
+    };
+    if enabled {
+        settings.merge_tray_icons = false;
+    }
 }
 
 /// Preferences window state
@@ -392,6 +416,17 @@ impl PreferencesWindow {
                 PreferencesDebugSettingsSnapshot {
                     enabled_providers,
                     refresh_interval_secs: state.settings.refresh_interval_secs,
+                    reset_time_relative: state.settings.reset_time_relative,
+                    surprise_animations: state.settings.surprise_animations,
+                    show_as_used: state.settings.show_as_used,
+                    show_credits_extra_usage: state.settings.show_credits_extra_usage,
+                    merge_tray_icons: state.settings.merge_tray_icons,
+                    tray_icon_mode: match state.settings.tray_icon_mode {
+                        TrayIconMode::Single => "single".to_string(),
+                        // Match settings.json serialization so debug exports and persisted
+                        // state speak the same enum value.
+                        TrayIconMode::PerProvider => "perprovider".to_string(),
+                    },
                 },
                 state
                     .api_key_status_msg
@@ -414,6 +449,12 @@ impl PreferencesWindow {
                 PreferencesDebugSettingsSnapshot {
                     enabled_providers: Vec::new(),
                     refresh_interval_secs: 0,
+                    reset_time_relative: false,
+                    surprise_animations: false,
+                    show_as_used: false,
+                    show_credits_extra_usage: false,
+                    merge_tray_icons: false,
+                    tray_icon_mode: "single".to_string(),
                 },
                 None,
                 None,
@@ -485,6 +526,36 @@ impl PreferencesWindow {
             state.is_open = true;
             state.active_tab = PreferencesTab::Advanced;
             state.settings.refresh_interval_secs = seconds;
+            state.settings_changed = true;
+            state.api_key_status_msg = None;
+            state.cookie_status_msg = None;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn set_display_setting_for_testing(&mut self, name: &str, enabled: bool) {
+        if !self.is_open {
+            self.open();
+        }
+
+        self.active_tab = PreferencesTab::Display;
+        if let Ok(mut state) = self.shared_state.lock() {
+            state.is_open = true;
+            state.active_tab = PreferencesTab::Display;
+            match name.trim() {
+                "reset_time_relative" => state.settings.reset_time_relative = enabled,
+                "surprise_animations" => state.settings.surprise_animations = enabled,
+                "show_as_used" => state.settings.show_as_used = enabled,
+                "show_credits_extra_usage" => state.settings.show_credits_extra_usage = enabled,
+                "merge_tray_icons" => set_merge_tray_icons(&mut state.settings, enabled),
+                "per_provider_tray_icons" => {
+                    set_per_provider_tray_icons(&mut state.settings, enabled);
+                }
+                other => {
+                    tracing::warn!("Unknown display test setting: {}", other);
+                    return;
+                }
+            }
             state.settings_changed = true;
             state.api_key_status_msg = None;
             state.cookie_status_msg = None;
@@ -1655,7 +1726,7 @@ impl PreferencesWindow {
                 "将所有服务商显示在一个托盘图标中",
                 &mut merge_icons,
             ) {
-                self.settings.merge_tray_icons = merge_icons;
+                set_merge_tray_icons(&mut self.settings, merge_icons);
                 self.settings_changed = true;
             }
 
@@ -1668,11 +1739,7 @@ impl PreferencesWindow {
                 "每个启用的服务商显示独立托盘图标",
                 &mut per_provider,
             ) {
-                self.settings.tray_icon_mode = if per_provider {
-                    TrayIconMode::PerProvider
-                } else {
-                    TrayIconMode::Single
-                };
+                set_per_provider_tray_icons(&mut self.settings, per_provider);
                 self.settings_changed = true;
             }
         });
@@ -4554,7 +4621,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             &mut merge_icons,
         ) && let Ok(mut state) = shared_state.lock()
         {
-            state.settings.merge_tray_icons = merge_icons;
+            set_merge_tray_icons(&mut state.settings, merge_icons);
             state.settings_changed = true;
         }
 
@@ -4573,14 +4640,42 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             &mut per_provider,
         ) && let Ok(mut state) = shared_state.lock()
         {
-            state.settings.tray_icon_mode = if per_provider {
-                TrayIconMode::PerProvider
-            } else {
-                TrayIconMode::Single
-            };
+            set_per_provider_tray_icons(&mut state.settings, per_provider);
             state.settings_changed = true;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{set_merge_tray_icons, set_per_provider_tray_icons};
+    use crate::settings::{Settings, TrayIconMode};
+
+    #[test]
+    fn enabling_merge_forces_single_tray_mode() {
+        let mut settings = Settings {
+            tray_icon_mode: TrayIconMode::PerProvider,
+            ..Settings::default()
+        };
+
+        set_merge_tray_icons(&mut settings, true);
+
+        assert!(settings.merge_tray_icons);
+        assert_eq!(settings.tray_icon_mode, TrayIconMode::Single);
+    }
+
+    #[test]
+    fn enabling_per_provider_clears_merge_mode() {
+        let mut settings = Settings {
+            merge_tray_icons: true,
+            ..Settings::default()
+        };
+
+        set_per_provider_tray_icons(&mut settings, true);
+
+        assert!(!settings.merge_tray_icons);
+        assert_eq!(settings.tray_icon_mode, TrayIconMode::PerProvider);
+    }
 }
 
 /// Render API Keys tab for viewport

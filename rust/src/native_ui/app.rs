@@ -351,6 +351,11 @@ fn string_list_json(values: &[String]) -> String {
 }
 
 #[cfg(debug_assertions)]
+fn string_json(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('\"', "\\\""))
+}
+
+#[cfg(debug_assertions)]
 fn write_debug_state_with_targets_file(
     path: &std::path::Path,
     selected_tab: &SelectedTab,
@@ -438,7 +443,7 @@ fn write_debug_state_with_targets_file(
     );
 
     let payload = format!(
-        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
+        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"tray_icon_mode\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
         selected_tab.replace('\\', "\\\\").replace('\"', "\\\""),
         preferences_open,
         preferences_tab,
@@ -446,6 +451,12 @@ fn write_debug_state_with_targets_file(
         preferences_viewport_outer_rect_json,
         enabled_providers_json,
         preferences_settings.refresh_interval_secs,
+        preferences_settings.reset_time_relative,
+        preferences_settings.surprise_animations,
+        preferences_settings.show_as_used,
+        preferences_settings.show_credits_extra_usage,
+        preferences_settings.merge_tray_icons,
+        string_json(&preferences_settings.tray_icon_mode),
         api_key_status_json,
         cookie_status_json,
         pointer_snapshot_json,
@@ -1709,7 +1720,7 @@ impl CodexBarApp {
                 s.summary_providers = s.providers.clone();
                 s.last_refresh = Instant::now();
                 s.is_refreshing = false;
-                
+
                 // Check for usage alerts and send notifications
                 for provider in &s.providers {
                     if let Some(provider_id) = ProviderId::from_cli_name(&provider.name) {
@@ -1717,7 +1728,11 @@ impl CodexBarApp {
                         if let Some(session_percent) = provider.session_percent {
                             if let Ok(mut nm) = notification_manager.lock() {
                                 nm.check_and_notify(provider_id, session_percent, &settings);
-                                nm.check_session_transition(provider_id, session_percent, &settings);
+                                nm.check_session_transition(
+                                    provider_id,
+                                    session_percent,
+                                    &settings,
+                                );
                             }
                         }
                         // Note: Infini alerts are based on the highest usage across all windows
@@ -1844,6 +1859,11 @@ impl eframe::App for CodexBarApp {
                     super::test_server::TestInput::SetRefreshInterval { seconds } => {
                         self.preferences_window
                             .set_refresh_interval_for_testing(seconds);
+                        ctx.request_repaint();
+                    }
+                    super::test_server::TestInput::SetDisplaySetting { name, enabled } => {
+                        self.preferences_window
+                            .set_display_setting_for_testing(&name, enabled);
                         ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetApiKeyInput { provider, value } => {

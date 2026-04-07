@@ -16,6 +16,7 @@ pub enum TestInput {
     SelectPreferencesTab { tab: String },
     SetProviderEnabled { provider: String, enabled: bool },
     SetRefreshInterval { seconds: u64 },
+    SetDisplaySetting { name: String, enabled: bool },
     SetApiKeyInput { provider: String, value: String },
     SubmitApiKey,
     SetCookieInput { provider: String, value: String },
@@ -45,6 +46,7 @@ pub fn create_queue() -> TestInputQueue {
 /// {"type":"select_preferences_tab","tab":"about"}
 /// {"type":"set_provider_enabled","provider":"claude","enabled":false}
 /// {"type":"set_refresh_interval","seconds":300}
+/// {"type":"set_display_setting","name":"show_as_used","enabled":false}
 /// {"type":"set_api_key_input","provider":"openrouter","value":"sk-test"}
 /// {"type":"submit_api_key"}
 /// {"type":"set_cookie_input","provider":"claude","value":"sessionKey=test"}
@@ -112,6 +114,7 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
         kind: String,
         path: Option<String>,
         tab: Option<String>,
+        name: Option<String>,
         provider: Option<String>,
         value: Option<String>,
         enabled: Option<bool>,
@@ -135,6 +138,10 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
         }),
         "set_refresh_interval" => Some(TestInput::SetRefreshInterval {
             seconds: input.seconds?,
+        }),
+        "set_display_setting" => Some(TestInput::SetDisplaySetting {
+            name: input.name?,
+            enabled: input.enabled?,
         }),
         "set_api_key_input" => Some(TestInput::SetApiKeyInput {
             provider: input.provider?,
@@ -165,7 +172,7 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
 
 #[cfg(test)]
 mod tests {
-    use super::{TestInput, parse_test_input};
+    use super::{parse_test_input, TestInput};
 
     #[test]
     fn parses_open_window_without_coordinates() {
@@ -246,6 +253,15 @@ mod tests {
         assert!(matches!(
             parse_test_input(r#"{"type":"set_refresh_interval","seconds":300}"#),
             Some(TestInput::SetRefreshInterval { seconds }) if seconds == 300
+        ));
+    }
+
+    #[test]
+    fn parses_set_display_setting() {
+        assert!(matches!(
+            parse_test_input(r#"{"type":"set_display_setting","name":"show_as_used","enabled":false}"#),
+            Some(TestInput::SetDisplaySetting { name, enabled })
+                if name == "show_as_used" && !enabled
         ));
     }
 
