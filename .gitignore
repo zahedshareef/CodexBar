@@ -40,7 +40,6 @@ rust/target/
 tmpclaude-*
 .claude/
 .factory/
-.facotry/
 
 # IDE
 .idea/
