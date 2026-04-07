@@ -281,7 +281,9 @@ impl Settings {
         #[allow(unused_mut)]
         let mut settings = match Self::settings_path() {
             Some(path) if path.exists() => match std::fs::read_to_string(&path) {
-                Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+                Ok(content) => {
+                    serde_json::from_str(content.trim_start_matches('\u{feff}')).unwrap_or_default()
+                }
                 Err(_) => Self::default(),
             },
             _ => Self::default(),
@@ -934,6 +936,15 @@ mod tests {
             serde_json::from_str(&content).expect("Failed to deserialize settings");
 
         assert_eq!(loaded.ui_language, Language::Chinese);
+    }
+
+    #[test]
+    fn test_settings_with_utf8_bom_parses_perprovider_tray_mode() {
+        let json = "\u{feff}{\n            \"enabled_providers\": [\"claude\", \"codex\"],\n            \"refresh_interval_secs\": 300,\n            \"tray_icon_mode\": \"perprovider\"\n        }";
+
+        let settings: Settings = serde_json::from_str(json.trim_start_matches('\u{feff}')).unwrap();
+
+        assert_eq!(settings.tray_icon_mode, TrayIconMode::PerProvider);
     }
 
     #[test]
