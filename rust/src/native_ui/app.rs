@@ -29,7 +29,7 @@ use crate::locale::{LocaleKey, get_text as locale_text};
 use crate::login::LoginPhase;
 use crate::notifications::NotificationManager;
 use crate::providers::*;
-use crate::settings::{ApiKeys, Language, ManualCookies, Settings, UpdateChannel};
+use crate::settings::{ApiKeys, Language, ManualCookies, Settings, TrayIconMode, UpdateChannel};
 use crate::shortcuts::{ShortcutManager, parse_shortcut};
 use crate::status::{StatusLevel, fetch_provider_status, get_status_page_url};
 use crate::tray::{
@@ -353,6 +353,35 @@ fn string_list_json(values: &[String]) -> String {
 #[cfg(debug_assertions)]
 fn string_json(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('\"', "\\\""))
+}
+
+enum TrayUpdatePlan<'a> {
+    Single(&'a ProviderUsage),
+    Merged(&'a [ProviderUsage]),
+}
+
+fn choose_tray_update_plan<'a>(
+    provider_usages: &'a [ProviderUsage],
+    settings: &Settings,
+) -> Option<TrayUpdatePlan<'a>> {
+    if provider_usages.is_empty() {
+        return None;
+    }
+
+    if settings.tray_icon_mode == TrayIconMode::PerProvider || settings.merge_tray_icons {
+        return Some(TrayUpdatePlan::Merged(provider_usages));
+    }
+
+    let provider = match settings.menu_bar_display_mode.as_str() {
+        "minimal" => provider_usages.iter().max_by(|a, b| {
+            a.session_percent
+                .partial_cmp(&b.session_percent)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }),
+        _ => provider_usages.first(),
+    }?;
+
+    Some(TrayUpdatePlan::Single(provider))
 }
 
 #[cfg(debug_assertions)]
@@ -2190,27 +2219,18 @@ impl eframe::App for CodexBarApp {
                     })
                     .collect();
 
-                match self.settings.menu_bar_display_mode.as_str() {
-                    "minimal" => {
-                        // Minimal: show only the highest-usage provider's session bar
-                        if let Some(p) = provider_usages.iter().max_by(|a, b| {
-                            a.session_percent
-                                .partial_cmp(&b.session_percent)
-                                .unwrap_or(std::cmp::Ordering::Equal)
-                        }) {
-                            tray.update_usage(p.session_percent, p.weekly_percent, &p.name);
-                        }
+                match choose_tray_update_plan(&provider_usages, &self.settings) {
+                    Some(TrayUpdatePlan::Single(provider)) => {
+                        tray.update_usage(
+                            provider.session_percent,
+                            provider.weekly_percent,
+                            &provider.name,
+                        );
                     }
-                    "compact" => {
-                        // Compact: merged icon but shorter tooltip (first provider only)
-                        if let Some(p) = provider_usages.first() {
-                            tray.update_usage(p.session_percent, p.weekly_percent, &p.name);
-                        }
+                    Some(TrayUpdatePlan::Merged(usages)) => {
+                        tray.update_merged(usages);
                     }
-                    _ => {
-                        // Detailed (default): show all providers merged
-                        tray.update_merged(&provider_usages);
-                    }
+                    None => {}
                 }
             }
 
@@ -3933,13 +3953,14 @@ pub fn run() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProviderData, append_font, build_test_click_event_batches, launch_block_reason,
-        remote_session_error_message, should_auto_refresh, should_show_provider,
-        ssh_session_error_message, startup_last_refresh, summary_metric_display,
-        summary_metric_text,
+        ProviderData, TrayUpdatePlan, append_font, build_test_click_event_batches,
+        choose_tray_update_plan, launch_block_reason, remote_session_error_message,
+        should_auto_refresh, should_show_provider, ssh_session_error_message,
+        startup_last_refresh, summary_metric_display, summary_metric_text,
     };
-    use crate::settings::Language;
+    use crate::settings::{Language, Settings, TrayIconMode};
     use crate::status::StatusLevel;
+    use crate::tray::ProviderUsage;
     use egui::{Event, FontDefinitions, FontFamily, PointerButton, pos2};
     use std::time::{Duration, Instant};
 
@@ -3969,6 +3990,14 @@ mod tests {
             cost_history: Vec::new(),
             credits_history: Vec::new(),
             usage_breakdown: Vec::new(),
+        }
+    }
+
+    fn tray_usage(name: &str, session_percent: f64) -> ProviderUsage {
+        ProviderUsage {
+            name: name.to_string(),
+            session_percent,
+            weekly_percent: session_percent,
         }
     }
 
@@ -4121,5 +4150,70 @@ mod tests {
         assert!(matches!(batches[3].as_slice(), [
             Event::PointerButton { pos: released_pos, button: PointerButton::Primary, pressed: false, .. },
         ] if *released_pos == pos));
+    }
+
+    #[test]
+    fn tray_plan_merges_when_merge_setting_is_enabled() {
+        let settings = Settings {
+            merge_tray_icons: true,
+            tray_icon_mode: TrayIconMode::Single,
+            ..Settings::default()
+        };
+        let usages = vec![tray_usage("Codex", 10.0), tray_usage("Claude", 60.0)];
+
+        let plan = choose_tray_update_plan(&usages, &settings);
+
+        assert!(matches!(plan, Some(TrayUpdatePlan::Merged(items)) if items.len() == 2));
+    }
+
+    #[test]
+    fn tray_plan_merges_in_per_provider_mode() {
+        let settings = Settings {
+            tray_icon_mode: TrayIconMode::PerProvider,
+            ..Settings::default()
+        };
+        let usages = vec![tray_usage("Codex", 10.0), tray_usage("Claude", 60.0)];
+
+        let plan = choose_tray_update_plan(&usages, &settings);
+
+        assert!(matches!(plan, Some(TrayUpdatePlan::Merged(items)) if items.len() == 2));
+    }
+
+    #[test]
+    fn tray_plan_picks_highest_usage_in_minimal_single_mode() {
+        let settings = Settings {
+            merge_tray_icons: false,
+            tray_icon_mode: TrayIconMode::Single,
+            menu_bar_display_mode: "minimal".to_string(),
+            ..Settings::default()
+        };
+        let usages = vec![tray_usage("Codex", 10.0), tray_usage("Claude", 60.0)];
+
+        let plan = choose_tray_update_plan(&usages, &settings);
+
+        assert!(matches!(
+            plan,
+            Some(TrayUpdatePlan::Single(provider))
+                if provider.name == "Claude" && (provider.session_percent - 60.0).abs() < f64::EPSILON
+        ));
+    }
+
+    #[test]
+    fn tray_plan_uses_first_provider_in_non_minimal_single_mode() {
+        let settings = Settings {
+            merge_tray_icons: false,
+            tray_icon_mode: TrayIconMode::Single,
+            menu_bar_display_mode: "detailed".to_string(),
+            ..Settings::default()
+        };
+        let usages = vec![tray_usage("Codex", 10.0), tray_usage("Claude", 60.0)];
+
+        let plan = choose_tray_update_plan(&usages, &settings);
+
+        assert!(matches!(
+            plan,
+            Some(TrayUpdatePlan::Single(provider))
+                if provider.name == "Codex" && (provider.session_percent - 10.0).abs() < f64::EPSILON
+        ));
     }
 }
