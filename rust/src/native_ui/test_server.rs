@@ -12,8 +12,12 @@ use std::sync::{Arc, Mutex};
 /// A synthetic input event to inject into the egui loop.
 pub enum TestInput {
     OpenWindow,
-    SelectTab { tab: String },
-    SelectPreferencesTab { tab: String },
+    SelectTab {
+        tab: String,
+    },
+    SelectPreferencesTab {
+        tab: String,
+    },
     SetSingleTrayState {
         state: String,
         provider: Option<String>,
@@ -28,20 +32,58 @@ pub enum TestInput {
         weekly_percent: Option<f64>,
         error: Option<String>,
     },
-    SetProviderEnabled { provider: String, enabled: bool },
-    SetRefreshInterval { seconds: u64 },
-    SetDisplaySetting { name: String, enabled: bool },
-    SetDisplayMode { mode: String },
-    SetApiKeyInput { provider: String, value: String },
+    SetProviderEnabled {
+        provider: String,
+        enabled: bool,
+    },
+    SetRuntimeProviderState {
+        provider: String,
+        state: String,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
+        error: Option<String>,
+    },
+    SetRefreshInterval {
+        seconds: u64,
+    },
+    SetDisplaySetting {
+        name: String,
+        enabled: bool,
+    },
+    SetDisplayMode {
+        mode: String,
+    },
+    SetApiKeyInput {
+        provider: String,
+        value: String,
+    },
     SubmitApiKey,
-    SetCookieInput { provider: String, value: String },
+    SetCookieInput {
+        provider: String,
+        value: String,
+    },
     SubmitCookie,
-    SaveState { path: String },
-    SaveScreenshot { path: String },
-    SavePreferencesScreenshot { path: String },
-    Click { x: f32, y: f32 },
-    DoubleClick { x: f32, y: f32 },
-    RightClick { x: f32, y: f32 },
+    SaveState {
+        path: String,
+    },
+    SaveScreenshot {
+        path: String,
+    },
+    SavePreferencesScreenshot {
+        path: String,
+    },
+    Click {
+        x: f32,
+        y: f32,
+    },
+    DoubleClick {
+        x: f32,
+        y: f32,
+    },
+    RightClick {
+        x: f32,
+        y: f32,
+    },
 }
 
 /// Thread-safe queue of pending test inputs.
@@ -66,6 +108,8 @@ pub fn create_queue() -> TestInputQueue {
 /// {"type":"set_provider_tray_state","provider":"claude","state":"loading"}
 /// {"type":"set_provider_tray_state","provider":"claude","state":"error","error":"Auth failed"}
 /// {"type":"set_provider_enabled","provider":"claude","enabled":false}
+/// {"type":"set_runtime_provider_state","provider":"claude","state":"error","error":"Auth failed"}
+/// {"type":"set_runtime_provider_state","provider":"codex","state":"normal","session_percent":22,"weekly_percent":44}
 /// {"type":"set_refresh_interval","seconds":300}
 /// {"type":"set_display_setting","name":"show_as_used","enabled":false}
 /// {"type":"set_display_mode","mode":"minimal"}
@@ -176,6 +220,13 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
             provider: input.provider?,
             enabled: input.enabled?,
         }),
+        "set_runtime_provider_state" => Some(TestInput::SetRuntimeProviderState {
+            provider: input.provider?,
+            state: input.state?,
+            session_percent: input.session_percent,
+            weekly_percent: input.weekly_percent,
+            error: input.error,
+        }),
         "set_refresh_interval" => Some(TestInput::SetRefreshInterval {
             seconds: input.seconds?,
         }),
@@ -213,7 +264,7 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_test_input, TestInput};
+    use super::{TestInput, parse_test_input};
 
     #[test]
     fn parses_open_window_without_coordinates() {
@@ -304,6 +355,17 @@ mod tests {
                 && state == "normal"
                 && session_percent == Some(22.0)
                 && weekly_percent == Some(44.0)
+        ));
+    }
+
+    #[test]
+    fn parses_set_runtime_provider_state() {
+        assert!(matches!(
+            parse_test_input(
+                r#"{"type":"set_runtime_provider_state","provider":"claude","state":"error","error":"Auth failed"}"#
+            ),
+            Some(TestInput::SetRuntimeProviderState { provider, state, error, .. })
+                if provider == "claude" && state == "error" && error.as_deref() == Some("Auth failed")
         ));
     }
 

@@ -360,6 +360,29 @@ enum TrayUpdatePlan<'a> {
     Merged(&'a [ProviderUsage]),
 }
 
+#[derive(Debug, Clone)]
+enum PerProviderTrayRuntimeState {
+    Usage {
+        provider_id: ProviderId,
+        usage: ProviderUsage,
+    },
+    Error {
+        provider_id: ProviderId,
+        error: String,
+    },
+}
+
+#[derive(Debug, Clone)]
+enum TrayRuntimeState {
+    SingleUsage(ProviderUsage),
+    SingleError {
+        provider_name: String,
+        error: String,
+    },
+    MergedUsage(Vec<ProviderUsage>),
+    PerProvider(Vec<PerProviderTrayRuntimeState>),
+}
+
 fn choose_tray_update_plan<'a>(
     provider_usages: &'a [ProviderUsage],
     settings: &Settings,
@@ -382,6 +405,79 @@ fn choose_tray_update_plan<'a>(
     }?;
 
     Some(TrayUpdatePlan::Single(provider))
+}
+
+fn provider_usage_from_data(provider: &ProviderData, settings: &Settings) -> Option<ProviderUsage> {
+    let provider_id = ProviderId::from_cli_name(&provider.name)?;
+    let session_percent = provider.session_percent?;
+    let metric_pref = settings.get_provider_metric(provider_id);
+    let preferred_percent = provider.get_preferred_metric(metric_pref);
+    let used_percent = if metric_pref == crate::settings::MetricPreference::Credits {
+        100.0 - preferred_percent
+    } else {
+        preferred_percent
+    };
+    let weekly_percent = provider.weekly_percent.unwrap_or(session_percent);
+
+    Some(ProviderUsage {
+        name: provider.display_name.clone(),
+        session_percent: used_percent,
+        weekly_percent,
+    })
+}
+
+fn choose_tray_runtime_state(
+    providers: &[ProviderData],
+    settings: &Settings,
+) -> Option<TrayRuntimeState> {
+    match settings.tray_icon_mode {
+        TrayIconMode::PerProvider => {
+            let states = providers
+                .iter()
+                .filter_map(|provider| {
+                    let provider_id = ProviderId::from_cli_name(&provider.name)?;
+                    if let Some(error) = provider.error.as_ref() {
+                        Some(PerProviderTrayRuntimeState::Error {
+                            provider_id,
+                            error: error.clone(),
+                        })
+                    } else {
+                        provider_usage_from_data(provider, settings)
+                            .map(|usage| PerProviderTrayRuntimeState::Usage { provider_id, usage })
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            if states.is_empty() {
+                None
+            } else {
+                Some(TrayRuntimeState::PerProvider(states))
+            }
+        }
+        TrayIconMode::Single => {
+            if let Some(provider) = providers.iter().find(|provider| provider.error.is_some()) {
+                return Some(TrayRuntimeState::SingleError {
+                    provider_name: provider.display_name.clone(),
+                    error: provider.error.clone().unwrap_or_default(),
+                });
+            }
+
+            let provider_usages = providers
+                .iter()
+                .filter_map(|provider| provider_usage_from_data(provider, settings))
+                .collect::<Vec<_>>();
+
+            match choose_tray_update_plan(&provider_usages, settings) {
+                Some(TrayUpdatePlan::Single(provider)) => {
+                    Some(TrayRuntimeState::SingleUsage(provider.clone()))
+                }
+                Some(TrayUpdatePlan::Merged(usages)) => {
+                    Some(TrayRuntimeState::MergedUsage(usages.to_vec()))
+                }
+                None => None,
+            }
+        }
+    }
 }
 
 fn should_recreate_tray_manager(
@@ -1151,7 +1247,6 @@ pub struct CodexBarApp {
     first_update_logged: bool,
 }
 
-#[cfg(any(test, windows))]
 fn prepend_font(fonts: &mut FontDefinitions, family: FontFamily, font_name: &str) {
     let entries = fonts.families.entry(family).or_default();
     if !entries.iter().any(|existing| existing == font_name) {
@@ -1559,6 +1654,51 @@ impl CodexBarApp {
             },
         );
         self.debug_tray_override = Some(DebugTrayOverride::PerProvider(overrides));
+    }
+
+    #[cfg(debug_assertions)]
+    fn set_runtime_provider_state_for_testing(
+        &mut self,
+        provider: &str,
+        state: &str,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
+        error: Option<&str>,
+    ) {
+        let normalized = provider.trim().to_ascii_lowercase();
+        let Ok(mut shared_state) = self.state.lock() else {
+            return;
+        };
+        let Some(provider_data) = shared_state
+            .providers
+            .iter_mut()
+            .find(|item| item.name.eq_ignore_ascii_case(&normalized))
+        else {
+            tracing::warn!("Unknown runtime provider for test state: {}", provider);
+            return;
+        };
+
+        match state {
+            "error" => {
+                provider_data.session_percent = None;
+                provider_data.weekly_percent = None;
+                provider_data.error = Some(error.unwrap_or("Test error").to_string());
+            }
+            "clear" => {
+                provider_data.session_percent = None;
+                provider_data.weekly_percent = None;
+                provider_data.error = None;
+            }
+            _ => {
+                let session_percent = session_percent.unwrap_or(0.0);
+                provider_data.session_percent = Some(session_percent);
+                provider_data.weekly_percent = Some(weekly_percent.unwrap_or(session_percent));
+                provider_data.error = None;
+            }
+        }
+
+        shared_state.summary_providers = shared_state.providers.clone();
+        self.debug_tray_override = None;
     }
 
     #[cfg(debug_assertions)]
@@ -2041,6 +2181,22 @@ impl eframe::App for CodexBarApp {
                         self.debug_tray_override = None;
                         ctx.request_repaint();
                     }
+                    super::test_server::TestInput::SetRuntimeProviderState {
+                        provider,
+                        state,
+                        session_percent,
+                        weekly_percent,
+                        error,
+                    } => {
+                        self.set_runtime_provider_state_for_testing(
+                            &provider,
+                            &state,
+                            session_percent,
+                            weekly_percent,
+                            error.as_deref(),
+                        );
+                        ctx.request_repaint();
+                    }
                     super::test_server::TestInput::SetRefreshInterval { seconds } => {
                         self.preferences_window
                             .set_refresh_interval_for_testing(seconds);
@@ -2359,45 +2515,38 @@ impl eframe::App for CodexBarApp {
                     tray.show_surprise(anim, frame, session, weekly);
                 }
             } else {
-                // Respect menu_bar_display_mode setting
-                // Use per-provider metric preferences from settings
-                let provider_usages: Vec<ProviderUsage> = providers
-                    .iter()
-                    .filter(|p| p.session_percent.is_some())
-                    .map(|p| {
-                        // Get the metric preference for this provider
-                        let metric_pref = crate::core::ProviderId::from_cli_name(&p.name)
-                            .map(|id| self.settings.get_provider_metric(id))
-                            .unwrap_or_default();
-                        let preferred_percent = p.get_preferred_metric(metric_pref);
-                        // For credits metric, convert from "remaining" to "used" for consistent tray behavior
-                        // Credits are stored as remaining %, but tray expects used % for severity coloring
-                        let used_percent =
-                            if metric_pref == crate::settings::MetricPreference::Credits {
-                                100.0 - preferred_percent // Convert remaining to used
-                            } else {
-                                preferred_percent // Already used %
-                            };
-                        // Weekly percent is always usage-based (not credits)
-                        let weekly_percent = p.weekly_percent.unwrap_or(used_percent);
-                        ProviderUsage {
-                            name: p.display_name.clone(),
-                            session_percent: used_percent, // Always use "used %" for tray severity
-                            weekly_percent,
-                        }
-                    })
-                    .collect();
-
-                match choose_tray_update_plan(&provider_usages, &self.settings) {
-                    Some(TrayUpdatePlan::Single(provider)) => {
+                match choose_tray_runtime_state(&providers, &self.settings) {
+                    Some(TrayRuntimeState::SingleUsage(provider)) => {
                         tray.update_usage(
                             provider.session_percent,
                             provider.weekly_percent,
                             &provider.name,
                         );
                     }
-                    Some(TrayUpdatePlan::Merged(usages)) => {
-                        tray.update_merged(usages);
+                    Some(TrayRuntimeState::SingleError {
+                        provider_name,
+                        error,
+                    }) => {
+                        tray.show_error(&provider_name, &error);
+                    }
+                    Some(TrayRuntimeState::MergedUsage(usages)) => {
+                        tray.update_merged(&usages);
+                    }
+                    Some(TrayRuntimeState::PerProvider(states)) => {
+                        for state in states {
+                            match state {
+                                PerProviderTrayRuntimeState::Usage { provider_id, usage } => {
+                                    tray.update_provider_usage(
+                                        provider_id,
+                                        usage.session_percent,
+                                        usage.weekly_percent,
+                                    );
+                                }
+                                PerProviderTrayRuntimeState::Error { provider_id, error } => {
+                                    tray.show_provider_error(provider_id, &error);
+                                }
+                            }
+                        }
                     }
                     None => {}
                 }
@@ -4143,12 +4292,13 @@ pub fn run() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProviderData, TrayUpdatePlan, append_font, build_test_click_event_batches,
-        choose_tray_update_plan, launch_block_reason, remote_session_error_message,
-        should_auto_refresh, should_recreate_tray_manager, should_show_provider,
-        ssh_session_error_message, startup_last_refresh, summary_metric_display,
-        summary_metric_text,
+        PerProviderTrayRuntimeState, ProviderData, TrayRuntimeState, TrayUpdatePlan, append_font,
+        build_test_click_event_batches, choose_tray_runtime_state, choose_tray_update_plan,
+        launch_block_reason, prepend_font, remote_session_error_message, should_auto_refresh,
+        should_recreate_tray_manager, should_show_provider, ssh_session_error_message,
+        startup_last_refresh, summary_metric_display, summary_metric_text,
     };
+    use crate::core::ProviderId;
     use crate::settings::{Language, Settings, TrayIconMode};
     use crate::status::StatusLevel;
     use crate::tray::ProviderUsage;
@@ -4212,6 +4362,30 @@ mod tests {
                 "emoji".to_string(),
                 "cjk-fallback".to_string()
             ]
+        );
+    }
+
+    #[test]
+    fn prepend_font_puts_new_font_first_without_duplication() {
+        let mut fonts = FontDefinitions::default();
+        let family = FontFamily::Proportional;
+        fonts
+            .families
+            .entry(family.clone())
+            .or_default()
+            .extend(["default-ui".to_string(), "emoji".to_string()]);
+
+        prepend_font(&mut fonts, family.clone(), "cjk-fallback");
+        prepend_font(&mut fonts, family.clone(), "cjk-fallback");
+
+        let entries = fonts.families.get(&family).cloned().unwrap_or_default();
+        assert_eq!(entries.first().map(String::as_str), Some("cjk-fallback"));
+        assert_eq!(
+            entries
+                .iter()
+                .filter(|entry| entry.as_str() == "cjk-fallback")
+                .count(),
+            1
         );
     }
 
@@ -4405,6 +4579,55 @@ mod tests {
             plan,
             Some(TrayUpdatePlan::Single(provider))
                 if provider.name == "Codex" && (provider.session_percent - 10.0).abs() < f64::EPSILON
+        ));
+    }
+
+    #[test]
+    fn tray_runtime_state_prefers_error_in_single_merged_mode() {
+        let settings = Settings {
+            merge_tray_icons: true,
+            tray_icon_mode: TrayIconMode::Single,
+            ..Settings::default()
+        };
+        let mut codex = test_provider();
+        codex.name = "codex".to_string();
+        codex.display_name = "Codex".to_string();
+        codex.session_percent = Some(42.0);
+        codex.weekly_percent = Some(42.0);
+        let claude = ProviderData::from_error(ProviderId::Claude, "Token expired".to_string());
+
+        let plan = choose_tray_runtime_state(&[codex, claude], &settings);
+
+        assert!(matches!(
+            plan,
+            Some(TrayRuntimeState::SingleError { provider_name, error })
+                if provider_name == "Claude" && error == "Token expired"
+        ));
+    }
+
+    #[test]
+    fn tray_runtime_state_emits_per_provider_errors() {
+        let settings = Settings {
+            tray_icon_mode: TrayIconMode::PerProvider,
+            ..Settings::default()
+        };
+        let mut codex = test_provider();
+        codex.name = "codex".to_string();
+        codex.display_name = "Codex".to_string();
+        codex.session_percent = Some(42.0);
+        codex.weekly_percent = Some(42.0);
+        let claude = ProviderData::from_error(ProviderId::Claude, "Auth failed".to_string());
+
+        let plan = choose_tray_runtime_state(&[codex, claude], &settings);
+
+        assert!(matches!(
+            plan,
+            Some(TrayRuntimeState::PerProvider(states))
+                if states.iter().any(|state| matches!(
+                    state,
+                    PerProviderTrayRuntimeState::Error { provider_id, error }
+                        if *provider_id == ProviderId::Claude && error == "Auth failed"
+                ))
         ));
     }
 

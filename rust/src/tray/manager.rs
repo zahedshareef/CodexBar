@@ -225,7 +225,12 @@ fn debug_single_tooltip_text(state: &TrayTooltipState, lang: Language) -> String
             let tooltip_lines: Vec<String> = providers
                 .iter()
                 .take(4)
-                .map(|p| format!("{}: {:.0}% / {:.0}%", p.name, p.session_percent, p.weekly_percent))
+                .map(|p| {
+                    format!(
+                        "{}: {:.0}% / {:.0}%",
+                        p.name, p.session_percent, p.weekly_percent
+                    )
+                })
                 .collect();
             format!("CodexBar\n{}", tooltip_lines.join("\n"))
         }
@@ -1377,6 +1382,12 @@ impl UnifiedTrayManager {
         }
     }
 
+    pub fn show_error(&self, provider_name: &str, error_msg: &str) {
+        if let UnifiedTrayManager::Single(tm) = self {
+            tm.show_error(provider_name, error_msg);
+        }
+    }
+
     /// Update usage for a single provider display
     pub fn update_usage(&self, session_percent: f64, weekly_percent: f64, tooltip_name: &str) {
         match self {
@@ -1386,6 +1397,23 @@ impl UnifiedTrayManager {
             UnifiedTrayManager::PerProvider(_) => {
                 // Per-provider mode doesn't use single update
             }
+        }
+    }
+
+    pub fn update_provider_usage(
+        &self,
+        provider_id: ProviderId,
+        session_percent: f64,
+        weekly_percent: f64,
+    ) {
+        if let UnifiedTrayManager::PerProvider(multi) = self {
+            multi.update_provider(provider_id, session_percent, weekly_percent);
+        }
+    }
+
+    pub fn show_provider_error(&self, provider_id: ProviderId, error_msg: &str) {
+        if let UnifiedTrayManager::PerProvider(multi) = self {
+            multi.show_provider_error(provider_id, error_msg);
         }
     }
 
