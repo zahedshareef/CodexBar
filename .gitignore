@@ -39,6 +39,7 @@ rust/target/
 # Claude temp files
 tmpclaude-*
 .claude/
+.factory/
 
 # IDE
 .idea/
