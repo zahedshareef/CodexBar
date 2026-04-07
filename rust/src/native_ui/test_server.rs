@@ -17,6 +17,7 @@ pub enum TestInput {
     SetProviderEnabled { provider: String, enabled: bool },
     SetRefreshInterval { seconds: u64 },
     SetDisplaySetting { name: String, enabled: bool },
+    SetDisplayMode { mode: String },
     SetApiKeyInput { provider: String, value: String },
     SubmitApiKey,
     SetCookieInput { provider: String, value: String },
@@ -47,6 +48,7 @@ pub fn create_queue() -> TestInputQueue {
 /// {"type":"set_provider_enabled","provider":"claude","enabled":false}
 /// {"type":"set_refresh_interval","seconds":300}
 /// {"type":"set_display_setting","name":"show_as_used","enabled":false}
+/// {"type":"set_display_mode","mode":"minimal"}
 /// {"type":"set_api_key_input","provider":"openrouter","value":"sk-test"}
 /// {"type":"submit_api_key"}
 /// {"type":"set_cookie_input","provider":"claude","value":"sessionKey=test"}
@@ -143,6 +145,7 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
             name: input.name?,
             enabled: input.enabled?,
         }),
+        "set_display_mode" => Some(TestInput::SetDisplayMode { mode: input.value? }),
         "set_api_key_input" => Some(TestInput::SetApiKeyInput {
             provider: input.provider?,
             value: input.value?,
@@ -262,6 +265,14 @@ mod tests {
             parse_test_input(r#"{"type":"set_display_setting","name":"show_as_used","enabled":false}"#),
             Some(TestInput::SetDisplaySetting { name, enabled })
                 if name == "show_as_used" && !enabled
+        ));
+    }
+
+    #[test]
+    fn parses_set_display_mode() {
+        assert!(matches!(
+            parse_test_input(r#"{"type":"set_display_mode","value":"minimal"}"#),
+            Some(TestInput::SetDisplayMode { mode }) if mode == "minimal"
         ));
     }
 

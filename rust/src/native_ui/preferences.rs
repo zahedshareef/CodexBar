@@ -116,6 +116,7 @@ pub(crate) struct PreferencesDebugStatusMessage {
 pub(crate) struct PreferencesDebugSettingsSnapshot {
     pub enabled_providers: Vec<String>,
     pub refresh_interval_secs: u64,
+    pub menu_bar_display_mode: String,
     pub reset_time_relative: bool,
     pub surprise_animations: bool,
     pub show_as_used: bool,
@@ -416,6 +417,7 @@ impl PreferencesWindow {
                 PreferencesDebugSettingsSnapshot {
                     enabled_providers,
                     refresh_interval_secs: state.settings.refresh_interval_secs,
+                    menu_bar_display_mode: state.settings.menu_bar_display_mode.clone(),
                     reset_time_relative: state.settings.reset_time_relative,
                     surprise_animations: state.settings.surprise_animations,
                     show_as_used: state.settings.show_as_used,
@@ -449,6 +451,7 @@ impl PreferencesWindow {
                 PreferencesDebugSettingsSnapshot {
                     enabled_providers: Vec::new(),
                     refresh_interval_secs: 0,
+                    menu_bar_display_mode: "detailed".to_string(),
                     reset_time_relative: false,
                     surprise_animations: false,
                     show_as_used: false,
@@ -556,6 +559,28 @@ impl PreferencesWindow {
                     return;
                 }
             }
+            state.settings_changed = true;
+            state.api_key_status_msg = None;
+            state.cookie_status_msg = None;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn set_display_mode_for_testing(&mut self, mode: &str) {
+        if !self.is_open {
+            self.open();
+        }
+
+        self.active_tab = PreferencesTab::Display;
+        if let Ok(mut state) = self.shared_state.lock() {
+            let mode = mode.trim();
+            if !matches!(mode, "minimal" | "compact" | "detailed") {
+                tracing::warn!("Unknown display mode for testing: {}", mode);
+                return;
+            }
+            state.is_open = true;
+            state.active_tab = PreferencesTab::Display;
+            state.settings.menu_bar_display_mode = mode.to_string();
             state.settings_changed = true;
             state.api_key_status_msg = None;
             state.cookie_status_msg = None;

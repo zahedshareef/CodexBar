@@ -472,7 +472,7 @@ fn write_debug_state_with_targets_file(
     );
 
     let payload = format!(
-        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"tray_icon_mode\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
+        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"menu_bar_display_mode\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"tray_icon_mode\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
         selected_tab.replace('\\', "\\\\").replace('\"', "\\\""),
         preferences_open,
         preferences_tab,
@@ -480,6 +480,7 @@ fn write_debug_state_with_targets_file(
         preferences_viewport_outer_rect_json,
         enabled_providers_json,
         preferences_settings.refresh_interval_secs,
+        string_json(&preferences_settings.menu_bar_display_mode),
         preferences_settings.reset_time_relative,
         preferences_settings.surprise_animations,
         preferences_settings.show_as_used,
@@ -1893,6 +1894,10 @@ impl eframe::App for CodexBarApp {
                     super::test_server::TestInput::SetDisplaySetting { name, enabled } => {
                         self.preferences_window
                             .set_display_setting_for_testing(&name, enabled);
+                        ctx.request_repaint();
+                    }
+                    super::test_server::TestInput::SetDisplayMode { mode } => {
+                        self.preferences_window.set_display_mode_for_testing(&mode);
                         ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetApiKeyInput { provider, value } => {
