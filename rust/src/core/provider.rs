@@ -175,17 +175,19 @@ impl ProviderId {
             "zai" | "z.ai" | "zed" => Some(ProviderId::Zai),
             "minimax" => Some(ProviderId::MiniMax),
             "kiro" | "aws" => Some(ProviderId::Kiro),
-            "vertexai" | "vertex" => Some(ProviderId::VertexAI),
+            "vertexai" | "vertex" | "vertex ai" => Some(ProviderId::VertexAI),
             "augment" => Some(ProviderId::Augment),
             "opencode" => Some(ProviderId::OpenCode),
             "kimi" | "moonshot" => Some(ProviderId::Kimi),
-            "kimik2" | "kimi-k2" | "k2" => Some(ProviderId::KimiK2),
+            "kimik2" | "kimi-k2" | "kimi k2" | "k2" => Some(ProviderId::KimiK2),
             "amp" | "sourcegraph" => Some(ProviderId::Amp),
             "warp" | "warp-ai" | "warp-terminal" => Some(ProviderId::Warp),
             "ollama" => Some(ProviderId::Ollama),
             "openrouter" | "or" => Some(ProviderId::OpenRouter),
             "synthetic" => Some(ProviderId::Synthetic),
-            "jetbrains" | "jetbrains-ai" | "intellij" => Some(ProviderId::JetBrains),
+            "jetbrains" | "jetbrains-ai" | "jetbrains ai" | "intellij" => {
+                Some(ProviderId::JetBrains)
+            }
             "alibaba" | "tongyi" | "qianwen" | "qwen" => Some(ProviderId::Alibaba),
             "nanogpt" | "nano-gpt" => Some(ProviderId::NanoGPT),
             "infini" | "infini-ai" => Some(ProviderId::Infini),
@@ -475,6 +477,18 @@ mod tests {
         );
         assert_eq!(ProviderId::from_cli_name("zed"), Some(ProviderId::Zai));
         assert_eq!(ProviderId::from_cli_name("unknown"), None);
+    }
+
+    #[test]
+    fn test_provider_id_from_display_name_aliases() {
+        for provider_id in ProviderId::all() {
+            assert_eq!(
+                ProviderId::from_cli_name(provider_id.display_name()),
+                Some(*provider_id),
+                "display name should round-trip for {}",
+                provider_id.display_name()
+            );
+        }
     }
 
     #[test]
