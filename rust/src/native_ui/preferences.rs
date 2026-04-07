@@ -6,7 +6,9 @@
 #![allow(dead_code)] // Legacy show_* methods kept for potential future use
 
 use eframe::egui::{self, Color32, Rect, RichText, Rounding, Stroke, Vec2};
+use image::ColorType;
 use std::cell::RefCell;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use super::provider_icons::ProviderIconCache;
@@ -25,6 +27,30 @@ use std::collections::HashMap;
 // Thread-local icon cache for viewport rendering
 thread_local! {
     static VIEWPORT_ICON_CACHE: RefCell<ProviderIconCache> = RefCell::new(ProviderIconCache::new());
+}
+
+#[cfg(debug_assertions)]
+fn save_color_image_to_png(path: &std::path::Path, image: &egui::ColorImage) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut rgba = Vec::with_capacity(image.pixels.len() * 4);
+    for pixel in &image.pixels {
+        rgba.extend_from_slice(&pixel.to_srgba_unmultiplied());
+    }
+
+    image::save_buffer(
+        path,
+        &rgba,
+        image.size[0] as u32,
+        image.size[1] as u32,
+        ColorType::Rgba8,
+    )?;
+
+    Ok(())
 }
 
 /// Which preferences tab is active
@@ -64,6 +90,32 @@ impl PreferencesTab {
             PreferencesTab::About => "ℹ",
         }
     }
+}
+
+#[cfg(debug_assertions)]
+#[derive(Clone, Debug)]
+pub(crate) struct PreferencesDebugTabTarget {
+    pub name: String,
+    pub rect: Rect,
+    pub hovered: bool,
+    pub contains_pointer: bool,
+    pub clicked: bool,
+    pub pointer_button_down_on: bool,
+    pub interact_pointer_pos: Option<egui::Pos2>,
+}
+
+#[cfg(debug_assertions)]
+#[derive(Clone, Debug)]
+pub(crate) struct PreferencesDebugStatusMessage {
+    pub message: String,
+    pub is_error: bool,
+}
+
+#[cfg(debug_assertions)]
+#[derive(Clone, Debug)]
+pub(crate) struct PreferencesDebugSettingsSnapshot {
+    pub enabled_providers: Vec<String>,
+    pub refresh_interval_secs: u64,
 }
 
 /// Preferences window state
@@ -124,6 +176,14 @@ struct PreferencesSharedState {
     // Keyboard shortcut editing
     shortcut_input: String,
     shortcut_status_msg: Option<(String, bool)>,
+    #[cfg(debug_assertions)]
+    debug_tab_targets: Vec<PreferencesDebugTabTarget>,
+    #[cfg(debug_assertions)]
+    debug_viewport_outer_rect: Option<Rect>,
+    #[cfg(debug_assertions)]
+    pending_screenshot_path: Option<PathBuf>,
+    #[cfg(debug_assertions)]
+    pending_screenshot_delay_frames: u8,
 }
 
 impl Default for PreferencesWindow {
@@ -159,6 +219,14 @@ impl Default for PreferencesWindow {
             token_account_status_msg: None,
             shortcut_input: settings.global_shortcut.clone(),
             shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
         }));
 
         Self {
@@ -230,6 +298,34 @@ impl PreferencesWindow {
         self.needs_viewport_placement = false;
     }
 
+    #[cfg(debug_assertions)]
+    pub(crate) fn select_tab_for_testing(&mut self, tab: &str) {
+        let normalized = tab.trim().to_ascii_lowercase();
+        let target_tab = match normalized.as_str() {
+            "general" => PreferencesTab::General,
+            "providers" => PreferencesTab::Providers,
+            "display" => PreferencesTab::Display,
+            "api_keys" | "apikeys" | "api-keys" => PreferencesTab::ApiKeys,
+            "cookies" => PreferencesTab::Cookies,
+            "advanced" => PreferencesTab::Advanced,
+            "about" => PreferencesTab::About,
+            _ => {
+                tracing::warn!("Unknown preferences test tab selection: {}", tab);
+                return;
+            }
+        };
+
+        if !self.is_open {
+            self.open();
+        }
+
+        self.active_tab = target_tab;
+        if let Ok(mut state) = self.shared_state.lock() {
+            state.is_open = true;
+            state.active_tab = target_tab;
+        }
+    }
+
     /// Check if a refresh was requested and reset the flag
     pub fn take_refresh_requested(&mut self) -> bool {
         if let Ok(mut state) = self.shared_state.lock()
@@ -269,6 +365,231 @@ impl PreferencesWindow {
     pub fn reload_snapshot(&mut self) {
         if let Ok(mut state) = self.shared_state.lock() {
             state.cached_snapshot = WidgetSnapshotStore::load();
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn debug_snapshot(
+        &self,
+    ) -> (
+        Vec<PreferencesDebugTabTarget>,
+        Option<Rect>,
+        PreferencesDebugSettingsSnapshot,
+        Option<PreferencesDebugStatusMessage>,
+        Option<PreferencesDebugStatusMessage>,
+    ) {
+        if let Ok(state) = self.shared_state.lock() {
+            let mut enabled_providers = state
+                .settings
+                .enabled_providers
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>();
+            enabled_providers.sort();
+            (
+                state.debug_tab_targets.clone(),
+                state.debug_viewport_outer_rect,
+                PreferencesDebugSettingsSnapshot {
+                    enabled_providers,
+                    refresh_interval_secs: state.settings.refresh_interval_secs,
+                },
+                state
+                    .api_key_status_msg
+                    .as_ref()
+                    .map(|(message, is_error)| PreferencesDebugStatusMessage {
+                        message: message.clone(),
+                        is_error: *is_error,
+                    }),
+                state.cookie_status_msg.as_ref().map(|(message, is_error)| {
+                    PreferencesDebugStatusMessage {
+                        message: message.clone(),
+                        is_error: *is_error,
+                    }
+                }),
+            )
+        } else {
+            (
+                Vec::new(),
+                None,
+                PreferencesDebugSettingsSnapshot {
+                    enabled_providers: Vec::new(),
+                    refresh_interval_secs: 0,
+                },
+                None,
+                None,
+            )
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn request_screenshot_for_testing(&mut self, path: PathBuf) {
+        if !self.is_open {
+            self.open();
+        }
+        if let Ok(mut state) = self.shared_state.lock() {
+            state.is_open = true;
+            state.pending_screenshot_path = Some(path);
+            state.pending_screenshot_delay_frames = 1;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn set_api_key_input_for_testing(&mut self, provider: &str, value: &str) {
+        if !self.is_open {
+            self.open();
+        }
+
+        self.active_tab = PreferencesTab::ApiKeys;
+        if let Ok(mut state) = self.shared_state.lock() {
+            state.is_open = true;
+            state.active_tab = PreferencesTab::ApiKeys;
+            state.new_api_key_provider = provider.trim().to_string();
+            state.new_api_key_value = value.to_string();
+            state.show_api_key_input = true;
+            state.api_key_status_msg = None;
+            state.cookie_status_msg = None;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn set_provider_enabled_for_testing(&mut self, provider: &str, enabled: bool) {
+        if !self.is_open {
+            self.open();
+        }
+
+        self.active_tab = PreferencesTab::Providers;
+        if let Ok(mut state) = self.shared_state.lock() {
+            state.is_open = true;
+            state.active_tab = PreferencesTab::Providers;
+            let provider = provider.trim().to_string();
+            if enabled {
+                state.settings.enabled_providers.insert(provider);
+            } else {
+                state.settings.enabled_providers.remove(&provider);
+            }
+            state.settings_changed = true;
+            state.refresh_requested = true;
+            state.api_key_status_msg = None;
+            state.cookie_status_msg = None;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn set_refresh_interval_for_testing(&mut self, seconds: u64) {
+        if !self.is_open {
+            self.open();
+        }
+
+        self.active_tab = PreferencesTab::Advanced;
+        if let Ok(mut state) = self.shared_state.lock() {
+            state.is_open = true;
+            state.active_tab = PreferencesTab::Advanced;
+            state.settings.refresh_interval_secs = seconds;
+            state.settings_changed = true;
+            state.api_key_status_msg = None;
+            state.cookie_status_msg = None;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn submit_api_key_for_testing(&mut self) {
+        if !self.is_open {
+            self.open();
+        }
+
+        if let Ok(mut state) = self.shared_state.lock() {
+            let ui_language = state.settings.ui_language;
+            let provider = state.new_api_key_provider.trim().to_string();
+            let value = state.new_api_key_value.trim().to_string();
+            let provider_name = ProviderId::from_cli_name(&provider)
+                .map(|id| id.display_name().to_string())
+                .unwrap_or_else(|| provider.clone());
+            state.cookie_status_msg = None;
+
+            if provider.is_empty() || value.is_empty() {
+                state.api_key_status_msg = Some((
+                    locale_text(ui_language, LocaleKey::SaveFailed)
+                        .replace("{}", "missing provider or value"),
+                    true,
+                ));
+                return;
+            }
+
+            state.api_keys.set(&provider, &value, None);
+            if let Err(error) = state.api_keys.save() {
+                state.api_key_status_msg = Some((
+                    locale_text(ui_language, LocaleKey::SaveFailed)
+                        .replace("{}", &error.to_string()),
+                    true,
+                ));
+            } else {
+                state.api_key_status_msg = Some((
+                    locale_text(ui_language, LocaleKey::ApiKeySaved).replace("{}", &provider_name),
+                    false,
+                ));
+                state.show_api_key_input = false;
+                state.new_api_key_value.clear();
+            }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn set_cookie_input_for_testing(&mut self, provider: &str, value: &str) {
+        if !self.is_open {
+            self.open();
+        }
+
+        self.active_tab = PreferencesTab::Cookies;
+        if let Ok(mut state) = self.shared_state.lock() {
+            state.is_open = true;
+            state.active_tab = PreferencesTab::Cookies;
+            state.new_cookie_provider = provider.trim().to_string();
+            state.new_cookie_value = value.to_string();
+            state.api_key_status_msg = None;
+            state.cookie_status_msg = None;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn submit_cookie_for_testing(&mut self) {
+        if !self.is_open {
+            self.open();
+        }
+
+        if let Ok(mut state) = self.shared_state.lock() {
+            let ui_language = state.settings.ui_language;
+            let provider = state.new_cookie_provider.trim().to_string();
+            let value = state.new_cookie_value.clone();
+            state.api_key_status_msg = None;
+
+            if provider.is_empty() || value.is_empty() {
+                state.cookie_status_msg = Some((
+                    locale_text(ui_language, LocaleKey::SaveFailed)
+                        .replace("{}", "missing provider or value"),
+                    true,
+                ));
+                return;
+            }
+
+            state.cookies.set(&provider, &value);
+            if let Err(error) = state.cookies.save() {
+                state.cookie_status_msg = Some((
+                    locale_text(ui_language, LocaleKey::SaveFailed)
+                        .replace("{}", &error.to_string()),
+                    true,
+                ));
+            } else {
+                let provider_name = ProviderId::from_cli_name(&provider)
+                    .map(|id| id.display_name().to_string())
+                    .unwrap_or_else(|| provider.clone());
+                state.cookie_status_msg = Some((
+                    locale_text(ui_language, LocaleKey::CookieSavedForProvider)
+                        .replace("{}", &provider_name),
+                    false,
+                ));
+                state.new_cookie_provider.clear();
+                state.new_cookie_value.clear();
+            }
         }
     }
 
@@ -350,6 +671,59 @@ impl PreferencesWindow {
                 .show(ctx, |ui| {
                     render_settings_ui(ui, &shared_state);
                 });
+
+            #[cfg(debug_assertions)]
+            {
+                let mut pending_path = None;
+                if let Ok(mut state) = shared_state.lock() {
+                    if state.pending_screenshot_delay_frames > 0 {
+                        state.pending_screenshot_delay_frames -= 1;
+                        ctx.request_repaint();
+                    } else if let Some(path) = state.pending_screenshot_path.take() {
+                        pending_path = Some(path);
+                    }
+                }
+
+                if let Some(path) = pending_path {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(
+                        path,
+                    )));
+                    ctx.request_repaint();
+                }
+
+                let screenshot_events: Vec<_> = ctx.input(|i| {
+                    i.events
+                        .iter()
+                        .filter_map(|event| match event {
+                            egui::Event::Screenshot {
+                                user_data, image, ..
+                            } => Some((user_data.clone(), image.clone())),
+                            _ => None,
+                        })
+                        .collect()
+                });
+
+                for (user_data, image) in screenshot_events {
+                    if let Some(path) = user_data
+                        .data
+                        .as_ref()
+                        .and_then(|data| data.downcast_ref::<PathBuf>())
+                    {
+                        if let Err(error) = save_color_image_to_png(path, &image) {
+                            tracing::warn!(
+                                "Failed to save preferences test screenshot to {}: {}",
+                                path.display(),
+                                error
+                            );
+                        } else {
+                            tracing::info!(
+                                "Saved preferences test screenshot to {}",
+                                path.display()
+                            );
+                        }
+                    }
+                }
+            }
         });
 
         if settings_position.is_some() {
@@ -2119,6 +2493,12 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         (PreferencesTab::General, Language::English)
     };
 
+    #[cfg(debug_assertions)]
+    if let Ok(mut state) = shared_state.lock() {
+        state.debug_tab_targets.clear();
+        state.debug_viewport_outer_rect = ui.ctx().input(|i| i.viewport().outer_rect);
+    }
+
     ui.vertical(|ui| {
         // ═══════════════════════════════════════════════════════════
         // TAB BAR - macOS style with icons above labels, centered
@@ -2221,6 +2601,22 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 && let Ok(mut state) = shared_state.lock()
             {
                 state.active_tab = *tab;
+            }
+
+            #[cfg(debug_assertions)]
+            if let Ok(mut state) = shared_state.lock() {
+                state.debug_tab_targets.push(PreferencesDebugTabTarget {
+                    name: format!(
+                        "preferences:{}",
+                        tab.label().to_lowercase().replace(' ', "_")
+                    ),
+                    rect: tab_rect,
+                    hovered: response.hovered(),
+                    contains_pointer: response.contains_pointer(),
+                    clicked: response.clicked(),
+                    pointer_button_down_on: response.is_pointer_button_down_on(),
+                    interact_pointer_pos: response.interact_pointer_pos(),
+                });
             }
         }
 

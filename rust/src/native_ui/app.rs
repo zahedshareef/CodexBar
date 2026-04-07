@@ -4,6 +4,8 @@
 use eframe::egui::{
     self, Color32, FontData, FontDefinitions, FontFamily, Rect, RichText, Rounding, Stroke, Vec2,
 };
+use image::ColorType;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -36,16 +38,78 @@ use crate::tray::{
 use crate::updater::{self, UpdateInfo, UpdateState};
 
 #[cfg(windows)]
-fn restore_main_window() {
+fn find_main_window() -> Option<windows::Win32::Foundation::HWND> {
+    use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
     use windows::Win32::UI::WindowsAndMessaging::{
-        BringWindowToTop, FindWindowW, HWND_NOTOPMOST, HWND_TOP, HWND_TOPMOST, IsIconic,
-        SW_RESTORE, SW_SHOW, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow,
-        SetWindowPos, ShowWindow,
+        EnumWindows, GWL_EXSTYLE, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
+        GetWindowThreadProcessId, WS_EX_TOOLWINDOW,
     };
-    use windows::core::w;
+
+    struct SearchState {
+        pid: u32,
+        preferred: Option<HWND>,
+        fallback: Option<HWND>,
+    }
+
+    unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let state = unsafe { &mut *(lparam.0 as *mut SearchState) };
+
+        let mut process_id = 0u32;
+        let _ = unsafe { GetWindowThreadProcessId(hwnd, Some(&mut process_id)) };
+        if process_id != state.pid {
+            return true.into();
+        }
+
+        let ex_style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 };
+        if ex_style & WS_EX_TOOLWINDOW.0 != 0 {
+            return true.into();
+        }
+
+        if state.fallback.is_none() {
+            state.fallback = Some(hwnd);
+        }
+
+        let text_len = unsafe { GetWindowTextLengthW(hwnd) };
+        if text_len > 0 {
+            let mut buf = vec![0u16; text_len as usize + 1];
+            let copied = unsafe { GetWindowTextW(hwnd, &mut buf) };
+            if copied > 0 {
+                let title = String::from_utf16_lossy(&buf[..copied as usize]);
+                if title == "CodexBar" {
+                    state.preferred = Some(hwnd);
+                    return false.into();
+                }
+            }
+        }
+
+        true.into()
+    }
+
+    let mut state = SearchState {
+        pid: std::process::id(),
+        preferred: None,
+        fallback: None,
+    };
 
     unsafe {
-        if let Ok(hwnd) = FindWindowW(None, w!("CodexBar"))
+        let _ = EnumWindows(
+            Some(enum_windows_proc),
+            LPARAM((&mut state as *mut SearchState) as isize),
+        );
+    }
+
+    state.preferred.or(state.fallback)
+}
+
+#[cfg(windows)]
+fn restore_main_window() {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        BringWindowToTop, HWND_NOTOPMOST, HWND_TOP, HWND_TOPMOST, IsIconic, SW_RESTORE, SW_SHOW,
+        SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetForegroundWindow, SetWindowPos, ShowWindow,
+    };
+
+    unsafe {
+        if let Some(hwnd) = find_main_window()
             && !hwnd.is_invalid()
         {
             if IsIconic(hwnd).as_bool() {
@@ -91,13 +155,12 @@ fn restore_main_window() {
 #[cfg(windows)]
 fn show_main_window_no_focus() {
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowW, HWND_TOP, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-        SWP_SHOWWINDOW, SetWindowPos, ShowWindow,
+        HWND_TOP, SW_SHOWNOACTIVATE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+        SetWindowPos, ShowWindow,
     };
-    use windows::core::w;
 
     unsafe {
-        if let Ok(hwnd) = FindWindowW(None, w!("CodexBar"))
+        if let Some(hwnd) = find_main_window()
             && !hwnd.is_invalid()
         {
             let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
@@ -127,9 +190,41 @@ fn is_remote_session() -> bool {
     unsafe { GetSystemMetrics(SM_REMOTESESSION) != 0 }
 }
 
+#[cfg(windows)]
+fn is_ssh_session() -> bool {
+    std::env::var_os("SSH_CONNECTION").is_some() || std::env::var_os("SSH_CLIENT").is_some()
+}
+
+fn launch_block_reason(is_ssh: bool, is_remote: bool) -> Option<&'static str> {
+    if is_ssh {
+        Some(ssh_session_error_message())
+    } else if is_remote {
+        Some(remote_session_error_message())
+    } else {
+        None
+    }
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn ssh_session_error_message() -> &'static str {
+    "CodexBar can't render its native window from an SSH session on this machine.\n\nOpen it from the logged-in Windows desktop session instead, or use the CLI over SSH:\n\n  codexbar usage -p claude\n\nThe startup log is written to %TEMP%\\codexbar_launch.log."
+}
+
 #[cfg_attr(not(windows), allow(dead_code))]
 fn remote_session_error_message() -> &'static str {
     "CodexBar can't render its native window inside a Windows Remote Desktop session on this machine.\n\nRun it from the local desktop session instead, or use the CLI while connected over RDP:\n\n  codexbar usage -p claude\n\nThe startup log is written to %TEMP%\\codexbar_launch.log."
+}
+
+fn append_launch_log(message: &str) {
+    let path = std::env::temp_dir().join("codexbar_launch.log");
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .and_then(|mut file| {
+            use std::io::Write;
+            writeln!(file, "{}", message)
+        });
 }
 
 #[cfg(windows)]
@@ -149,6 +244,7 @@ fn build_native_options() -> eframe::NativeOptions {
         .with_inner_size([360.0, 500.0])
         .with_min_inner_size([320.0, 320.0])
         .with_clamp_size_to_monitor_size(true)
+        .with_visible(true)
         .with_resizable(true)
         .with_decorations(true)
         .with_transparent(false)
@@ -160,6 +256,204 @@ fn build_native_options() -> eframe::NativeOptions {
         persist_window: false, // Don't persist window state
         ..Default::default()
     }
+}
+
+#[cfg(debug_assertions)]
+fn save_color_image_to_png(path: &std::path::Path, image: &egui::ColorImage) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let mut rgba = Vec::with_capacity(image.pixels.len() * 4);
+    for pixel in &image.pixels {
+        rgba.extend_from_slice(&pixel.to_srgba_unmultiplied());
+    }
+
+    image::save_buffer(
+        path,
+        &rgba,
+        image.size[0] as u32,
+        image.size[1] as u32,
+        ColorType::Rgba8,
+    )?;
+
+    Ok(())
+}
+
+#[cfg(debug_assertions)]
+#[derive(Clone, Debug)]
+struct DebugTabTarget {
+    name: String,
+    rect: Rect,
+    hovered: bool,
+    contains_pointer: bool,
+    clicked: bool,
+    pointer_button_down_on: bool,
+    interact_pointer_pos: Option<egui::Pos2>,
+}
+
+#[cfg(debug_assertions)]
+#[derive(Clone, Copy, Debug)]
+struct DebugPointerSnapshot {
+    latest_pos: Option<egui::Pos2>,
+    interact_pos: Option<egui::Pos2>,
+    primary_down: bool,
+    primary_pressed: bool,
+    primary_released: bool,
+    primary_clicked: bool,
+}
+
+#[cfg(debug_assertions)]
+fn rect_json(rect: Rect) -> String {
+    format!(
+        "{{\"min_x\":{:.1},\"min_y\":{:.1},\"max_x\":{:.1},\"max_y\":{:.1},\"center_x\":{:.1},\"center_y\":{:.1}}}",
+        rect.min.x,
+        rect.min.y,
+        rect.max.x,
+        rect.max.y,
+        rect.center().x,
+        rect.center().y
+    )
+}
+
+#[cfg(debug_assertions)]
+fn pos_json(pos: Option<egui::Pos2>) -> String {
+    pos.map(|pos| format!("{{\"x\":{:.1},\"y\":{:.1}}}", pos.x, pos.y))
+        .unwrap_or_else(|| "null".to_string())
+}
+
+#[cfg(debug_assertions)]
+fn status_message_json(
+    status: &Option<super::preferences::PreferencesDebugStatusMessage>,
+) -> String {
+    status
+        .as_ref()
+        .map(|status| {
+            format!(
+                "{{\"message\":\"{}\",\"is_error\":{}}}",
+                status.message.replace('\\', "\\\\").replace('\"', "\\\""),
+                status.is_error
+            )
+        })
+        .unwrap_or_else(|| "null".to_string())
+}
+
+#[cfg(debug_assertions)]
+fn string_list_json(values: &[String]) -> String {
+    let values = values
+        .iter()
+        .map(|value| format!("\"{}\"", value.replace('\\', "\\\\").replace('\"', "\\\"")))
+        .collect::<Vec<_>>()
+        .join(",");
+    format!("[{}]", values)
+}
+
+#[cfg(debug_assertions)]
+fn write_debug_state_with_targets_file(
+    path: &std::path::Path,
+    selected_tab: &SelectedTab,
+    preferences_open: bool,
+    preferences_tab: &super::preferences::PreferencesTab,
+    tab_targets: &[DebugTabTarget],
+    viewport_outer_rect: Option<Rect>,
+    preferences_tab_targets: &[DebugTabTarget],
+    preferences_viewport_outer_rect: Option<Rect>,
+    preferences_settings: &super::preferences::PreferencesDebugSettingsSnapshot,
+    api_key_status: &Option<super::preferences::PreferencesDebugStatusMessage>,
+    cookie_status: &Option<super::preferences::PreferencesDebugStatusMessage>,
+    pointer_snapshot: DebugPointerSnapshot,
+) -> anyhow::Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let selected_tab = match selected_tab {
+        SelectedTab::Summary => "summary".to_string(),
+        SelectedTab::Provider(provider_id) => {
+            format!("provider:{}", provider_id.cli_name())
+        }
+    };
+    let preferences_tab = match preferences_tab {
+        super::preferences::PreferencesTab::General => "general",
+        super::preferences::PreferencesTab::Providers => "providers",
+        super::preferences::PreferencesTab::Display => "display",
+        super::preferences::PreferencesTab::ApiKeys => "api_keys",
+        super::preferences::PreferencesTab::Cookies => "cookies",
+        super::preferences::PreferencesTab::Advanced => "advanced",
+        super::preferences::PreferencesTab::About => "about",
+    };
+    let tab_targets_json = tab_targets
+        .iter()
+        .map(|target| {
+            format!(
+                "{{\"name\":\"{}\",\"rect\":{},\"hovered\":{},\"contains_pointer\":{},\"clicked\":{},\"pointer_button_down_on\":{},\"interact_pointer_pos\":{}}}",
+                target.name.replace('\\', "\\\\").replace('\"', "\\\""),
+                rect_json(target.rect),
+                target.hovered,
+                target.contains_pointer,
+                target.clicked,
+                target.pointer_button_down_on,
+                pos_json(target.interact_pointer_pos)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let viewport_outer_rect_json = viewport_outer_rect
+        .map(rect_json)
+        .unwrap_or_else(|| "null".to_string());
+    let preferences_tab_targets_json = preferences_tab_targets
+        .iter()
+        .map(|target| {
+            format!(
+                "{{\"name\":\"{}\",\"rect\":{},\"hovered\":{},\"contains_pointer\":{},\"clicked\":{},\"pointer_button_down_on\":{},\"interact_pointer_pos\":{}}}",
+                target.name.replace('\\', "\\\\").replace('\"', "\\\""),
+                rect_json(target.rect),
+                target.hovered,
+                target.contains_pointer,
+                target.clicked,
+                target.pointer_button_down_on,
+                pos_json(target.interact_pointer_pos)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    let preferences_viewport_outer_rect_json = preferences_viewport_outer_rect
+        .map(rect_json)
+        .unwrap_or_else(|| "null".to_string());
+    let enabled_providers_json = string_list_json(&preferences_settings.enabled_providers);
+    let api_key_status_json = status_message_json(api_key_status);
+    let cookie_status_json = status_message_json(cookie_status);
+    let pointer_snapshot_json = format!(
+        "{{\"latest_pos\":{},\"interact_pos\":{},\"primary_down\":{},\"primary_pressed\":{},\"primary_released\":{},\"primary_clicked\":{}}}",
+        pos_json(pointer_snapshot.latest_pos),
+        pos_json(pointer_snapshot.interact_pos),
+        pointer_snapshot.primary_down,
+        pointer_snapshot.primary_pressed,
+        pointer_snapshot.primary_released,
+        pointer_snapshot.primary_clicked
+    );
+
+    let payload = format!(
+        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
+        selected_tab.replace('\\', "\\\\").replace('\"', "\\\""),
+        preferences_open,
+        preferences_tab,
+        viewport_outer_rect_json,
+        preferences_viewport_outer_rect_json,
+        enabled_providers_json,
+        preferences_settings.refresh_interval_secs,
+        api_key_status_json,
+        cookie_status_json,
+        pointer_snapshot_json,
+        tab_targets_json,
+        preferences_tab_targets_json
+    );
+    std::fs::write(path, payload)?;
+    Ok(())
 }
 
 #[derive(Clone, Debug)]
@@ -570,6 +864,7 @@ struct SharedState {
     summary_providers: Vec<ProviderData>,
     selected_tab: SelectedTab,
     last_refresh: Instant,
+    initial_refresh_pending: bool,
     is_refreshing: bool,
     loading_pattern: LoadingPattern,
     loading_phase: f64,
@@ -594,6 +889,29 @@ enum SelectedTab {
 
 fn open_update_destination(update: &UpdateInfo) {
     let _ = open::that(&update.download_url);
+}
+
+fn startup_last_refresh(now: Instant) -> Instant {
+    now
+}
+
+fn should_auto_refresh(
+    initial_refresh_pending: bool,
+    is_refreshing: bool,
+    last_refresh: Instant,
+    refresh_interval_secs: u64,
+    now: Instant,
+) -> bool {
+    if refresh_interval_secs == 0 || is_refreshing {
+        return false;
+    }
+
+    if initial_refresh_pending {
+        return true;
+    }
+
+    now.checked_duration_since(last_refresh)
+        .is_some_and(|elapsed| elapsed > Duration::from_secs(refresh_interval_secs))
 }
 
 fn start_update_download(state: Arc<Mutex<SharedState>>, update: UpdateInfo) {
@@ -728,8 +1046,36 @@ pub struct CodexBarApp {
     notification_manager: Arc<Mutex<NotificationManager>>,
     #[cfg(debug_assertions)]
     test_input_queue: super::test_server::TestInputQueue,
+    #[cfg(debug_assertions)]
+    pending_test_screenshot_path: Option<PathBuf>,
+    #[cfg(debug_assertions)]
+    pending_test_screenshot_delay_frames: u8,
+    #[cfg(debug_assertions)]
+    pending_test_state_dump_path: Option<PathBuf>,
+    #[cfg(debug_assertions)]
+    pending_test_state_dump_delay_frames: u8,
+    #[cfg(debug_assertions)]
+    pending_test_event_batches: VecDeque<Vec<egui::Event>>,
+    #[cfg(debug_assertions)]
+    debug_tab_targets: Vec<DebugTabTarget>,
+    #[cfg(debug_assertions)]
+    debug_viewport_outer_rect: Option<Rect>,
+    #[cfg(debug_assertions)]
+    last_debug_tab_targets: Vec<DebugTabTarget>,
+    #[cfg(debug_assertions)]
+    last_debug_viewport_outer_rect: Option<Rect>,
+    #[cfg(debug_assertions)]
+    last_debug_pointer_snapshot: DebugPointerSnapshot,
+    #[cfg(debug_assertions)]
+    latched_debug_tab_targets: Vec<DebugTabTarget>,
+    #[cfg(debug_assertions)]
+    latched_debug_viewport_outer_rect: Option<Rect>,
+    #[cfg(debug_assertions)]
+    latched_debug_pointer_snapshot: DebugPointerSnapshot,
+    first_update_logged: bool,
 }
 
+#[cfg(any(test, windows))]
 fn prepend_font(fonts: &mut FontDefinitions, family: FontFamily, font_name: &str) {
     let entries = fonts.families.entry(family).or_default();
     if !entries.iter().any(|existing| existing == font_name) {
@@ -737,6 +1083,14 @@ fn prepend_font(fonts: &mut FontDefinitions, family: FontFamily, font_name: &str
     }
 }
 
+fn append_font(fonts: &mut FontDefinitions, family: FontFamily, font_name: &str) {
+    let entries = fonts.families.entry(family).or_default();
+    if !entries.iter().any(|existing| existing == font_name) {
+        entries.push(font_name.to_owned());
+    }
+}
+
+#[cfg(any(test, not(windows)))]
 fn add_font_if_present(fonts: &mut FontDefinitions, font_name: &str, path: &str) {
     if let Ok(font_data) = std::fs::read(path) {
         fonts
@@ -744,6 +1098,17 @@ fn add_font_if_present(fonts: &mut FontDefinitions, font_name: &str, path: &str)
             .insert(font_name.to_owned(), FontData::from_owned(font_data).into());
         prepend_font(fonts, FontFamily::Proportional, font_name);
         prepend_font(fonts, FontFamily::Monospace, font_name);
+    }
+}
+
+#[cfg(windows)]
+fn add_font_fallback_if_present(fonts: &mut FontDefinitions, font_name: &str, path: &str) {
+    if let Ok(font_data) = std::fs::read(path) {
+        fonts
+            .font_data
+            .insert(font_name.to_owned(), FontData::from_owned(font_data).into());
+        append_font(fonts, FontFamily::Proportional, font_name);
+        append_font(fonts, FontFamily::Monospace, font_name);
     }
 }
 
@@ -793,8 +1158,13 @@ impl CodexBarApp {
                 .push("segoe_symbols".to_owned());
         }
 
-        // Add common Chinese fonts in priority order (if present).
-        // We insert them at the front so CJK glyph lookup hits these first.
+        // Keep CJK fonts as fallbacks on Windows so Latin text stays on the
+        // default UI stack while Chinese glyphs still render when needed.
+        #[cfg(windows)]
+        for (name, path) in cjk_font_candidates() {
+            add_font_fallback_if_present(&mut fonts, name, path);
+        }
+        #[cfg(not(windows))]
         for (name, path) in cjk_font_candidates() {
             add_font_if_present(&mut fonts, name, path);
         }
@@ -812,7 +1182,8 @@ impl CodexBarApp {
             providers: placeholders.clone(),
             summary_providers: placeholders,
             selected_tab: SelectedTab::Summary,
-            last_refresh: Instant::now() - Duration::from_secs(999),
+            last_refresh: startup_last_refresh(Instant::now()),
+            initial_refresh_pending: true,
             is_refreshing: false,
             loading_pattern: LoadingPattern::random(),
             loading_phase: 0.0,
@@ -908,9 +1279,24 @@ impl CodexBarApp {
         #[cfg(debug_assertions)]
         let test_input_queue = {
             let q = super::test_server::create_queue();
-            super::test_server::start_server(q.clone());
+            super::test_server::start_server(q.clone(), cc.egui_ctx.clone());
             q
         };
+
+        #[cfg(debug_assertions)]
+        {
+            // Keep debug/dev builds visible on startup so guest-side automation has
+            // a real viewport to drive instead of a tray-hidden process.
+            append_launch_log("CodexBarApp::new debug startup visibility commands queued");
+            restore_main_window();
+            cc.egui_ctx
+                .send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            cc.egui_ctx
+                .send_viewport_cmd(egui::ViewportCommand::Visible(true));
+            cc.egui_ctx.request_repaint();
+        }
+
+        append_launch_log("CodexBarApp::new completed");
 
         Self {
             state,
@@ -926,6 +1312,47 @@ impl CodexBarApp {
             notification_manager: Arc::new(Mutex::new(NotificationManager::new())),
             #[cfg(debug_assertions)]
             test_input_queue,
+            #[cfg(debug_assertions)]
+            pending_test_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_test_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_test_state_dump_path: None,
+            #[cfg(debug_assertions)]
+            pending_test_state_dump_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_test_event_batches: VecDeque::new(),
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            last_debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            last_debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            last_debug_pointer_snapshot: DebugPointerSnapshot {
+                latest_pos: None,
+                interact_pos: None,
+                primary_down: false,
+                primary_pressed: false,
+                primary_released: false,
+                primary_clicked: false,
+            },
+            #[cfg(debug_assertions)]
+            latched_debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            latched_debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            latched_debug_pointer_snapshot: DebugPointerSnapshot {
+                latest_pos: None,
+                interact_pos: None,
+                primary_down: false,
+                primary_pressed: false,
+                primary_released: false,
+                primary_clicked: false,
+            },
+            first_update_logged: false,
         }
     }
 
@@ -954,6 +1381,81 @@ impl CodexBarApp {
         }
 
         std::process::exit(0);
+    }
+
+    #[cfg(debug_assertions)]
+    fn open_main_window_for_testing(&mut self, ctx: &egui::Context) {
+        tracing::debug!("Opening main window via test server");
+        restore_main_window();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.request_repaint();
+        self.pending_main_window_layout = true;
+        self.anchor_main_window_to_pointer = true;
+    }
+
+    #[cfg(debug_assertions)]
+    fn request_test_screenshot(&mut self, path: PathBuf, ctx: &egui::Context) {
+        tracing::debug!("Scheduling test screenshot for {}", path.display());
+        self.open_main_window_for_testing(ctx);
+        self.pending_test_screenshot_path = Some(path);
+        self.pending_test_screenshot_delay_frames = 1;
+    }
+
+    #[cfg(debug_assertions)]
+    fn request_test_preferences_screenshot(&mut self, path: PathBuf, ctx: &egui::Context) {
+        tracing::debug!(
+            "Scheduling preferences test screenshot for {}",
+            path.display()
+        );
+        self.preferences_window.request_screenshot_for_testing(path);
+        ctx.request_repaint();
+    }
+
+    #[cfg(debug_assertions)]
+    fn request_test_state_dump(&mut self, path: PathBuf, ctx: &egui::Context) {
+        tracing::debug!("Scheduling test state dump for {}", path.display());
+        self.open_main_window_for_testing(ctx);
+        self.pending_test_state_dump_path = Some(path);
+        self.pending_test_state_dump_delay_frames = 1;
+    }
+
+    #[cfg(debug_assertions)]
+    fn select_tab_for_testing(&mut self, tab: &str, ctx: &egui::Context) {
+        let normalized = tab.trim().to_ascii_lowercase();
+        if let Ok(mut state) = self.state.lock() {
+            if normalized == "summary" {
+                state.selected_tab = SelectedTab::Summary;
+            } else if let Some(provider_id) = ProviderId::from_cli_name(&normalized) {
+                state.selected_tab = SelectedTab::Provider(provider_id);
+            } else {
+                tracing::warn!("Unknown test tab selection: {}", tab);
+                return;
+            }
+        }
+        self.open_main_window_for_testing(ctx);
+    }
+
+    #[cfg(debug_assertions)]
+    fn queue_test_pointer_batches(&mut self, batches: impl IntoIterator<Item = Vec<egui::Event>>) {
+        self.pending_test_event_batches.extend(batches);
+    }
+
+    #[cfg(debug_assertions)]
+    fn record_debug_view_state(&mut self, ctx: &egui::Context) {
+        self.debug_tab_targets.clear();
+        self.debug_viewport_outer_rect = ctx.input(|i| i.viewport().outer_rect);
+    }
+
+    #[cfg(debug_assertions)]
+    fn queue_test_click(
+        &mut self,
+        ctx: &egui::Context,
+        pos: egui::Pos2,
+        button: egui::PointerButton,
+    ) {
+        self.open_main_window_for_testing(ctx);
+        self.queue_test_pointer_batches(build_test_click_event_batches(pos, button));
     }
 
     fn layout_main_window(&mut self, ctx: &egui::Context, anchor_to_pointer: bool) {
@@ -1037,6 +1539,7 @@ impl CodexBarApp {
 
         std::thread::spawn(move || {
             if let Ok(mut s) = state.lock() {
+                s.initial_refresh_pending = false;
                 s.is_refreshing = true;
                 s.loading_pattern = LoadingPattern::random();
                 s.loading_phase = 0.0;
@@ -1314,7 +1817,129 @@ fn create_provider(id: ProviderId) -> Box<dyn Provider> {
 }
 
 impl eframe::App for CodexBarApp {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        #[cfg(debug_assertions)]
+        {
+            let drained_inputs: Vec<_> = if let Ok(mut queue) = self.test_input_queue.lock() {
+                queue.drain(..).collect()
+            } else {
+                Vec::new()
+            };
+            for input in drained_inputs {
+                match input {
+                    super::test_server::TestInput::OpenWindow => {
+                        self.open_main_window_for_testing(ctx);
+                    }
+                    super::test_server::TestInput::SelectTab { tab } => {
+                        self.select_tab_for_testing(&tab, ctx);
+                    }
+                    super::test_server::TestInput::SelectPreferencesTab { tab } => {
+                        self.preferences_window.select_tab_for_testing(&tab);
+                    }
+                    super::test_server::TestInput::SetProviderEnabled { provider, enabled } => {
+                        self.preferences_window
+                            .set_provider_enabled_for_testing(&provider, enabled);
+                        ctx.request_repaint();
+                    }
+                    super::test_server::TestInput::SetRefreshInterval { seconds } => {
+                        self.preferences_window
+                            .set_refresh_interval_for_testing(seconds);
+                        ctx.request_repaint();
+                    }
+                    super::test_server::TestInput::SetApiKeyInput { provider, value } => {
+                        self.preferences_window
+                            .set_api_key_input_for_testing(&provider, &value);
+                        ctx.request_repaint();
+                    }
+                    super::test_server::TestInput::SubmitApiKey => {
+                        self.preferences_window.submit_api_key_for_testing();
+                        ctx.request_repaint();
+                    }
+                    super::test_server::TestInput::SetCookieInput { provider, value } => {
+                        self.preferences_window
+                            .set_cookie_input_for_testing(&provider, &value);
+                        ctx.request_repaint();
+                    }
+                    super::test_server::TestInput::SubmitCookie => {
+                        self.preferences_window.submit_cookie_for_testing();
+                        ctx.request_repaint();
+                    }
+                    super::test_server::TestInput::SaveState { path } => {
+                        self.request_test_state_dump(PathBuf::from(path), ctx);
+                    }
+                    super::test_server::TestInput::SaveScreenshot { path } => {
+                        self.request_test_screenshot(PathBuf::from(path), ctx);
+                    }
+                    super::test_server::TestInput::SavePreferencesScreenshot { path } => {
+                        self.request_test_preferences_screenshot(PathBuf::from(path), ctx);
+                    }
+                    super::test_server::TestInput::Click { x, y } => {
+                        let pos = egui::pos2(x, y);
+                        self.queue_test_click(ctx, pos, egui::PointerButton::Primary);
+                        tracing::debug!("Injected staged test click at ({}, {})", x, y);
+                    }
+                    super::test_server::TestInput::DoubleClick { x, y } => {
+                        let pos = egui::pos2(x, y);
+                        self.open_main_window_for_testing(ctx);
+                        self.queue_test_pointer_batches([
+                            vec![egui::Event::PointerMoved(pos)],
+                            vec![egui::Event::PointerButton {
+                                pos,
+                                button: egui::PointerButton::Primary,
+                                pressed: true,
+                                modifiers: egui::Modifiers::NONE,
+                            }],
+                            vec![egui::Event::PointerMoved(pos)],
+                            vec![egui::Event::PointerButton {
+                                pos,
+                                button: egui::PointerButton::Primary,
+                                pressed: false,
+                                modifiers: egui::Modifiers::NONE,
+                            }],
+                            vec![egui::Event::PointerMoved(pos)],
+                            vec![egui::Event::PointerButton {
+                                pos,
+                                button: egui::PointerButton::Primary,
+                                pressed: true,
+                                modifiers: egui::Modifiers::NONE,
+                            }],
+                            vec![egui::Event::PointerMoved(pos)],
+                            vec![egui::Event::PointerButton {
+                                pos,
+                                button: egui::PointerButton::Primary,
+                                pressed: false,
+                                modifiers: egui::Modifiers::NONE,
+                            }],
+                        ]);
+                        tracing::debug!("Injected staged test double-click at ({}, {})", x, y);
+                    }
+                    super::test_server::TestInput::RightClick { x, y } => {
+                        let pos = egui::pos2(x, y);
+                        self.queue_test_click(ctx, pos, egui::PointerButton::Secondary);
+                        tracing::debug!("Injected staged test right-click at ({}, {})", x, y);
+                    }
+                }
+            }
+        }
+
+        #[cfg(debug_assertions)]
+        if let Some(events) = self.pending_test_event_batches.pop_front() {
+            raw_input.events.extend(events);
+        }
+    }
+
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if !self.first_update_logged {
+            let viewport_outer_rect = ctx.input(|i| i.viewport().outer_rect);
+            append_launch_log(&format!(
+                "first update: pending_main_window_layout={} anchor_main_window_to_pointer={} viewport_outer_rect={:?}",
+                self.pending_main_window_layout,
+                self.anchor_main_window_to_pointer,
+                viewport_outer_rect
+            ));
+            self.first_update_logged = true;
+        }
+
         // Intercept window close: hide to tray instead of exiting
         if ctx.input(|i| i.viewport().close_requested()) {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
@@ -1323,6 +1948,20 @@ impl eframe::App for CodexBarApp {
 
         if self.pending_main_window_layout {
             self.layout_main_window(ctx, self.anchor_main_window_to_pointer);
+        }
+
+        #[cfg(debug_assertions)]
+        if let Some(path) = self.pending_test_screenshot_path.clone() {
+            if self.pending_test_screenshot_delay_frames > 0 {
+                self.pending_test_screenshot_delay_frames -= 1;
+                ctx.request_repaint();
+            } else if self.pending_main_window_layout {
+                ctx.request_repaint();
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(path)));
+                self.pending_test_screenshot_path = None;
+                ctx.request_repaint();
+            }
         }
 
         // Check keyboard shortcuts without holding an immutable borrow of self
@@ -1340,80 +1979,36 @@ impl eframe::App for CodexBarApp {
             self.layout_main_window(ctx, true);
         }
 
-        // Process test input queue (debug builds only - for automated testing without moving real cursor)
         #[cfg(debug_assertions)]
-        if let Ok(mut queue) = self.test_input_queue.lock() {
-            let mut had_input = false;
-            for input in queue.drain(..) {
-                had_input = true;
-                match input {
-                    super::test_server::TestInput::Click { x, y } => {
-                        let pos = egui::pos2(x, y);
-                        ctx.input_mut(|i| {
-                            // Move pointer to position first (required for hover detection)
-                            i.events.push(egui::Event::PointerMoved(pos));
-                            // Then click
-                            i.events.push(egui::Event::PointerButton {
-                                pos,
-                                button: egui::PointerButton::Primary,
-                                pressed: true,
-                                modifiers: egui::Modifiers::NONE,
-                            });
-                            i.events.push(egui::Event::PointerButton {
-                                pos,
-                                button: egui::PointerButton::Primary,
-                                pressed: false,
-                                modifiers: egui::Modifiers::NONE,
-                            });
-                        });
-                        tracing::debug!("Injected test click at ({}, {})", x, y);
-                    }
-                    super::test_server::TestInput::DoubleClick { x, y } => {
-                        let pos = egui::pos2(x, y);
-                        ctx.input_mut(|i| {
-                            // Move pointer to position first
-                            i.events.push(egui::Event::PointerMoved(pos));
-                            for _ in 0..2 {
-                                i.events.push(egui::Event::PointerButton {
-                                    pos,
-                                    button: egui::PointerButton::Primary,
-                                    pressed: true,
-                                    modifiers: egui::Modifiers::NONE,
-                                });
-                                i.events.push(egui::Event::PointerButton {
-                                    pos,
-                                    button: egui::PointerButton::Primary,
-                                    pressed: false,
-                                    modifiers: egui::Modifiers::NONE,
-                                });
-                            }
-                        });
-                        tracing::debug!("Injected test double-click at ({}, {})", x, y);
-                    }
-                    super::test_server::TestInput::RightClick { x, y } => {
-                        let pos = egui::pos2(x, y);
-                        ctx.input_mut(|i| {
-                            // Move pointer to position first
-                            i.events.push(egui::Event::PointerMoved(pos));
-                            i.events.push(egui::Event::PointerButton {
-                                pos,
-                                button: egui::PointerButton::Secondary,
-                                pressed: true,
-                                modifiers: egui::Modifiers::NONE,
-                            });
-                            i.events.push(egui::Event::PointerButton {
-                                pos,
-                                button: egui::PointerButton::Secondary,
-                                pressed: false,
-                                modifiers: egui::Modifiers::NONE,
-                            });
-                        });
-                        tracing::debug!("Injected test right-click at ({}, {})", x, y);
+        {
+            let screenshot_events: Vec<_> = ctx.input(|i| {
+                i.events
+                    .iter()
+                    .filter_map(|event| match event {
+                        egui::Event::Screenshot {
+                            user_data, image, ..
+                        } => Some((user_data.clone(), image.clone())),
+                        _ => None,
+                    })
+                    .collect()
+            });
+
+            for (user_data, image) in screenshot_events {
+                if let Some(path) = user_data
+                    .data
+                    .as_ref()
+                    .and_then(|data| data.downcast_ref::<PathBuf>())
+                {
+                    if let Err(error) = save_color_image_to_png(path, &image) {
+                        tracing::warn!(
+                            "Failed to save test screenshot to {}: {}",
+                            path.display(),
+                            error
+                        );
+                    } else {
+                        tracing::info!("Saved test screenshot to {}", path.display());
                     }
                 }
-            }
-            if had_input {
-                ctx.request_repaint();
             }
         }
 
@@ -1422,9 +2017,13 @@ impl eframe::App for CodexBarApp {
             if self.settings.refresh_interval_secs == 0 {
                 false
             } else if let Ok(state) = self.state.lock() {
-                !state.is_refreshing
-                    && state.last_refresh.elapsed()
-                        > Duration::from_secs(self.settings.refresh_interval_secs)
+                should_auto_refresh(
+                    state.initial_refresh_pending,
+                    state.is_refreshing,
+                    state.last_refresh,
+                    self.settings.refresh_interval_secs,
+                    Instant::now(),
+                )
             } else {
                 false
             }
@@ -1665,6 +2264,9 @@ impl eframe::App for CodexBarApp {
             }
         });
 
+        #[cfg(debug_assertions)]
+        self.record_debug_view_state(ctx);
+
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(Theme::BG_PRIMARY).inner_margin(Spacing::SM))
             .show(ctx, |ui| {
@@ -1897,6 +2499,18 @@ impl eframe::App for CodexBarApp {
                                         state.selected_tab = SelectedTab::Summary;
                                     }
 
+                                    #[cfg(debug_assertions)]
+                                    self.debug_tab_targets.push(DebugTabTarget {
+                                        name: "summary".to_string(),
+                                        rect,
+                                        hovered: response.hovered(),
+                                        contains_pointer: response.contains_pointer(),
+                                        clicked: response.clicked(),
+                                        pointer_button_down_on: response
+                                            .is_pointer_button_down_on(),
+                                        interact_pointer_pos: response.interact_pointer_pos(),
+                                    });
+
                                     for (i, (_, provider)) in visible_providers.iter().enumerate() {
                                         let is_selected = matches!(
                                             selected_tab,
@@ -2004,6 +2618,18 @@ impl eframe::App for CodexBarApp {
                                         {
                                             state.selected_tab = SelectedTab::Provider(provider_id);
                                         }
+
+                                        #[cfg(debug_assertions)]
+                                        self.debug_tab_targets.push(DebugTabTarget {
+                                            name: provider.name.clone(),
+                                            rect,
+                                            hovered: response.hovered(),
+                                            contains_pointer: response.contains_pointer(),
+                                            clicked: response.clicked(),
+                                            pointer_button_down_on: response
+                                                .is_pointer_button_down_on(),
+                                            interact_pointer_pos: response.interact_pointer_pos(),
+                                        });
 
                                         if (i + 2) % columns == 0 {
                                             ui.end_row();
@@ -2161,14 +2787,57 @@ impl eframe::App for CodexBarApp {
                     draw_horizontal_separator(ui, 0.0);
                     ui.add_space(4.0);
 
-                    if draw_text_menu_item(ui, locale_text(self.settings.ui_language, LocaleKey::MenuSettings), self.settings.ui_language) {
+                    let settings_label =
+                        locale_text(self.settings.ui_language, LocaleKey::MenuSettings);
+                    let settings_response =
+                        draw_text_menu_item(ui, settings_label, self.settings.ui_language);
+                    #[cfg(debug_assertions)]
+                    self.debug_tab_targets.push(DebugTabTarget {
+                        name: "menu:settings".to_string(),
+                        rect: settings_response.0,
+                        hovered: settings_response.1.hovered(),
+                        contains_pointer: settings_response.1.contains_pointer(),
+                        clicked: settings_response.1.clicked(),
+                        pointer_button_down_on: settings_response
+                            .1
+                            .is_pointer_button_down_on(),
+                        interact_pointer_pos: settings_response.1.interact_pointer_pos(),
+                    });
+                    if settings_response.1.clicked() {
                         self.preferences_window.open();
                     }
-                    if draw_text_menu_item(ui, locale_text(self.settings.ui_language, LocaleKey::MenuAbout), self.settings.ui_language) {
+                    let about_label =
+                        locale_text(self.settings.ui_language, LocaleKey::MenuAbout);
+                    let about_response =
+                        draw_text_menu_item(ui, about_label, self.settings.ui_language);
+                    #[cfg(debug_assertions)]
+                    self.debug_tab_targets.push(DebugTabTarget {
+                        name: "menu:about".to_string(),
+                        rect: about_response.0,
+                        hovered: about_response.1.hovered(),
+                        contains_pointer: about_response.1.contains_pointer(),
+                        clicked: about_response.1.clicked(),
+                        pointer_button_down_on: about_response.1.is_pointer_button_down_on(),
+                        interact_pointer_pos: about_response.1.interact_pointer_pos(),
+                    });
+                    if about_response.1.clicked() {
                         self.preferences_window.active_tab = super::preferences::PreferencesTab::About;
                         self.preferences_window.open();
                     }
-                    if draw_text_menu_item(ui, locale_text(self.settings.ui_language, LocaleKey::MenuQuit), self.settings.ui_language) {
+                    let quit_label = locale_text(self.settings.ui_language, LocaleKey::MenuQuit);
+                    let quit_response =
+                        draw_text_menu_item(ui, quit_label, self.settings.ui_language);
+                    #[cfg(debug_assertions)]
+                    self.debug_tab_targets.push(DebugTabTarget {
+                        name: "menu:quit".to_string(),
+                        rect: quit_response.0,
+                        hovered: quit_response.1.hovered(),
+                        contains_pointer: quit_response.1.contains_pointer(),
+                        clicked: quit_response.1.clicked(),
+                        pointer_button_down_on: quit_response.1.is_pointer_button_down_on(),
+                        interact_pointer_pos: quit_response.1.interact_pointer_pos(),
+                    });
+                    if quit_response.1.clicked() {
                         self.quit_application();
                     }
                 }); // end ScrollArea
@@ -2212,7 +2881,122 @@ impl eframe::App for CodexBarApp {
             }
             self.was_refreshing = is_refreshing;
         }
+
+        #[cfg(debug_assertions)]
+        if let Some(path) = self.pending_test_state_dump_path.clone() {
+            if self.pending_test_state_dump_delay_frames > 0 {
+                self.pending_test_state_dump_delay_frames -= 1;
+                ctx.request_repaint();
+            } else {
+                self.pending_test_state_dump_path = None;
+                let (
+                    preferences_tab_targets,
+                    preferences_viewport_outer_rect,
+                    preferences_settings,
+                    api_key_status,
+                    cookie_status,
+                ) = self.preferences_window.debug_snapshot();
+                let preferences_tab_targets = preferences_tab_targets
+                    .into_iter()
+                    .map(|target| DebugTabTarget {
+                        name: target.name,
+                        rect: target.rect,
+                        hovered: target.hovered,
+                        contains_pointer: target.contains_pointer,
+                        clicked: target.clicked,
+                        pointer_button_down_on: target.pointer_button_down_on,
+                        interact_pointer_pos: target.interact_pointer_pos,
+                    })
+                    .collect::<Vec<_>>();
+                if let Err(error) = write_debug_state_with_targets_file(
+                    &path,
+                    &selected_tab,
+                    self.preferences_window.is_open,
+                    &self.preferences_window.active_tab,
+                    if self.latched_debug_tab_targets.is_empty() {
+                        &self.last_debug_tab_targets
+                    } else {
+                        &self.latched_debug_tab_targets
+                    },
+                    self.latched_debug_viewport_outer_rect
+                        .or(self.last_debug_viewport_outer_rect),
+                    &preferences_tab_targets,
+                    preferences_viewport_outer_rect,
+                    &preferences_settings,
+                    &api_key_status,
+                    &cookie_status,
+                    if self.latched_debug_tab_targets.is_empty() {
+                        self.last_debug_pointer_snapshot
+                    } else {
+                        self.latched_debug_pointer_snapshot
+                    },
+                ) {
+                    tracing::warn!(
+                        "Failed to write test state dump to {}: {}",
+                        path.display(),
+                        error
+                    );
+                } else {
+                    tracing::info!("Wrote test state dump to {}", path.display());
+                }
+            }
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            self.last_debug_tab_targets = self.debug_tab_targets.clone();
+            self.last_debug_viewport_outer_rect = self.debug_viewport_outer_rect;
+            self.last_debug_pointer_snapshot = ctx.input(|i| DebugPointerSnapshot {
+                latest_pos: i.pointer.latest_pos(),
+                interact_pos: i.pointer.interact_pos(),
+                primary_down: i.pointer.button_down(egui::PointerButton::Primary),
+                primary_pressed: i.pointer.button_pressed(egui::PointerButton::Primary),
+                primary_released: i.pointer.button_released(egui::PointerButton::Primary),
+                primary_clicked: i.pointer.button_clicked(egui::PointerButton::Primary),
+            });
+            let should_latch_pointer = self.last_debug_pointer_snapshot.latest_pos.is_some()
+                || self.last_debug_pointer_snapshot.interact_pos.is_some()
+                || self.last_debug_pointer_snapshot.primary_down
+                || self.last_debug_pointer_snapshot.primary_pressed
+                || self.last_debug_pointer_snapshot.primary_released
+                || self.last_debug_pointer_snapshot.primary_clicked;
+            let should_latch_tabs = self.last_debug_tab_targets.iter().any(|target| {
+                target.hovered
+                    || target.contains_pointer
+                    || target.clicked
+                    || target.pointer_button_down_on
+                    || target.interact_pointer_pos.is_some()
+            });
+            if should_latch_pointer || should_latch_tabs {
+                self.latched_debug_tab_targets = self.last_debug_tab_targets.clone();
+                self.latched_debug_viewport_outer_rect = self.last_debug_viewport_outer_rect;
+                self.latched_debug_pointer_snapshot = self.last_debug_pointer_snapshot;
+            }
+        }
     }
+}
+
+#[cfg(debug_assertions)]
+fn build_test_click_event_batches(
+    pos: egui::Pos2,
+    button: egui::PointerButton,
+) -> [Vec<egui::Event>; 4] {
+    [
+        vec![egui::Event::PointerMoved(pos)],
+        vec![egui::Event::PointerButton {
+            pos,
+            button,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        }],
+        vec![egui::Event::PointerMoved(pos)],
+        vec![egui::Event::PointerButton {
+            pos,
+            button,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        }],
+    ]
 }
 
 fn summary_metric_text(
@@ -2885,7 +3669,11 @@ fn draw_horizontal_separator(ui: &mut egui::Ui, left_padding: f32) {
 }
 
 /// Draw a text-only menu item (Settings, About, Quit style)
-fn draw_text_menu_item(ui: &mut egui::Ui, label: &str, _ui_language: Language) -> bool {
+fn draw_text_menu_item(
+    ui: &mut egui::Ui,
+    label: &str,
+    _ui_language: Language,
+) -> (Rect, egui::Response) {
     let available_width = ui.available_width();
 
     let (rect, response) =
@@ -2914,7 +3702,7 @@ fn draw_text_menu_item(ui: &mut egui::Ui, label: &str, _ui_language: Language) -
         text_color,
     );
 
-    response.clicked()
+    (rect, response)
 }
 
 /// Draw a single metric row - macOS style matching SwiftUI MetricRow.
@@ -3091,9 +3879,11 @@ fn draw_menu_item(ui: &mut egui::Ui, icon: &str, label: &str) -> bool {
 /// Run the application
 pub fn run() -> anyhow::Result<()> {
     #[cfg(windows)]
-    if is_remote_session() {
-        show_remote_session_error_dialog();
-        anyhow::bail!(remote_session_error_message());
+    if let Some(message) = launch_block_reason(is_ssh_session(), is_remote_session()) {
+        if is_remote_session() {
+            show_remote_session_error_dialog();
+        }
+        anyhow::bail!(message);
     }
 
     // Delete any corrupted window state
@@ -3105,6 +3895,10 @@ pub fn run() -> anyhow::Result<()> {
     }
 
     let options = build_native_options();
+    append_launch_log(&format!(
+        "native_ui::run starting with options: {:?}",
+        options.viewport
+    ));
 
     eframe::run_native(
         "CodexBar",
@@ -3119,11 +3913,15 @@ pub fn run() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProviderData, remote_session_error_message, should_show_provider, summary_metric_display,
+        ProviderData, append_font, build_test_click_event_batches, launch_block_reason,
+        remote_session_error_message, should_auto_refresh, should_show_provider,
+        ssh_session_error_message, startup_last_refresh, summary_metric_display,
         summary_metric_text,
     };
     use crate::settings::Language;
     use crate::status::StatusLevel;
+    use egui::{Event, FontDefinitions, FontFamily, PointerButton, pos2};
+    use std::time::{Duration, Instant};
 
     fn test_provider() -> ProviderData {
         ProviderData {
@@ -3155,12 +3953,56 @@ mod tests {
     }
 
     #[test]
+    fn append_font_keeps_existing_font_order() {
+        let mut fonts = FontDefinitions::default();
+        let family = FontFamily::Proportional;
+        fonts
+            .families
+            .entry(family.clone())
+            .or_default()
+            .extend(["default-ui".to_string(), "emoji".to_string()]);
+
+        append_font(&mut fonts, family.clone(), "cjk-fallback");
+
+        let entries = fonts.families.get(&family).cloned().unwrap_or_default();
+        assert_eq!(
+            entries[entries.len().saturating_sub(3)..],
+            [
+                "default-ui".to_string(),
+                "emoji".to_string(),
+                "cjk-fallback".to_string()
+            ]
+        );
+    }
+
+    #[test]
     fn remote_session_error_mentions_cli_and_log() {
         let message = remote_session_error_message();
 
         assert!(message.contains("Remote Desktop"));
         assert!(message.contains("codexbar usage -p claude"));
         assert!(message.contains("%TEMP%\\codexbar_launch.log"));
+    }
+
+    #[test]
+    fn ssh_session_error_mentions_cli_and_log() {
+        let message = ssh_session_error_message();
+
+        assert!(message.contains("SSH session"));
+        assert!(message.contains("codexbar usage -p claude"));
+        assert!(message.contains("%TEMP%\\codexbar_launch.log"));
+    }
+
+    #[test]
+    fn launch_block_reason_prefers_ssh_message() {
+        let message = launch_block_reason(true, true).expect("message");
+
+        assert_eq!(message, ssh_session_error_message());
+    }
+
+    #[test]
+    fn launch_block_reason_allows_local_interactive_session() {
+        assert_eq!(launch_block_reason(false, false), None);
     }
 
     #[test]
@@ -3216,5 +4058,48 @@ mod tests {
         assert_eq!(display.label, "Session");
         assert!((display.used_percent - 65.0).abs() < f64::EPSILON);
         assert!(display.detail_text.contains("35%"));
+    }
+
+    #[test]
+    fn startup_last_refresh_does_not_backdate_time() {
+        let now = Instant::now();
+        let startup = startup_last_refresh(now);
+
+        assert_eq!(startup, now);
+    }
+
+    #[test]
+    fn should_auto_refresh_on_initial_load_without_backdating() {
+        let now = Instant::now();
+
+        assert!(should_auto_refresh(true, false, now, 30, now));
+    }
+
+    #[test]
+    fn should_auto_refresh_after_interval_elapsed() {
+        let now = Instant::now();
+        let last_refresh = now.checked_sub(Duration::from_secs(31)).unwrap_or(now);
+
+        assert!(should_auto_refresh(false, false, last_refresh, 30, now));
+        assert!(!should_auto_refresh(false, false, now, 30, now));
+    }
+
+    #[test]
+    fn test_click_batches_match_staged_egui_sequence() {
+        let pos = pos2(222.5, 32.0);
+        let batches = build_test_click_event_batches(pos, PointerButton::Primary);
+
+        assert!(matches!(batches[0].as_slice(), [
+            Event::PointerMoved(moved_pos),
+        ] if *moved_pos == pos));
+        assert!(matches!(batches[1].as_slice(), [
+            Event::PointerButton { pos: pressed_pos, button: PointerButton::Primary, pressed: true, .. },
+        ] if *pressed_pos == pos));
+        assert!(matches!(batches[2].as_slice(), [
+            Event::PointerMoved(moved_pos),
+        ] if *moved_pos == pos));
+        assert!(matches!(batches[3].as_slice(), [
+            Event::PointerButton { pos: released_pos, button: PointerButton::Primary, pressed: false, .. },
+        ] if *released_pos == pos));
     }
 }
