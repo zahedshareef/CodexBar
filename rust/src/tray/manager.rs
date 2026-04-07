@@ -1308,6 +1308,61 @@ impl UnifiedTrayManager {
         }
     }
 
+    #[cfg(debug_assertions)]
+    pub fn set_single_state_for_testing(
+        &self,
+        state: &str,
+        provider_name: Option<&str>,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
+        error: Option<&str>,
+    ) {
+        if let UnifiedTrayManager::Single(tm) = self {
+            match state {
+                "loading" => tm.show_loading(LoadingPattern::default(), 0.0),
+                "error" => tm.show_error(
+                    provider_name.unwrap_or("CodexBar"),
+                    error.unwrap_or("Test error"),
+                ),
+                _ => {
+                    let session_percent = session_percent.unwrap_or(0.0);
+                    let weekly_percent = weekly_percent.unwrap_or(session_percent);
+                    tm.update_usage(
+                        session_percent,
+                        weekly_percent,
+                        provider_name.unwrap_or("CodexBar"),
+                    );
+                }
+            }
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn set_provider_state_for_testing(
+        &self,
+        provider_id: ProviderId,
+        state: &str,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
+        error: Option<&str>,
+    ) {
+        if let UnifiedTrayManager::PerProvider(multi) = self {
+            match state {
+                "loading" => {
+                    multi.show_provider_loading(provider_id, LoadingPattern::default(), 0.0);
+                }
+                "error" => {
+                    multi.show_provider_error(provider_id, error.unwrap_or("Test error"));
+                }
+                _ => {
+                    let session_percent = session_percent.unwrap_or(0.0);
+                    let weekly_percent = weekly_percent.unwrap_or(session_percent);
+                    multi.update_provider(provider_id, session_percent, weekly_percent);
+                }
+            }
+        }
+    }
+
     /// Refresh tray menu and tooltip with the current language
     /// This is called when the user changes the language setting
     pub fn refresh_language(&self) {

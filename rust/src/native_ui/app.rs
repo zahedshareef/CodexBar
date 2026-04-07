@@ -5,7 +5,7 @@ use eframe::egui::{
     self, Color32, FontData, FontDefinitions, FontFamily, Rect, RichText, Rounding, Stroke, Vec2,
 };
 use image::ColorType;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
@@ -933,6 +933,28 @@ struct SharedState {
     login_message: Option<String>,
 }
 
+#[cfg(debug_assertions)]
+#[derive(Clone, Debug)]
+enum DebugTrayOverride {
+    Single {
+        state: String,
+        provider_name: Option<String>,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
+        error: Option<String>,
+    },
+    PerProvider(HashMap<ProviderId, DebugProviderTrayOverride>),
+}
+
+#[cfg(debug_assertions)]
+#[derive(Clone, Debug)]
+struct DebugProviderTrayOverride {
+    state: String,
+    session_percent: Option<f64>,
+    weekly_percent: Option<f64>,
+    error: Option<String>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SelectedTab {
     Summary,
@@ -1124,6 +1146,8 @@ pub struct CodexBarApp {
     latched_debug_viewport_outer_rect: Option<Rect>,
     #[cfg(debug_assertions)]
     latched_debug_pointer_snapshot: DebugPointerSnapshot,
+    #[cfg(debug_assertions)]
+    debug_tray_override: Option<DebugTrayOverride>,
     first_update_logged: bool,
 }
 
@@ -1404,6 +1428,8 @@ impl CodexBarApp {
                 primary_released: false,
                 primary_clicked: false,
             },
+            #[cfg(debug_assertions)]
+            debug_tray_override: None,
             first_update_logged: false,
         }
     }
@@ -1489,6 +1515,53 @@ impl CodexBarApp {
     }
 
     #[cfg(debug_assertions)]
+    fn set_single_tray_state_for_testing(
+        &mut self,
+        state: &str,
+        provider_name: Option<&str>,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
+        error: Option<&str>,
+    ) {
+        self.debug_tray_override = Some(DebugTrayOverride::Single {
+            state: state.to_string(),
+            provider_name: provider_name.map(str::to_string),
+            session_percent,
+            weekly_percent,
+            error: error.map(str::to_string),
+        });
+    }
+
+    #[cfg(debug_assertions)]
+    fn set_provider_tray_state_for_testing(
+        &mut self,
+        provider: &str,
+        state: &str,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
+        error: Option<&str>,
+    ) {
+        let Some(provider_id) = ProviderId::from_cli_name(provider) else {
+            tracing::warn!("Unknown provider for tray test state: {}", provider);
+            return;
+        };
+        let mut overrides = match self.debug_tray_override.take() {
+            Some(DebugTrayOverride::PerProvider(existing)) => existing,
+            _ => HashMap::new(),
+        };
+        overrides.insert(
+            provider_id,
+            DebugProviderTrayOverride {
+                state: state.to_string(),
+                session_percent,
+                weekly_percent,
+                error: error.map(str::to_string),
+            },
+        );
+        self.debug_tray_override = Some(DebugTrayOverride::PerProvider(overrides));
+    }
+
+    #[cfg(debug_assertions)]
     fn queue_test_pointer_batches(&mut self, batches: impl IntoIterator<Item = Vec<egui::Event>>) {
         self.pending_test_event_batches.extend(batches);
     }
@@ -1508,6 +1581,44 @@ impl CodexBarApp {
     ) {
         self.open_main_window_for_testing(ctx);
         self.queue_test_pointer_batches(build_test_click_event_batches(pos, button));
+    }
+
+    #[cfg(debug_assertions)]
+    fn apply_debug_tray_override(&self, tray: &UnifiedTrayManager) -> bool {
+        match (&self.debug_tray_override, self.settings.tray_icon_mode) {
+            (
+                Some(DebugTrayOverride::Single {
+                    state,
+                    provider_name,
+                    session_percent,
+                    weekly_percent,
+                    error,
+                }),
+                TrayIconMode::Single,
+            ) => {
+                tray.set_single_state_for_testing(
+                    state,
+                    provider_name.as_deref(),
+                    *session_percent,
+                    *weekly_percent,
+                    error.as_deref(),
+                );
+                true
+            }
+            (Some(DebugTrayOverride::PerProvider(overrides)), TrayIconMode::PerProvider) => {
+                for (provider_id, override_state) in overrides {
+                    tray.set_provider_state_for_testing(
+                        *provider_id,
+                        &override_state.state,
+                        override_state.session_percent,
+                        override_state.weekly_percent,
+                        override_state.error.as_deref(),
+                    );
+                }
+                true
+            }
+            _ => false,
+        }
     }
 
     fn layout_main_window(&mut self, ctx: &egui::Context, anchor_to_pointer: bool) {
@@ -1892,9 +2003,42 @@ impl eframe::App for CodexBarApp {
                     super::test_server::TestInput::SelectPreferencesTab { tab } => {
                         self.preferences_window.select_tab_for_testing(&tab);
                     }
+                    super::test_server::TestInput::SetSingleTrayState {
+                        state,
+                        provider,
+                        session_percent,
+                        weekly_percent,
+                        error,
+                    } => {
+                        self.set_single_tray_state_for_testing(
+                            &state,
+                            provider.as_deref(),
+                            session_percent,
+                            weekly_percent,
+                            error.as_deref(),
+                        );
+                        ctx.request_repaint();
+                    }
+                    super::test_server::TestInput::SetProviderTrayState {
+                        provider,
+                        state,
+                        session_percent,
+                        weekly_percent,
+                        error,
+                    } => {
+                        self.set_provider_tray_state_for_testing(
+                            &provider,
+                            &state,
+                            session_percent,
+                            weekly_percent,
+                            error.as_deref(),
+                        );
+                        ctx.request_repaint();
+                    }
                     super::test_server::TestInput::SetProviderEnabled { provider, enabled } => {
                         self.preferences_window
                             .set_provider_enabled_for_testing(&provider, enabled);
+                        self.debug_tray_override = None;
                         ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetRefreshInterval { seconds } => {
@@ -1905,10 +2049,12 @@ impl eframe::App for CodexBarApp {
                     super::test_server::TestInput::SetDisplaySetting { name, enabled } => {
                         self.preferences_window
                             .set_display_setting_for_testing(&name, enabled);
+                        self.debug_tray_override = None;
                         ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetDisplayMode { mode } => {
                         self.preferences_window.set_display_mode_for_testing(&mode);
+                        self.debug_tray_override = None;
                         ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetApiKeyInput { provider, value } => {
@@ -2196,7 +2342,14 @@ impl eframe::App for CodexBarApp {
 
         // Update tray icon
         if let Some(ref tray) = self.tray_manager {
-            if is_refreshing {
+            #[cfg(debug_assertions)]
+            let handled_by_debug_override = self.apply_debug_tray_override(tray);
+            #[cfg(not(debug_assertions))]
+            let handled_by_debug_override = false;
+
+            if handled_by_debug_override {
+                // The debug tray override already applied the intended runtime state.
+            } else if is_refreshing {
                 tray.show_loading(loading_pattern, loading_phase);
             } else if let Some((anim, frame)) = surprise_state {
                 // Use first provider with data for surprise animation

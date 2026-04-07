@@ -14,6 +14,20 @@ pub enum TestInput {
     OpenWindow,
     SelectTab { tab: String },
     SelectPreferencesTab { tab: String },
+    SetSingleTrayState {
+        state: String,
+        provider: Option<String>,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
+        error: Option<String>,
+    },
+    SetProviderTrayState {
+        provider: String,
+        state: String,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
+        error: Option<String>,
+    },
     SetProviderEnabled { provider: String, enabled: bool },
     SetRefreshInterval { seconds: u64 },
     SetDisplaySetting { name: String, enabled: bool },
@@ -45,6 +59,12 @@ pub fn create_queue() -> TestInputQueue {
 /// {"type":"open_window"}
 /// {"type":"select_tab","tab":"claude"}
 /// {"type":"select_preferences_tab","tab":"about"}
+/// {"type":"set_single_tray_state","state":"normal","provider":"Codex","session_percent":12,"weekly_percent":34}
+/// {"type":"set_single_tray_state","state":"loading"}
+/// {"type":"set_single_tray_state","state":"error","provider":"Codex","error":"Auth failed"}
+/// {"type":"set_provider_tray_state","provider":"claude","state":"normal","session_percent":22,"weekly_percent":44}
+/// {"type":"set_provider_tray_state","provider":"claude","state":"loading"}
+/// {"type":"set_provider_tray_state","provider":"claude","state":"error","error":"Auth failed"}
 /// {"type":"set_provider_enabled","provider":"claude","enabled":false}
 /// {"type":"set_refresh_interval","seconds":300}
 /// {"type":"set_display_setting","name":"show_as_used","enabled":false}
@@ -118,9 +138,13 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
         tab: Option<String>,
         name: Option<String>,
         provider: Option<String>,
+        state: Option<String>,
         value: Option<String>,
+        error: Option<String>,
         enabled: Option<bool>,
         seconds: Option<u64>,
+        session_percent: Option<f64>,
+        weekly_percent: Option<f64>,
         x: Option<f32>,
         y: Option<f32>,
     }
@@ -134,6 +158,20 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
         }
         "select_tab" => Some(TestInput::SelectTab { tab: input.tab? }),
         "select_preferences_tab" => Some(TestInput::SelectPreferencesTab { tab: input.tab? }),
+        "set_single_tray_state" => Some(TestInput::SetSingleTrayState {
+            state: input.state?,
+            provider: input.provider,
+            session_percent: input.session_percent,
+            weekly_percent: input.weekly_percent,
+            error: input.error,
+        }),
+        "set_provider_tray_state" => Some(TestInput::SetProviderTrayState {
+            provider: input.provider?,
+            state: input.state?,
+            session_percent: input.session_percent,
+            weekly_percent: input.weekly_percent,
+            error: input.error,
+        }),
         "set_provider_enabled" => Some(TestInput::SetProviderEnabled {
             provider: input.provider?,
             enabled: input.enabled?,
@@ -230,6 +268,42 @@ mod tests {
         assert!(matches!(
             parse_test_input(r#"{"type":"select_preferences_tab","tab":"about"}"#),
             Some(TestInput::SelectPreferencesTab { tab }) if tab == "about"
+        ));
+    }
+
+    #[test]
+    fn parses_set_single_tray_state() {
+        assert!(matches!(
+            parse_test_input(
+                r#"{"type":"set_single_tray_state","state":"error","provider":"Codex","error":"Auth failed"}"#
+            ),
+            Some(TestInput::SetSingleTrayState {
+                state,
+                provider,
+                error,
+                ..
+            }) if state == "error"
+                && provider.as_deref() == Some("Codex")
+                && error.as_deref() == Some("Auth failed")
+        ));
+    }
+
+    #[test]
+    fn parses_set_provider_tray_state() {
+        assert!(matches!(
+            parse_test_input(
+                r#"{"type":"set_provider_tray_state","provider":"claude","state":"normal","session_percent":22,"weekly_percent":44}"#
+            ),
+            Some(TestInput::SetProviderTrayState {
+                provider,
+                state,
+                session_percent,
+                weekly_percent,
+                ..
+            }) if provider == "claude"
+                && state == "normal"
+                && session_percent == Some(22.0)
+                && weekly_percent == Some(44.0)
         ));
     }
 
