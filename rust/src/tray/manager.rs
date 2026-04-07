@@ -18,7 +18,7 @@ use tray_icon::{
 use super::icon::{LoadingPattern, UsageLevel};
 use crate::core::ProviderId;
 use crate::locale::{self, IconOverlayStatus};
-use crate::settings::{Settings, TrayIconMode};
+use crate::settings::{Language, Settings, TrayIconMode};
 use crate::status::IndicatorStatusLevel;
 
 const ICON_SIZE: u32 = 32;
@@ -136,6 +136,7 @@ pub enum TrayTooltipState {
 pub struct DebugProviderTraySnapshot {
     pub provider: String,
     pub state_kind: String,
+    pub tooltip: Option<String>,
 }
 
 #[cfg(debug_assertions)]
@@ -145,6 +146,7 @@ pub struct DebugTraySnapshot {
     pub icon_count: usize,
     pub state_kind: Option<String>,
     pub primary_provider: Option<String>,
+    pub tooltip: Option<String>,
     pub providers: Vec<DebugProviderTraySnapshot>,
 }
 
@@ -170,6 +172,101 @@ fn provider_tooltip_state_kind(state: &ProviderTooltipState) -> &'static str {
         ProviderTooltipState::WithStatus { .. } => "with_status",
         ProviderTooltipState::Loading => "loading",
         ProviderTooltipState::Error { .. } => "error",
+    }
+}
+
+#[cfg(debug_assertions)]
+fn overlay_status(overlay: IconOverlay) -> Option<IconOverlayStatus> {
+    match overlay {
+        IconOverlay::None => None,
+        IconOverlay::Error => Some(IconOverlayStatus::Error),
+        IconOverlay::Stale => Some(IconOverlayStatus::Stale),
+        IconOverlay::Incident => Some(IconOverlayStatus::Incident),
+        IconOverlay::Partial => Some(IconOverlayStatus::Partial),
+    }
+}
+
+fn provider_loading_tooltip(provider_id: ProviderId, lang: Language) -> String {
+    let loading = locale::get_text(lang, locale::LocaleKey::TrayLoading);
+    let provider_loading = loading.strip_prefix("CodexBar - ").unwrap_or(loading);
+    format!("{} - {}", provider_id.display_name(), provider_loading)
+}
+
+#[cfg(debug_assertions)]
+fn debug_single_tooltip_text(state: &TrayTooltipState, lang: Language) -> String {
+    match state {
+        TrayTooltipState::Default | TrayTooltipState::Loading => {
+            locale::get_text(lang, locale::LocaleKey::TrayLoading).to_string()
+        }
+        TrayTooltipState::Normal {
+            provider_name,
+            session_percent,
+            weekly_percent,
+        } => locale::tray_tooltip(provider_name, *session_percent, *weekly_percent),
+        TrayTooltipState::WithStatus {
+            provider_name,
+            session_percent,
+            weekly_percent,
+            overlay,
+        } => locale::tray_tooltip_with_status(
+            provider_name,
+            *session_percent,
+            *weekly_percent,
+            overlay_status(*overlay),
+        ),
+        TrayTooltipState::Credits {
+            provider_name,
+            credits_percent,
+        } => locale::tray_tooltip_credits(provider_name, *credits_percent),
+        TrayTooltipState::NoProviders => {
+            locale::get_text(lang, locale::LocaleKey::TrayNoProviders).to_string()
+        }
+        TrayTooltipState::Merged { providers } => {
+            let tooltip_lines: Vec<String> = providers
+                .iter()
+                .take(4)
+                .map(|p| format!("{}: {:.0}% / {:.0}%", p.name, p.session_percent, p.weekly_percent))
+                .collect();
+            format!("CodexBar\n{}", tooltip_lines.join("\n"))
+        }
+        TrayTooltipState::Error {
+            provider_name,
+            error_msg,
+        } => format!("{}: {}", provider_name, error_msg),
+    }
+}
+
+#[cfg(debug_assertions)]
+fn debug_provider_tooltip_text(
+    provider_id: ProviderId,
+    state: &ProviderTooltipState,
+    lang: Language,
+) -> String {
+    match state {
+        ProviderTooltipState::Default | ProviderTooltipState::Loading => {
+            provider_loading_tooltip(provider_id, lang)
+        }
+        ProviderTooltipState::Normal {
+            session_percent,
+            weekly_percent,
+        } => locale::tray_tooltip(
+            provider_id.display_name(),
+            *session_percent,
+            *weekly_percent,
+        ),
+        ProviderTooltipState::WithStatus {
+            session_percent,
+            weekly_percent,
+            overlay,
+        } => locale::tray_tooltip_with_status(
+            provider_id.display_name(),
+            *session_percent,
+            *weekly_percent,
+            overlay_status(*overlay),
+        ),
+        ProviderTooltipState::Error { error_msg } => {
+            format!("{}: {}", provider_id.display_name(), error_msg)
+        }
     }
 }
 
@@ -708,8 +805,10 @@ impl TrayManager {
 
     #[cfg(debug_assertions)]
     pub fn debug_snapshot(&self) -> DebugTraySnapshot {
+        let settings = Settings::load();
         let state = self.tooltip_state.borrow();
         let state_kind = tray_tooltip_state_kind(&state).to_string();
+        let tooltip = Some(debug_single_tooltip_text(&state, settings.ui_language));
         let primary_provider = match &*state {
             TrayTooltipState::Normal { provider_name, .. }
             | TrayTooltipState::WithStatus { provider_name, .. }
@@ -723,6 +822,7 @@ impl TrayManager {
                 .map(|provider| DebugProviderTraySnapshot {
                     provider: provider.name.clone(),
                     state_kind: "merged_member".to_string(),
+                    tooltip: None,
                 })
                 .collect(),
             _ => Vec::new(),
@@ -733,6 +833,7 @@ impl TrayManager {
             icon_count: 1,
             state_kind: Some(state_kind),
             primary_provider,
+            tooltip,
             providers,
         }
     }
@@ -921,8 +1022,7 @@ impl MultiTrayManager {
         menu.append(&quit_item)?;
 
         let icon = create_bar_icon(0.0, 0.0, IconOverlay::None);
-        let loading_tooltip = locale::get_text(lang, locale::LocaleKey::TrayLoading);
-        let tooltip = format!("{} - {}", provider_id.display_name(), loading_tooltip);
+        let tooltip = provider_loading_tooltip(provider_id, lang);
 
         let tray_icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
@@ -1040,12 +1140,8 @@ impl MultiTrayManager {
             let icon = create_loading_icon(primary, secondary);
             let _ = tray_icon.set_icon(Some(icon));
             let lang = Settings::load().ui_language;
-            let loading = locale::get_text(lang, locale::LocaleKey::TrayLoading);
-            let _ = tray_icon.set_tooltip(Some(&format!(
-                "{} - {}",
-                provider_id.display_name(),
-                loading
-            )));
+            let loading = provider_loading_tooltip(provider_id, lang);
+            let _ = tray_icon.set_tooltip(Some(&loading));
         }
     }
 
@@ -1158,13 +1254,9 @@ impl MultiTrayManager {
         match state {
             None => {
                 // No state yet, use loading
-                let loading = locale::get_text(lang, locale::LocaleKey::TrayLoading);
-                format!("{} - {}", provider_id.display_name(), loading)
+                provider_loading_tooltip(provider_id, lang)
             }
-            Some(ProviderTooltipState::Default) => {
-                let loading = locale::get_text(lang, locale::LocaleKey::TrayLoading);
-                format!("{} - {}", provider_id.display_name(), loading)
-            }
+            Some(ProviderTooltipState::Default) => provider_loading_tooltip(provider_id, lang),
             Some(ProviderTooltipState::Normal {
                 session_percent,
                 weekly_percent,
@@ -1192,10 +1284,7 @@ impl MultiTrayManager {
                     status,
                 )
             }
-            Some(ProviderTooltipState::Loading) => {
-                let loading = locale::get_text(lang, locale::LocaleKey::TrayLoading);
-                format!("{} - {}", provider_id.display_name(), loading)
-            }
+            Some(ProviderTooltipState::Loading) => provider_loading_tooltip(provider_id, lang),
             Some(ProviderTooltipState::Error { error_msg }) => {
                 format!("{}: {}", provider_id.display_name(), error_msg)
             }
@@ -1204,12 +1293,18 @@ impl MultiTrayManager {
 
     #[cfg(debug_assertions)]
     pub fn debug_snapshot(&self) -> DebugTraySnapshot {
+        let settings = Settings::load();
         let states = self.tooltip_states.borrow();
         let mut providers = states
             .iter()
             .map(|(provider_id, state)| DebugProviderTraySnapshot {
                 provider: provider_id.cli_name().to_string(),
                 state_kind: provider_tooltip_state_kind(state).to_string(),
+                tooltip: Some(debug_provider_tooltip_text(
+                    *provider_id,
+                    state,
+                    settings.ui_language,
+                )),
             })
             .collect::<Vec<_>>();
         providers.sort_by(|a, b| a.provider.cmp(&b.provider));
@@ -1219,6 +1314,7 @@ impl MultiTrayManager {
             icon_count: self.provider_icons.len(),
             state_kind: None,
             primary_provider: None,
+            tooltip: None,
             providers,
         }
     }
@@ -2374,5 +2470,45 @@ mod tests {
         };
 
         assert_eq!(provider_tooltip_state_kind(&state), "error");
+    }
+
+    #[test]
+    fn debug_single_tooltip_text_reports_loading_copy() {
+        let tooltip = debug_single_tooltip_text(&TrayTooltipState::Loading, Language::English);
+        assert_eq!(tooltip, "CodexBar - Loading...");
+    }
+
+    #[test]
+    fn debug_single_tooltip_text_reports_error_copy() {
+        let tooltip = debug_single_tooltip_text(
+            &TrayTooltipState::Error {
+                provider_name: "Codex".to_string(),
+                error_msg: "Auth failed".to_string(),
+            },
+            Language::English,
+        );
+        assert_eq!(tooltip, "Codex: Auth failed");
+    }
+
+    #[test]
+    fn debug_provider_tooltip_text_reports_provider_loading_copy() {
+        let tooltip = debug_provider_tooltip_text(
+            ProviderId::Claude,
+            &ProviderTooltipState::Loading,
+            Language::English,
+        );
+        assert_eq!(tooltip, "Claude - Loading...");
+    }
+
+    #[test]
+    fn debug_provider_tooltip_text_reports_provider_error_copy() {
+        let tooltip = debug_provider_tooltip_text(
+            ProviderId::Codex,
+            &ProviderTooltipState::Error {
+                error_msg: "Token expired".to_string(),
+            },
+            Language::English,
+        );
+        assert_eq!(tooltip, "Codex: Token expired");
     }
 }
