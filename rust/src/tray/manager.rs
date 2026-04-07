@@ -5,6 +5,8 @@
 #![allow(dead_code)]
 
 use image::{ImageBuffer, Rgba, RgbaImage};
+#[cfg(debug_assertions)]
+use serde::Serialize;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
@@ -127,6 +129,48 @@ pub enum TrayTooltipState {
         provider_name: String,
         error_msg: String,
     },
+}
+
+#[cfg(debug_assertions)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct DebugProviderTraySnapshot {
+    pub provider: String,
+    pub state_kind: String,
+}
+
+#[cfg(debug_assertions)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct DebugTraySnapshot {
+    pub mode: String,
+    pub icon_count: usize,
+    pub state_kind: Option<String>,
+    pub primary_provider: Option<String>,
+    pub providers: Vec<DebugProviderTraySnapshot>,
+}
+
+#[cfg(debug_assertions)]
+fn tray_tooltip_state_kind(state: &TrayTooltipState) -> &'static str {
+    match state {
+        TrayTooltipState::Default => "default",
+        TrayTooltipState::Normal { .. } => "normal",
+        TrayTooltipState::WithStatus { .. } => "with_status",
+        TrayTooltipState::Credits { .. } => "credits",
+        TrayTooltipState::Loading => "loading",
+        TrayTooltipState::NoProviders => "no_providers",
+        TrayTooltipState::Merged { .. } => "merged",
+        TrayTooltipState::Error { .. } => "error",
+    }
+}
+
+#[cfg(debug_assertions)]
+fn provider_tooltip_state_kind(state: &ProviderTooltipState) -> &'static str {
+    match state {
+        ProviderTooltipState::Default => "default",
+        ProviderTooltipState::Normal { .. } => "normal",
+        ProviderTooltipState::WithStatus { .. } => "with_status",
+        ProviderTooltipState::Loading => "loading",
+        ProviderTooltipState::Error { .. } => "error",
+    }
 }
 
 /// System tray manager
@@ -661,6 +705,37 @@ impl TrayManager {
             }
         }
     }
+
+    #[cfg(debug_assertions)]
+    pub fn debug_snapshot(&self) -> DebugTraySnapshot {
+        let state = self.tooltip_state.borrow();
+        let state_kind = tray_tooltip_state_kind(&state).to_string();
+        let primary_provider = match &*state {
+            TrayTooltipState::Normal { provider_name, .. }
+            | TrayTooltipState::WithStatus { provider_name, .. }
+            | TrayTooltipState::Credits { provider_name, .. }
+            | TrayTooltipState::Error { provider_name, .. } => Some(provider_name.clone()),
+            _ => None,
+        };
+        let providers = match &*state {
+            TrayTooltipState::Merged { providers } => providers
+                .iter()
+                .map(|provider| DebugProviderTraySnapshot {
+                    provider: provider.name.clone(),
+                    state_kind: "merged_member".to_string(),
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
+
+        DebugTraySnapshot {
+            mode: "single".to_string(),
+            icon_count: 1,
+            state_kind: Some(state_kind),
+            primary_provider,
+            providers,
+        }
+    }
 }
 
 impl TrayManager {
@@ -1126,6 +1201,27 @@ impl MultiTrayManager {
             }
         }
     }
+
+    #[cfg(debug_assertions)]
+    pub fn debug_snapshot(&self) -> DebugTraySnapshot {
+        let states = self.tooltip_states.borrow();
+        let mut providers = states
+            .iter()
+            .map(|(provider_id, state)| DebugProviderTraySnapshot {
+                provider: provider_id.cli_name().to_string(),
+                state_kind: provider_tooltip_state_kind(state).to_string(),
+            })
+            .collect::<Vec<_>>();
+        providers.sort_by(|a, b| a.provider.cmp(&b.provider));
+
+        DebugTraySnapshot {
+            mode: "perprovider".to_string(),
+            icon_count: self.provider_icons.len(),
+            state_kind: None,
+            primary_provider: None,
+            providers,
+        }
+    }
 }
 
 /// Unified tray icon manager that supports both single and per-provider modes
@@ -1218,6 +1314,14 @@ impl UnifiedTrayManager {
         match self {
             UnifiedTrayManager::Single(tm) => tm.refresh_language(),
             UnifiedTrayManager::PerProvider(multi) => multi.refresh_language(),
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn debug_snapshot(&self) -> DebugTraySnapshot {
+        match self {
+            UnifiedTrayManager::Single(tm) => tm.debug_snapshot(),
+            UnifiedTrayManager::PerProvider(multi) => multi.debug_snapshot(),
         }
     }
 }
@@ -2193,5 +2297,27 @@ mod tests {
             }
             _ => panic!("Expected Merged state"),
         }
+    }
+
+    #[test]
+    fn debug_kind_reports_merged_state() {
+        let state = TrayTooltipState::Merged {
+            providers: vec![ProviderUsage {
+                name: "Claude".into(),
+                session_percent: 10.0,
+                weekly_percent: 20.0,
+            }],
+        };
+
+        assert_eq!(tray_tooltip_state_kind(&state), "merged");
+    }
+
+    #[test]
+    fn debug_kind_reports_per_provider_error_state() {
+        let state = ProviderTooltipState::Error {
+            error_msg: "boom".to_string(),
+        };
+
+        assert_eq!(provider_tooltip_state_kind(&state), "error");
     }
 }

@@ -384,6 +384,15 @@ fn choose_tray_update_plan<'a>(
     Some(TrayUpdatePlan::Single(provider))
 }
 
+fn should_recreate_tray_manager(
+    previous_enabled_provider_ids: &[ProviderId],
+    previous_tray_icon_mode: TrayIconMode,
+    settings: &Settings,
+) -> bool {
+    previous_tray_icon_mode != settings.tray_icon_mode
+        || previous_enabled_provider_ids != settings.get_enabled_provider_ids()
+}
+
 #[cfg(debug_assertions)]
 fn write_debug_state_with_targets_file(
     path: &std::path::Path,
@@ -395,6 +404,7 @@ fn write_debug_state_with_targets_file(
     preferences_tab_targets: &[DebugTabTarget],
     preferences_viewport_outer_rect: Option<Rect>,
     preferences_settings: &super::preferences::PreferencesDebugSettingsSnapshot,
+    tray_state_json: &str,
     api_key_status: &Option<super::preferences::PreferencesDebugStatusMessage>,
     cookie_status: &Option<super::preferences::PreferencesDebugStatusMessage>,
     pointer_snapshot: DebugPointerSnapshot,
@@ -472,7 +482,7 @@ fn write_debug_state_with_targets_file(
     );
 
     let payload = format!(
-        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"menu_bar_display_mode\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"tray_icon_mode\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
+        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"menu_bar_display_mode\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"tray_icon_mode\":{},\"tray_state\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
         selected_tab.replace('\\', "\\\\").replace('\"', "\\\""),
         preferences_open,
         preferences_tab,
@@ -487,6 +497,7 @@ fn write_debug_state_with_targets_file(
         preferences_settings.show_credits_extra_usage,
         preferences_settings.merge_tray_icons,
         string_json(&preferences_settings.tray_icon_mode),
+        tray_state_json,
         api_key_status_json,
         cookie_status_json,
         pointer_snapshot_json,
@@ -2894,6 +2905,7 @@ impl eframe::App for CodexBarApp {
         let mut refresh_requested = self.preferences_window.take_refresh_requested();
         let previous_enabled_provider_ids = self.settings.get_enabled_provider_ids();
         let previous_ui_language = self.settings.ui_language;
+        let previous_tray_icon_mode = self.settings.tray_icon_mode;
 
         // Atomically consume settings changes so the flag is cleared in both
         // PreferencesWindow and the shared viewport state in one shot.
@@ -2903,8 +2915,22 @@ impl eframe::App for CodexBarApp {
             if let Err(e) = self.settings.save() {
                 tracing::error!("Failed to save settings: {}", e);
             }
-            if previous_enabled_provider_ids != self.settings.get_enabled_provider_ids() {
+            let enabled_provider_ids = self.settings.get_enabled_provider_ids();
+            if previous_enabled_provider_ids != enabled_provider_ids {
                 refresh_requested = true;
+            }
+            if should_recreate_tray_manager(
+                &previous_enabled_provider_ids,
+                previous_tray_icon_mode,
+                &self.settings,
+            ) {
+                self.tray_manager = match UnifiedTrayManager::new(&self.settings) {
+                    Ok(tm) => Some(tm),
+                    Err(e) => {
+                        tracing::warn!("Failed to recreate tray manager: {}", e);
+                        None
+                    }
+                };
             }
             // If language changed, refresh the tray menu/tooltip to update localized strings
             if language_changed && let Some(ref tray_manager) = self.tray_manager {
@@ -2953,6 +2979,11 @@ impl eframe::App for CodexBarApp {
                         interact_pointer_pos: target.interact_pointer_pos,
                     })
                     .collect::<Vec<_>>();
+                let tray_state_json = self
+                    .tray_manager
+                    .as_ref()
+                    .and_then(|tray| serde_json::to_string(&tray.debug_snapshot()).ok())
+                    .unwrap_or_else(|| "null".to_string());
                 if let Err(error) = write_debug_state_with_targets_file(
                     &path,
                     &selected_tab,
@@ -2968,6 +2999,7 @@ impl eframe::App for CodexBarApp {
                     &preferences_tab_targets,
                     preferences_viewport_outer_rect,
                     &preferences_settings,
+                    &tray_state_json,
                     &api_key_status,
                     &cookie_status,
                     if self.latched_debug_tab_targets.is_empty() {
@@ -3960,8 +3992,9 @@ mod tests {
     use super::{
         ProviderData, TrayUpdatePlan, append_font, build_test_click_event_batches,
         choose_tray_update_plan, launch_block_reason, remote_session_error_message,
-        should_auto_refresh, should_show_provider, ssh_session_error_message,
-        startup_last_refresh, summary_metric_display, summary_metric_text,
+        should_auto_refresh, should_recreate_tray_manager, should_show_provider,
+        ssh_session_error_message, startup_last_refresh, summary_metric_display,
+        summary_metric_text,
     };
     use crate::settings::{Language, Settings, TrayIconMode};
     use crate::status::StatusLevel;
@@ -4219,6 +4252,46 @@ mod tests {
             plan,
             Some(TrayUpdatePlan::Single(provider))
                 if provider.name == "Codex" && (provider.session_percent - 10.0).abs() < f64::EPSILON
+        ));
+    }
+
+    #[test]
+    fn tray_manager_recreates_when_mode_changes() {
+        let previous_enabled = Settings::default().get_enabled_provider_ids();
+        let settings = Settings {
+            tray_icon_mode: TrayIconMode::PerProvider,
+            ..Settings::default()
+        };
+
+        assert!(should_recreate_tray_manager(
+            &previous_enabled,
+            TrayIconMode::Single,
+            &settings
+        ));
+    }
+
+    #[test]
+    fn tray_manager_recreates_when_enabled_provider_set_changes() {
+        let previous_enabled = Settings::default().get_enabled_provider_ids();
+        let mut settings = Settings::default();
+        settings.enabled_providers.remove("claude");
+
+        assert!(should_recreate_tray_manager(
+            &previous_enabled,
+            TrayIconMode::Single,
+            &settings
+        ));
+    }
+
+    #[test]
+    fn tray_manager_stays_when_mode_and_providers_match() {
+        let previous_enabled = Settings::default().get_enabled_provider_ids();
+        let settings = Settings::default();
+
+        assert!(!should_recreate_tray_manager(
+            &previous_enabled,
+            TrayIconMode::Single,
+            &settings
         ));
     }
 }
