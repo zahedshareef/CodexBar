@@ -52,6 +52,11 @@ nul
 # Local scripts and env files
 .env
 .env.*
+/docs/ui-parity-workflow.md
+/scripts/crop_vm_preferences_proof.sh
+/scripts/fetch_vm_preferences_proof.sh
+/scripts/run_vm_provider_proof.sh
+/scripts/vm/
 *.ps1
 !dev.ps1
 !scripts/*.ps1
