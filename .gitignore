@@ -55,4 +55,5 @@ nul
 *.ps1
 !dev.ps1
 !scripts/*.ps1
+!scripts/**/*.ps1
 version.env
