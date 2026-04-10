@@ -2705,6 +2705,7 @@ impl PreferencesWindow {
                             .color(Theme::TEXT_PRIMARY),
                     )
                     .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                    .fill(Theme::CARD_BG)
                     .rounding(Rounding::same(Radius::SM)),
                 )
                 .clicked()
@@ -8445,6 +8446,7 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
                         .color(Theme::TEXT_PRIMARY),
                 )
                 .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                .fill(Theme::CARD_BG)
                 .rounding(Rounding::same(Radius::SM)),
             )
             .clicked()

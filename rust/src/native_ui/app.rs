@@ -243,7 +243,7 @@ fn show_remote_session_error_dialog() {
 fn build_native_options() -> eframe::NativeOptions {
     let viewport = egui::ViewportBuilder::default()
         .with_inner_size([360.0, 500.0])
-        .with_min_inner_size([320.0, 320.0])
+        .with_min_inner_size([320.0, 240.0])
         .with_clamp_size_to_monitor_size(true)
         .with_visible(true)
         .with_resizable(true)
@@ -819,6 +819,16 @@ fn should_show_provider(provider: &ProviderData) -> bool {
         || provider.monthly_percent.is_some()
         || provider.model_percent.is_some()
         || provider.error.is_some()
+}
+
+fn main_window_summary_height(visible_provider_count: usize, has_enabled_provider: bool) -> f32 {
+    if visible_provider_count > 0 {
+        (164.0 + visible_provider_count as f32 * 54.0).clamp(270.0, 500.0)
+    } else if has_enabled_provider {
+        220.0
+    } else {
+        340.0
+    }
 }
 
 fn format_reset_time(
@@ -1765,10 +1775,25 @@ impl CodexBarApp {
 
         let margin = 12.0;
         let gap = 10.0;
-        let min_size = egui::vec2(320.0, 320.0);
+        let min_size = egui::vec2(320.0, 240.0);
         let max_w = (work_area.width() - margin * 2.0).max(min_size.x);
         let max_h = (work_area.height() - margin * 2.0).max(min_size.y);
-        let target_size = egui::vec2(360.0_f32.min(max_w), 500.0_f32.min(max_h));
+        let target_height = if let Ok(state) = self.state.lock() {
+            match state.selected_tab {
+                SelectedTab::Summary => main_window_summary_height(
+                    state
+                        .summary_providers
+                        .iter()
+                        .filter(|provider| should_show_provider(provider))
+                        .count(),
+                    !self.settings.get_enabled_provider_ids().is_empty(),
+                ),
+                SelectedTab::Provider(_) => 500.0,
+            }
+        } else {
+            500.0
+        };
+        let target_size = egui::vec2(360.0_f32.min(max_w), target_height.min(max_h));
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target_size));
 
         let anchor = if anchor_to_pointer {
@@ -4031,9 +4056,9 @@ mod tests {
     use super::{
         PerProviderTrayRuntimeState, ProviderData, TrayRuntimeState, TrayUpdatePlan, append_font,
         build_test_click_event_batches, choose_tray_runtime_state, choose_tray_update_plan,
-        launch_block_reason, prepend_font, remote_session_error_message, should_auto_refresh,
-        should_recreate_tray_manager, should_show_provider, ssh_session_error_message,
-        startup_last_refresh,
+        launch_block_reason, main_window_summary_height, prepend_font,
+        remote_session_error_message, should_auto_refresh, should_recreate_tray_manager,
+        should_show_provider, ssh_session_error_message, startup_last_refresh,
     };
     use crate::core::ProviderId;
     use crate::settings::{Settings, TrayIconMode};
@@ -4177,6 +4202,16 @@ mod tests {
         let provider = test_provider();
 
         assert!(!should_show_provider(&provider));
+    }
+
+    #[test]
+    fn summary_window_height_shrinks_for_small_provider_lists() {
+        assert_eq!(main_window_summary_height(2, true), 272.0);
+    }
+
+    #[test]
+    fn summary_window_height_caps_for_long_provider_lists() {
+        assert_eq!(main_window_summary_height(12, true), 500.0);
     }
 
     #[test]
