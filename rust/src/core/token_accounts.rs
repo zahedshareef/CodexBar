@@ -85,6 +85,14 @@ impl TokenAccountSupport {
                 requires_manual_cookie_source: true,
                 cookie_name: None,
             }),
+            ProviderId::Alibaba => Some(TokenAccountSupport {
+                title: "Session tokens",
+                subtitle: "Store multiple Alibaba Cookie headers.",
+                placeholder: "Cookie: ...",
+                injection: TokenInjection::CookieHeader,
+                requires_manual_cookie_source: true,
+                cookie_name: None,
+            }),
             ProviderId::MiniMax => Some(TokenAccountSupport {
                 title: "Session tokens",
                 subtitle: "Store multiple MiniMax Cookie headers.",
@@ -101,6 +109,22 @@ impl TokenAccountSupport {
                 requires_manual_cookie_source: true,
                 cookie_name: None,
             }),
+            ProviderId::Amp => Some(TokenAccountSupport {
+                title: "Session tokens",
+                subtitle: "Store multiple Amp Cookie headers.",
+                placeholder: "Cookie: ...",
+                injection: TokenInjection::CookieHeader,
+                requires_manual_cookie_source: true,
+                cookie_name: None,
+            }),
+            ProviderId::Ollama => Some(TokenAccountSupport {
+                title: "Session tokens",
+                subtitle: "Store multiple Ollama Cookie headers.",
+                placeholder: "Cookie: ...",
+                injection: TokenInjection::CookieHeader,
+                requires_manual_cookie_source: true,
+                cookie_name: None,
+            }),
             // These providers don't support token accounts
             ProviderId::Codex
             | ProviderId::Gemini
@@ -110,12 +134,9 @@ impl TokenAccountSupport {
             | ProviderId::VertexAI
             | ProviderId::Kimi
             | ProviderId::KimiK2
-            | ProviderId::Amp
             | ProviderId::Synthetic
             | ProviderId::JetBrains
-            | ProviderId::Alibaba
             | ProviderId::Warp
-            | ProviderId::Ollama
             | ProviderId::OpenRouter
             | ProviderId::NanoGPT
             | ProviderId::Infini => None,

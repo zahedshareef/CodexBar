@@ -36,7 +36,13 @@ impl KimiK2Provider {
     }
 
     /// Get API key from environment or config
-    fn get_api_key() -> Option<String> {
+    fn get_api_key(api_key: Option<&str>) -> Option<String> {
+        if let Some(key) = api_key
+            && !key.is_empty()
+        {
+            return Some(key.to_string());
+        }
+
         // Check environment variable first
         if let Ok(key) = std::env::var("MOONSHOT_API_KEY")
             && !key.is_empty()
@@ -67,10 +73,10 @@ impl KimiK2Provider {
     }
 
     /// Fetch usage via Moonshot API
-    async fn fetch_via_api(&self) -> Result<UsageSnapshot, ProviderError> {
-        let api_key = Self::get_api_key().ok_or_else(|| {
+    async fn fetch_via_api(&self, ctx: &FetchContext) -> Result<UsageSnapshot, ProviderError> {
+        let api_key = Self::get_api_key(ctx.api_key.as_deref()).ok_or_else(|| {
             ProviderError::NotInstalled(
-                "Moonshot API key not found. Set MOONSHOT_API_KEY environment variable."
+                "Moonshot API key not found. Set it in Preferences → Providers, MOONSHOT_API_KEY, or KIMI_API_KEY."
                     .to_string(),
             )
         })?;
@@ -182,7 +188,7 @@ impl Provider for KimiK2Provider {
 
         match ctx.source_mode {
             SourceMode::Auto | SourceMode::Web | SourceMode::OAuth => {
-                let usage = self.fetch_via_api().await?;
+                let usage = self.fetch_via_api(ctx).await?;
                 Ok(ProviderFetchResult::new(usage, "api"))
             }
             SourceMode::Cli => Err(ProviderError::UnsupportedSource(SourceMode::Cli)),
@@ -199,5 +205,18 @@ impl Provider for KimiK2Provider {
 
     fn supports_cli(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::KimiK2Provider;
+
+    #[test]
+    fn explicit_api_key_overrides_environment_lookup() {
+        assert_eq!(
+            KimiK2Provider::get_api_key(Some("kimi-direct-key")),
+            Some("kimi-direct-key".to_string())
+        );
     }
 }

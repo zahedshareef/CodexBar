@@ -8,15 +8,15 @@
 use eframe::egui::{self, Color32, Rect, RichText, Rounding, Stroke, Vec2};
 use image::ColorType;
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use super::provider_icons::ProviderIconCache;
 use super::theme::{FontSize, Radius, Spacing, Theme, provider_color, provider_icon};
 use crate::browser::cookies::get_cookie_header_from_browser;
 use crate::browser::detection::{BrowserDetector, BrowserType};
-use crate::core::{PersonalInfoRedactor, ProviderId, WidgetSnapshot, WidgetSnapshotStore};
 use crate::core::{ProviderAccountData, TokenAccount, TokenAccountStore, TokenAccountSupport};
+use crate::core::{ProviderId, WidgetProviderEntry, WidgetSnapshot, WidgetSnapshotStore};
 use crate::locale::{LocaleKey, get_text as locale_text};
 use crate::settings::{
     ApiKeys, Language, ManualCookies, Settings, TrayIconMode, get_api_key_providers,
@@ -53,6 +53,19 @@ fn save_color_image_to_png(path: &std::path::Path, image: &egui::ColorImage) -> 
     Ok(())
 }
 
+#[cfg(debug_assertions)]
+fn append_preferences_screenshot_debug_log(message: &str) {
+    let path = std::env::temp_dir().join("codexbar_preferences_screenshot.log");
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .and_then(|mut file| {
+            use std::io::Write;
+            writeln!(file, "{}", message)
+        });
+}
+
 /// Which preferences tab is active
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum PreferencesTab {
@@ -64,9 +77,33 @@ pub enum PreferencesTab {
     Cookies,
     Advanced,
     About,
+    /// Consolidated: Providers + API Keys + Cookies
+    Accounts,
+    /// Extracted shortcuts surface
+    Shortcuts,
+    /// Consolidated: General + Display + Advanced
+    Preferences,
 }
 
 impl PreferencesTab {
+    #[cfg(debug_assertions)]
+    fn from_test_label(label: &str) -> Option<Self> {
+        let normalized = label.trim().to_ascii_lowercase();
+        match normalized.as_str() {
+            "general" => Some(PreferencesTab::General),
+            "providers" => Some(PreferencesTab::Providers),
+            "display" => Some(PreferencesTab::Display),
+            "api_keys" | "apikeys" | "api-keys" => Some(PreferencesTab::ApiKeys),
+            "cookies" => Some(PreferencesTab::Cookies),
+            "advanced" => Some(PreferencesTab::Advanced),
+            "about" => Some(PreferencesTab::About),
+            "accounts" => Some(PreferencesTab::Accounts),
+            "shortcuts" => Some(PreferencesTab::Shortcuts),
+            "preferences" => Some(PreferencesTab::Preferences),
+            _ => None,
+        }
+    }
+
     fn label(&self) -> &'static str {
         match self {
             PreferencesTab::General => "General",
@@ -76,19 +113,35 @@ impl PreferencesTab {
             PreferencesTab::Cookies => "Cookies",
             PreferencesTab::Advanced => "Advanced",
             PreferencesTab::About => "About",
+            PreferencesTab::Accounts => "Accounts",
+            PreferencesTab::Shortcuts => "Shortcuts",
+            PreferencesTab::Preferences => "Preferences",
         }
     }
 
     fn icon(&self) -> &'static str {
+        // Coherent set: all single-weight outlined geometric symbols
+        // that render consistently across egui/Windows font stacks
         match self {
-            PreferencesTab::General => "⚙",
-            PreferencesTab::Providers => "☰",
-            PreferencesTab::Display => "👁",
-            PreferencesTab::ApiKeys => "🔑",
-            PreferencesTab::Cookies => "🍪",
+            PreferencesTab::General | PreferencesTab::Preferences => "⚙",
+            PreferencesTab::Providers | PreferencesTab::Accounts => "⊞",
+            PreferencesTab::Display => "◐",
+            PreferencesTab::ApiKeys => "⊞",
+            PreferencesTab::Cookies => "⊟",
             PreferencesTab::Advanced => "⚡",
-            PreferencesTab::About => "ℹ",
+            PreferencesTab::About => "ⓘ",
+            PreferencesTab::Shortcuts => "⌗",
         }
+    }
+
+    /// The 4 intent-driven top-level categories shown in navigation
+    fn top_level_tabs() -> &'static [PreferencesTab] {
+        &[
+            PreferencesTab::Preferences,
+            PreferencesTab::Accounts,
+            PreferencesTab::Shortcuts,
+            PreferencesTab::About,
+        ]
     }
 }
 
@@ -123,6 +176,7 @@ pub(crate) struct PreferencesDebugSettingsSnapshot {
     pub show_credits_extra_usage: bool,
     pub merge_tray_icons: bool,
     pub tray_icon_mode: String,
+    pub selected_provider: Option<String>,
 }
 
 fn set_merge_tray_icons(settings: &mut Settings, enabled: bool) {
@@ -192,6 +246,7 @@ struct PreferencesSharedState {
     browser_import_status: Option<(String, bool)>,
     refresh_requested: bool,
     cached_snapshot: Option<WidgetSnapshot>,
+    runtime_provider_errors: HashMap<ProviderId, String>,
     // Token accounts data
     token_accounts: HashMap<ProviderId, ProviderAccountData>,
     new_account_label: String,
@@ -209,6 +264,125 @@ struct PreferencesSharedState {
     pending_screenshot_path: Option<PathBuf>,
     #[cfg(debug_assertions)]
     pending_screenshot_delay_frames: u8,
+    #[cfg(debug_assertions)]
+    pending_screenshot_attempts: u8,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ProviderSidebarStyle {
+    frame_fill: Option<Color32>,
+    frame_stroke: Option<Stroke>,
+    inner_margin: f32,
+    item_spacing_y: f32,
+    row_height: f32,
+    row_corner_radius: f32,
+    selected_fill: Color32,
+    selected_stroke: Stroke,
+    hover_fill: Color32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ProviderDetailChrome {
+    control_fill: Color32,
+    control_fill_hover: Color32,
+    control_fill_active: Color32,
+    control_stroke: Stroke,
+    control_inner_margin_x: f32,
+    control_inner_margin_y: f32,
+    info_grid_spacing_x: f32,
+    info_grid_spacing_y: f32,
+    section_gap: f32,
+    detail_label_width: f32,
+    picker_label_width: f32,
+    metric_bar_width: f32,
+    refresh_button_size: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ProvidersSurfacePalette {
+    shell_fill: Color32,
+    content_fill: Color32,
+    detail_fill: Color32,
+    detail_stroke: Stroke,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SettingsNavChrome {
+    selected_fill: Color32,
+    selected_stroke: Stroke,
+    hover_fill: Color32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ProviderDetailTextChrome {
+    subtitle: Color32,
+    section_title: Color32,
+    helper: Color32,
+    info_label: Color32,
+    secondary_value: Color32,
+}
+
+fn active_provider_sidebar_style() -> ProviderSidebarStyle {
+    ProviderSidebarStyle {
+        frame_fill: Some(Color32::from_rgba_unmultiplied(255, 255, 255, 8)),
+        frame_stroke: Some(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.56))),
+        inner_margin: Spacing::SM,
+        item_spacing_y: 0.0,
+        row_height: 58.0,
+        row_corner_radius: 7.0,
+        selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 11),
+        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 18)),
+        hover_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 4),
+    }
+}
+
+fn providers_surface_palette() -> ProvidersSurfacePalette {
+    ProvidersSurfacePalette {
+        shell_fill: Color32::from_rgb(56, 56, 64),
+        content_fill: Color32::from_rgb(54, 54, 62),
+        detail_fill: Color32::from_rgb(58, 58, 66),
+        detail_stroke: Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.24)),
+    }
+}
+
+fn settings_nav_chrome() -> SettingsNavChrome {
+    SettingsNavChrome {
+        selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 10),
+        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 20)),
+        hover_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 4),
+    }
+}
+
+fn provider_detail_text_chrome() -> ProviderDetailTextChrome {
+    ProviderDetailTextChrome {
+        subtitle: Theme::TEXT_SECONDARY.gamma_multiply(1.16),
+        section_title: Theme::TEXT_PRIMARY.gamma_multiply(0.84),
+        helper: Theme::TEXT_SECONDARY.gamma_multiply(1.08),
+        info_label: Theme::TEXT_SECONDARY.gamma_multiply(1.12),
+        secondary_value: Theme::TEXT_SECONDARY.gamma_multiply(1.02),
+    }
+}
+
+fn provider_detail_chrome() -> ProviderDetailChrome {
+    ProviderDetailChrome {
+        control_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 5),
+        control_fill_hover: Color32::from_rgba_unmultiplied(255, 255, 255, 8),
+        control_fill_active: Color32::from_rgba_unmultiplied(255, 255, 255, 11),
+        control_stroke: Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.28)),
+        control_inner_margin_x: 8.0,
+        control_inner_margin_y: 0.0,
+        info_grid_spacing_x: 14.0,
+        info_grid_spacing_y: 6.0,
+        section_gap: 12.0,
+        detail_label_width: 92.0,
+        picker_label_width: 92.0,
+        metric_bar_width: 220.0,
+        refresh_button_size: 24.0,
+    }
+}
+
+fn provider_detail_max_content_width() -> f32 {
+    404.0
 }
 
 impl Default for PreferencesWindow {
@@ -237,6 +411,7 @@ impl Default for PreferencesWindow {
             browser_import_status: None,
             refresh_requested: false,
             cached_snapshot: WidgetSnapshotStore::load(),
+            runtime_provider_errors: HashMap::new(),
             token_accounts: token_accounts.clone(),
             new_account_label: String::new(),
             new_account_token: String::new(),
@@ -252,6 +427,8 @@ impl Default for PreferencesWindow {
             pending_screenshot_path: None,
             #[cfg(debug_assertions)]
             pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
         }));
 
         Self {
@@ -307,6 +484,7 @@ impl PreferencesWindow {
             state.selected_provider = self.selected_provider;
             state.shortcut_input = self.settings.global_shortcut.clone();
             state.shortcut_status_msg = None;
+            state.debug_viewport_outer_rect = None;
         }
     }
 
@@ -319,22 +497,16 @@ impl PreferencesWindow {
         self.is_open = false;
         if let Ok(mut state) = self.shared_state.lock() {
             state.is_open = false;
+            state.debug_viewport_outer_rect = None;
         }
         self.needs_viewport_placement = false;
     }
 
     #[cfg(debug_assertions)]
     pub(crate) fn select_tab_for_testing(&mut self, tab: &str) {
-        let normalized = tab.trim().to_ascii_lowercase();
-        let target_tab = match normalized.as_str() {
-            "general" => PreferencesTab::General,
-            "providers" => PreferencesTab::Providers,
-            "display" => PreferencesTab::Display,
-            "api_keys" | "apikeys" | "api-keys" => PreferencesTab::ApiKeys,
-            "cookies" => PreferencesTab::Cookies,
-            "advanced" => PreferencesTab::Advanced,
-            "about" => PreferencesTab::About,
-            _ => {
+        let target_tab = match PreferencesTab::from_test_label(tab) {
+            Some(tab) => tab,
+            None => {
                 tracing::warn!("Unknown preferences test tab selection: {}", tab);
                 return;
             }
@@ -348,6 +520,26 @@ impl PreferencesWindow {
         if let Ok(mut state) = self.shared_state.lock() {
             state.is_open = true;
             state.active_tab = target_tab;
+        }
+    }
+
+    #[cfg(debug_assertions)]
+    pub(crate) fn select_provider_for_testing(&mut self, provider: &str) {
+        let Some(provider_id) = ProviderId::from_cli_name(provider.trim()) else {
+            tracing::warn!("Unknown preferences test provider selection: {}", provider);
+            return;
+        };
+
+        if !self.is_open {
+            self.open();
+        }
+
+        self.active_tab = PreferencesTab::Providers;
+        self.selected_provider = Some(provider_id);
+        if let Ok(mut state) = self.shared_state.lock() {
+            state.is_open = true;
+            state.active_tab = PreferencesTab::Providers;
+            state.selected_provider = Some(provider_id);
         }
     }
 
@@ -393,6 +585,12 @@ impl PreferencesWindow {
         }
     }
 
+    pub fn set_runtime_provider_errors(&mut self, errors: HashMap<ProviderId, String>) {
+        if let Ok(mut state) = self.shared_state.lock() {
+            state.runtime_provider_errors = errors;
+        }
+    }
+
     #[cfg(debug_assertions)]
     pub(crate) fn debug_snapshot(
         &self,
@@ -429,6 +627,9 @@ impl PreferencesWindow {
                         // state speak the same enum value.
                         TrayIconMode::PerProvider => "perprovider".to_string(),
                     },
+                    selected_provider: state
+                        .selected_provider
+                        .map(|provider_id| provider_id.cli_name().to_string()),
                 },
                 state
                     .api_key_status_msg
@@ -458,6 +659,7 @@ impl PreferencesWindow {
                     show_credits_extra_usage: false,
                     merge_tray_icons: false,
                     tray_icon_mode: "single".to_string(),
+                    selected_provider: None,
                 },
                 None,
                 None,
@@ -471,9 +673,16 @@ impl PreferencesWindow {
             self.open();
         }
         if let Ok(mut state) = self.shared_state.lock() {
+            append_preferences_screenshot_debug_log(&format!(
+                "request path={} is_open={} active_tab={:?}",
+                path.display(),
+                state.is_open,
+                state.active_tab
+            ));
             state.is_open = true;
             state.pending_screenshot_path = Some(path);
-            state.pending_screenshot_delay_frames = 1;
+            state.pending_screenshot_delay_frames = 3;
+            state.pending_screenshot_attempts = 0;
         }
     }
 
@@ -700,7 +909,7 @@ impl PreferencesWindow {
         let work_area = work_area_rect(ctx);
         let main_outer_rect = ctx.input(|i| i.viewport().outer_rect);
 
-        let preferred_size = egui::vec2(720.0, 740.0);
+        let preferred_size = egui::vec2(720.0, 660.0);
         let default_min_size = egui::vec2(520.0, 420.0);
         let margin = 12.0;
         let settings_size = if let Some(area) = work_area {
@@ -740,6 +949,7 @@ impl PreferencesWindow {
             builder = builder.with_position(position);
         }
 
+        let mut pending_viewport_screenshot_request: Option<PathBuf> = None;
         ctx.show_viewport_immediate(settings_viewport_id, builder, |ctx, _class| {
             // Check if window was closed
             if ctx.input(|i| i.viewport().close_requested())
@@ -750,9 +960,9 @@ impl PreferencesWindow {
 
             // Apply dark theme
             let mut style = (*ctx.style()).clone();
-            style.visuals.window_fill = Theme::BG_PRIMARY;
-            style.visuals.panel_fill = Theme::BG_PRIMARY;
-            style.visuals.widgets.noninteractive.bg_fill = Theme::BG_SECONDARY;
+            style.visuals.window_fill = Theme::BG_SECONDARY;
+            style.visuals.panel_fill = Theme::BG_SECONDARY;
+            style.visuals.widgets.noninteractive.bg_fill = Color32::TRANSPARENT;
             style.visuals.widgets.inactive.bg_fill = Theme::CARD_BG;
             style.visuals.widgets.hovered.bg_fill = Theme::CARD_BG_HOVER;
             style.visuals.widgets.active.bg_fill = Theme::ACCENT_PRIMARY;
@@ -761,7 +971,7 @@ impl PreferencesWindow {
             egui::CentralPanel::default()
                 .frame(
                     egui::Frame::none()
-                        .fill(Theme::BG_PRIMARY)
+                        .fill(Theme::BG_SECONDARY)
                         .inner_margin(Spacing::MD),
                 )
                 .show(ctx, |ui| {
@@ -773,18 +983,35 @@ impl PreferencesWindow {
                 let mut pending_path = None;
                 if let Ok(mut state) = shared_state.lock() {
                     if state.pending_screenshot_delay_frames > 0 {
+                        append_preferences_screenshot_debug_log(&format!(
+                            "delay path={} frames_left={}",
+                            state
+                                .pending_screenshot_path
+                                .as_ref()
+                                .map(|path| path.display().to_string())
+                                .unwrap_or_else(|| "<none>".to_string()),
+                            state.pending_screenshot_delay_frames
+                        ));
                         state.pending_screenshot_delay_frames -= 1;
                         ctx.request_repaint();
-                    } else if let Some(path) = state.pending_screenshot_path.take() {
-                        pending_path = Some(path);
+                    } else if let Some(path) = state.pending_screenshot_path.clone() {
+                        if state.pending_screenshot_attempts < 8 {
+                            state.pending_screenshot_attempts += 1;
+                            append_preferences_screenshot_debug_log(&format!(
+                                "attempt path={} attempt={}",
+                                path.display(),
+                                state.pending_screenshot_attempts
+                            ));
+                            pending_path = Some(path);
+                            ctx.request_repaint();
+                        } else {
+                            append_preferences_screenshot_debug_log(&format!(
+                                "attempt_limit path={} attempts={}",
+                                path.display(),
+                                state.pending_screenshot_attempts
+                            ));
+                        }
                     }
-                }
-
-                if let Some(path) = pending_path {
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::new(
-                        path,
-                    )));
-                    ctx.request_repaint();
                 }
 
                 let screenshot_events: Vec<_> = ctx.input(|i| {
@@ -805,22 +1032,72 @@ impl PreferencesWindow {
                         .as_ref()
                         .and_then(|data| data.downcast_ref::<PathBuf>())
                     {
+                        append_preferences_screenshot_debug_log(&format!(
+                            "event_received path={} size={}x{}",
+                            path.display(),
+                            image.size[0],
+                            image.size[1]
+                        ));
                         if let Err(error) = save_color_image_to_png(path, &image) {
+                            append_preferences_screenshot_debug_log(&format!(
+                                "save_failed path={} error={}",
+                                path.display(),
+                                error
+                            ));
                             tracing::warn!(
                                 "Failed to save preferences test screenshot to {}: {}",
                                 path.display(),
                                 error
                             );
                         } else {
+                            append_preferences_screenshot_debug_log(&format!(
+                                "save_ok path={}",
+                                path.display()
+                            ));
                             tracing::info!(
                                 "Saved preferences test screenshot to {}",
                                 path.display()
                             );
+                            if let Ok(mut state) = shared_state.lock()
+                                && state.pending_screenshot_path.as_ref() == Some(path)
+                            {
+                                state.pending_screenshot_path = None;
+                                state.pending_screenshot_delay_frames = 0;
+                                state.pending_screenshot_attempts = 0;
+                            }
                         }
                     }
                 }
+
+                if let Some(path) = pending_path {
+                    append_preferences_screenshot_debug_log(&format!(
+                        "queue_root_viewport_screenshot path={}",
+                        path.display()
+                    ));
+                    pending_viewport_screenshot_request = Some(path);
+                    ctx.request_repaint();
+                }
             }
         });
+
+        if let Some(path) = pending_viewport_screenshot_request {
+            append_preferences_screenshot_debug_log(&format!(
+                "send_root_viewport_screenshot path={} viewport={:?}",
+                path.display(),
+                settings_viewport_id
+            ));
+            ctx.send_viewport_cmd_to(
+                settings_viewport_id,
+                egui::ViewportCommand::Screenshot(egui::UserData::new(path)),
+            );
+            ctx.request_repaint();
+        }
+
+        ctx.send_viewport_cmd_to(settings_viewport_id, egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd_to(
+            settings_viewport_id,
+            egui::ViewportCommand::Minimized(false),
+        );
 
         if settings_position.is_some() {
             ctx.send_viewport_cmd_to(settings_viewport_id, egui::ViewportCommand::Focus);
@@ -1157,16 +1434,14 @@ impl PreferencesWindow {
         available_height: f32,
     ) {
         egui::Frame::none()
-            .fill(Theme::BG_TERTIARY)
-            .rounding(Rounding::same(Radius::MD))
-            .inner_margin(Spacing::SM)
+            .inner_margin(Spacing::XS)
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .id_salt("provider_sidebar")
-                    .max_height(available_height - Spacing::SM * 2.0)
+                    .max_height(available_height)
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        ui.style_mut().spacing.item_spacing.y = 8.0;
+                        ui.style_mut().spacing.item_spacing.y = 4.0;
 
                         for provider_id in providers {
                             let provider_name = provider_id.cli_name();
@@ -2380,67 +2655,48 @@ impl PreferencesWindow {
     }
 
     fn show_about_tab(&mut self, ui: &mut egui::Ui) {
-        ui.add_space(Spacing::XL);
+        ui.add_space(Spacing::LG);
 
-        // App branding
-        ui.vertical_centered(|ui| {
-            // Logo placeholder
-            egui::Frame::none()
-                .fill(Theme::ACCENT_PRIMARY)
-                .rounding(Rounding::same(16.0))
-                .inner_margin(Spacing::MD)
-                .show(ui, |ui| {
-                    ui.label(RichText::new("C").size(32.0).color(Color32::WHITE).strong());
-                });
-
-            ui.add_space(Spacing::MD);
-
+        // Version row
+        ui.horizontal(|ui| {
             ui.label(
                 RichText::new("CodexBar")
-                    .size(FontSize::XXL)
+                    .size(FontSize::LG)
                     .color(Theme::TEXT_PRIMARY)
                     .strong(),
             );
-
             ui.label(
-                RichText::new(format!("版本 {}", env!("CARGO_PKG_VERSION")))
+                RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
                     .size(FontSize::SM)
                     .color(Theme::TEXT_MUTED),
             );
         });
-
-        ui.add_space(Spacing::XL);
-
-        ui.vertical_centered(|ui| {
-            ui.label(
-                RichText::new("CodexBar 的 Windows 移植版本。")
-                    .size(FontSize::MD)
-                    .color(Theme::TEXT_SECONDARY),
-            );
-            ui.label(
-                RichText::new("在系统托盘中追踪 AI 服务商用量。")
-                    .size(FontSize::MD)
-                    .color(Theme::TEXT_SECONDARY),
-            );
-        });
-
-        ui.add_space(Spacing::XL);
-
-        ui.vertical_centered(|ui| {
-            ui.horizontal(|ui| {
-                if ui.link("GitHub Repository").clicked() {
-                    let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
-                }
-                ui.label(RichText::new("·").color(Theme::TEXT_DIM));
-                if ui.link("原始 macOS 版本").clicked() {
-                    let _ = open::that("https://github.com/steipete/CodexBar");
-                }
-            });
-        });
+        ui.add_space(Spacing::XS);
+        ui.label(
+            RichText::new("CodexBar 的 Windows 移植版本。在系统托盘中追踪 AI 服务商用量。")
+                .size(FontSize::SM)
+                .color(Theme::TEXT_SECONDARY),
+        );
 
         ui.add_space(Spacing::LG);
+        setting_divider(ui);
+        ui.add_space(Spacing::SM);
 
-        ui.vertical_centered(|ui| {
+        // Links row
+        ui.horizontal(|ui| {
+            if ui.link("GitHub Repository").clicked() {
+                let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
+            }
+            ui.label(RichText::new("·").color(Theme::TEXT_DIM));
+            if ui.link("原始 macOS 版本").clicked() {
+                let _ = open::that("https://github.com/steipete/CodexBar");
+            }
+        });
+
+        ui.add_space(Spacing::SM);
+
+        // Check for updates row
+        ui.horizontal(|ui| {
             if ui
                 .add(
                     egui::Button::new(
@@ -2448,7 +2704,6 @@ impl PreferencesWindow {
                             .size(FontSize::SM)
                             .color(Theme::TEXT_PRIMARY),
                     )
-                    .fill(Theme::BG_SECONDARY)
                     .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
                     .rounding(Rounding::same(Radius::SM)),
                 )
@@ -2458,15 +2713,16 @@ impl PreferencesWindow {
             }
         });
 
-        ui.add_space(Spacing::XXL);
+        ui.add_space(Spacing::LG);
+        setting_divider(ui);
+        ui.add_space(Spacing::SM);
 
-        ui.vertical_centered(|ui| {
-            ui.label(
-                RichText::new("基于 Rust + egui 构建")
-                    .size(FontSize::XS)
-                    .color(Theme::TEXT_DIM),
-            );
-        });
+        // Build info row
+        ui.label(
+            RichText::new("基于 Rust + egui 构建")
+                .size(FontSize::XS)
+                .color(Theme::TEXT_DIM),
+        );
     }
 }
 
@@ -2582,7 +2838,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
     let (active_tab, ui_language) = if let Ok(state) = shared_state.lock() {
         (state.active_tab, state.settings.ui_language)
     } else {
-        (PreferencesTab::General, Language::English)
+        (PreferencesTab::Preferences, Language::English)
     };
 
     #[cfg(debug_assertions)]
@@ -2591,101 +2847,116 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         state.debug_viewport_outer_rect = ui.ctx().input(|i| i.viewport().outer_rect);
     }
 
+    // Map legacy tabs to the consolidated categories for rendering
+    let effective_tab = match active_tab {
+        PreferencesTab::General | PreferencesTab::Display | PreferencesTab::Advanced => {
+            PreferencesTab::Preferences
+        }
+        PreferencesTab::Providers | PreferencesTab::ApiKeys | PreferencesTab::Cookies => {
+            PreferencesTab::Accounts
+        }
+        other => other,
+    };
+
+    let surface_palette = providers_surface_palette();
+    let shell_fill = surface_palette.shell_fill;
+    let content_fill = surface_palette.content_fill;
+    let shell_rect = ui.max_rect();
+    ui.painter().rect_filled(shell_rect, 0.0, shell_fill);
+
     ui.vertical(|ui| {
         // ═══════════════════════════════════════════════════════════
-        // TAB BAR - macOS style with icons above labels, centered
+        // COMMAND STRIP — 4 intent-driven tabs
         // ═══════════════════════════════════════════════════════════
-        let tabs = [
-            PreferencesTab::General,
-            PreferencesTab::Providers,
-            PreferencesTab::Display,
-            PreferencesTab::ApiKeys,
-            PreferencesTab::Cookies,
-            PreferencesTab::Advanced,
-            PreferencesTab::About,
-        ];
+        let tabs = PreferencesTab::top_level_tabs();
+        let tab_height = 28.0;
+        let nav_padding = Spacing::SM;
+        let nav_chrome = settings_nav_chrome();
 
-        let tab_width = 72.0;
-        let tab_height = 56.0;
-        let total_tabs_width = tabs.len() as f32 * tab_width;
-        let start_x = (ui.available_width() - total_tabs_width) / 2.0;
-
-        // Allocate the entire tab bar as one row
         let (tab_bar_rect, _) = ui.allocate_exact_size(
             Vec2::new(ui.available_width(), tab_height),
             egui::Sense::hover(),
         );
 
+        let tab_count = tabs.len() as f32;
+        let tab_width = (tab_bar_rect.width() - nav_padding * 2.0) / tab_count;
+
         for (i, tab) in tabs.iter().enumerate() {
-            let is_selected = active_tab == *tab;
+            let is_selected = effective_tab == *tab;
 
             let tab_rect = Rect::from_min_size(
                 egui::pos2(
-                    tab_bar_rect.min.x + start_x + i as f32 * tab_width,
+                    tab_bar_rect.min.x + nav_padding + i as f32 * tab_width,
                     tab_bar_rect.min.y,
                 ),
                 Vec2::new(tab_width, tab_height),
             );
 
-            // Check for click
             let response = ui.interact(
                 tab_rect,
-                ui.id().with(format!("tab_{}", i)),
+                ui.id().with(format!("tab_{}", tab.label())),
                 egui::Sense::click(),
             );
 
-            // Background for selected/hovered
             if is_selected {
+                let selected_rect = tab_rect.shrink2(Vec2::new(7.0, 5.0));
                 ui.painter().rect_filled(
-                    tab_rect.shrink(2.0),
-                    Rounding::same(Radius::MD),
-                    Theme::CARD_BG,
+                    selected_rect,
+                    Rounding::same(6.0),
+                    nav_chrome.selected_fill,
+                );
+                ui.painter().rect_stroke(
+                    selected_rect,
+                    Rounding::same(6.0),
+                    nav_chrome.selected_stroke,
                 );
             } else if response.hovered() {
-                ui.painter().rect_filled(
-                    tab_rect.shrink(2.0),
-                    Rounding::same(Radius::MD),
-                    Theme::hover_overlay(),
-                );
+                let hover_rect = tab_rect.shrink2(Vec2::new(7.0, 5.0));
+                ui.painter()
+                    .rect_filled(hover_rect, Rounding::same(6.0), nav_chrome.hover_fill);
             }
 
-            // Icon (centered, larger)
             let icon_color = if is_selected {
-                Theme::ACCENT_PRIMARY
+                Theme::TEXT_PRIMARY
             } else {
-                Theme::TEXT_MUTED
+                Theme::TEXT_SECONDARY.gamma_multiply(1.14)
             };
-            ui.painter().text(
-                egui::pos2(tab_rect.center().x, tab_rect.min.y + 20.0),
-                egui::Align2::CENTER_CENTER,
-                tab.icon(),
-                egui::FontId::proportional(20.0),
-                icon_color,
-            );
-
-            // Label below icon
             let label_color = if is_selected {
                 Theme::TEXT_PRIMARY
             } else {
-                Theme::TEXT_MUTED
+                Theme::TAB_TEXT_INACTIVE.gamma_multiply(1.18)
             };
 
-            // Get localized tab label based on current language
             let tab_label = match *tab {
-                PreferencesTab::General => locale_text(ui_language, LocaleKey::TabGeneral),
-                PreferencesTab::Providers => locale_text(ui_language, LocaleKey::TabProviders),
-                PreferencesTab::Display => locale_text(ui_language, LocaleKey::TabDisplay),
-                PreferencesTab::ApiKeys => locale_text(ui_language, LocaleKey::TabApiKeys),
-                PreferencesTab::Cookies => locale_text(ui_language, LocaleKey::TabCookies),
-                PreferencesTab::Advanced => locale_text(ui_language, LocaleKey::TabAdvanced),
+                PreferencesTab::Preferences => locale_text(ui_language, LocaleKey::TabGeneral),
+                PreferencesTab::Accounts => locale_text(ui_language, LocaleKey::TabProviders),
+                PreferencesTab::Shortcuts => locale_text(ui_language, LocaleKey::TabShortcuts),
                 PreferencesTab::About => locale_text(ui_language, LocaleKey::TabAbout),
+                _ => tab.label(),
             };
+
+            // Icon + label centered
+            let center = tab_rect.center();
+            let label_galley = ui.painter().layout_no_wrap(
+                tab_label.to_string(),
+                egui::FontId::proportional(FontSize::SM),
+                Color32::WHITE,
+            );
+            let total_content_width = 13.0 + 4.0 + label_galley.size().x;
+            let start_x = center.x - total_content_width / 2.0;
 
             ui.painter().text(
-                egui::pos2(tab_rect.center().x, tab_rect.min.y + 44.0),
-                egui::Align2::CENTER_CENTER,
+                egui::pos2(start_x, center.y),
+                egui::Align2::LEFT_CENTER,
+                tab.icon(),
+                egui::FontId::proportional(12.0),
+                icon_color,
+            );
+            ui.painter().text(
+                egui::pos2(start_x + 17.0, center.y),
+                egui::Align2::LEFT_CENTER,
                 tab_label,
-                egui::FontId::proportional(11.0),
+                egui::FontId::proportional(FontSize::SM),
                 label_color,
             );
 
@@ -2712,40 +2983,88 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             }
         }
 
-        // Separator line
-        ui.add_space(Spacing::SM);
-        let separator_rect =
-            Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
+        // Separator
+        let separator_rect = Rect::from_min_size(
+            egui::pos2(tab_bar_rect.min.x + nav_padding, tab_bar_rect.max.y),
+            Vec2::new(ui.available_width(), 1.0),
+        );
         ui.painter()
             .rect_filled(separator_rect, 0.0, Theme::SEPARATOR);
-        ui.add_space(Spacing::SM);
 
         // ═══════════════════════════════════════════════════════════
         // TAB CONTENT
         // ═══════════════════════════════════════════════════════════
-        let content_height = ui.available_height() - Spacing::SM;
+        let content_height = ui.available_height();
 
-        match active_tab {
-            PreferencesTab::Providers => {
-                // Providers tab has special sidebar + detail layout
-                render_providers_tab_macos(ui, content_height, shared_state);
+        match effective_tab {
+            PreferencesTab::Accounts => {
+                // Accounts = Providers sidebar/detail + API Keys + Cookies
+                render_providers_tab_layout(ui, content_height, shared_state);
+            }
+            PreferencesTab::Preferences => {
+                // Preferences = General + Display + Advanced
+                egui::Frame::none()
+                    .fill(content_fill)
+                    .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::MD))
+                    .show(ui, |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_salt("settings_content_preferences")
+                            .max_height(content_height)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                render_general_tab(ui, shared_state);
+                                ui.add_space(Spacing::LG);
+                                render_display_tab(ui, shared_state);
+                                ui.add_space(Spacing::LG);
+                                render_advanced_tab(ui, shared_state);
+                                ui.add_space(Spacing::XL);
+                            });
+                    });
+            }
+            PreferencesTab::Shortcuts => {
+                egui::Frame::none()
+                    .fill(content_fill)
+                    .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::MD))
+                    .show(ui, |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_salt("settings_content_shortcuts")
+                            .max_height(content_height)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                render_shortcuts_tab(ui, shared_state);
+                                ui.add_space(Spacing::XL);
+                            });
+                    });
+            }
+            PreferencesTab::About => {
+                egui::Frame::none()
+                    .fill(content_fill)
+                    .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::MD))
+                    .show(ui, |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_salt("settings_content_about")
+                            .max_height(content_height)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                render_about_tab(ui, shared_state);
+                                ui.add_space(Spacing::XL);
+                            });
+                    });
             }
             _ => {
-                egui::ScrollArea::vertical()
-                    .id_salt("settings_content_viewport")
-                    .max_height(content_height)
-                    .auto_shrink([false, false])
+                // Fallback for any legacy tab reference
+                egui::Frame::none()
+                    .fill(content_fill)
+                    .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::MD))
                     .show(ui, |ui| {
-                        match active_tab {
-                            PreferencesTab::General => render_general_tab(ui, shared_state),
-                            PreferencesTab::Display => render_display_tab(ui, shared_state),
-                            PreferencesTab::ApiKeys => render_api_keys_tab(ui, shared_state),
-                            PreferencesTab::Cookies => render_cookies_tab(ui, shared_state),
-                            PreferencesTab::Advanced => render_advanced_tab(ui, shared_state),
-                            PreferencesTab::About => render_about_tab(ui, shared_state),
-                            PreferencesTab::Providers => unreachable!(),
-                        }
-                        ui.add_space(Spacing::LG);
+                        egui::ScrollArea::vertical()
+                            .id_salt("settings_content_fallback")
+                            .max_height(content_height)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                render_general_tab(ui, shared_state);
+                                ui.add_space(Spacing::XXL);
+                            });
                     });
             }
         }
@@ -2753,17 +3072,21 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 }
 
 /// Render Providers tab with macOS-style sidebar + detail layout
-fn render_providers_tab_macos(
+fn render_providers_tab_layout(
     ui: &mut egui::Ui,
     available_height: f32,
     shared_state: &Arc<Mutex<PreferencesSharedState>>,
 ) {
     // macOS metrics
-    let sidebar_width = 240.0; // ProviderSettingsMetrics.sidebarWidth
+    let sidebar_style = active_provider_sidebar_style();
     let sidebar_corner_radius = 12.0; // sidebarCornerRadius
-    let icon_size = 18.0; // iconSize
+    let icon_size = 16.0;
     let total_width = ui.available_width();
-    let detail_width = (total_width - sidebar_width - Spacing::LG).min(640.0); // detailMaxWidth
+    let sidebar_width = (total_width * 0.42).clamp(244.0, 286.0);
+    let detail_width = (total_width - sidebar_width - Spacing::SM).max(0.0);
+    let surface_palette = providers_surface_palette();
+    let detail_fill = surface_palette.detail_fill;
+    let detail_stroke = surface_palette.detail_stroke;
 
     // Get selected provider
     let selected_provider = if let Ok(state) = shared_state.lock() {
@@ -2783,200 +3106,94 @@ fn render_providers_tab_macos(
         Vec2::new(sidebar_width, available_height),
         egui::Layout::top_down(egui::Align::LEFT),
         |ui| {
-            egui::Frame::none()
-                .fill(Theme::BG_SECONDARY)
+            let mut frame = egui::Frame::none()
                 .rounding(Rounding::same(sidebar_corner_radius))
-                .stroke(Stroke::new(1.0, Theme::SEPARATOR))
-                .inner_margin(Spacing::SM)
-                .show(ui, |ui| {
-                    egui::ScrollArea::vertical()
-                        .id_salt("provider_sidebar_scroll_v3")
-                        .max_height(available_height - Spacing::LG * 2.0)
-                        .auto_shrink([false, false])
-                        .show(ui, |ui| {
-                            for provider_id in providers {
-                                let is_selected = *provider_id == selected;
-                                let is_enabled = if let Ok(state) = shared_state.lock() {
-                                    state
-                                        .settings
-                                        .enabled_providers
-                                        .contains(provider_id.cli_name())
-                                } else {
-                                    true
-                                };
+                .inner_margin(sidebar_style.inner_margin);
+            if let Some(fill) = sidebar_style.frame_fill {
+                frame = frame.fill(fill);
+            }
+            if let Some(stroke) = sidebar_style.frame_stroke {
+                frame = frame.stroke(stroke);
+            }
+            frame.show(ui, |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("provider_sidebar_scroll_v3")
+                    .max_height(available_height - Spacing::LG * 2.0)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        for provider_id in providers {
+                            let is_selected = *provider_id == selected;
+                            let is_enabled = if let Ok(state) = shared_state.lock() {
+                                state
+                                    .settings
+                                    .enabled_providers
+                                    .contains(provider_id.cli_name())
+                            } else {
+                                true
+                            };
+                            let row_height =
+                                provider_sidebar_row_height(*provider_id, is_enabled, shared_state);
+                            let row_width = sidebar_width - sidebar_style.inner_margin * 2.0;
 
-                                let brand_color = provider_color(provider_id.cli_name());
-                                let row_height = 44.0; // Compact rows
-                                let row_width = sidebar_width - Spacing::SM * 4.0;
+                            ui.add_space(sidebar_style.item_spacing_y);
 
-                                // Row with vertical padding of 2px
-                                ui.add_space(2.0);
+                            let (rect, response) = ui.allocate_exact_size(
+                                Vec2::new(row_width, row_height),
+                                egui::Sense::click(),
+                            );
 
-                                let (rect, response) = ui.allocate_exact_size(
-                                    Vec2::new(row_width, row_height),
-                                    egui::Sense::click(),
+                            // Use a light selection stroke/fill instead of a chunky slab.
+                            if is_selected {
+                                response.scroll_to_me(Some(egui::Align::Center));
+                                ui.painter().rect_filled(
+                                    rect,
+                                    Rounding::same(sidebar_style.row_corner_radius),
+                                    sidebar_style.selected_fill,
                                 );
-
-                                // Selection/hover background - use gray like macOS
-                                if is_selected {
-                                    ui.painter().rect_filled(
-                                        rect,
-                                        Rounding::same(8.0),
-                                        Color32::from_rgba_unmultiplied(255, 255, 255, 15),
-                                    );
-                                } else if response.hovered() {
-                                    ui.painter().rect_filled(
-                                        rect,
-                                        Rounding::same(8.0),
-                                        Theme::hover_overlay(),
-                                    );
-                                }
-
-                                // Layout: [drag] [icon] [name + dot] ... [checkbox]
-                                let content_start = rect.min.x + 4.0;
-
-                                // Drag handle (3x2 grid of dots, 12x12 area)
-                                let dot_area_x = content_start;
-                                let dot_area_center_y = rect.center().y;
-                                for row in 0..3 {
-                                    for col in 0..2 {
-                                        let x = dot_area_x + 2.0 + col as f32 * 3.0;
-                                        let y = dot_area_center_y - 4.0 + row as f32 * 4.0;
-                                        ui.painter().circle_filled(
-                                            egui::pos2(x, y),
-                                            1.0,
-                                            Theme::TEXT_MUTED,
-                                        );
-                                    }
-                                }
-
-                                // Provider icon (18x18) - use SVG texture if available
-                                let icon_x = content_start + 16.0;
-                                let icon_rect = Rect::from_center_size(
-                                    egui::pos2(icon_x + icon_size / 2.0, rect.center().y),
-                                    Vec2::splat(icon_size),
-                                );
-
-                                // Try to get SVG icon from cache
-                                let has_svg_icon = VIEWPORT_ICON_CACHE.with(|cache| {
-                                    let mut cache = cache.borrow_mut();
-                                    if let Some(texture) = cache.get_icon(
-                                        ui.ctx(),
-                                        provider_id.cli_name(),
-                                        icon_size as u32,
-                                    ) {
-                                        // Paint the texture
-                                        ui.painter().image(
-                                            texture.id(),
-                                            icon_rect,
-                                            Rect::from_min_max(
-                                                egui::pos2(0.0, 0.0),
-                                                egui::pos2(1.0, 1.0),
-                                            ),
-                                            Color32::WHITE,
-                                        );
-                                        true
-                                    } else {
-                                        false
-                                    }
-                                });
-
-                                // Fallback to Unicode symbol if no SVG
-                                if !has_svg_icon {
-                                    ui.painter().text(
-                                        egui::pos2(icon_x + icon_size / 2.0, rect.center().y),
-                                        egui::Align2::CENTER_CENTER,
-                                        provider_icon(provider_id.cli_name()),
-                                        egui::FontId::proportional(icon_size),
-                                        brand_color,
-                                    );
-                                }
-
-                                // Text area starts after icon with 10px spacing
-                                let text_x = icon_x + icon_size + 10.0;
-
-                                // Display name (subheadline, semibold ~14px) with status dot
-                                let name_text = provider_id.display_name();
-                                let name_galley = ui.painter().layout_no_wrap(
-                                    name_text.to_string(),
-                                    egui::FontId::proportional(14.0),
-                                    Theme::TEXT_PRIMARY,
-                                );
-                                ui.painter().galley(
-                                    egui::pos2(text_x, rect.center().y - 10.0),
-                                    name_galley,
-                                    Theme::TEXT_PRIMARY,
-                                );
-
-                                // Status dot (small, after name) - only shown for enabled
-                                if is_enabled {
-                                    let dot_x = text_x + name_text.len() as f32 * 7.5 + 6.0;
-                                    ui.painter().circle_filled(
-                                        egui::pos2(dot_x, rect.center().y - 6.0),
-                                        3.0,
-                                        Theme::GREEN,
-                                    );
-                                }
-
-                                // Subtitle (caption ~11px, secondary color) - 2 line height
-                                // Show version/source text like macOS does
-                                ui.painter().text(
-                                    egui::pos2(text_x, rect.center().y + 8.0),
-                                    egui::Align2::LEFT_CENTER,
-                                    provider_id.cli_name(),
-                                    egui::FontId::proportional(11.0),
-                                    Theme::TEXT_SECONDARY,
-                                );
-
-                                // Toggle checkbox on right - use small checkbox style like macOS
-                                let checkbox_x = rect.max.x - 14.0;
-                                let checkbox_size = 14.0;
-                                let checkbox_rect = Rect::from_center_size(
-                                    egui::pos2(checkbox_x, rect.center().y),
-                                    Vec2::splat(checkbox_size),
-                                );
-
-                                // Draw checkbox border
                                 ui.painter().rect_stroke(
-                                    checkbox_rect,
-                                    Rounding::same(3.0),
-                                    Stroke::new(
-                                        1.0,
-                                        if is_enabled {
-                                            Theme::ACCENT_PRIMARY
-                                        } else {
-                                            Theme::TEXT_MUTED
-                                        },
-                                    ),
+                                    rect,
+                                    Rounding::same(sidebar_style.row_corner_radius),
+                                    sidebar_style.selected_stroke,
                                 );
-
-                                // Fill and checkmark if enabled
-                                if is_enabled {
-                                    ui.painter().rect_filled(
-                                        checkbox_rect.shrink(1.0),
-                                        Rounding::same(2.0),
-                                        Theme::ACCENT_PRIMARY,
-                                    );
-                                    ui.painter().text(
-                                        checkbox_rect.center(),
-                                        egui::Align2::CENTER_CENTER,
-                                        "✓",
-                                        egui::FontId::proportional(10.0),
-                                        Color32::WHITE,
-                                    );
-                                }
-
-                                // Handle clicks
-                                if response.clicked()
-                                    && let Ok(mut state) = shared_state.lock()
-                                {
-                                    state.selected_provider = Some(*provider_id);
-                                }
-
-                                ui.add_space(2.0);
+                            } else if response.hovered() {
+                                ui.painter().rect_filled(
+                                    rect,
+                                    Rounding::same(sidebar_style.row_corner_radius),
+                                    sidebar_style.hover_fill,
+                                );
                             }
-                        });
-                });
+
+                            let content_rect = rect.shrink2(Vec2::new(4.0, 2.0));
+                            let mut checkbox_clicked = false;
+                            ui.scope_builder(
+                                egui::UiBuilder::new()
+                                    .max_rect(content_rect)
+                                    .layout(egui::Layout::left_to_right(egui::Align::Min)),
+                                |ui| {
+                                    render_provider_sidebar_row(
+                                        ui,
+                                        *provider_id,
+                                        is_enabled,
+                                        is_selected,
+                                        shared_state,
+                                        icon_size,
+                                        &mut checkbox_clicked,
+                                    );
+                                },
+                            );
+
+                            // Handle clicks
+                            if response.clicked()
+                                && !checkbox_clicked
+                                && let Ok(mut state) = shared_state.lock()
+                            {
+                                state.selected_provider = Some(*provider_id);
+                            }
+
+                            ui.add_space(0.0);
+                        }
+                    });
+            });
         },
     );
 
@@ -2991,14 +3208,791 @@ fn render_providers_tab_macos(
 
     // RIGHT PANEL - Detail view
     ui.allocate_new_ui(egui::UiBuilder::new().max_rect(detail_rect), |ui| {
-        egui::ScrollArea::vertical()
-            .id_salt("provider_detail_scroll_v3")
-            .max_height(available_height - Spacing::SM)
-            .auto_shrink([false, false])
+        egui::Frame::none()
+            .fill(detail_fill)
+            .stroke(detail_stroke)
+            .rounding(Rounding::same(12.0))
+            .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::SM))
             .show(ui, |ui| {
-                render_provider_detail_panel(ui, selected, shared_state);
+                egui::ScrollArea::vertical()
+                    .id_salt("provider_detail_scroll_v3")
+                    .max_height(available_height - Spacing::SM)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        let max_content_width = provider_detail_max_content_width();
+                        let available = ui.available_width();
+                        if available > max_content_width {
+                            ui.add_space((available - max_content_width) * 0.5);
+                        }
+                        ui.set_max_width(max_content_width.min(available));
+                        render_provider_detail_panel(ui, selected, shared_state);
+                    });
             });
     });
+}
+
+fn render_provider_sidebar_row(
+    ui: &mut egui::Ui,
+    provider_id: ProviderId,
+    is_enabled: bool,
+    is_selected: bool,
+    shared_state: &Arc<Mutex<PreferencesSharedState>>,
+    icon_size: f32,
+    checkbox_clicked: &mut bool,
+) {
+    let provider_name = provider_id.cli_name();
+    let brand_color = provider_color(provider_name);
+    let ui_language = if let Ok(state) = shared_state.lock() {
+        state.settings.ui_language
+    } else {
+        Language::English
+    };
+    let entry = if let Ok(state) = shared_state.lock() {
+        state
+            .cached_snapshot
+            .as_ref()
+            .and_then(|snapshot| snapshot.entry_for(provider_id).cloned())
+    } else {
+        None
+    };
+    let runtime_error = if let Ok(state) = shared_state.lock() {
+        state.runtime_provider_errors.get(&provider_id).cloned()
+    } else {
+        None
+    };
+    let subtitle = provider_sidebar_subtitle(
+        provider_id,
+        is_enabled,
+        entry.as_ref(),
+        runtime_error.as_deref(),
+        ui_language,
+    );
+    let (subtitle_primary, subtitle_secondary) = provider_sidebar_display_lines(&subtitle);
+
+    render_provider_sidebar_reorder_handle(ui, is_selected);
+    ui.add_space(3.0);
+
+    render_provider_sidebar_icon(ui, provider_name, brand_color, icon_size);
+    ui.add_space(5.0);
+
+    let name_color = if is_selected {
+        Theme::TEXT_PRIMARY
+    } else if is_enabled {
+        Theme::TEXT_PRIMARY.gamma_multiply(1.02)
+    } else {
+        Theme::TEXT_SECONDARY.gamma_multiply(1.30)
+    };
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = 1.0;
+        ui.horizontal(|ui| {
+            let mut name_text = RichText::new(provider_preferences_display_name(provider_id))
+                .size(FontSize::SM)
+                .color(name_color);
+            if is_selected {
+                name_text = name_text.strong();
+            }
+            ui.label(name_text);
+            if is_enabled {
+                ui.add_space(3.0);
+                let (dot_rect, _) =
+                    ui.allocate_exact_size(Vec2::new(6.0, 6.0), egui::Sense::hover());
+                ui.painter().circle_filled(
+                    dot_rect.center(),
+                    1.35,
+                    Theme::GREEN.gamma_multiply(if is_selected { 0.58 } else { 0.42 }),
+                );
+            }
+        });
+
+        let primary_subtitle_color = if is_selected {
+            Theme::TEXT_SECONDARY.gamma_multiply(1.32)
+        } else if is_enabled {
+            Theme::TEXT_SECONDARY.gamma_multiply(1.18)
+        } else {
+            Theme::TEXT_SECONDARY.gamma_multiply(1.22)
+        };
+        ui.label(
+            RichText::new(subtitle_primary.as_str())
+                .size(FontSize::XS)
+                .color(primary_subtitle_color),
+        );
+        if let Some(secondary_line) = subtitle_secondary.as_deref() {
+            let secondary_subtitle_color = if is_selected {
+                Theme::TEXT_DIM.gamma_multiply(1.16)
+            } else if is_enabled {
+                Theme::TEXT_DIM.gamma_multiply(1.04)
+            } else {
+                Theme::TEXT_DIM.gamma_multiply(1.08)
+            };
+            ui.label(
+                RichText::new(secondary_line)
+                    .size(FontSize::XS)
+                    .color(secondary_subtitle_color),
+            );
+        }
+    });
+
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        *checkbox_clicked = render_provider_sidebar_checkbox(ui, is_enabled);
+    });
+}
+
+fn provider_sidebar_subtitle(
+    provider_id: ProviderId,
+    is_enabled: bool,
+    entry: Option<&WidgetProviderEntry>,
+    runtime_error: Option<&str>,
+    ui_language: Language,
+) -> String {
+    let source_hint = provider_sidebar_source_hint(provider_id, ui_language);
+
+    if !is_enabled {
+        return format!(
+            "{} — {}\n{}",
+            locale_text(ui_language, LocaleKey::ProviderDisabled),
+            provider_disabled_detail_hint(provider_id, runtime_error, ui_language),
+            locale_text(ui_language, LocaleKey::ProviderUsageNotFetchedYet)
+        );
+    }
+
+    let Some(entry) = entry else {
+        return format!(
+            "{}\n{}",
+            locale_text(ui_language, LocaleKey::ProviderNotDetected),
+            locale_text(ui_language, LocaleKey::ProviderLastFetchFailed)
+        );
+    };
+
+    let status_detail = if provider_sidebar_has_usage(entry) {
+        provider_sidebar_updated_display(entry.updated_at, ui_language)
+    } else {
+        locale_text(ui_language, LocaleKey::ProviderUsageNotFetchedYet).to_string()
+    };
+
+    format!("{source_hint}\n{status_detail}")
+}
+
+fn provider_sidebar_display_lines(subtitle: &str) -> (String, Option<String>) {
+    let (primary, secondary) = subtitle
+        .split_once('\n')
+        .map(|(primary, secondary)| (primary, Some(secondary)))
+        .unwrap_or((subtitle, None));
+
+    let primary = ellipsize_text(primary, 40);
+    let secondary = secondary.map(|line| ellipsize_text(line, 22));
+
+    (primary, secondary)
+}
+
+fn provider_detail_display_text(subtitle: &str) -> String {
+    if let Some((primary, secondary)) = subtitle.split_once(" • ") {
+        return format!("{primary}\n{secondary}");
+    }
+
+    subtitle.to_string()
+}
+
+fn ellipsize_text(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        return text.to_string();
+    }
+
+    let truncated: String = text.chars().take(max_chars.saturating_sub(1)).collect();
+    format!("{truncated}…")
+}
+
+fn provider_sidebar_row_height(
+    _provider_id: ProviderId,
+    _is_enabled: bool,
+    _shared_state: &Arc<Mutex<PreferencesSharedState>>,
+) -> f32 {
+    58.0
+}
+
+fn provider_disabled_detail_hint(
+    provider_id: ProviderId,
+    runtime_error: Option<&str>,
+    ui_language: Language,
+) -> String {
+    match provider_id {
+        ProviderId::Cursor | ProviderId::OpenCode | ProviderId::Kimi => {
+            locale_text(ui_language, LocaleKey::ProviderSourceWebShort).to_string()
+        }
+        ProviderId::Copilot => {
+            locale_text(ui_language, LocaleKey::ProviderSourceGithubApiShort).to_string()
+        }
+        ProviderId::Zai | ProviderId::Synthetic | ProviderId::OpenRouter | ProviderId::NanoGPT => {
+            locale_text(ui_language, LocaleKey::ProviderSourceApiShort).to_string()
+        }
+        ProviderId::MiniMax | ProviderId::Alibaba | ProviderId::Codex => {
+            locale_text(ui_language, LocaleKey::ProviderSourceAutoShort).to_string()
+        }
+        ProviderId::Kiro => kiro_disabled_detail_hint(runtime_error, ui_language),
+        ProviderId::Claude
+        | ProviderId::Factory
+        | ProviderId::Gemini
+        | ProviderId::Antigravity
+        | ProviderId::VertexAI
+        | ProviderId::Augment
+        | ProviderId::KimiK2
+        | ProviderId::Amp
+        | ProviderId::Warp
+        | ProviderId::Ollama
+        | ProviderId::JetBrains
+        | ProviderId::Infini => format!(
+            "{} {}",
+            provider_id.cli_name(),
+            locale_text(ui_language, LocaleKey::ProviderNotDetected)
+        ),
+    }
+}
+
+fn kiro_disabled_detail_hint(runtime_error: Option<&str>, ui_language: Language) -> String {
+    let source = locale_text(ui_language, LocaleKey::ProviderSourceKiroEnvShort);
+    if let Some(error) = runtime_error {
+        let trimmed = error.trim();
+        if !trimmed.is_empty() {
+            return format!("{source}: {trimmed}");
+        }
+    }
+    if crate::providers::kiro::find_kiro_cli().is_none() {
+        format!("{source}: kiro-cli: No such file or directory")
+    } else {
+        source.to_string()
+    }
+}
+
+fn provider_preferences_display_name(provider_id: ProviderId) -> &'static str {
+    match provider_id {
+        ProviderId::Factory => "Droid",
+        _ => provider_id.display_name(),
+    }
+}
+
+fn provider_sidebar_source_hint(provider_id: ProviderId, ui_language: Language) -> String {
+    let source_key = match provider_id {
+        ProviderId::Cursor
+        | ProviderId::Factory
+        | ProviderId::Kimi
+        | ProviderId::KimiK2
+        | ProviderId::Augment
+        | ProviderId::OpenCode
+        | ProviderId::Amp
+        | ProviderId::Ollama
+        | ProviderId::Alibaba
+        | ProviderId::Infini => LocaleKey::ProviderSourceWebShort,
+        ProviderId::Claude => LocaleKey::ProviderSourceAutoShort,
+        ProviderId::Gemini | ProviderId::Antigravity | ProviderId::JetBrains => {
+            LocaleKey::ProviderSourceCliShort
+        }
+        ProviderId::Copilot => LocaleKey::ProviderSourceGithubApiShort,
+        ProviderId::Zai
+        | ProviderId::VertexAI
+        | ProviderId::OpenRouter
+        | ProviderId::Synthetic
+        | ProviderId::NanoGPT
+        | ProviderId::Warp => LocaleKey::ProviderSourceApiShort,
+        ProviderId::Kiro => LocaleKey::ProviderSourceKiroEnvShort,
+        ProviderId::Codex | ProviderId::MiniMax => LocaleKey::ProviderSourceAutoShort,
+    };
+
+    locale_text(ui_language, source_key).to_string()
+}
+
+fn provider_detail_source_display(provider_id: ProviderId, ui_language: Language) -> String {
+    match provider_id {
+        // Claude's settings pane reflects the configured automatic source label here.
+        ProviderId::Claude => {
+            locale_text(ui_language, LocaleKey::ProviderSourceAutoShort).to_string()
+        }
+        _ => provider_sidebar_source_hint(provider_id, ui_language),
+    }
+}
+
+fn cursor_cookie_source_label(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Manual".to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn cursor_cookie_source_help(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Paste a Cookie header from a cursor.com request.".to_string(),
+        _ => locale_text(ui_language, LocaleKey::ProviderCursorCookieSourceHelp).to_string(),
+    }
+}
+
+fn opencode_cookie_source_label(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Manual".to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn opencode_cookie_source_help(source: &str) -> String {
+    match source {
+        "manual" => "Paste a Cookie header from the billing page.".to_string(),
+        _ => "Automatic imports browser cookies from opencode.ai.".to_string(),
+    }
+}
+
+fn factory_cookie_source_label(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Manual".to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn factory_cookie_source_help(source: &str) -> String {
+    match source {
+        "manual" => "Paste a Cookie header from Factory.".to_string(),
+        _ => "Automatic imports browser cookies and WorkOS sessions.".to_string(),
+    }
+}
+
+fn alibaba_cookie_source_label(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Manual".to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn alibaba_cookie_source_help(source: &str) -> String {
+    match source {
+        "manual" => "Paste a Cookie header from Model Studio or Bailian.".to_string(),
+        _ => "Automatic imports browser cookies from Model Studio / Bailian.".to_string(),
+    }
+}
+
+fn kimi_cookie_source_label(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Manual".to_string(),
+        "off" => locale_text(ui_language, LocaleKey::ProviderDisabled).to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn kimi_cookie_source_help(source: &str) -> String {
+    match source {
+        "manual" => "Paste a cookie header or the kimi-auth token value.".to_string(),
+        "off" => "Kimi cookies are disabled.".to_string(),
+        _ => "Automatic imports browser cookies.".to_string(),
+    }
+}
+
+fn minimax_cookie_source_label(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Manual".to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn minimax_cookie_source_help(source: &str) -> String {
+    match source {
+        "manual" => "Paste a Cookie header from the Coding Plan page.".to_string(),
+        _ => "Automatic imports browser cookies and Coding Plan tokens.".to_string(),
+    }
+}
+
+fn augment_cookie_source_label(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Manual".to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn augment_cookie_source_help(source: &str) -> String {
+    match source {
+        "manual" => "Paste a Cookie header from the Augment dashboard.".to_string(),
+        _ => "Automatic imports browser cookies.".to_string(),
+    }
+}
+
+fn amp_cookie_source_label(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Manual".to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn amp_cookie_source_help(source: &str) -> String {
+    match source {
+        "manual" => "Paste a Cookie header from Amp settings.".to_string(),
+        _ => "Automatic imports browser cookies.".to_string(),
+    }
+}
+
+fn ollama_cookie_source_label(source: &str, ui_language: Language) -> String {
+    match source {
+        "manual" => "Manual".to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn ollama_cookie_source_help(source: &str) -> String {
+    match source {
+        "manual" => "Paste a Cookie header from Ollama settings.".to_string(),
+        _ => "Automatic imports browser cookies.".to_string(),
+    }
+}
+
+fn alibaba_region_label(region: &str) -> &'static str {
+    match region {
+        "cn" => "China Mainland (Bailian)",
+        _ => "International (Model Studio)",
+    }
+}
+
+fn alibaba_dashboard_url(region: &str) -> &'static str {
+    match region {
+        "cn" => "https://bailian.console.aliyun.com/cn-beijing/?tab=model#/efm/coding_plan",
+        _ => {
+            "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/detail"
+        }
+    }
+}
+
+fn zai_region_label(region: &str) -> &'static str {
+    match region {
+        "china" => "China Mainland (BigModel)",
+        _ => "Global",
+    }
+}
+
+fn minimax_region_label(region: &str) -> &'static str {
+    match region {
+        "china" => "China Mainland (.com)",
+        _ => "Global (.io)",
+    }
+}
+
+fn gemini_cli_credentials_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join(".gemini").join("oauth_creds.json"))
+}
+
+fn gemini_cli_signed_in() -> bool {
+    gemini_cli_credentials_path()
+        .map(|path| path.exists())
+        .unwrap_or(false)
+}
+
+fn vertexai_credentials_path() -> Option<PathBuf> {
+    if let Ok(path) = std::env::var("GOOGLE_APPLICATION_CREDENTIALS")
+        && !path.trim().is_empty()
+    {
+        return Some(PathBuf::from(path));
+    }
+
+    dirs::config_dir().map(|config| {
+        config
+            .join("gcloud")
+            .join("application_default_credentials.json")
+    })
+}
+
+fn compact_credentials_path(path: &str) -> String {
+    let normalized_path = path.replace('\\', "/");
+    let path_ref = Path::new(&normalized_path);
+    let components: Vec<&str> = normalized_path
+        .split('/')
+        .filter(|segment| !segment.is_empty())
+        .collect();
+
+    if components.len() >= 2 {
+        format!(
+            "{}/{}",
+            components[components.len() - 2],
+            components[components.len() - 1]
+        )
+    } else if let Some(file_name) = path_ref.file_name() {
+        file_name.to_string_lossy().into_owned()
+    } else {
+        path.to_string()
+    }
+}
+
+fn vertexai_signed_in() -> bool {
+    vertexai_credentials_path()
+        .map(|path| path.exists())
+        .unwrap_or(false)
+}
+
+fn jetbrains_detected_ide_paths() -> Vec<PathBuf> {
+    let Some(config_dir) = dirs::config_dir() else {
+        return Vec::new();
+    };
+    let product_roots = [config_dir.join("JetBrains"), config_dir.join("Google")];
+    let mut paths = Vec::new();
+
+    for root in product_roots {
+        if !root.exists() {
+            continue;
+        }
+        if let Ok(entries) = std::fs::read_dir(root) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    paths.push(path);
+                }
+            }
+        }
+    }
+
+    paths.sort();
+    paths
+}
+
+fn jetbrains_detected_ide_path() -> Option<PathBuf> {
+    jetbrains_detected_ide_paths().into_iter().next()
+}
+
+fn jetbrains_display_name(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.display().to_string())
+}
+
+fn should_show_token_accounts_section(
+    provider_id: ProviderId,
+    shared_state: &Arc<Mutex<PreferencesSharedState>>,
+) -> bool {
+    let Some(support) = TokenAccountSupport::for_provider(provider_id) else {
+        return false;
+    };
+
+    let (accounts_data, show_add_input, settings) = if let Ok(state) = shared_state.lock() {
+        (
+            state
+                .token_accounts
+                .get(&provider_id)
+                .cloned()
+                .unwrap_or_default(),
+            state.show_add_account_input,
+            state.settings.clone(),
+        )
+    } else {
+        (ProviderAccountData::default(), false, Settings::default())
+    };
+
+    if !support.requires_manual_cookie_source {
+        return true;
+    }
+
+    if provider_id == ProviderId::Cursor && settings.cursor_cookie_source == "manual" {
+        return true;
+    }
+
+    if provider_id == ProviderId::OpenCode && settings.opencode_cookie_source == "manual" {
+        return true;
+    }
+
+    if provider_id == ProviderId::Factory && settings.factory_cookie_source == "manual" {
+        return true;
+    }
+
+    if provider_id == ProviderId::Alibaba && settings.alibaba_cookie_source == "manual" {
+        return true;
+    }
+
+    if provider_id == ProviderId::MiniMax {
+        if !settings.minimax_api_token.trim().is_empty() {
+            return false;
+        }
+        if settings.minimax_cookie_source == "manual" {
+            return true;
+        }
+    }
+
+    if provider_id == ProviderId::Augment && settings.augment_cookie_source == "manual" {
+        return true;
+    }
+
+    if provider_id == ProviderId::Amp && settings.amp_cookie_source == "manual" {
+        return true;
+    }
+
+    if provider_id == ProviderId::Ollama && settings.ollama_cookie_source == "manual" {
+        return true;
+    }
+
+    !accounts_data.accounts.is_empty() || show_add_input
+}
+
+fn provider_sidebar_has_usage(entry: &WidgetProviderEntry) -> bool {
+    entry.primary.is_some()
+        || entry.secondary.is_some()
+        || entry.tertiary.is_some()
+        || entry.credits_remaining.is_some()
+        || entry.code_review_remaining_percent.is_some()
+        || entry.token_usage.is_some()
+}
+
+fn provider_sidebar_updated_display(
+    updated_at: chrono::DateTime<chrono::Utc>,
+    ui_language: Language,
+) -> String {
+    let now = chrono::Utc::now();
+    let diff = now - updated_at;
+    if diff.num_seconds() < 60 {
+        locale_text(ui_language, LocaleKey::UpdatedJustNow).to_string()
+    } else if diff.num_minutes() < 60 {
+        locale_text(ui_language, LocaleKey::UpdatedMinutesAgo)
+            .replace("{}", &diff.num_minutes().to_string())
+    } else if diff.num_hours() < 24 {
+        locale_text(ui_language, LocaleKey::UpdatedHoursAgo)
+            .replace("{}", &diff.num_hours().to_string())
+    } else {
+        locale_text(ui_language, LocaleKey::UpdatedDaysAgo)
+            .replace("{}", &diff.num_days().to_string())
+    }
+}
+
+fn provider_detail_subtitle(
+    provider_id: ProviderId,
+    is_enabled: bool,
+    entry: Option<&WidgetProviderEntry>,
+    runtime_error: Option<&str>,
+    source_display: &str,
+    updated_display: &str,
+    ui_language: Language,
+) -> String {
+    if !is_enabled {
+        return format!(
+            "{} • {}",
+            provider_disabled_detail_hint(provider_id, runtime_error, ui_language),
+            locale_text(ui_language, LocaleKey::ProviderUsageNotFetchedYet)
+        );
+    }
+
+    let Some(entry) = entry else {
+        return format!(
+            "{} • {}",
+            locale_text(ui_language, LocaleKey::ProviderNotDetected),
+            locale_text(ui_language, LocaleKey::ProviderLastFetchFailed)
+        );
+    };
+
+    let status_detail = if provider_sidebar_has_usage(entry) {
+        updated_display.to_string()
+    } else {
+        locale_text(ui_language, LocaleKey::ProviderUsageNotFetchedYet).to_string()
+    };
+
+    format!("{source_display} • {status_detail}")
+}
+
+fn provider_detail_status_value(
+    provider_id: ProviderId,
+    is_enabled: bool,
+    entry: Option<&WidgetProviderEntry>,
+    runtime_error: Option<&str>,
+    ui_language: Language,
+) -> String {
+    if !is_enabled {
+        return provider_disabled_detail_hint(provider_id, runtime_error, ui_language);
+    }
+
+    if entry.is_none() {
+        return locale_text(ui_language, LocaleKey::ProviderLastFetchFailed).to_string();
+    }
+
+    locale_text(ui_language, LocaleKey::AllSystemsOperational).to_string()
+}
+
+fn shows_shared_provider_settings(provider_id: ProviderId) -> bool {
+    !matches!(
+        provider_id,
+        ProviderId::Gemini
+            | ProviderId::Antigravity
+            | ProviderId::OpenCode
+            | ProviderId::MiniMax
+            | ProviderId::Factory
+            | ProviderId::Kimi
+            | ProviderId::Copilot
+            | ProviderId::Alibaba
+            | ProviderId::Amp
+            | ProviderId::Augment
+            | ProviderId::Infini
+            | ProviderId::JetBrains
+            | ProviderId::KimiK2
+            | ProviderId::NanoGPT
+            | ProviderId::Ollama
+            | ProviderId::OpenRouter
+            | ProviderId::Synthetic
+            | ProviderId::VertexAI
+            | ProviderId::Warp
+            | ProviderId::Zai
+    )
+}
+
+fn render_provider_sidebar_reorder_handle(ui: &mut egui::Ui, is_selected: bool) {
+    let dot_color = if is_selected {
+        Theme::TEXT_DIM.gamma_multiply(0.32)
+    } else {
+        Theme::TEXT_DIM.gamma_multiply(0.16)
+    };
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(5.0, 13.0), egui::Sense::hover());
+    let painter = ui.painter();
+
+    for row in 0..3 {
+        for col in 0..2 {
+            let center = egui::pos2(
+                rect.min.x + 1.35 + col as f32 * 2.7,
+                rect.min.y + 2.7 + row as f32 * 3.2,
+            );
+            painter.circle_filled(center, 0.42, dot_color);
+        }
+    }
+}
+
+fn render_provider_sidebar_icon(
+    ui: &mut egui::Ui,
+    provider_name: &str,
+    brand_color: Color32,
+    icon_size: f32,
+) {
+    let has_svg_icon = VIEWPORT_ICON_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some(texture) = cache.get_icon(ui.ctx(), provider_name, icon_size as u32) {
+            ui.add(egui::Image::new(texture).fit_to_exact_size(Vec2::splat(icon_size)));
+            true
+        } else {
+            false
+        }
+    });
+
+    if !has_svg_icon {
+        ui.label(
+            RichText::new(provider_icon(provider_name))
+                .size(icon_size)
+                .color(brand_color),
+        );
+    }
+}
+
+fn render_provider_sidebar_checkbox(ui: &mut egui::Ui, is_enabled: bool) -> bool {
+    let checkbox_size = 8.0;
+    let (rect, response) = ui.allocate_exact_size(Vec2::splat(checkbox_size), egui::Sense::click());
+    let border = Theme::BORDER_SUBTLE.gamma_multiply(if is_enabled { 0.66 } else { 0.46 });
+    let fill = if is_enabled {
+        Color32::from_rgba_unmultiplied(255, 255, 255, 3)
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter().rect_filled(rect, Rounding::same(3.0), fill);
+    ui.painter()
+        .rect_stroke(rect, Rounding::same(3.0), Stroke::new(0.85, border));
+    if is_enabled {
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            "✓",
+            egui::FontId::proportional(6.5),
+            Theme::TEXT_SECONDARY.gamma_multiply(0.98),
+        );
+    }
+    response.clicked()
 }
 
 /// Render the provider detail panel (right side)
@@ -3007,6 +4001,24 @@ fn render_provider_detail_panel(
     provider_id: ProviderId,
     shared_state: &Arc<Mutex<PreferencesSharedState>>,
 ) {
+    let detail_chrome = provider_detail_chrome();
+    let text_chrome = provider_detail_text_chrome();
+    {
+        let widgets = &mut ui.style_mut().visuals.widgets;
+        widgets.inactive.bg_fill = detail_chrome.control_fill;
+        widgets.inactive.weak_bg_fill = detail_chrome.control_fill;
+        widgets.inactive.fg_stroke.color = Theme::TEXT_PRIMARY;
+        widgets.hovered.bg_fill = detail_chrome.control_fill_hover;
+        widgets.hovered.weak_bg_fill = detail_chrome.control_fill_hover;
+        widgets.hovered.fg_stroke.color = Theme::TEXT_PRIMARY;
+        widgets.active.bg_fill = detail_chrome.control_fill_active;
+        widgets.active.weak_bg_fill = detail_chrome.control_fill_active;
+        widgets.active.fg_stroke.color = Theme::TEXT_PRIMARY;
+        widgets.open.bg_fill = detail_chrome.control_fill_active;
+        widgets.open.weak_bg_fill = detail_chrome.control_fill_active;
+        widgets.open.fg_stroke.color = Theme::TEXT_PRIMARY;
+    }
+
     let brand_color = provider_color(provider_id.cli_name());
 
     // Get current language from shared state
@@ -3034,10 +4046,13 @@ fn render_provider_detail_panel(
     } else {
         None
     };
+    let runtime_error = if let Ok(state) = shared_state.lock() {
+        state.runtime_provider_errors.get(&provider_id).cloned()
+    } else {
+        None
+    };
 
     // Extract data from entry or use defaults
-    let account_email = entry.as_ref().and_then(|e| e.account_email.clone());
-    let login_method = entry.as_ref().and_then(|e| e.login_method.clone());
     let primary_rate = entry.as_ref().and_then(|e| e.primary.clone());
     let secondary_rate = entry.as_ref().and_then(|e| e.secondary.clone());
     let tertiary_rate = entry.as_ref().and_then(|e| e.tertiary.clone());
@@ -3045,13 +4060,49 @@ fn render_provider_detail_panel(
     let code_review_percent = entry.as_ref().and_then(|e| e.code_review_remaining_percent);
     let token_usage = entry.as_ref().and_then(|e| e.token_usage.clone());
     let updated_at = entry.as_ref().map(|e| e.updated_at);
+    let source_display = provider_detail_source_display(provider_id, ui_language);
+    let updated_display = if let Some(ts) = updated_at {
+        let now = chrono::Utc::now();
+        let diff = now - ts;
+        if diff.num_seconds() < 60 {
+            locale_text(ui_language, LocaleKey::UpdatedJustNow).to_string()
+        } else if diff.num_minutes() < 60 {
+            locale_text(ui_language, LocaleKey::UpdatedMinutesAgo)
+                .replace("{}", &diff.num_minutes().to_string())
+        } else if diff.num_hours() < 24 {
+            locale_text(ui_language, LocaleKey::UpdatedHoursAgo)
+                .replace("{}", &diff.num_hours().to_string())
+        } else {
+            locale_text(ui_language, LocaleKey::UpdatedDaysAgo)
+                .replace("{}", &diff.num_days().to_string())
+        }
+    } else {
+        locale_text(ui_language, LocaleKey::NeverUpdated).to_string()
+    };
+    let detail_subtitle = provider_detail_subtitle(
+        provider_id,
+        is_enabled,
+        entry.as_ref(),
+        runtime_error.as_deref(),
+        &source_display,
+        &updated_display,
+        ui_language,
+    );
+    let detail_subtitle_display = provider_detail_display_text(&detail_subtitle);
+    let detail_status = provider_detail_status_value(
+        provider_id,
+        is_enabled,
+        entry.as_ref(),
+        runtime_error.as_deref(),
+        ui_language,
+    );
 
     // ═══════════════════════════════════════════════════════════
     // HEADER - Icon, name, version, refresh, toggle
     // ═══════════════════════════════════════════════════════════
     ui.horizontal(|ui| {
         // Large provider icon (28x28) - use SVG if available
-        let icon_size = 28.0;
+        let icon_size = 24.0;
         let has_svg = VIEWPORT_ICON_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
             if let Some(texture) =
@@ -3072,173 +4123,177 @@ fn render_provider_detail_panel(
             );
         }
 
-        ui.add_space(12.0);
+        ui.add_space(10.0);
+
+        let controls_reserve = detail_chrome.refresh_button_size + 54.0;
+        let text_width = (ui.available_width() - controls_reserve).max(140.0);
 
         ui.vertical(|ui| {
-            ui.label(
-                RichText::new(provider_id.display_name())
-                    .size(FontSize::LG)
-                    .color(Theme::TEXT_PRIMARY)
-                    .strong(),
-            );
-            let updated_str = if let Some(ts) = updated_at {
-                let now = chrono::Utc::now();
-                let diff = now - ts;
-                if diff.num_seconds() < 60 {
-                    locale_text(ui_language, LocaleKey::UpdatedJustNow).to_string()
-                } else if diff.num_minutes() < 60 {
-                    locale_text(ui_language, LocaleKey::UpdatedMinutesAgo)
-                        .replace("{}", &diff.num_minutes().to_string())
-                } else if diff.num_hours() < 24 {
-                    locale_text(ui_language, LocaleKey::UpdatedHoursAgo)
-                        .replace("{}", &diff.num_hours().to_string())
-                } else {
-                    locale_text(ui_language, LocaleKey::UpdatedDaysAgo)
-                        .replace("{}", &diff.num_days().to_string())
-                }
-            } else {
-                locale_text(ui_language, LocaleKey::NeverUpdated).to_string()
-            };
-            ui.label(
-                RichText::new(format!("{} • {}", provider_id.cli_name(), updated_str))
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_MUTED),
-            );
-        });
+            ui.spacing_mut().item_spacing.y = 2.0;
 
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // Toggle switch
-            let mut enabled = is_enabled;
-            if switch_toggle(
-                ui,
-                egui::Id::new(format!("detail_toggle_{}", provider_id.cli_name())),
-                &mut enabled,
-            ) && let Ok(mut state) = shared_state.lock()
-            {
-                let name = provider_id.cli_name().to_string();
-                if enabled {
-                    state.settings.enabled_providers.insert(name);
-                } else {
-                    state.settings.enabled_providers.remove(&name);
-                }
-                state.settings_changed = true;
-            }
-
-            ui.add_space(16.0);
-
-            // Refresh button
-            if ui
-                .add(
-                    egui::Button::new(
-                        RichText::new("↻")
+            ui.horizontal(|ui| {
+                ui.add_sized(
+                    [text_width, 18.0],
+                    egui::Label::new(
+                        RichText::new(provider_preferences_display_name(provider_id))
                             .size(FontSize::MD)
-                            .color(Theme::TEXT_SECONDARY),
-                    )
-                    .fill(Color32::TRANSPARENT)
-                    .stroke(Stroke::new(1.0, Theme::CARD_BORDER))
-                    .rounding(Rounding::same(Radius::SM))
-                    .min_size(Vec2::new(32.0, 32.0)),
+                            .color(Theme::TEXT_PRIMARY)
+                            .strong(),
+                    ),
+                );
+
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    let mut enabled = is_enabled;
+                    if switch_toggle(
+                        ui,
+                        egui::Id::new(format!("detail_toggle_{}", provider_id.cli_name())),
+                        &mut enabled,
+                    ) && let Ok(mut state) = shared_state.lock()
+                    {
+                        let name = provider_id.cli_name().to_string();
+                        if enabled {
+                            state.settings.enabled_providers.insert(name);
+                        } else {
+                            state.settings.enabled_providers.remove(&name);
+                        }
+                        state.settings_changed = true;
+                    }
+
+                    ui.add_space(12.0);
+
+                    if ui
+                        .add(
+                            egui::Button::new(
+                                RichText::new("↻")
+                                    .size(FontSize::SM)
+                                    .color(text_chrome.section_title),
+                            )
+                            .fill(detail_chrome.control_fill)
+                            .stroke(detail_chrome.control_stroke)
+                            .rounding(Rounding::same(Radius::SM))
+                            .min_size(Vec2::splat(detail_chrome.refresh_button_size)),
+                        )
+                        .clicked()
+                        && let Ok(mut state) = shared_state.lock()
+                    {
+                        state.refresh_requested = true;
+                    }
+                });
+            });
+
+            ui.add_sized(
+                [text_width, 30.0],
+                egui::Label::new(
+                    RichText::new(detail_subtitle_display)
+                        .size(FontSize::XS)
+                        .color(text_chrome.subtitle),
                 )
-                .clicked()
-                && let Ok(mut state) = shared_state.lock()
-            {
-                state.refresh_requested = true;
-            }
+                .wrap(),
+            );
         });
     });
 
-    ui.add_space(Spacing::LG);
+    ui.add_space(6.0);
 
     // ═══════════════════════════════════════════════════════════
-    // INFO GRID - State, Source, Version, etc.
+    // INFO GRID - Mac-like provider summary
     // ═══════════════════════════════════════════════════════════
-    let updated_display = if let Some(ts) = updated_at {
-        let now = chrono::Utc::now();
-        let diff = now - ts;
-        if diff.num_seconds() < 60 {
-            locale_text(ui_language, LocaleKey::UpdatedJustNow).to_string()
-        } else if diff.num_minutes() < 60 {
-            locale_text(ui_language, LocaleKey::UpdatedMinutesAgo)
-                .replace("{}", &diff.num_minutes().to_string())
-        } else if diff.num_hours() < 24 {
-            locale_text(ui_language, LocaleKey::UpdatedHoursAgo)
-                .replace("{}", &diff.num_hours().to_string())
-        } else {
-            locale_text(ui_language, LocaleKey::UpdatedDaysAgo)
-                .replace("{}", &diff.num_days().to_string())
+    if !is_enabled {
+        egui::Grid::new("provider_disabled_info_grid")
+            .num_columns(2)
+            .spacing([
+                detail_chrome.info_grid_spacing_x,
+                detail_chrome.info_grid_spacing_y,
+            ])
+            .show(ui, |ui| {
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::State),
+                    locale_text(ui_language, LocaleKey::ProviderDisabled),
+                    detail_chrome.detail_label_width,
+                );
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::Source),
+                    &source_display,
+                    detail_chrome.detail_label_width,
+                );
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::Version),
+                    locale_text(ui_language, LocaleKey::ProviderNotDetected),
+                    detail_chrome.detail_label_width,
+                );
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::Updated),
+                    locale_text(ui_language, LocaleKey::ProviderNotFetchedYetTitle),
+                    detail_chrome.detail_label_width,
+                );
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::Status),
+                    &detail_status,
+                    detail_chrome.detail_label_width,
+                );
+                if provider_id != ProviderId::Cursor {
+                    info_row(
+                        ui,
+                        locale_text(ui_language, LocaleKey::ProviderUsage),
+                        locale_text(ui_language, LocaleKey::ProviderDisabledNoRecentData),
+                        detail_chrome.detail_label_width,
+                    );
+                }
+            });
+
+        if provider_id == ProviderId::Cursor {
+            provider_detail_section_title(ui, locale_text(ui_language, LocaleKey::ProviderUsage));
         }
-    } else {
-        locale_text(ui_language, LocaleKey::NeverUpdated).to_string()
-    };
-    let hide_personal_info = if let Ok(state) = shared_state.lock() {
-        state.settings.hide_personal_info
-    } else {
-        false
-    };
-    let account_display = if account_email.is_some() {
-        PersonalInfoRedactor::redact_email(account_email.as_deref(), hide_personal_info)
-    } else {
-        locale_text(ui_language, LocaleKey::ProviderNotSignedIn).to_string()
-    };
-    let account_display = if account_display.is_empty() {
-        locale_text(ui_language, LocaleKey::ProviderNotSignedIn).to_string()
-    } else {
-        account_display
-    };
-    let plan_display = login_method
-        .as_deref()
-        .unwrap_or_else(|| locale_text(ui_language, LocaleKey::ProviderPlan));
 
-    egui::Grid::new("provider_info_grid")
-        .num_columns(2)
-        .spacing([16.0, 8.0])
-        .show(ui, |ui| {
-            let state_label = if is_enabled {
-                locale_text(ui_language, LocaleKey::ProviderEnabled)
-            } else {
-                locale_text(ui_language, LocaleKey::ProviderDisabled)
-            };
-            info_row(ui, locale_text(ui_language, LocaleKey::State), state_label);
-            info_row(
-                ui,
-                locale_text(ui_language, LocaleKey::Source),
-                locale_text(ui_language, LocaleKey::ProviderSourceOauthWeb),
-            );
-            info_row(
-                ui,
-                locale_text(ui_language, LocaleKey::Version),
-                provider_id.cli_name(),
-            );
-            info_row(
-                ui,
-                locale_text(ui_language, LocaleKey::Updated),
-                &updated_display,
-            );
-            info_row(
-                ui,
-                locale_text(ui_language, LocaleKey::Status),
-                locale_text(ui_language, LocaleKey::AllSystemsOperational),
-            );
-            info_row(
-                ui,
-                locale_text(ui_language, LocaleKey::Account),
-                &account_display,
-            );
-            info_row(ui, locale_text(ui_language, LocaleKey::Plan), plan_display);
-        });
+        ui.add_space(detail_chrome.section_gap);
+    } else {
+        let version_display = locale_text(ui_language, LocaleKey::ProviderNotDetected);
+        egui::Grid::new("provider_info_grid")
+            .num_columns(2)
+            .spacing([
+                detail_chrome.info_grid_spacing_x,
+                detail_chrome.info_grid_spacing_y,
+            ])
+            .show(ui, |ui| {
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::State),
+                    locale_text(ui_language, LocaleKey::ProviderEnabled),
+                    detail_chrome.detail_label_width,
+                );
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::Source),
+                    &source_display,
+                    detail_chrome.detail_label_width,
+                );
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::Version),
+                    version_display,
+                    detail_chrome.detail_label_width,
+                );
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::Updated),
+                    &updated_display,
+                    detail_chrome.detail_label_width,
+                );
+                info_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::Status),
+                    &detail_status,
+                    detail_chrome.detail_label_width,
+                );
+            });
 
-    ui.add_space(Spacing::LG);
-
-    // ═══════════════════════════════════════════════════════════
-    // USAGE SECTION
-    // ═══════════════════════════════════════════════════════════
-    ui.label(
-        RichText::new(locale_text(ui_language, LocaleKey::ProviderUsage))
-            .size(FontSize::MD)
-            .color(Theme::TEXT_PRIMARY)
-            .strong(),
-    );
-    ui.add_space(Spacing::SM);
+        provider_detail_section_title(ui, locale_text(ui_language, LocaleKey::ProviderUsage));
+    }
 
     // Helper to format reset time
     let format_reset = |rate: &crate::core::RateWindow| -> Option<String> {
@@ -3273,7 +4328,7 @@ fn render_provider_detail_panel(
     };
 
     // Session usage bar (primary rate)
-    if let Some(ref rate) = primary_rate {
+    if is_enabled && let Some(ref rate) = primary_rate {
         let (percent, label) = usage_display(rate.used_percent, show_as_used, ui_language);
         let reset_str = format_reset(rate);
         usage_bar_row(
@@ -3283,12 +4338,14 @@ fn render_provider_detail_panel(
             &label,
             reset_str.as_deref(),
             brand_color,
+            detail_chrome.detail_label_width,
+            detail_chrome.metric_bar_width,
         );
-        ui.add_space(8.0);
+        ui.add_space(4.0);
     }
 
     // Weekly usage bar (secondary rate)
-    if let Some(ref rate) = secondary_rate {
+    if is_enabled && let Some(ref rate) = secondary_rate {
         let (percent, label) = usage_display(rate.used_percent, show_as_used, ui_language);
         let reset_str = format_reset(rate);
         usage_bar_row(
@@ -3298,12 +4355,14 @@ fn render_provider_detail_panel(
             &label,
             reset_str.as_deref(),
             brand_color,
+            detail_chrome.detail_label_width,
+            detail_chrome.metric_bar_width,
         );
-        ui.add_space(8.0);
+        ui.add_space(4.0);
     }
 
     // Tertiary rate (e.g., code review)
-    if let Some(ref rate) = tertiary_rate {
+    if is_enabled && let Some(ref rate) = tertiary_rate {
         let (percent, label) = usage_display(rate.used_percent, show_as_used, ui_language);
         let reset_str = rate.reset_description.as_deref();
         usage_bar_row(
@@ -3313,14 +4372,16 @@ fn render_provider_detail_panel(
             &label,
             reset_str,
             brand_color,
+            detail_chrome.detail_label_width,
+            detail_chrome.metric_bar_width,
         );
-        ui.add_space(8.0);
+        ui.add_space(4.0);
     }
 
     // Code review (if available and no tertiary rate)
     // Note: code_review_remaining_percent is the REMAINING percent, so convert to used
-    match code_review_percent {
-        Some(remaining) if tertiary_rate.is_none() => {
+    match (is_enabled, code_review_percent) {
+        (true, Some(remaining)) if tertiary_rate.is_none() => {
             let used = 100.0 - remaining;
             let (percent, label) = usage_display(used, show_as_used, ui_language);
             usage_bar_row(
@@ -3330,245 +4391,2216 @@ fn render_provider_detail_panel(
                 &label,
                 None,
                 brand_color,
+                detail_chrome.detail_label_width,
+                detail_chrome.metric_bar_width,
             );
         }
         _ => {}
     }
 
-    ui.add_space(Spacing::LG);
+    let codex_missing_usage_details = provider_id == ProviderId::Codex
+        && entry
+            .as_ref()
+            .map(|entry| {
+                !provider_sidebar_has_usage(entry)
+                    && entry.account_email.is_none()
+                    && entry.login_method.is_none()
+            })
+            .unwrap_or(true);
 
-    // ═══════════════════════════════════════════════════════════
-    // TRAY METRIC PREFERENCE
-    // ═══════════════════════════════════════════════════════════
-    ui.label(
-        RichText::new(locale_text(ui_language, LocaleKey::TrayDisplayTitle))
-            .size(FontSize::MD)
-            .color(Theme::TEXT_PRIMARY)
-            .strong(),
-    );
-    ui.add_space(Spacing::SM);
-
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(locale_text(ui_language, LocaleKey::ShowInTray))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_SECONDARY),
+    if provider_id == ProviderId::Codex && credits_remaining.is_none() {
+        ui.add_space(2.0);
+        provider_detail_text_row(
+            ui,
+            locale_text(ui_language, LocaleKey::CreditsLabel),
+            locale_text(ui_language, LocaleKey::ProviderCodexCreditsUnavailable),
+            detail_chrome.detail_label_width,
+            true,
         );
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let current_metric = if let Ok(state) = shared_state.lock() {
-                state.settings.get_provider_metric(provider_id)
-            } else {
-                crate::settings::MetricPreference::Automatic
-            };
-
-            egui::Frame::none()
-                .fill(Theme::BG_TERTIARY)
-                .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
-                .rounding(Rounding::same(Radius::SM))
-                .inner_margin(egui::Margin::symmetric(Spacing::XS, 2.0))
-                .show(ui, |ui| {
-                    let metrics = crate::settings::MetricPreference::all();
-
-                    let mut selected = current_metric;
-                    egui::ComboBox::from_id_salt(format!("metric_pref_{}", provider_id.cli_name()))
-                        .selected_text(metric_preference_text(selected, ui_language))
-                        .show_ui(ui, |ui| {
-                            for metric in metrics {
-                                if ui
-                                    .selectable_value(
-                                        &mut selected,
-                                        *metric,
-                                        metric_preference_text(*metric, ui_language),
-                                    )
-                                    .changed()
-                                    && let Ok(mut state) = shared_state.lock()
-                                {
-                                    state.settings.set_provider_metric(provider_id, selected);
-                                    state.settings_changed = true;
-                                }
-                            }
-                        });
-                });
-        });
-    });
-
-    ui.add_space(Spacing::LG);
-
-    // ═══════════════════════════════════════════════════════════
-    // CREDITS SECTION (if applicable)
-    // ═══════════════════════════════════════════════════════════
-    if let Some(credits) = credits_remaining {
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(locale_text(ui_language, LocaleKey::CreditsLabel))
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_SECONDARY),
-            );
-            ui.add_space(16.0);
-            ui.label(
-                RichText::new(
-                    locale_text(ui_language, LocaleKey::CreditsLeft)
-                        .replace("{:.1}", &format!("{:.1}", credits)),
-                )
-                .size(FontSize::SM)
-                .color(Theme::TEXT_PRIMARY),
-            );
-        });
-        ui.add_space(Spacing::SM);
     }
 
-    // ═══════════════════════════════════════════════════════════
-    // COST SECTION
-    // ═══════════════════════════════════════════════════════════
-    let (today_cost, today_tokens, monthly_cost, monthly_tokens) =
-        if let Some(ref usage) = token_usage {
-            (
-                usage.session_cost_usd.unwrap_or(0.0),
-                usage.session_tokens.unwrap_or(0),
-                usage.last_30_days_cost_usd.unwrap_or(0.0),
-                usage.last_30_days_tokens.unwrap_or(0),
-            )
+    if provider_id == ProviderId::Cursor {
+        ui.add_space(2.0);
+        provider_detail_text_row(
+            ui,
+            locale_text(ui_language, LocaleKey::CreditsLabel),
+            locale_text(ui_language, LocaleKey::ProviderCursorCreditsHelp),
+            detail_chrome.detail_label_width,
+            true,
+        );
+    }
+
+    if codex_missing_usage_details {
+        ui.add_space(Spacing::XS);
+        provider_detail_section_title(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCodexLastFetchFailedTitle),
+        );
+        provider_detail_helper_text(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCodexNotRunningHelp),
+        );
+        ui.add_space(detail_chrome.section_gap);
+    }
+
+    if shows_shared_provider_settings(provider_id) {
+        provider_detail_section_title(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderSettingsTitle),
+        );
+
+        if let Some(credits) = credits_remaining {
+            ui.add_space(4.0);
+            provider_detail_text_row(
+                ui,
+                locale_text(ui_language, LocaleKey::CreditsLabel),
+                &locale_text(ui_language, LocaleKey::CreditsLeft)
+                    .replace("{:.1}", &format!("{:.1}", credits)),
+                detail_chrome.detail_label_width,
+                true,
+            );
+            ui.add_space(Spacing::XS);
+        }
+
+        let (today_cost, today_tokens, monthly_cost, monthly_tokens) =
+            if let Some(ref usage) = token_usage {
+                (
+                    usage.session_cost_usd.unwrap_or(0.0),
+                    usage.session_tokens.unwrap_or(0),
+                    usage.last_30_days_cost_usd.unwrap_or(0.0),
+                    usage.last_30_days_tokens.unwrap_or(0),
+                )
+            } else {
+                (0.0, 0, 0.0, 0)
+            };
+
+        let show_cost_block = (!matches!(
+            provider_id,
+            ProviderId::Codex | ProviderId::Cursor | ProviderId::Claude
+        )) || token_usage.is_some();
+        if show_cost_block {
+            ui.horizontal(|ui| {
+                ui.add_sized(
+                    [detail_chrome.detail_label_width, 20.0],
+                    egui::Label::new(
+                        RichText::new(locale_text(ui_language, LocaleKey::CostTitle))
+                            .size(FontSize::XS)
+                            .color(text_chrome.info_label),
+                    ),
+                );
+                ui.vertical(|ui| {
+                    ui.label(
+                        RichText::new(
+                            locale_text(ui_language, LocaleKey::TodayCostFull)
+                                .replace("{:.2}", &format!("{:.2}", today_cost))
+                                .replace("{}", &today_tokens.to_string()),
+                        )
+                        .size(FontSize::XS)
+                        .color(Theme::TEXT_PRIMARY.gamma_multiply(0.98)),
+                    );
+                    ui.label(
+                        RichText::new(
+                            locale_text(ui_language, LocaleKey::Last30DaysCostFull)
+                                .replace("{:.2}", &format!("{:.2}", monthly_cost))
+                                .replace("{}", &monthly_tokens.to_string()),
+                        )
+                        .size(FontSize::XS)
+                        .color(text_chrome.secondary_value),
+                    );
+                });
+            });
+        }
+
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::MenuBarMetric),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!("metric_{}", provider_id.cli_name()))
+                        .selected_text(locale_text(ui_language, LocaleKey::Automatic))
+                        .width(116.0)
+                        .show_ui(ui, |ui| {
+                            let _ = ui.selectable_label(
+                                true,
+                                locale_text(ui_language, LocaleKey::Automatic),
+                            );
+                            let _ = ui.selectable_label(
+                                false,
+                                locale_text(ui_language, LocaleKey::ProviderSessionLabel),
+                            );
+                            let _ = ui.selectable_label(
+                                false,
+                                locale_text(ui_language, LocaleKey::ProviderWeeklyLabel),
+                            );
+                        });
+                });
+            },
+        );
+
+        ui.add_space(3.0);
+        provider_detail_helper_text(ui, locale_text(ui_language, LocaleKey::MenuBarMetricHelper));
+
+        ui.add_space(detail_chrome.section_gap);
+    }
+
+    if provider_id == ProviderId::Codex {
+        let mut codex_usage_source = if let Ok(state) = shared_state.lock() {
+            state.settings.codex_usage_source.clone()
         } else {
-            (0.0, 0, 0.0, 0)
+            "auto".to_string()
+        };
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::UsageSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt("codex_usage_source")
+                        .selected_text(codex_usage_source_label(&codex_usage_source, ui_language))
+                        .width(116.0)
+                        .show_ui(ui, |ui| {
+                            let _ = ui.selectable_value(
+                                &mut codex_usage_source,
+                                "auto".to_string(),
+                                locale_text(ui_language, LocaleKey::Automatic),
+                            );
+                            let _ = ui.selectable_value(
+                                &mut codex_usage_source,
+                                "oauth".to_string(),
+                                locale_text(ui_language, LocaleKey::OAuth),
+                            );
+                            let _ = ui.selectable_value(
+                                &mut codex_usage_source,
+                                "cli".to_string(),
+                                locale_text(ui_language, LocaleKey::ProviderSourceCliShort),
+                            );
+                        });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.codex_usage_source != codex_usage_source
+        {
+            state.settings.codex_usage_source = codex_usage_source;
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, locale_text(ui_language, LocaleKey::AutoFallbackHelp));
+        ui.add_space(detail_chrome.section_gap);
+
+        let codex_openai_web_extras = if let Ok(state) = shared_state.lock() {
+            state.settings.codex_openai_web_extras
+        } else {
+            true
         };
 
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(locale_text(ui_language, LocaleKey::CostTitle))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_SECONDARY),
-        );
-        ui.add_space(32.0);
-        ui.vertical(|ui| {
-            ui.label(
-                RichText::new(
-                    locale_text(ui_language, LocaleKey::TodayCostFull)
-                        .replace("{:.2}", &format!("{:.2}", today_cost))
-                        .replace("{}", &today_tokens.to_string()),
-                )
-                .size(FontSize::SM)
-                .color(Theme::TEXT_PRIMARY),
+        if codex_openai_web_extras {
+            let mut codex_cookie_source = if let Ok(state) = shared_state.lock() {
+                state.settings.codex_cookie_source.clone()
+            } else {
+                "auto".to_string()
+            };
+            provider_detail_picker_row(
+                ui,
+                locale_text(ui_language, LocaleKey::ProviderOpenAiCookies),
+                detail_chrome.picker_label_width,
+                text_chrome.info_label,
+                |ui| {
+                    provider_detail_select_frame(ui, detail_chrome, |ui| {
+                        egui::ComboBox::from_id_salt("codex_cookie_source")
+                            .selected_text(codex_cookie_source_label(
+                                &codex_cookie_source,
+                                ui_language,
+                            ))
+                            .width(116.0)
+                            .show_ui(ui, |ui| {
+                                let _ = ui.selectable_value(
+                                    &mut codex_cookie_source,
+                                    "auto".to_string(),
+                                    locale_text(ui_language, LocaleKey::Automatic),
+                                );
+                                let _ = ui.selectable_value(
+                                    &mut codex_cookie_source,
+                                    "manual".to_string(),
+                                    "Manual",
+                                );
+                                let _ = ui.selectable_value(
+                                    &mut codex_cookie_source,
+                                    "off".to_string(),
+                                    locale_text(ui_language, LocaleKey::ProviderDisabled),
+                                );
+                            });
+                    });
+                },
             );
-            ui.label(
-                RichText::new(
-                    locale_text(ui_language, LocaleKey::Last30DaysCostFull)
-                        .replace("{:.2}", &format!("{:.2}", monthly_cost))
-                        .replace("{}", &monthly_tokens.to_string()),
-                )
-                .size(FontSize::SM)
-                .color(Theme::TEXT_MUTED),
-            );
-        });
-    });
+            if let Ok(mut state) = shared_state.lock()
+                && state.settings.codex_cookie_source != codex_cookie_source
+            {
+                state.settings.codex_cookie_source = codex_cookie_source.clone();
+                state.settings_changed = true;
+            }
 
-    ui.add_space(Spacing::XL);
-
-    // ═══════════════════════════════════════════════════════════
-    // SETTINGS SECTION
-    // ═══════════════════════════════════════════════════════════
-    ui.label(
-        RichText::new(locale_text(ui_language, LocaleKey::ProviderSettingsTitle))
-            .size(FontSize::MD)
-            .color(Theme::TEXT_PRIMARY)
-            .strong(),
-    );
-    ui.add_space(Spacing::SM);
-
-    // Menu bar metric dropdown
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(locale_text(ui_language, LocaleKey::MenuBarMetric))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_SECONDARY),
-        );
-
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            egui::ComboBox::from_id_salt(format!("metric_{}", provider_id.cli_name()))
-                .selected_text(locale_text(ui_language, LocaleKey::Automatic))
-                .width(120.0)
-                .show_ui(ui, |ui| {
-                    let _ =
-                        ui.selectable_label(true, locale_text(ui_language, LocaleKey::Automatic));
-                    let _ = ui.selectable_label(
-                        false,
-                        locale_text(ui_language, LocaleKey::ProviderSessionLabel),
-                    );
-                    let _ = ui.selectable_label(
-                        false,
-                        locale_text(ui_language, LocaleKey::ProviderWeeklyLabel),
-                    );
+            ui.add_space(2.0);
+            let cookie_help = match codex_cookie_source.as_str() {
+                "manual" => "Paste a Cookie header from a chatgpt.com request.",
+                "off" => "Disable OpenAI dashboard cookie usage.",
+                _ => locale_text(ui_language, LocaleKey::ProviderCodexAutoImportHelp),
+            };
+            provider_detail_helper_text(ui, cookie_help);
+            ui.add_space(detail_chrome.section_gap);
+        }
+    } else if provider_id == ProviderId::Cursor {
+        let mut cursor_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.cursor_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCookieSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!(
+                        "cookie_source_{}",
+                        provider_id.cli_name()
+                    ))
+                    .selected_text(cursor_cookie_source_label(
+                        &cursor_cookie_source,
+                        ui_language,
+                    ))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        let _ = ui.selectable_value(
+                            &mut cursor_cookie_source,
+                            "auto".to_string(),
+                            locale_text(ui_language, LocaleKey::Automatic),
+                        );
+                        let _ = ui.selectable_value(
+                            &mut cursor_cookie_source,
+                            "manual".to_string(),
+                            "Manual",
+                        );
+                    });
                 });
-        });
-    });
-
-    ui.add_space(4.0);
-    ui.label(
-        RichText::new(locale_text(ui_language, LocaleKey::MenuBarMetricHelper))
-            .size(FontSize::XS)
-            .color(Theme::TEXT_MUTED),
-    );
-
-    ui.add_space(Spacing::MD);
-
-    // Usage source dropdown
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(locale_text(ui_language, LocaleKey::UsageSource))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_SECONDARY),
+            },
         );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.cursor_cookie_source != cursor_cookie_source
+        {
+            state.settings.cursor_cookie_source = cursor_cookie_source.clone();
+            state.settings_changed = true;
+        }
 
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.label(
-                RichText::new(locale_text(ui_language, LocaleKey::ProviderSourceOauthWeb))
-                    .size(FontSize::XS)
-                    .color(Theme::TEXT_MUTED),
+        ui.add_space(2.0);
+        provider_detail_helper_text(
+            ui,
+            &cursor_cookie_source_help(&cursor_cookie_source, ui_language),
+        );
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::OpenCode {
+        let mut opencode_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.opencode_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCookieSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!(
+                        "cookie_source_{}",
+                        provider_id.cli_name()
+                    ))
+                    .selected_text(opencode_cookie_source_label(
+                        &opencode_cookie_source,
+                        ui_language,
+                    ))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        let _ = ui.selectable_value(
+                            &mut opencode_cookie_source,
+                            "auto".to_string(),
+                            locale_text(ui_language, LocaleKey::Automatic),
+                        );
+                        let _ = ui.selectable_value(
+                            &mut opencode_cookie_source,
+                            "manual".to_string(),
+                            "Manual",
+                        );
+                    });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.opencode_cookie_source != opencode_cookie_source
+        {
+            state.settings.opencode_cookie_source = opencode_cookie_source.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, &opencode_cookie_source_help(&opencode_cookie_source));
+        ui.add_space(detail_chrome.section_gap);
+
+        let mut workspace_id = if let Ok(state) = shared_state.lock() {
+            state.settings.opencode_workspace_id.clone()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            "Workspace ID",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut workspace_id)
+                        .desired_width(168.0)
+                        .hint_text("wrk_...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.opencode_workspace_id != workspace_id
+        {
+            state.settings.opencode_workspace_id = workspace_id;
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Optional override if workspace lookup fails.");
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::MiniMax {
+        let mut minimax_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.minimax_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        let mut minimax_api_region = if let Ok(state) = shared_state.lock() {
+            state.settings.minimax_api_region.clone()
+        } else {
+            "global".to_string()
+        };
+        let mut minimax_api_token = if let Ok(state) = shared_state.lock() {
+            state.settings.minimax_api_token.clone()
+        } else {
+            String::new()
+        };
+        let mut minimax_cookie_header = if let Ok(state) = shared_state.lock() {
+            state.settings.minimax_cookie_header.clone()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCookieSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!(
+                        "cookie_source_{}",
+                        provider_id.cli_name()
+                    ))
+                    .selected_text(minimax_cookie_source_label(
+                        &minimax_cookie_source,
+                        ui_language,
+                    ))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        let _ = ui.selectable_value(
+                            &mut minimax_cookie_source,
+                            "auto".to_string(),
+                            locale_text(ui_language, LocaleKey::Automatic),
+                        );
+                        let _ = ui.selectable_value(
+                            &mut minimax_cookie_source,
+                            "manual".to_string(),
+                            "Manual",
+                        );
+                    });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.minimax_cookie_source != minimax_cookie_source
+        {
+            state.settings.minimax_cookie_source = minimax_cookie_source.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, &minimax_cookie_source_help(&minimax_cookie_source));
+        ui.add_space(detail_chrome.section_gap);
+
+        provider_detail_picker_row(
+            ui,
+            "API region",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt("minimax_api_region")
+                        .selected_text(minimax_region_label(&minimax_api_region))
+                        .width(160.0)
+                        .show_ui(ui, |ui| {
+                            let _ = ui.selectable_value(
+                                &mut minimax_api_region,
+                                "global".to_string(),
+                                "Global (.io)",
+                            );
+                            let _ = ui.selectable_value(
+                                &mut minimax_api_region,
+                                "china".to_string(),
+                                "China Mainland (.com)",
+                            );
+                        });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.minimax_api_region != minimax_api_region
+        {
+            state.settings.minimax_api_region = minimax_api_region.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Use global (.io) or China mainland (.com).");
+        ui.add_space(detail_chrome.section_gap);
+
+        provider_detail_picker_row(
+            ui,
+            "API token",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut minimax_api_token)
+                        .password(true)
+                        .desired_width(224.0)
+                        .hint_text("Paste API token...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.minimax_api_token != minimax_api_token
+        {
+            state.settings.minimax_api_token = minimax_api_token.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Stored in config.json. Paste a MiniMax key.");
+        ui.add_space(6.0);
+        if text_button(ui, "Open Coding Plan", Theme::ACCENT_PRIMARY) {
+            let url = if minimax_api_region == "china" {
+                "https://platform.minimaxi.com/user-center"
+            } else {
+                "https://platform.minimax.io/user-center"
+            };
+            let _ = open::that(url);
+        }
+        ui.add_space(detail_chrome.section_gap);
+
+        if minimax_cookie_source == "manual" {
+            provider_detail_picker_row(
+                ui,
+                "Cookie header",
+                detail_chrome.picker_label_width,
+                text_chrome.info_label,
+                |ui| {
+                    provider_detail_select_frame(ui, detail_chrome, |ui| {
+                        let text_edit = egui::TextEdit::singleline(&mut minimax_cookie_header)
+                            .password(true)
+                            .desired_width(224.0)
+                            .hint_text("Cookie: ...");
+                        let _ = ui.add(text_edit);
+                    });
+                },
+            );
+            if let Ok(mut state) = shared_state.lock()
+                && state.settings.minimax_cookie_header != minimax_cookie_header
+            {
+                state.settings.minimax_cookie_header = minimax_cookie_header;
+                state.settings_changed = true;
+            }
+
+            ui.add_space(6.0);
+            if text_button(ui, "Open Coding Plan", Theme::ACCENT_PRIMARY) {
+                let url = if minimax_api_region == "china" {
+                    "https://platform.minimaxi.com/user-center"
+                } else {
+                    "https://platform.minimax.io/user-center"
+                };
+                let _ = open::that(url);
+            }
+            ui.add_space(detail_chrome.section_gap);
+        }
+    } else if provider_id == ProviderId::Factory {
+        let mut factory_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.factory_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCookieSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!(
+                        "cookie_source_{}",
+                        provider_id.cli_name()
+                    ))
+                    .selected_text(factory_cookie_source_label(
+                        &factory_cookie_source,
+                        ui_language,
+                    ))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        let _ = ui.selectable_value(
+                            &mut factory_cookie_source,
+                            "auto".to_string(),
+                            locale_text(ui_language, LocaleKey::Automatic),
+                        );
+                        let _ = ui.selectable_value(
+                            &mut factory_cookie_source,
+                            "manual".to_string(),
+                            "Manual",
+                        );
+                    });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.factory_cookie_source != factory_cookie_source
+        {
+            state.settings.factory_cookie_source = factory_cookie_source.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, &factory_cookie_source_help(&factory_cookie_source));
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::Alibaba {
+        let mut alibaba_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.alibaba_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        let mut alibaba_api_region = if let Ok(state) = shared_state.lock() {
+            state.settings.alibaba_api_region.clone()
+        } else {
+            "intl".to_string()
+        };
+        let mut alibaba_api_key = if let Ok(state) = shared_state.lock() {
+            state
+                .api_keys
+                .get("alibaba")
+                .unwrap_or_default()
+                .to_string()
+        } else {
+            String::new()
+        };
+        let mut alibaba_cookie_header = if let Ok(state) = shared_state.lock() {
+            state.settings.alibaba_cookie_header.clone()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCookieSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!(
+                        "cookie_source_{}",
+                        provider_id.cli_name()
+                    ))
+                    .selected_text(alibaba_cookie_source_label(
+                        &alibaba_cookie_source,
+                        ui_language,
+                    ))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        let _ = ui.selectable_value(
+                            &mut alibaba_cookie_source,
+                            "auto".to_string(),
+                            locale_text(ui_language, LocaleKey::Automatic),
+                        );
+                        let _ = ui.selectable_value(
+                            &mut alibaba_cookie_source,
+                            "manual".to_string(),
+                            "Manual",
+                        );
+                    });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.alibaba_cookie_source != alibaba_cookie_source
+        {
+            state.settings.alibaba_cookie_source = alibaba_cookie_source.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, &alibaba_cookie_source_help(&alibaba_cookie_source));
+        ui.add_space(detail_chrome.section_gap);
+
+        provider_detail_picker_row(
+            ui,
+            "Gateway region",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt("alibaba_api_region")
+                        .selected_text(alibaba_region_label(&alibaba_api_region))
+                        .width(220.0)
+                        .show_ui(ui, |ui| {
+                            let _ = ui.selectable_value(
+                                &mut alibaba_api_region,
+                                "intl".to_string(),
+                                "International (Model Studio)",
+                            );
+                            let _ = ui.selectable_value(
+                                &mut alibaba_api_region,
+                                "cn".to_string(),
+                                "China Mainland (Bailian)",
+                            );
+                        });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.alibaba_api_region != alibaba_api_region
+        {
+            state.settings.alibaba_api_region = alibaba_api_region.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Use the international or China mainland gateway.");
+        ui.add_space(detail_chrome.section_gap);
+
+        provider_detail_picker_row(
+            ui,
+            "API key",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut alibaba_api_key)
+                        .password(true)
+                        .desired_width(224.0)
+                        .hint_text("cpk-...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock() {
+            let current = state
+                .api_keys
+                .get("alibaba")
+                .unwrap_or_default()
+                .to_string();
+            if current != alibaba_api_key {
+                if alibaba_api_key.trim().is_empty() {
+                    state.api_keys.remove("alibaba");
+                } else {
+                    state.api_keys.set("alibaba", &alibaba_api_key, None);
+                }
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Stored in CodexBar. Paste a Coding Plan key.");
+        ui.add_space(6.0);
+        if text_button(ui, "Open Coding Plan", Theme::ACCENT_PRIMARY) {
+            let _ = open::that(alibaba_dashboard_url(&alibaba_api_region));
+        }
+        ui.add_space(detail_chrome.section_gap);
+
+        if alibaba_cookie_source == "manual" {
+            provider_detail_picker_row(
+                ui,
+                "Cookie header",
+                detail_chrome.picker_label_width,
+                text_chrome.info_label,
+                |ui| {
+                    provider_detail_select_frame(ui, detail_chrome, |ui| {
+                        let text_edit = egui::TextEdit::singleline(&mut alibaba_cookie_header)
+                            .password(true)
+                            .desired_width(224.0)
+                            .hint_text("Cookie: ...");
+                        let _ = ui.add(text_edit);
+                    });
+                },
+            );
+            if let Ok(mut state) = shared_state.lock()
+                && state.settings.alibaba_cookie_header != alibaba_cookie_header
+            {
+                state.settings.alibaba_cookie_header = alibaba_cookie_header;
+                state.settings_changed = true;
+            }
+
+            ui.add_space(6.0);
+            if text_button(ui, "Open Coding Plan", Theme::ACCENT_PRIMARY) {
+                let _ = open::that(alibaba_dashboard_url(&alibaba_api_region));
+            }
+            ui.add_space(detail_chrome.section_gap);
+        }
+    } else if provider_id == ProviderId::Kimi {
+        let mut kimi_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.kimi_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCookieSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!(
+                        "cookie_source_{}",
+                        provider_id.cli_name()
+                    ))
+                    .selected_text(kimi_cookie_source_label(&kimi_cookie_source, ui_language))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        let _ = ui.selectable_value(
+                            &mut kimi_cookie_source,
+                            "auto".to_string(),
+                            locale_text(ui_language, LocaleKey::Automatic),
+                        );
+                        let _ = ui.selectable_value(
+                            &mut kimi_cookie_source,
+                            "manual".to_string(),
+                            "Manual",
+                        );
+                        let _ = ui.selectable_value(
+                            &mut kimi_cookie_source,
+                            "off".to_string(),
+                            locale_text(ui_language, LocaleKey::ProviderDisabled),
+                        );
+                    });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.kimi_cookie_source != kimi_cookie_source
+        {
+            state.settings.kimi_cookie_source = kimi_cookie_source.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, &kimi_cookie_source_help(&kimi_cookie_source));
+        ui.add_space(detail_chrome.section_gap);
+
+        if kimi_cookie_source == "manual" {
+            let mut manual_cookie_header = if let Ok(state) = shared_state.lock() {
+                state.settings.kimi_manual_cookie_header.clone()
+            } else {
+                String::new()
+            };
+
+            provider_detail_picker_row(
+                ui,
+                "",
+                detail_chrome.picker_label_width,
+                text_chrome.info_label,
+                |ui| {
+                    provider_detail_select_frame(ui, detail_chrome, |ui| {
+                        let text_edit = egui::TextEdit::singleline(&mut manual_cookie_header)
+                            .password(true)
+                            .desired_width(224.0)
+                            .hint_text("Cookie: ... or paste the kimi-auth token value");
+                        let _ = ui.add(text_edit);
+                    });
+                },
+            );
+            if let Ok(mut state) = shared_state.lock()
+                && state.settings.kimi_manual_cookie_header != manual_cookie_header
+            {
+                state.settings.kimi_manual_cookie_header = manual_cookie_header;
+                state.settings_changed = true;
+            }
+
+            ui.add_space(6.0);
+            if text_button(ui, "Open Console", Theme::ACCENT_PRIMARY) {
+                let _ = open::that("https://www.kimi.com/code/console");
+            }
+            ui.add_space(detail_chrome.section_gap);
+        }
+    } else if provider_id == ProviderId::Gemini {
+        let has_gemini_creds = gemini_cli_signed_in();
+        let creds_path = gemini_cli_credentials_path()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "~/.gemini/oauth_creds.json".to_string());
+        let compact_creds_path = compact_credentials_path(&creds_path);
+
+        provider_detail_text_row(
+            ui,
+            "Gemini CLI",
+            if has_gemini_creds {
+                "Authenticated"
+            } else {
+                "Not signed in"
+            },
+            detail_chrome.picker_label_width,
+            true,
+        );
+        ui.add_space(2.0);
+        provider_detail_helper_text(
+            ui,
+            &format!("Uses OAuth credentials from {}.", compact_creds_path),
+        );
+        ui.add_space(8.0);
+
+        ui.horizontal(|ui| {
+            let button_label = if has_gemini_creds {
+                "Open Google AI Studio"
+            } else {
+                "Setup Gemini CLI"
+            };
+            if primary_button(ui, button_label) {
+                let target = if has_gemini_creds {
+                    "https://aistudio.google.com/"
+                } else {
+                    "https://github.com/google-gemini/gemini-cli"
+                };
+                let _ = open::that(target);
+            }
+        });
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::VertexAI {
+        let has_vertexai_creds = vertexai_signed_in();
+        let creds_path = vertexai_credentials_path()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "%APPDATA%/gcloud/application_default_credentials.json".to_string());
+        let compact_creds_path = compact_credentials_path(&creds_path);
+
+        provider_detail_text_row(
+            ui,
+            "Google Cloud",
+            if has_vertexai_creds {
+                "Authenticated"
+            } else {
+                "Not signed in"
+            },
+            detail_chrome.picker_label_width,
+            true,
+        );
+        ui.add_space(2.0);
+        provider_detail_helper_text(
+            ui,
+            &format!("Uses Google Cloud credentials from {}.", compact_creds_path),
+        );
+        ui.add_space(8.0);
+
+        ui.horizontal(|ui| {
+            let button_label = if has_vertexai_creds {
+                "Open Vertex AI Console"
+            } else {
+                "Setup Google Cloud Auth"
+            };
+            if primary_button(ui, button_label) {
+                let target = if has_vertexai_creds {
+                    "https://console.cloud.google.com/vertex-ai"
+                } else {
+                    "https://cloud.google.com/sdk/gcloud/reference/auth/application-default/login"
+                };
+                let _ = open::that(target);
+            }
+        });
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::Antigravity {
+        provider_detail_text_row(
+            ui,
+            "Antigravity App",
+            "Managed in app",
+            detail_chrome.picker_label_width,
+            true,
+        );
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Open Antigravity to sign in, then refresh CodexBar.");
+        ui.add_space(8.0);
+
+        ui.horizontal(|ui| {
+            if primary_button(ui, "Refresh after sign-in")
+                && let Ok(mut state) = shared_state.lock()
+            {
+                state.refresh_requested = true;
+            }
+        });
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::Augment {
+        let mut augment_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.augment_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        let mut augment_cookie_header = if let Ok(state) = shared_state.lock() {
+            state.settings.augment_cookie_header.clone()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCookieSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!(
+                        "cookie_source_{}",
+                        provider_id.cli_name()
+                    ))
+                    .selected_text(augment_cookie_source_label(
+                        &augment_cookie_source,
+                        ui_language,
+                    ))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        let _ = ui.selectable_value(
+                            &mut augment_cookie_source,
+                            "auto".to_string(),
+                            locale_text(ui_language, LocaleKey::Automatic),
+                        );
+                        let _ = ui.selectable_value(
+                            &mut augment_cookie_source,
+                            "manual".to_string(),
+                            "Manual",
+                        );
+                    });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.augment_cookie_source != augment_cookie_source
+        {
+            state.settings.augment_cookie_source = augment_cookie_source.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, &augment_cookie_source_help(&augment_cookie_source));
+        ui.add_space(8.0);
+
+        if primary_button(ui, "Refresh Session")
+            && let Ok(mut state) = shared_state.lock()
+        {
+            state.refresh_requested = true;
+        }
+
+        if augment_cookie_source == "manual" {
+            ui.add_space(detail_chrome.section_gap);
+            provider_detail_picker_row(
+                ui,
+                "Cookie header",
+                detail_chrome.picker_label_width,
+                text_chrome.info_label,
+                |ui| {
+                    provider_detail_select_frame(ui, detail_chrome, |ui| {
+                        let text_edit = egui::TextEdit::singleline(&mut augment_cookie_header)
+                            .password(true)
+                            .desired_width(224.0)
+                            .hint_text("Cookie: ...");
+                        let _ = ui.add(text_edit);
+                    });
+                },
+            );
+            if let Ok(mut state) = shared_state.lock()
+                && state.settings.augment_cookie_header != augment_cookie_header
+            {
+                state.settings.augment_cookie_header = augment_cookie_header;
+                state.settings_changed = true;
+            }
+
+            ui.add_space(2.0);
+            provider_detail_helper_text(
+                ui,
+                "Paste a Cookie header or cURL capture from the Augment dashboard.",
             );
             ui.add_space(8.0);
-            egui::ComboBox::from_id_salt(format!("source_{}", provider_id.cli_name()))
-                .selected_text(locale_text(ui_language, LocaleKey::Automatic))
-                .width(100.0)
-                .show_ui(ui, |ui| {
-                    let _ =
-                        ui.selectable_label(true, locale_text(ui_language, LocaleKey::Automatic));
-                    let _ = ui.selectable_label(false, locale_text(ui_language, LocaleKey::OAuth));
-                    let _ = ui.selectable_label(false, locale_text(ui_language, LocaleKey::Api));
-                });
-        });
-    });
+            if text_button(ui, "Open Augment", Theme::ACCENT_PRIMARY) {
+                let _ = open::that("https://app.augmentcode.com");
+            }
+        }
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::Amp {
+        let mut amp_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.amp_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        let mut amp_cookie_header = if let Ok(state) = shared_state.lock() {
+            state.settings.amp_cookie_header.clone()
+        } else {
+            String::new()
+        };
 
-    ui.add_space(4.0);
-    ui.label(
-        RichText::new(locale_text(ui_language, LocaleKey::AutoFallbackHelp))
-            .size(FontSize::XS)
-            .color(Theme::TEXT_MUTED),
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCookieSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!(
+                        "cookie_source_{}",
+                        provider_id.cli_name()
+                    ))
+                    .selected_text(amp_cookie_source_label(&amp_cookie_source, ui_language))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        let _ = ui.selectable_value(
+                            &mut amp_cookie_source,
+                            "auto".to_string(),
+                            locale_text(ui_language, LocaleKey::Automatic),
+                        );
+                        let _ = ui.selectable_value(
+                            &mut amp_cookie_source,
+                            "manual".to_string(),
+                            "Manual",
+                        );
+                    });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.amp_cookie_source != amp_cookie_source
+        {
+            state.settings.amp_cookie_source = amp_cookie_source.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, &amp_cookie_source_help(&amp_cookie_source));
+        ui.add_space(detail_chrome.section_gap);
+
+        if amp_cookie_source == "manual" {
+            provider_detail_picker_row(
+                ui,
+                "",
+                detail_chrome.picker_label_width,
+                text_chrome.info_label,
+                |ui| {
+                    provider_detail_select_frame(ui, detail_chrome, |ui| {
+                        let text_edit = egui::TextEdit::singleline(&mut amp_cookie_header)
+                            .password(true)
+                            .desired_width(224.0)
+                            .hint_text("Cookie: ...");
+                        let _ = ui.add(text_edit);
+                    });
+                },
+            );
+            if let Ok(mut state) = shared_state.lock()
+                && state.settings.amp_cookie_header != amp_cookie_header
+            {
+                state.settings.amp_cookie_header = amp_cookie_header;
+                state.settings_changed = true;
+            }
+
+            ui.add_space(6.0);
+            if text_button(ui, "Open Amp Settings", Theme::ACCENT_PRIMARY) {
+                let _ = open::that("https://ampcode.com/settings");
+            }
+            ui.add_space(detail_chrome.section_gap);
+        }
+    } else if provider_id == ProviderId::Ollama {
+        let mut ollama_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.ollama_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        let mut ollama_cookie_header = if let Ok(state) = shared_state.lock() {
+            state.settings.ollama_cookie_header.clone()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderCookieSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!(
+                        "cookie_source_{}",
+                        provider_id.cli_name()
+                    ))
+                    .selected_text(ollama_cookie_source_label(
+                        &ollama_cookie_source,
+                        ui_language,
+                    ))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        let _ = ui.selectable_value(
+                            &mut ollama_cookie_source,
+                            "auto".to_string(),
+                            locale_text(ui_language, LocaleKey::Automatic),
+                        );
+                        let _ = ui.selectable_value(
+                            &mut ollama_cookie_source,
+                            "manual".to_string(),
+                            "Manual",
+                        );
+                    });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.ollama_cookie_source != ollama_cookie_source
+        {
+            state.settings.ollama_cookie_source = ollama_cookie_source.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, &ollama_cookie_source_help(&ollama_cookie_source));
+        ui.add_space(detail_chrome.section_gap);
+
+        if ollama_cookie_source == "manual" {
+            provider_detail_picker_row(
+                ui,
+                "",
+                detail_chrome.picker_label_width,
+                text_chrome.info_label,
+                |ui| {
+                    provider_detail_select_frame(ui, detail_chrome, |ui| {
+                        let text_edit = egui::TextEdit::singleline(&mut ollama_cookie_header)
+                            .password(true)
+                            .desired_width(224.0)
+                            .hint_text("Cookie: ...");
+                        let _ = ui.add(text_edit);
+                    });
+                },
+            );
+            if let Ok(mut state) = shared_state.lock()
+                && state.settings.ollama_cookie_header != ollama_cookie_header
+            {
+                state.settings.ollama_cookie_header = ollama_cookie_header;
+                state.settings_changed = true;
+            }
+
+            ui.add_space(6.0);
+            if text_button(ui, "Open Ollama Settings", Theme::ACCENT_PRIMARY) {
+                let _ = open::that("https://ollama.com/settings");
+            }
+            ui.add_space(detail_chrome.section_gap);
+        }
+    } else if provider_id == ProviderId::Copilot {
+        let has_copilot_token = if let Ok(state) = shared_state.lock() {
+            state
+                .api_keys
+                .get("copilot")
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        provider_detail_text_row(
+            ui,
+            "GitHub Login",
+            if has_copilot_token {
+                "Stored"
+            } else {
+                "Not signed in"
+            },
+            detail_chrome.picker_label_width,
+            true,
+        );
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Sign in with GitHub Device Flow.");
+        ui.add_space(8.0);
+
+        ui.horizontal(|ui| {
+            let button_label = if has_copilot_token {
+                "Sign in again"
+            } else {
+                "Sign in with GitHub"
+            };
+            if primary_button(ui, button_label) {
+                let _ = open::that("https://github.com/settings/copilot");
+            }
+        });
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::Zai {
+        let mut zai_api_key = if let Ok(state) = shared_state.lock() {
+            state.api_keys.get("zai").unwrap_or_default().to_string()
+        } else {
+            String::new()
+        };
+        let mut zai_api_region = if let Ok(state) = shared_state.lock() {
+            state.settings.zai_api_region.clone()
+        } else {
+            "global".to_string()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            "API region",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt("zai_api_region")
+                        .selected_text(zai_region_label(&zai_api_region))
+                        .width(168.0)
+                        .show_ui(ui, |ui| {
+                            let _ = ui.selectable_value(
+                                &mut zai_api_region,
+                                "global".to_string(),
+                                "Global",
+                            );
+                            let _ = ui.selectable_value(
+                                &mut zai_api_region,
+                                "china".to_string(),
+                                "China Mainland (BigModel)",
+                            );
+                        });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.zai_api_region != zai_api_region
+        {
+            state.settings.zai_api_region = zai_api_region.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(
+            ui,
+            "Use BigModel for the China mainland endpoints (open.bigmodel.cn).",
+        );
+        ui.add_space(detail_chrome.section_gap);
+
+        provider_detail_picker_row(
+            ui,
+            "API key",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut zai_api_key)
+                        .password(true)
+                        .desired_width(224.0)
+                        .hint_text("Paste API token...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock() {
+            let current = state.api_keys.get("zai").unwrap_or_default().to_string();
+            if current != zai_api_key {
+                if zai_api_key.trim().is_empty() {
+                    state.api_keys.remove("zai");
+                } else {
+                    state.api_keys.set("zai", &zai_api_key, None);
+                }
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Stored in CodexBar. Paste a z.ai token.");
+        ui.add_space(8.0);
+
+        if text_button(ui, "Open z.ai Dashboard", Theme::ACCENT_PRIMARY) {
+            let _ = open::that("https://z.ai/dashboard");
+        }
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::Warp {
+        let mut warp_api_key = if let Ok(state) = shared_state.lock() {
+            state.api_keys.get("warp").unwrap_or_default().to_string()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            "API key",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut warp_api_key)
+                        .password(true)
+                        .desired_width(224.0)
+                        .hint_text("wk-...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock() {
+            let current = state.api_keys.get("warp").unwrap_or_default().to_string();
+            if current != warp_api_key {
+                if warp_api_key.trim().is_empty() {
+                    state.api_keys.remove("warp");
+                } else {
+                    state.api_keys.set("warp", &warp_api_key, None);
+                }
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Stored in CodexBar. Create a Warp key.");
+        ui.add_space(8.0);
+
+        if text_button(ui, "Open Warp API Key Guide", Theme::ACCENT_PRIMARY) {
+            let _ = open::that("https://docs.warp.dev/reference/cli/api-keys");
+        }
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::OpenRouter {
+        let mut openrouter_api_key = if let Ok(state) = shared_state.lock() {
+            state
+                .api_keys
+                .get("openrouter")
+                .unwrap_or_default()
+                .to_string()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            "API key",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut openrouter_api_key)
+                        .password(true)
+                        .desired_width(224.0)
+                        .hint_text("sk-or-...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock() {
+            let current = state
+                .api_keys
+                .get("openrouter")
+                .unwrap_or_default()
+                .to_string();
+            if current != openrouter_api_key {
+                if openrouter_api_key.trim().is_empty() {
+                    state.api_keys.remove("openrouter");
+                } else {
+                    state.api_keys.set("openrouter", &openrouter_api_key, None);
+                }
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Stored in CodexBar. Paste an OpenRouter key.");
+        ui.add_space(8.0);
+
+        if text_button(ui, "Open OpenRouter Credits", Theme::ACCENT_PRIMARY) {
+            let _ = open::that("https://openrouter.ai/settings/credits");
+        }
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::Synthetic {
+        let mut synthetic_api_key = if let Ok(state) = shared_state.lock() {
+            state
+                .api_keys
+                .get("synthetic")
+                .unwrap_or_default()
+                .to_string()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            "API key",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut synthetic_api_key)
+                        .password(true)
+                        .desired_width(224.0)
+                        .hint_text("Paste key...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock() {
+            let current = state
+                .api_keys
+                .get("synthetic")
+                .unwrap_or_default()
+                .to_string();
+            if current != synthetic_api_key {
+                if synthetic_api_key.trim().is_empty() {
+                    state.api_keys.remove("synthetic");
+                } else {
+                    state.api_keys.set("synthetic", &synthetic_api_key, None);
+                }
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Stored in CodexBar. Paste a Synthetic key.");
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::NanoGPT {
+        let mut nanogpt_api_key = if let Ok(state) = shared_state.lock() {
+            state
+                .api_keys
+                .get("nanogpt")
+                .unwrap_or_default()
+                .to_string()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            "API key",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut nanogpt_api_key)
+                        .password(true)
+                        .desired_width(224.0)
+                        .hint_text("ngpt_...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock() {
+            let current = state
+                .api_keys
+                .get("nanogpt")
+                .unwrap_or_default()
+                .to_string();
+            if current != nanogpt_api_key {
+                if nanogpt_api_key.trim().is_empty() {
+                    state.api_keys.remove("nanogpt");
+                } else {
+                    state.api_keys.set("nanogpt", &nanogpt_api_key, None);
+                }
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Stored in CodexBar. Paste a NanoGPT key.");
+        ui.add_space(8.0);
+        if text_button(ui, "Open NanoGPT API", Theme::ACCENT_PRIMARY) {
+            let _ = open::that("https://nano-gpt.com/api");
+        }
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::Infini {
+        let mut infini_api_key = if let Ok(state) = shared_state.lock() {
+            state.api_keys.get("infini").unwrap_or_default().to_string()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            "API key",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut infini_api_key)
+                        .password(true)
+                        .desired_width(224.0)
+                        .hint_text("sk-...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock() {
+            let current = state.api_keys.get("infini").unwrap_or_default().to_string();
+            if current != infini_api_key {
+                if infini_api_key.trim().is_empty() {
+                    state.api_keys.remove("infini");
+                } else {
+                    state.api_keys.set("infini", &infini_api_key, None);
+                }
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Stored in CodexBar. Paste an Infini Cloud key.");
+        ui.add_space(8.0);
+        if text_button(ui, "Open Infini Cloud", Theme::ACCENT_PRIMARY) {
+            let _ = open::that("https://cloud.infini-ai.com");
+        }
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::JetBrains {
+        let detected_paths = jetbrains_detected_ide_paths();
+        let detected_path = detected_paths.first().cloned();
+        let mut ide_base_path = if let Ok(state) = shared_state.lock() {
+            state.settings.jetbrains_ide_base_path.clone()
+        } else {
+            String::new()
+        };
+        let mut ide_selection = if ide_base_path.trim().is_empty() {
+            String::new()
+        } else {
+            ide_base_path.clone()
+        };
+
+        provider_detail_text_row(
+            ui,
+            "JetBrains IDE",
+            if detected_path.is_some() || !ide_base_path.trim().is_empty() {
+                "Detected"
+            } else {
+                "Not detected"
+            },
+            detail_chrome.picker_label_width,
+            true,
+        );
+        ui.add_space(2.0);
+        let helper = if ide_base_path.trim().is_empty() {
+            if let Some(path) = detected_path.as_ref() {
+                format!(
+                    "Using detected IDE config at {}.",
+                    compact_credentials_path(&path.display().to_string())
+                )
+            } else {
+                "Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar."
+                    .to_string()
+            }
+        } else {
+            format!(
+                "Using custom IDE base path {}.",
+                compact_credentials_path(&ide_base_path)
+            )
+        };
+        provider_detail_helper_text(ui, &helper);
+        ui.add_space(detail_chrome.section_gap);
+
+        if !detected_paths.is_empty() {
+            provider_detail_picker_row(
+                ui,
+                "JetBrains IDE",
+                detail_chrome.picker_label_width,
+                text_chrome.info_label,
+                |ui| {
+                    provider_detail_select_frame(ui, detail_chrome, |ui| {
+                        egui::ComboBox::from_id_salt("jetbrains_ide_selection")
+                            .selected_text(if ide_selection.is_empty() {
+                                "Auto-detect".to_string()
+                            } else {
+                                jetbrains_display_name(Path::new(&ide_selection))
+                            })
+                            .width(220.0)
+                            .show_ui(ui, |ui| {
+                                let _ = ui.selectable_value(
+                                    &mut ide_selection,
+                                    String::new(),
+                                    "Auto-detect",
+                                );
+                                for path in &detected_paths {
+                                    let path_string = path.display().to_string();
+                                    let _ = ui.selectable_value(
+                                        &mut ide_selection,
+                                        path_string.clone(),
+                                        jetbrains_display_name(path),
+                                    );
+                                }
+                            });
+                    });
+                },
+            );
+            ui.add_space(2.0);
+            provider_detail_helper_text(ui, "Select the JetBrains IDE to monitor.");
+            ui.add_space(detail_chrome.section_gap);
+        }
+
+        if ide_selection != ide_base_path {
+            ide_base_path = ide_selection.clone();
+        }
+
+        provider_detail_picker_row(
+            ui,
+            "Custom path",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut ide_base_path)
+                        .desired_width(260.0)
+                        .hint_text("%APPDATA%/JetBrains/IntelliJIdea...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.jetbrains_ide_base_path != ide_base_path
+        {
+            state.settings.jetbrains_ide_base_path = ide_base_path.clone();
+            state.settings_changed = true;
+        }
+
+        ui.add_space(8.0);
+        if primary_button(ui, "Refresh Detection")
+            && let Ok(mut state) = shared_state.lock()
+        {
+            state.refresh_requested = true;
+        }
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::KimiK2 {
+        let mut kimi_k2_api_key = if let Ok(state) = shared_state.lock() {
+            state.api_keys.get("kimik2").unwrap_or_default().to_string()
+        } else {
+            String::new()
+        };
+
+        provider_detail_picker_row(
+            ui,
+            "API key",
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    let text_edit = egui::TextEdit::singleline(&mut kimi_k2_api_key)
+                        .password(true)
+                        .desired_width(224.0)
+                        .hint_text("Paste API key...");
+                    let _ = ui.add(text_edit);
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock() {
+            let current = state.api_keys.get("kimik2").unwrap_or_default().to_string();
+            if current != kimi_k2_api_key {
+                if kimi_k2_api_key.trim().is_empty() {
+                    state.api_keys.remove("kimik2");
+                } else {
+                    state.api_keys.set("kimik2", &kimi_k2_api_key, None);
+                }
+                state.settings_changed = true;
+            }
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, "Stored in CodexBar. Paste a Moonshot key.");
+        ui.add_space(8.0);
+
+        if text_button(ui, "Open API Keys", Theme::ACCENT_PRIMARY) {
+            let _ = open::that("https://kimi-k2.ai/user-center/api-keys");
+        }
+        ui.add_space(detail_chrome.section_gap);
+    } else if provider_id == ProviderId::Claude {
+        let mut claude_usage_source = if let Ok(state) = shared_state.lock() {
+            state.settings.claude_usage_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::UsageSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt("claude_usage_source")
+                        .selected_text(claude_usage_source_label(&claude_usage_source, ui_language))
+                        .width(116.0)
+                        .show_ui(ui, |ui| {
+                            let _ = ui.selectable_value(
+                                &mut claude_usage_source,
+                                "auto".to_string(),
+                                locale_text(ui_language, LocaleKey::Automatic),
+                            );
+                            let _ = ui.selectable_value(
+                                &mut claude_usage_source,
+                                "oauth".to_string(),
+                                locale_text(ui_language, LocaleKey::OAuth),
+                            );
+                            let _ = ui.selectable_value(
+                                &mut claude_usage_source,
+                                "web".to_string(),
+                                locale_text(ui_language, LocaleKey::Web),
+                            );
+                            let _ = ui.selectable_value(
+                                &mut claude_usage_source,
+                                "cli".to_string(),
+                                locale_text(ui_language, LocaleKey::ProviderSourceCliShort),
+                            );
+                        });
+                });
+                ui.add_space(8.0);
+                ui.label(
+                    RichText::new(locale_text(ui_language, LocaleKey::ProviderSourceOauthWeb))
+                        .size(FontSize::XS)
+                        .color(text_chrome.secondary_value),
+                );
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.claude_usage_source != claude_usage_source
+        {
+            state.settings.claude_usage_source = claude_usage_source;
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, locale_text(ui_language, LocaleKey::AutoFallbackHelp));
+        ui.add_space(detail_chrome.section_gap);
+
+        let mut claude_cookie_source = if let Ok(state) = shared_state.lock() {
+            state.settings.claude_cookie_source.clone()
+        } else {
+            "auto".to_string()
+        };
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderClaudeCookies),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt("claude_cookie_source")
+                        .selected_text(claude_cookie_source_label(
+                            &claude_cookie_source,
+                            ui_language,
+                        ))
+                        .width(116.0)
+                        .show_ui(ui, |ui| {
+                            let _ = ui.selectable_value(
+                                &mut claude_cookie_source,
+                                "auto".to_string(),
+                                locale_text(ui_language, LocaleKey::Automatic),
+                            );
+                            let _ = ui.selectable_value(
+                                &mut claude_cookie_source,
+                                "manual".to_string(),
+                                "Manual",
+                            );
+                        });
+                });
+            },
+        );
+        if let Ok(mut state) = shared_state.lock()
+            && state.settings.claude_cookie_source != claude_cookie_source
+        {
+            state.settings.claude_cookie_source = claude_cookie_source;
+            state.settings_changed = true;
+        }
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderClaudeCookiesHelp),
+        );
+        ui.add_space(detail_chrome.section_gap);
+    }
+
+    let shows_generic_usage_source = !matches!(
+        provider_id,
+        ProviderId::Codex
+            | ProviderId::Cursor
+            | ProviderId::Gemini
+            | ProviderId::Antigravity
+            | ProviderId::OpenCode
+            | ProviderId::MiniMax
+            | ProviderId::Factory
+            | ProviderId::Kimi
+            | ProviderId::Copilot
+            | ProviderId::Alibaba
+            | ProviderId::Amp
+            | ProviderId::Augment
+            | ProviderId::Claude
+            | ProviderId::Infini
+            | ProviderId::JetBrains
+            | ProviderId::KimiK2
+            | ProviderId::NanoGPT
+            | ProviderId::Ollama
+            | ProviderId::OpenRouter
+            | ProviderId::Synthetic
+            | ProviderId::VertexAI
+            | ProviderId::Warp
+            | ProviderId::Zai
     );
+
+    let shows_options_section = provider_id == ProviderId::Codex
+        || provider_id == ProviderId::Claude
+        || shows_generic_usage_source;
+
+    if shows_options_section && !matches!(provider_id, ProviderId::Cursor | ProviderId::Claude) {
+        if provider_id == ProviderId::Codex {
+            provider_detail_section_title_compact(
+                ui,
+                locale_text(ui_language, LocaleKey::ProviderOptionsTitle),
+            );
+        } else {
+            provider_detail_section_title(
+                ui,
+                locale_text(ui_language, LocaleKey::ProviderOptionsTitle),
+            );
+        }
+    }
+
+    if shows_generic_usage_source {
+        provider_detail_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::UsageSource),
+            detail_chrome.picker_label_width,
+            text_chrome.info_label,
+            |ui| {
+                provider_detail_select_frame(ui, detail_chrome, |ui| {
+                    egui::ComboBox::from_id_salt(format!("source_{}", provider_id.cli_name()))
+                        .selected_text(locale_text(ui_language, LocaleKey::Automatic))
+                        .width(104.0)
+                        .show_ui(ui, |ui| {
+                            let _ = ui.selectable_label(
+                                true,
+                                locale_text(ui_language, LocaleKey::Automatic),
+                            );
+                            let _ = ui.selectable_label(
+                                false,
+                                locale_text(ui_language, LocaleKey::OAuth),
+                            );
+                            let _ = ui
+                                .selectable_label(false, locale_text(ui_language, LocaleKey::Api));
+                        });
+                });
+                ui.add_space(8.0);
+                ui.label(
+                    RichText::new(locale_text(ui_language, LocaleKey::ProviderSourceOauthWeb))
+                        .size(FontSize::XS)
+                        .color(text_chrome.secondary_value),
+                );
+            },
+        );
+
+        ui.add_space(2.0);
+        provider_detail_helper_text(ui, locale_text(ui_language, LocaleKey::AutoFallbackHelp));
+    }
+
+    if provider_id == ProviderId::Codex {
+        let mut historical_tracking_enabled = if let Ok(state) = shared_state.lock() {
+            state.settings.codex_historical_tracking
+        } else {
+            false
+        };
+        if provider_detail_compact_toggle_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderHistoricalTracking),
+            locale_text(ui_language, LocaleKey::ProviderCodexHistoryHelp),
+            Some(&mut historical_tracking_enabled),
+            true,
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.codex_historical_tracking = historical_tracking_enabled;
+            state.settings_changed = true;
+        }
+
+        provider_detail_soft_divider(ui);
+
+        let mut show_web_extras = if let Ok(state) = shared_state.lock() {
+            state.settings.codex_openai_web_extras
+        } else {
+            true
+        };
+
+        if provider_detail_compact_toggle_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderOpenAiWebExtras),
+            locale_text(ui_language, LocaleKey::ProviderOpenAiWebExtrasHelp),
+            Some(&mut show_web_extras),
+            true,
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.codex_openai_web_extras = show_web_extras;
+            state.settings_changed = true;
+        }
+    } else if provider_id == ProviderId::Claude {
+        provider_detail_section_title(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderOptionsTitle),
+        );
+
+        let mut avoid_keychain_prompts = if let Ok(state) = shared_state.lock() {
+            state.settings.claude_avoid_keychain_prompts
+        } else {
+            false
+        };
+
+        if provider_detail_compact_toggle_row(
+            ui,
+            locale_text(ui_language, LocaleKey::ProviderClaudeAvoidKeychainPrompts),
+            locale_text(
+                ui_language,
+                LocaleKey::ProviderClaudeAvoidKeychainPromptsHelp,
+            ),
+            Some(&mut avoid_keychain_prompts),
+            true,
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.claude_avoid_keychain_prompts = avoid_keychain_prompts;
+            state.settings_changed = true;
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════
     // ACCOUNTS SECTION - Token account switching (only for supported providers)
     // ═══════════════════════════════════════════════════════════
-    if TokenAccountSupport::is_supported(provider_id) {
-        ui.add_space(Spacing::XL);
+    if should_show_token_accounts_section(provider_id, shared_state) {
+        ui.add_space(Spacing::LG);
         render_accounts_section(ui, provider_id, shared_state);
     }
 }
 
-/// Helper: Info grid row
-fn info_row(ui: &mut egui::Ui, label: &str, value: &str) {
+fn provider_detail_select_frame(
+    ui: &mut egui::Ui,
+    chrome: ProviderDetailChrome,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) {
+    egui::Frame::none()
+        .fill(chrome.control_fill)
+        .stroke(chrome.control_stroke)
+        .rounding(Rounding::same(Radius::SM))
+        .inner_margin(egui::Margin::symmetric(
+            chrome.control_inner_margin_x,
+            chrome.control_inner_margin_y,
+        ))
+        .show(ui, add_contents);
+}
+
+fn provider_detail_picker_row(
+    ui: &mut egui::Ui,
+    label: &str,
+    label_width: f32,
+    label_color: Color32,
+    add_picker: impl FnOnce(&mut egui::Ui),
+) {
+    ui.horizontal(|ui| {
+        ui.add_sized(
+            [label_width, 20.0],
+            egui::Label::new(
+                RichText::new(label)
+                    .size(FontSize::SM)
+                    .color(label_color)
+                    .strong(),
+            ),
+        );
+        ui.add_space(10.0);
+        add_picker(ui);
+    });
+}
+
+fn claude_usage_source_label(value: &str, ui_language: Language) -> String {
+    match value {
+        "oauth" => locale_text(ui_language, LocaleKey::OAuth).to_string(),
+        "web" => locale_text(ui_language, LocaleKey::Web).to_string(),
+        "cli" => locale_text(ui_language, LocaleKey::ProviderSourceCliShort).to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn codex_usage_source_label(value: &str, ui_language: Language) -> String {
+    match value {
+        "oauth" => locale_text(ui_language, LocaleKey::OAuth).to_string(),
+        "cli" => locale_text(ui_language, LocaleKey::ProviderSourceCliShort).to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn codex_cookie_source_label(value: &str, ui_language: Language) -> String {
+    match value {
+        "manual" => "Manual".to_string(),
+        "off" => locale_text(ui_language, LocaleKey::ProviderDisabled).to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn claude_cookie_source_label(value: &str, ui_language: Language) -> String {
+    match value {
+        "manual" => "Manual".to_string(),
+        _ => locale_text(ui_language, LocaleKey::Automatic).to_string(),
+    }
+}
+
+fn provider_detail_compact_toggle_row(
+    ui: &mut egui::Ui,
+    title: &str,
+    subtitle: &str,
+    value: Option<&mut bool>,
+    enabled: bool,
+) -> bool {
+    let mut changed = false;
+    let text_chrome = provider_detail_text_chrome();
+    let content_width = ui.available_width();
+    let toggle_slot_width = if value.is_some() { 44.0 } else { 0.0 };
+    let text_width = (content_width - toggle_slot_width - 12.0).max(140.0);
+
+    ui.spacing_mut().item_spacing.y = 8.0;
+    ui.horizontal(|ui| {
+        ui.allocate_ui_with_layout(
+            Vec2::new(text_width, 0.0),
+            egui::Layout::top_down(egui::Align::LEFT),
+            |ui| {
+                ui.spacing_mut().item_spacing.y = 4.0;
+                ui.label(
+                    RichText::new(title)
+                        .size(FontSize::SM)
+                        .color(Theme::TEXT_PRIMARY)
+                        .strong(),
+                );
+
+                if !subtitle.is_empty() {
+                    ui.label(
+                        RichText::new(subtitle)
+                            .size(FontSize::XS)
+                            .color(text_chrome.helper),
+                    );
+                }
+            },
+        );
+
+        if let Some(value) = value {
+            ui.add_space(12.0);
+            ui.allocate_ui_with_layout(
+                Vec2::new(toggle_slot_width, 20.0),
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    if enabled {
+                        if switch_toggle(ui, format!("switch_{}", title), value) {
+                            changed = true;
+                        }
+                    } else {
+                        let _ = switch_toggle_visual(ui, format!("switch_{}", title), value, false);
+                    }
+                },
+            );
+        }
+    });
+
+    changed
+}
+
+fn provider_detail_section_title(ui: &mut egui::Ui, text: &str) {
+    let text_chrome = provider_detail_text_chrome();
+    ui.add_space(Spacing::SM);
     ui.label(
-        RichText::new(label)
+        RichText::new(text)
             .size(FontSize::SM)
-            .color(Theme::TEXT_SECONDARY),
+            .color(text_chrome.section_title)
+            .strong(),
     );
+    ui.add_space(4.0);
+}
+
+fn provider_detail_section_title_compact(ui: &mut egui::Ui, text: &str) {
+    let text_chrome = provider_detail_text_chrome();
+    ui.add_space(4.0);
     ui.label(
-        RichText::new(value)
+        RichText::new(text)
             .size(FontSize::SM)
-            .color(Theme::TEXT_PRIMARY),
+            .color(text_chrome.section_title)
+            .strong(),
+    );
+    ui.add_space(2.0);
+}
+
+fn provider_detail_helper_text(ui: &mut egui::Ui, text: &str) {
+    let text_chrome = provider_detail_text_chrome();
+    ui.label(
+        RichText::new(text)
+            .size(FontSize::XS)
+            .color(text_chrome.helper),
+    );
+}
+
+fn provider_detail_soft_divider(ui: &mut egui::Ui) {
+    ui.add_space(6.0);
+    let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
+    ui.painter()
+        .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.48));
+    ui.add_space(7.0);
+}
+
+/// Helper: Info grid row
+fn info_row(ui: &mut egui::Ui, label: &str, value: &str, label_width: f32) {
+    let text_chrome = provider_detail_text_chrome();
+    ui.add_sized(
+        [label_width, 17.0],
+        egui::Label::new(
+            RichText::new(label)
+                .size(FontSize::XS)
+                .color(text_chrome.info_label),
+        ),
+    );
+    ui.add_sized(
+        [ui.available_width(), 17.0],
+        egui::Label::new(
+            RichText::new(value)
+                .size(FontSize::XS)
+                .color(Theme::TEXT_PRIMARY),
+        )
+        .wrap(),
     );
     ui.end_row();
 }
 
+fn provider_detail_text_row(
+    ui: &mut egui::Ui,
+    label: &str,
+    value: &str,
+    label_width: f32,
+    strong_label: bool,
+) {
+    let text_chrome = provider_detail_text_chrome();
+    ui.horizontal(|ui| {
+        let mut label_text = RichText::new(label)
+            .size(FontSize::SM)
+            .color(text_chrome.secondary_value);
+        if strong_label {
+            label_text = label_text.color(text_chrome.info_label).strong();
+        }
+        ui.add_sized([label_width, 18.0], egui::Label::new(label_text));
+        ui.label(
+            RichText::new(value)
+                .size(FontSize::XS)
+                .color(Theme::TEXT_PRIMARY),
+        );
+    });
+}
+
 /// Helper: Usage bar row with label, percentage, info text
+#[allow(clippy::too_many_arguments)]
 fn usage_bar_row(
     ui: &mut egui::Ui,
     label: &str,
@@ -3576,48 +6608,56 @@ fn usage_bar_row(
     info: &str,
     reset: Option<&str>,
     color: Color32,
+    label_width: f32,
+    bar_width: f32,
 ) {
+    let text_chrome = provider_detail_text_chrome();
     ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(label)
-                .size(FontSize::SM)
-                .color(Theme::TEXT_SECONDARY),
+        ui.add_sized(
+            [label_width, 17.0],
+            egui::Label::new(
+                RichText::new(label)
+                    .size(FontSize::XS)
+                    .color(text_chrome.info_label),
+            ),
         );
-        ui.add_space(8.0);
 
-        // Progress bar
-        let bar_width = 200.0;
-        let bar_height = 8.0;
-        let (rect, _) =
-            ui.allocate_exact_size(Vec2::new(bar_width, bar_height), egui::Sense::hover());
+        ui.vertical(|ui| {
+            let bar_height = 5.0;
+            let (rect, _) =
+                ui.allocate_exact_size(Vec2::new(bar_width, bar_height), egui::Sense::hover());
 
-        ui.painter()
-            .rect_filled(rect, Rounding::same(4.0), Theme::progress_track());
-
-        let fill_width = rect.width() * (percent / 100.0).clamp(0.0, 1.0);
-        if fill_width > 0.0 {
-            let fill_rect = Rect::from_min_size(rect.min, Vec2::new(fill_width, bar_height));
             ui.painter()
-                .rect_filled(fill_rect, Rounding::same(4.0), color);
-        }
+                .rect_filled(rect, Rounding::same(3.0), Theme::progress_track());
 
-        ui.add_space(8.0);
+            ui.painter().rect_filled(
+                Rect::from_min_size(
+                    rect.min,
+                    Vec2::new(rect.width() * (percent / 100.0).clamp(0.0, 1.0), bar_height),
+                ),
+                Rounding::same(3.0),
+                color,
+            );
 
-        ui.label(
-            RichText::new(info)
-                .size(FontSize::XS)
-                .color(Theme::TEXT_MUTED),
-        );
+            ui.add_space(3.0);
 
-        if let Some(reset_text) = reset {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.horizontal(|ui| {
                 ui.label(
-                    RichText::new(reset_text)
+                    RichText::new(info)
                         .size(FontSize::XS)
-                        .color(Theme::TEXT_MUTED),
+                        .color(Theme::TEXT_PRIMARY),
                 );
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some(reset_text) = reset {
+                        ui.label(
+                            RichText::new(reset_text)
+                                .size(FontSize::XS)
+                                .color(text_chrome.secondary_value),
+                        );
+                    }
+                });
             });
-        }
+        });
     });
 }
 
@@ -3661,34 +6701,10 @@ fn metric_preference_text(
 fn refresh_interval_text(seconds: u64, lang: Language) -> String {
     match seconds {
         0 => locale_text(lang, LocaleKey::Never).to_string(),
-        30 => {
-            if lang == Language::Chinese {
-                "30 秒".to_string()
-            } else {
-                "30 sec".to_string()
-            }
-        }
-        60 => {
-            if lang == Language::Chinese {
-                "1 分钟".to_string()
-            } else {
-                "1 min".to_string()
-            }
-        }
-        300 => {
-            if lang == Language::Chinese {
-                "5 分钟".to_string()
-            } else {
-                "5 min".to_string()
-            }
-        }
-        600 => {
-            if lang == Language::Chinese {
-                "10 分钟".to_string()
-            } else {
-                "10 min".to_string()
-            }
-        }
+        30 => locale_text(lang, LocaleKey::RefreshInterval30Sec).to_string(),
+        60 => locale_text(lang, LocaleKey::RefreshInterval1Min).to_string(),
+        300 => locale_text(lang, LocaleKey::RefreshInterval5Min).to_string(),
+        600 => locale_text(lang, LocaleKey::RefreshInterval10Min).to_string(),
         _ => seconds.to_string(),
     }
 }
@@ -3699,6 +6715,7 @@ fn render_accounts_section(
     provider_id: ProviderId,
     shared_state: &Arc<Mutex<PreferencesSharedState>>,
 ) {
+    let text_chrome = provider_detail_text_chrome();
     let support = match TokenAccountSupport::for_provider(provider_id) {
         Some(s) => s,
         None => return,
@@ -3709,17 +6726,20 @@ fn render_accounts_section(
         Language::English
     };
 
+    provider_detail_section_title(
+        ui,
+        locale_text(ui_language, LocaleKey::ProviderAccountsTitle),
+    );
     ui.label(
         RichText::new(support.title)
-            .size(FontSize::MD)
-            .color(Theme::TEXT_PRIMARY)
-            .strong(),
+            .size(FontSize::XS)
+            .color(Theme::TEXT_PRIMARY),
     );
-    ui.add_space(4.0);
+    ui.add_space(2.0);
     ui.label(
         RichText::new(support.subtitle)
             .size(FontSize::XS)
-            .color(Theme::TEXT_MUTED),
+            .color(text_chrome.helper),
     );
     ui.add_space(Spacing::SM);
 
@@ -3787,7 +6807,7 @@ fn render_accounts_section(
                         .color(if is_active {
                             Theme::TEXT_PRIMARY
                         } else {
-                            Theme::TEXT_SECONDARY
+                            text_chrome.secondary_value
                         }),
                 );
 
@@ -3800,7 +6820,7 @@ fn render_accounts_section(
                 ui.label(
                     RichText::new(token_preview)
                         .size(FontSize::XS)
-                        .color(Theme::TEXT_MUTED)
+                        .color(text_chrome.helper)
                         .monospace(),
                 );
 
@@ -4041,7 +7061,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         });
     });
 
-    ui.add_space(Spacing::LG);
+    ui.add_space(Spacing::MD);
 
     section_header(ui, locale_text(ui_language, LocaleKey::StartupSettings));
 
@@ -4086,7 +7106,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         }
     });
 
-    ui.add_space(Spacing::LG);
+    ui.add_space(Spacing::MD);
 
     section_header(ui, locale_text(ui_language, LocaleKey::ShowNotifications));
 
@@ -4310,9 +7330,9 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         });
     });
 
-    ui.add_space(Spacing::LG);
+    ui.add_space(Spacing::MD);
 
-    section_header(ui, "Privacy");
+    section_header(ui, locale_text(ui_language, LocaleKey::PrivacyTitle));
 
     settings_card(ui, |ui| {
         let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
@@ -4323,8 +7343,8 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         if setting_toggle(
             ui,
-            "隐藏个人信息",
-            "遮蔽邮箱和账号名称（适合直播时使用）",
+            locale_text(ui_language, LocaleKey::HidePersonalInfo),
+            locale_text(ui_language, LocaleKey::HidePersonalInfoHelper),
             &mut hide_personal_info,
         ) && let Ok(mut state) = shared_state.lock()
         {
@@ -4333,7 +7353,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         }
     });
 
-    ui.add_space(Spacing::LG);
+    ui.add_space(Spacing::MD);
 
     section_header(ui, locale_text(ui_language, LocaleKey::UpdatesTitle));
 
@@ -4443,28 +7463,38 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             }
         });
     });
+}
 
-    ui.add_space(Spacing::LG);
+/// Render Shortcuts tab (extracted from General tab)
+fn render_shortcuts_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
+    let ui_language = if let Ok(state) = shared_state.lock() {
+        state.settings.ui_language
+    } else {
+        Language::English
+    };
 
-    section_header(ui, "Keyboard Shortcuts");
+    section_header(
+        ui,
+        locale_text(ui_language, LocaleKey::KeyboardShortcutsTitle),
+    );
 
     settings_card(ui, |ui| {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
                 ui.label(
-                    RichText::new("全局快捷键")
-                        .size(FontSize::MD)
+                    RichText::new(locale_text(ui_language, LocaleKey::GlobalShortcutLabel))
+                        .size(FontSize::SM)
                         .color(Theme::TEXT_PRIMARY),
                 );
                 ui.label(
-                    RichText::new("按下此快捷键可在任意位置打开 CodexBar")
-                        .size(FontSize::SM)
-                        .color(Theme::TEXT_MUTED),
+                    RichText::new(locale_text(ui_language, LocaleKey::GlobalShortcutHelper))
+                        .size(FontSize::XS)
+                        .color(Theme::TEXT_SECONDARY),
                 );
             });
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let (mut shortcut_input, status_msg) = if let Ok(state) = shared_state.lock() {
+                let (mut shortcut_input, _) = if let Ok(state) = shared_state.lock() {
                     (
                         state.shortcut_input.clone(),
                         state.shortcut_status_msg.clone(),
@@ -4472,13 +7502,6 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 } else {
                     ("Ctrl+Shift+U".to_string(), None)
                 };
-
-                // Show status message if any
-                if let Some((msg, is_error)) = &status_msg {
-                    let color = if *is_error { Theme::RED } else { Theme::GREEN };
-                    ui.label(RichText::new(msg).size(FontSize::XS).color(color));
-                    ui.add_space(8.0);
-                }
 
                 egui::Frame::none()
                     .fill(Theme::BG_TERTIARY)
@@ -4488,7 +7511,10 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .show(ui, |ui| {
                         let text_edit = egui::TextEdit::singleline(&mut shortcut_input)
                             .desired_width(120.0)
-                            .hint_text("e.g., Ctrl+Shift+U");
+                            .hint_text(locale_text(
+                                ui_language,
+                                LocaleKey::ShortcutHintPlaceholder,
+                            ));
                         let response = ui.add(text_edit);
 
                         if response.changed()
@@ -4498,27 +7524,27 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                         }
 
                         if response.lost_focus() {
-                            // Validate and save the shortcut
                             let shortcut_str = shortcut_input.trim().to_string();
                             if !shortcut_str.is_empty() {
-                                // Try to parse the shortcut to validate it
                                 if let Some((modifiers, key)) =
                                     crate::shortcuts::parse_shortcut(&shortcut_str)
                                 {
-                                    // Format it back to canonical form
                                     let formatted = format_shortcut(modifiers, key);
                                     if let Ok(mut state) = shared_state.lock() {
                                         state.settings.global_shortcut = formatted.clone();
                                         state.shortcut_input = formatted;
                                         state.settings_changed = true;
-                                        state.shortcut_status_msg =
-                                            Some(("Saved (restart to apply)".to_string(), false));
+                                        state.shortcut_status_msg = Some((
+                                            locale_text(ui_language, LocaleKey::Saved).to_string(),
+                                            false,
+                                        ));
                                     }
-                                } else {
-                                    if let Ok(mut state) = shared_state.lock() {
-                                        state.shortcut_status_msg =
-                                            Some(("Invalid shortcut format".to_string(), true));
-                                    }
+                                } else if let Ok(mut state) = shared_state.lock() {
+                                    state.shortcut_status_msg = Some((
+                                        locale_text(ui_language, LocaleKey::InvalidFormat)
+                                            .to_string(),
+                                        true,
+                                    ));
                                 }
                             }
                         }
@@ -4526,13 +7552,22 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             });
         });
 
+        // Render status feedback below the input using the shared helper
+        let status_msg = if let Ok(state) = shared_state.lock() {
+            state.shortcut_status_msg.clone()
+        } else {
+            None
+        };
+        if let Some((msg, is_error)) = &status_msg {
+            ui.add_space(Spacing::XS);
+            status_message(ui, msg, *is_error);
+        }
+
         ui.add_space(4.0);
         ui.label(
-            RichText::new(
-                "Format: Ctrl+Shift+Key, Alt+Ctrl+Key, etc. Restart required to apply changes.",
-            )
-            .size(FontSize::XS)
-            .color(Theme::TEXT_MUTED),
+            RichText::new(locale_text(ui_language, LocaleKey::ShortcutFormatHint))
+                .size(FontSize::XS)
+                .color(Theme::TEXT_MUTED),
         );
     });
 }
@@ -4577,7 +7612,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         if setting_toggle(
             ui,
             locale_text(ui_language, LocaleKey::Fun),
-            "Show occasional fun animations in the tray icon",
+            locale_text(ui_language, LocaleKey::SurpriseAnimationsHelper),
             &mut surprise,
         ) && let Ok(mut state) = shared_state.lock()
         {
@@ -4586,7 +7621,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         }
     });
 
-    ui.add_space(Spacing::LG);
+    ui.add_space(Spacing::MD);
 
     section_header(ui, locale_text(ui_language, LocaleKey::ShowUsageAsUsed));
 
@@ -4628,7 +7663,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         }
     });
 
-    ui.add_space(Spacing::LG);
+    ui.add_space(Spacing::MD);
 
     section_header(ui, locale_text(ui_language, LocaleKey::MergeTrayIcons));
 
@@ -4669,38 +7704,6 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             state.settings_changed = true;
         }
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{set_merge_tray_icons, set_per_provider_tray_icons};
-    use crate::settings::{Settings, TrayIconMode};
-
-    #[test]
-    fn enabling_merge_forces_single_tray_mode() {
-        let mut settings = Settings {
-            tray_icon_mode: TrayIconMode::PerProvider,
-            ..Settings::default()
-        };
-
-        set_merge_tray_icons(&mut settings, true);
-
-        assert!(settings.merge_tray_icons);
-        assert_eq!(settings.tray_icon_mode, TrayIconMode::Single);
-    }
-
-    #[test]
-    fn enabling_per_provider_clears_merge_mode() {
-        let mut settings = Settings {
-            merge_tray_icons: true,
-            ..Settings::default()
-        };
-
-        set_per_provider_tray_icons(&mut settings, true);
-
-        assert!(!settings.merge_tray_icons);
-        assert_eq!(settings.tray_icon_mode, TrayIconMode::PerProvider);
-    }
 }
 
 /// Render API Keys tab for viewport
@@ -5071,7 +8074,7 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             .color(Theme::TEXT_MUTED),
     );
 
-    ui.add_space(Spacing::LG);
+    ui.add_space(Spacing::MD);
 
     // Status message
     let status_msg = if let Ok(state) = shared_state.lock() {
@@ -5138,7 +8141,7 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             }
         });
 
-        ui.add_space(Spacing::XL);
+        ui.add_space(Spacing::LG);
     }
 
     // Add manual cookie
@@ -5226,7 +8229,7 @@ fn render_cookies_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 }
             });
 
-        ui.add_space(Spacing::LG);
+        ui.add_space(Spacing::MD);
 
         // Re-fetch current provider for save button check
         let (save_provider, save_value) = if let Ok(state) = shared_state.lock() {
@@ -5356,46 +8359,36 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
     } else {
         Language::English
     };
-    ui.vertical_centered(|ui| {
-        ui.add_space(Spacing::XL);
+    ui.add_space(Spacing::LG);
 
-        // App icon
-        ui.label(RichText::new("◆").size(48.0).color(Theme::ACCENT_PRIMARY));
-
-        ui.add_space(Spacing::MD);
-
-        // App name
+    ui.horizontal(|ui| {
         ui.label(
             RichText::new("CodexBar")
-                .size(FontSize::XXL)
+                .size(FontSize::LG)
                 .color(Theme::TEXT_PRIMARY)
                 .strong(),
         );
-
-        ui.add_space(Spacing::SM);
-
-        // Version
         ui.label(
-            RichText::new(format!(
-                "{} {}",
-                locale_text(ui_language, LocaleKey::Version),
-                env!("CARGO_PKG_VERSION")
-            ))
-            .size(FontSize::MD)
-            .color(Theme::TEXT_SECONDARY),
-        );
-
-        ui.add_space(Spacing::SM);
-
-        // Tagline
-        ui.label(
-            RichText::new(locale_text(ui_language, LocaleKey::AboutDescriptionLine2))
+            RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
                 .size(FontSize::SM)
                 .color(Theme::TEXT_MUTED),
         );
-
-        ui.add_space(Spacing::XL);
     });
+    ui.add_space(Spacing::XS);
+    ui.label(
+        RichText::new(locale_text(ui_language, LocaleKey::AboutDescription))
+            .size(FontSize::SM)
+            .color(Theme::TEXT_SECONDARY),
+    );
+    ui.label(
+        RichText::new(locale_text(ui_language, LocaleKey::AboutDescriptionLine2))
+            .size(FontSize::SM)
+            .color(Theme::TEXT_SECONDARY),
+    );
+
+    ui.add_space(Spacing::LG);
+    setting_divider(ui);
+    ui.add_space(Spacing::SM);
 
     // Credits section
     section_header(ui, locale_text(ui_language, LocaleKey::CreditsTitle));
@@ -5420,23 +8413,44 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
     // Links section
     section_header(ui, locale_text(ui_language, LocaleKey::Links));
     settings_card(ui, |ui| {
-        ui.vertical(|ui| {
-            if text_button(
-                ui,
-                locale_text(ui_language, LocaleKey::ViewOnGitHub),
-                Theme::ACCENT_PRIMARY,
-            ) {
+        ui.horizontal(|ui| {
+            if ui
+                .link(locale_text(ui_language, LocaleKey::ViewOnGitHub))
+                .clicked()
+            {
                 let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
             }
-            ui.add_space(Spacing::XS);
-            if text_button(
-                ui,
-                locale_text(ui_language, LocaleKey::SubmitIssue),
-                Theme::ACCENT_PRIMARY,
-            ) {
-                let _ = open::that("https://github.com/Finesssee/Win-CodexBar/issues");
+            ui.label(RichText::new("·").color(Theme::TEXT_DIM));
+            if ui
+                .link(locale_text(ui_language, LocaleKey::OriginalMacOSVersion))
+                .clicked()
+            {
+                let _ = open::that("https://github.com/steipete/CodexBar");
             }
         });
+        ui.add_space(Spacing::XS);
+        if text_button(
+            ui,
+            locale_text(ui_language, LocaleKey::SubmitIssue),
+            Theme::ACCENT_PRIMARY,
+        ) {
+            let _ = open::that("https://github.com/Finesssee/Win-CodexBar/issues");
+        }
+        ui.add_space(Spacing::XS);
+        if ui
+            .add(
+                egui::Button::new(
+                    RichText::new(locale_text(ui_language, LocaleKey::TrayCheckForUpdates))
+                        .size(FontSize::SM)
+                        .color(Theme::TEXT_PRIMARY),
+                )
+                .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                .rounding(Rounding::same(Radius::SM)),
+            )
+            .clicked()
+        {
+            let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
+        }
     });
 
     ui.add_space(Spacing::MD);
@@ -5492,7 +8506,12 @@ fn render_providers_tab(
     _available_height: f32,
     shared_state: &Arc<Mutex<PreferencesSharedState>>,
 ) {
-    section_header(ui, "Enabled Providers");
+    let ui_language = if let Ok(state) = shared_state.lock() {
+        state.settings.ui_language
+    } else {
+        Language::English
+    };
+    section_header(ui, locale_text(ui_language, LocaleKey::EnabledProviders));
 
     let providers = ProviderId::all();
 
@@ -5559,53 +8578,20 @@ fn section_header(ui: &mut egui::Ui, text: &str) {
     } else {
         text.to_string()
     };
-    ui.add_space(Spacing::SM);
+    ui.add_space(Spacing::LG);
     ui.label(
         RichText::new(display_text)
             .size(FontSize::XS)
             .color(Theme::TEXT_SECTION)
             .strong(),
     );
-    ui.add_space(Spacing::MD);
+    ui.add_space(Spacing::SM);
 }
 
-fn zh_section_label(text: &str) -> &str {
-    match text {
-        "Startup" => "启动",
-        "Notifications" => "通知",
-        "Info" => "信息",
-        "Usage" => "用量",
-        "Quick Actions" => "快捷操作",
-        "Browser Cookie Import" => "浏览器 Cookie 导入",
-        "Usage Display" => "用量显示",
-        "Tray Icon" => "托盘图标",
-        "API Keys" => "API 密钥",
-        "Browser Cookies" => "浏览器 Cookie",
-        "Saved Cookies" => "已保存 Cookies",
-        "Add Manual Cookie" => "添加手动 Cookie",
-        "Refresh" => "刷新",
-        "Animations" => "动画",
-        "Menu Bar" => "菜单栏",
-        "Fun" => "趣味",
-        "Privacy" => "隐私",
-        "Updates" => "更新",
-        "Keyboard Shortcuts" => "快捷键",
-        "Appearance" => "外观",
-        "Credits" => "鸣谢",
-        "Links" => "链接",
-        "Build Info" => "构建信息",
-        "Enabled Providers" => "已启用服务商",
-        _ => text,
-    }
-}
-
-/// Settings card container - grouped settings with rounded corners and border
+/// Settings card container - light grouping via spacing, no heavy chrome
 fn settings_card(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::none()
-        .fill(Theme::BG_SECONDARY)
-        .stroke(Stroke::new(1.0, Theme::CARD_BORDER))
-        .rounding(Rounding::same(Radius::LG))
-        .inner_margin(Spacing::SM)
+        .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::SM))
         .show(ui, content);
 }
 
@@ -5613,18 +8599,29 @@ fn settings_card(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
 fn setting_divider(ui: &mut egui::Ui) {
     ui.add_space(Spacing::SM);
     let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
-    ui.painter().rect_filled(rect, 0.0, Theme::SEPARATOR);
+    ui.painter()
+        .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.62));
     ui.add_space(Spacing::SM + 1.0);
 }
 
 /// iOS-style switch toggle component
 /// Size: 36x20 pixels with animated knob position
-fn switch_toggle(ui: &mut egui::Ui, id: impl std::hash::Hash, value: &mut bool) -> bool {
+fn switch_toggle_visual(
+    ui: &mut egui::Ui,
+    id: impl std::hash::Hash,
+    value: &mut bool,
+    enabled: bool,
+) -> bool {
     let desired_size = Vec2::new(36.0, 20.0);
-    let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::click());
+    let sense = if enabled {
+        egui::Sense::click()
+    } else {
+        egui::Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(desired_size, sense);
 
     let mut changed = false;
-    if response.clicked() {
+    if enabled && response.clicked() {
         *value = !*value;
         changed = true;
     }
@@ -5633,16 +8630,30 @@ fn switch_toggle(ui: &mut egui::Ui, id: impl std::hash::Hash, value: &mut bool) 
     let animation_progress = ui.ctx().animate_bool_responsive(egui::Id::new(id), *value);
 
     // Track colors
-    let track_color = if animation_progress > 0.5 {
+    let mut track_color = if animation_progress > 0.5 {
         Theme::ACCENT_PRIMARY
     } else {
         Theme::BG_TERTIARY
     };
+    let mut knob_color = Color32::WHITE;
+    let mut track_stroke = Stroke::new(1.0, Color32::TRANSPARENT);
+
+    if !enabled {
+        track_color = track_color.gamma_multiply(0.42);
+        knob_color = Color32::from_rgba_unmultiplied(255, 255, 255, 160);
+        track_stroke = Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.45));
+    } else if response.hovered() {
+        track_stroke = Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.65));
+    }
 
     // Draw track (rounded rectangle)
     let track_rounding = rect.height() / 2.0;
-    ui.painter()
-        .rect_filled(rect, Rounding::same(track_rounding), track_color);
+    ui.painter().rect(
+        rect,
+        Rounding::same(track_rounding),
+        track_color,
+        track_stroke,
+    );
 
     // Knob properties
     let knob_margin = 2.0;
@@ -5655,9 +8666,13 @@ fn switch_toggle(ui: &mut egui::Ui, id: impl std::hash::Hash, value: &mut bool) 
 
     // Draw knob (white circle)
     ui.painter()
-        .circle_filled(knob_center, knob_diameter / 2.0, Color32::WHITE);
+        .circle_filled(knob_center, knob_diameter / 2.0, knob_color);
 
     changed
+}
+
+fn switch_toggle(ui: &mut egui::Ui, id: impl std::hash::Hash, value: &mut bool) -> bool {
+    switch_toggle_visual(ui, id, value, true)
 }
 
 /// Toggle setting row - iOS-style switch on right, title and subtitle on left
@@ -5665,18 +8680,19 @@ fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bo
     let mut changed = false;
 
     ui.horizontal(|ui| {
-        // Labels on the left
         ui.vertical(|ui| {
             ui.label(
                 RichText::new(title)
-                    .size(FontSize::MD)
+                    .size(FontSize::SM)
                     .color(Theme::TEXT_PRIMARY),
             );
-            ui.label(
-                RichText::new(subtitle)
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_MUTED),
-            );
+            if !subtitle.is_empty() {
+                ui.label(
+                    RichText::new(subtitle)
+                        .size(FontSize::XS)
+                        .color(Theme::TEXT_SECONDARY),
+                );
+            }
         });
 
         // Switch on the right
@@ -5694,13 +8710,13 @@ fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bo
 fn status_message(ui: &mut egui::Ui, msg: &str, is_error: bool) {
     let (bg_color, text_color, icon) = if is_error {
         (
-            Color32::from_rgba_unmultiplied(239, 68, 68, 15),
+            Color32::from_rgba_unmultiplied(224, 80, 72, 25),
             Theme::RED,
             "✕",
         )
     } else {
         (
-            Color32::from_rgba_unmultiplied(34, 197, 94, 15),
+            Color32::from_rgba_unmultiplied(74, 198, 104, 25),
             Theme::GREEN,
             "✓",
         )
@@ -5758,4 +8774,1174 @@ fn primary_button(ui: &mut egui::Ui, text: &str) -> bool {
             .rounding(Rounding::same(Radius::SM)),
     )
     .clicked()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        PreferencesSharedState, PreferencesTab, PreferencesWindow, active_provider_sidebar_style,
+        alibaba_cookie_source_label, alibaba_region_label, amp_cookie_source_label,
+        augment_cookie_source_label, compact_credentials_path, cursor_cookie_source_label,
+        factory_cookie_source_label, gemini_cli_credentials_path, kimi_cookie_source_label,
+        minimax_cookie_source_label, minimax_region_label, ollama_cookie_source_label,
+        opencode_cookie_source_label, provider_detail_chrome, provider_detail_display_text,
+        provider_detail_max_content_width, provider_detail_source_display,
+        provider_detail_status_value, provider_detail_subtitle, provider_detail_text_chrome,
+        provider_sidebar_display_lines, provider_sidebar_subtitle, providers_surface_palette,
+        render_about_tab, set_merge_tray_icons, set_per_provider_tray_icons, settings_nav_chrome,
+        should_show_token_accounts_section, shows_shared_provider_settings,
+        vertexai_credentials_path, zai_region_label,
+    };
+    use crate::browser::detection::BrowserType;
+    use crate::core::{ProviderAccountData, ProviderId, WidgetProviderEntry};
+    use crate::settings::Language;
+    use crate::settings::{Settings, TrayIconMode};
+    use chrono::{Duration, Utc};
+    use eframe::egui::{self, CentralPanel};
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn enabling_merge_forces_single_tray_mode() {
+        let mut settings = Settings {
+            tray_icon_mode: TrayIconMode::PerProvider,
+            ..Settings::default()
+        };
+
+        set_merge_tray_icons(&mut settings, true);
+
+        assert!(settings.merge_tray_icons);
+        assert_eq!(settings.tray_icon_mode, TrayIconMode::Single);
+    }
+
+    #[test]
+    fn enabling_per_provider_clears_merge_mode() {
+        let mut settings = Settings {
+            merge_tray_icons: true,
+            ..Settings::default()
+        };
+
+        set_per_provider_tray_icons(&mut settings, true);
+
+        assert!(!settings.merge_tray_icons);
+        assert_eq!(settings.tray_icon_mode, TrayIconMode::PerProvider);
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn test_tab_parser_supports_top_level_settings_tabs() {
+        assert_eq!(
+            PreferencesTab::from_test_label("preferences"),
+            Some(PreferencesTab::Preferences)
+        );
+        assert_eq!(
+            PreferencesTab::from_test_label("accounts"),
+            Some(PreferencesTab::Accounts)
+        );
+        assert_eq!(
+            PreferencesTab::from_test_label("shortcuts"),
+            Some(PreferencesTab::Shortcuts)
+        );
+        assert_eq!(
+            PreferencesTab::from_test_label("about"),
+            Some(PreferencesTab::About)
+        );
+    }
+
+    #[test]
+    fn viewport_about_tab_no_longer_renders_hero_icon() {
+        let ctx = egui::Context::default();
+        let shared_state = PreferencesWindow::default().shared_state.clone();
+
+        ctx.begin_pass(egui::RawInput::default());
+        CentralPanel::default().show(&ctx, |ui| {
+            render_about_tab(ui, &shared_state);
+        });
+        let full_output = ctx.end_pass();
+        let rendered = format!("{:?}", full_output.shapes);
+
+        assert!(
+            !rendered.contains('◆'),
+            "about viewport still renders old hero icon"
+        );
+        assert!(rendered.contains("CodexBar"));
+    }
+
+    #[test]
+    fn active_provider_sidebar_style_uses_layered_selection_for_mac_like_sidebar() {
+        let style = active_provider_sidebar_style();
+
+        assert_eq!(
+            style.frame_fill,
+            Some(eframe::egui::Color32::from_rgba_unmultiplied(
+                255, 255, 255, 8
+            ))
+        );
+        assert_eq!(
+            style.frame_stroke,
+            Some(eframe::egui::Stroke::new(
+                1.0,
+                super::Theme::BORDER_SUBTLE.gamma_multiply(0.56)
+            ))
+        );
+        assert_eq!(style.inner_margin, super::Spacing::SM);
+        assert_eq!(style.item_spacing_y, 0.0);
+        assert_eq!(style.row_height, 58.0);
+        assert_eq!(style.row_corner_radius, 7.0);
+        assert_eq!(
+            style.selected_fill,
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 11)
+        );
+        assert_eq!(
+            style.selected_stroke,
+            eframe::egui::Stroke::new(
+                1.0,
+                eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 18)
+            )
+        );
+        assert_eq!(
+            style.hover_fill,
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 4)
+        );
+    }
+
+    #[test]
+    fn providers_surface_palette_adds_subtle_layer_separation() {
+        let palette = providers_surface_palette();
+
+        assert_eq!(
+            palette.shell_fill,
+            eframe::egui::Color32::from_rgb(56, 56, 64)
+        );
+        assert_eq!(
+            palette.content_fill,
+            eframe::egui::Color32::from_rgb(54, 54, 62)
+        );
+        assert_eq!(
+            palette.detail_fill,
+            eframe::egui::Color32::from_rgb(58, 58, 66)
+        );
+        assert_eq!(
+            palette.detail_stroke,
+            eframe::egui::Stroke::new(1.0, super::Theme::BORDER_SUBTLE.gamma_multiply(0.24))
+        );
+    }
+
+    #[test]
+    fn settings_nav_chrome_keeps_toolbar_pill_subtle() {
+        let chrome = settings_nav_chrome();
+
+        assert_eq!(
+            chrome.selected_fill,
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 10)
+        );
+        assert_eq!(
+            chrome.selected_stroke,
+            eframe::egui::Stroke::new(
+                1.0,
+                eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 20)
+            )
+        );
+        assert_eq!(
+            chrome.hover_fill,
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 4)
+        );
+    }
+
+    #[test]
+    fn provider_detail_text_chrome_keeps_right_pane_readable() {
+        let chrome = provider_detail_text_chrome();
+
+        assert_eq!(
+            chrome.subtitle,
+            super::Theme::TEXT_SECONDARY.gamma_multiply(1.16)
+        );
+        assert_eq!(
+            chrome.section_title,
+            super::Theme::TEXT_PRIMARY.gamma_multiply(0.84)
+        );
+        assert_eq!(
+            chrome.helper,
+            super::Theme::TEXT_SECONDARY.gamma_multiply(1.08)
+        );
+        assert_eq!(
+            chrome.info_label,
+            super::Theme::TEXT_SECONDARY.gamma_multiply(1.12)
+        );
+        assert_eq!(
+            chrome.secondary_value,
+            super::Theme::TEXT_SECONDARY.gamma_multiply(1.02)
+        );
+    }
+
+    #[test]
+    fn provider_detail_chrome_uses_roomier_controls_and_spacing() {
+        let chrome = provider_detail_chrome();
+
+        assert_eq!(
+            chrome.control_fill,
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 5)
+        );
+        assert_eq!(
+            chrome.control_fill_hover,
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 8)
+        );
+        assert_eq!(
+            chrome.control_fill_active,
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 11)
+        );
+        assert_eq!(
+            chrome.control_stroke,
+            eframe::egui::Stroke::new(1.0, super::Theme::BORDER_SUBTLE.gamma_multiply(0.28))
+        );
+        assert_eq!(chrome.control_inner_margin_x, 8.0);
+        assert_eq!(chrome.control_inner_margin_y, 0.0);
+        assert_eq!(chrome.info_grid_spacing_x, 14.0);
+        assert_eq!(chrome.info_grid_spacing_y, 6.0);
+        assert_eq!(chrome.section_gap, 12.0);
+        assert_eq!(chrome.detail_label_width, 92.0);
+        assert_eq!(chrome.picker_label_width, 92.0);
+        assert_eq!(chrome.metric_bar_width, 220.0);
+        assert_eq!(chrome.refresh_button_size, 24.0);
+    }
+
+    #[test]
+    fn provider_detail_max_content_width_matches_roomier_mac_like_layout() {
+        assert_eq!(provider_detail_max_content_width(), 404.0);
+    }
+
+    #[test]
+    fn provider_sidebar_subtitle_uses_source_hint_for_disabled_rows() {
+        let subtitle =
+            provider_sidebar_subtitle(ProviderId::Copilot, false, None, None, Language::English);
+
+        assert_eq!(subtitle, "Disabled — github api\nusage not fetched yet");
+        assert_eq!(
+            provider_sidebar_subtitle(ProviderId::MiniMax, false, None, None, Language::English),
+            "Disabled — auto\nusage not fetched yet"
+        );
+    }
+
+    #[test]
+    fn provider_sidebar_subtitle_uses_detection_failure_for_enabled_missing_snapshot() {
+        let subtitle =
+            provider_sidebar_subtitle(ProviderId::Codex, true, None, None, Language::English);
+
+        assert_eq!(subtitle, "not detected\nlast fetch failed");
+    }
+
+    #[test]
+    fn provider_sidebar_subtitle_uses_not_fetched_status_for_empty_enabled_entry() {
+        let entry = WidgetProviderEntry::new(ProviderId::Cursor, Utc::now() - Duration::minutes(3));
+
+        let subtitle = provider_sidebar_subtitle(
+            ProviderId::Cursor,
+            true,
+            Some(&entry),
+            None,
+            Language::English,
+        );
+
+        assert_eq!(subtitle, "web\nusage not fetched yet");
+    }
+
+    #[test]
+    fn provider_detail_subtitle_uses_detection_failure_for_missing_snapshot() {
+        let subtitle = provider_detail_subtitle(
+            ProviderId::Codex,
+            true,
+            None,
+            None,
+            "auto",
+            "Never updated",
+            Language::English,
+        );
+
+        assert_eq!(subtitle, "not detected • last fetch failed");
+    }
+
+    #[test]
+    fn provider_detail_subtitle_uses_disabled_usage_copy_for_disabled_provider() {
+        let subtitle = provider_detail_subtitle(
+            ProviderId::Copilot,
+            false,
+            None,
+            None,
+            "github api",
+            "Never updated",
+            Language::English,
+        );
+
+        assert_eq!(subtitle, "github api • usage not fetched yet");
+    }
+
+    #[test]
+    fn provider_sidebar_subtitle_uses_provider_specific_disabled_hint_when_needed() {
+        let subtitle =
+            provider_sidebar_subtitle(ProviderId::Claude, false, None, None, Language::English);
+        assert_eq!(
+            subtitle,
+            "Disabled — claude not detected\nusage not fetched yet"
+        );
+
+        let cursor_subtitle =
+            provider_sidebar_subtitle(ProviderId::Cursor, false, None, None, Language::English);
+        assert_eq!(cursor_subtitle, "Disabled — web\nusage not fetched yet");
+    }
+
+    #[test]
+    fn provider_sidebar_subtitle_uses_runtime_error_for_kiro_disabled_detail() {
+        let subtitle = provider_sidebar_subtitle(
+            ProviderId::Kiro,
+            false,
+            None,
+            Some("kiro-cli: No such file or directory"),
+            Language::English,
+        );
+
+        assert_eq!(
+            subtitle,
+            "Disabled — kiro env: kiro-cli: No such file or directory\nusage not fetched yet"
+        );
+    }
+
+    #[test]
+    fn provider_detail_subtitle_uses_provider_specific_disabled_hint_when_needed() {
+        let subtitle = provider_detail_subtitle(
+            ProviderId::Claude,
+            false,
+            None,
+            None,
+            "auto",
+            "Never updated",
+            Language::English,
+        );
+
+        assert_eq!(subtitle, "claude not detected • usage not fetched yet");
+    }
+
+    #[test]
+    fn provider_detail_subtitle_uses_runtime_error_for_kiro_disabled_detail() {
+        let subtitle = provider_detail_subtitle(
+            ProviderId::Kiro,
+            false,
+            None,
+            Some("kiro-cli: No such file or directory"),
+            "kiro env",
+            "Never updated",
+            Language::English,
+        );
+
+        assert_eq!(
+            subtitle,
+            "kiro env: kiro-cli: No such file or directory • usage not fetched yet"
+        );
+    }
+
+    #[test]
+    fn provider_detail_status_value_uses_runtime_error_for_disabled_kiro() {
+        let status = provider_detail_status_value(
+            ProviderId::Kiro,
+            false,
+            None,
+            Some("kiro-cli: No such file or directory"),
+            Language::English,
+        );
+
+        assert_eq!(status, "kiro env: kiro-cli: No such file or directory");
+    }
+
+    #[test]
+    fn provider_detail_status_value_uses_last_fetch_failed_for_enabled_missing_snapshot() {
+        let status =
+            provider_detail_status_value(ProviderId::Codex, true, None, None, Language::English);
+
+        assert_eq!(status, "last fetch failed");
+    }
+
+    #[test]
+    fn provider_detail_status_value_uses_disabled_for_generic_disabled_provider() {
+        let status =
+            provider_detail_status_value(ProviderId::Claude, false, None, None, Language::English);
+
+        assert_eq!(status, "claude not detected");
+    }
+
+    #[test]
+    fn provider_detail_status_value_uses_provider_specific_hint_without_runtime_error() {
+        let status =
+            provider_detail_status_value(ProviderId::Kiro, false, None, None, Language::English);
+
+        assert!(status.starts_with("kiro env"));
+    }
+
+    #[test]
+    fn shared_provider_settings_hide_for_dedicated_api_panes() {
+        assert!(!shows_shared_provider_settings(ProviderId::Infini));
+        assert!(!shows_shared_provider_settings(ProviderId::Synthetic));
+        assert!(shows_shared_provider_settings(ProviderId::Claude));
+        assert!(shows_shared_provider_settings(ProviderId::Cursor));
+    }
+
+    #[test]
+    fn shared_provider_settings_stay_disabled_for_dedicated_provider_family() {
+        let dedicated_provider_family = [
+            ProviderId::Gemini,
+            ProviderId::Antigravity,
+            ProviderId::OpenCode,
+            ProviderId::MiniMax,
+            ProviderId::Factory,
+            ProviderId::Kimi,
+            ProviderId::Copilot,
+            ProviderId::Alibaba,
+            ProviderId::Amp,
+            ProviderId::Augment,
+            ProviderId::Infini,
+            ProviderId::JetBrains,
+            ProviderId::KimiK2,
+            ProviderId::NanoGPT,
+            ProviderId::Ollama,
+            ProviderId::OpenRouter,
+            ProviderId::Synthetic,
+            ProviderId::VertexAI,
+            ProviderId::Warp,
+            ProviderId::Zai,
+        ];
+
+        for provider_id in dedicated_provider_family {
+            assert!(
+                !shows_shared_provider_settings(provider_id),
+                "{provider_id:?} should not render shared provider settings"
+            );
+        }
+    }
+
+    #[test]
+    fn provider_sidebar_display_lines_clamp_to_two_visual_lines() {
+        let (primary, secondary) = provider_sidebar_display_lines(
+            "Disabled — kiro env: kiro-cli: No such file or directory\nusage not fetched yet",
+        );
+
+        assert_eq!(primary, "Disabled — kiro env: kiro-cli: No such …");
+        assert_eq!(secondary.as_deref(), Some("usage not fetched yet"));
+    }
+
+    #[test]
+    fn provider_detail_display_text_breaks_detail_subtitle_into_two_lines() {
+        let display = provider_detail_display_text(
+            "kiro env: kiro-cli: No such file or directory • usage not fetched yet",
+        );
+
+        assert_eq!(
+            display,
+            "kiro env: kiro-cli: No such file or directory\nusage not fetched yet"
+        );
+    }
+
+    #[test]
+    fn cursor_cookie_source_label_matches_supported_modes() {
+        assert_eq!(
+            cursor_cookie_source_label("auto", Language::English),
+            "Automatic"
+        );
+        assert_eq!(
+            cursor_cookie_source_label("manual", Language::English),
+            "Manual"
+        );
+    }
+
+    #[test]
+    fn token_accounts_section_shows_for_cursor_manual_cookie_mode() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings {
+                cursor_cookie_source: "manual".to_string(),
+                ..Settings::default()
+            },
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::Cursor),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(should_show_token_accounts_section(
+            ProviderId::Cursor,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn opencode_cookie_source_label_matches_supported_modes() {
+        assert_eq!(
+            opencode_cookie_source_label("auto", Language::English),
+            "Automatic"
+        );
+        assert_eq!(
+            opencode_cookie_source_label("manual", Language::English),
+            "Manual"
+        );
+    }
+
+    #[test]
+    fn token_accounts_section_shows_for_opencode_manual_cookie_mode() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings {
+                opencode_cookie_source: "manual".to_string(),
+                ..Settings::default()
+            },
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::OpenCode),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(should_show_token_accounts_section(
+            ProviderId::OpenCode,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn factory_cookie_source_label_matches_supported_modes() {
+        assert_eq!(
+            factory_cookie_source_label("auto", Language::English),
+            "Automatic"
+        );
+        assert_eq!(
+            factory_cookie_source_label("manual", Language::English),
+            "Manual"
+        );
+    }
+
+    #[test]
+    fn token_accounts_section_shows_for_factory_manual_cookie_mode() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings {
+                factory_cookie_source: "manual".to_string(),
+                ..Settings::default()
+            },
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::Factory),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(should_show_token_accounts_section(
+            ProviderId::Factory,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn alibaba_cookie_source_label_matches_supported_modes() {
+        assert_eq!(
+            alibaba_cookie_source_label("auto", Language::English),
+            "Automatic"
+        );
+        assert_eq!(
+            alibaba_cookie_source_label("manual", Language::English),
+            "Manual"
+        );
+    }
+
+    #[test]
+    fn token_accounts_section_shows_for_alibaba_manual_cookie_mode() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings {
+                alibaba_cookie_source: "manual".to_string(),
+                ..Settings::default()
+            },
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::Alibaba),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(should_show_token_accounts_section(
+            ProviderId::Alibaba,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn kimi_cookie_source_label_matches_supported_modes() {
+        assert_eq!(
+            kimi_cookie_source_label("auto", Language::English),
+            "Automatic"
+        );
+        assert_eq!(
+            kimi_cookie_source_label("manual", Language::English),
+            "Manual"
+        );
+        assert_eq!(
+            kimi_cookie_source_label("off", Language::English),
+            "Disabled"
+        );
+    }
+
+    #[test]
+    fn minimax_cookie_source_label_matches_supported_modes() {
+        assert_eq!(
+            minimax_cookie_source_label("auto", Language::English),
+            "Automatic"
+        );
+        assert_eq!(
+            minimax_cookie_source_label("manual", Language::English),
+            "Manual"
+        );
+    }
+
+    #[test]
+    fn augment_cookie_source_label_matches_supported_modes() {
+        assert_eq!(
+            augment_cookie_source_label("auto", Language::English),
+            "Automatic"
+        );
+        assert_eq!(
+            augment_cookie_source_label("manual", Language::English),
+            "Manual"
+        );
+    }
+
+    #[test]
+    fn amp_cookie_source_label_matches_supported_modes() {
+        assert_eq!(
+            amp_cookie_source_label("auto", Language::English),
+            "Automatic"
+        );
+        assert_eq!(
+            amp_cookie_source_label("manual", Language::English),
+            "Manual"
+        );
+    }
+
+    #[test]
+    fn ollama_cookie_source_label_matches_supported_modes() {
+        assert_eq!(
+            ollama_cookie_source_label("auto", Language::English),
+            "Automatic"
+        );
+        assert_eq!(
+            ollama_cookie_source_label("manual", Language::English),
+            "Manual"
+        );
+    }
+
+    #[test]
+    fn minimax_region_label_matches_supported_modes() {
+        assert_eq!(minimax_region_label("global"), "Global (.io)");
+        assert_eq!(minimax_region_label("china"), "China Mainland (.com)");
+    }
+
+    #[test]
+    fn alibaba_region_label_matches_supported_modes() {
+        assert_eq!(alibaba_region_label("intl"), "International (Model Studio)");
+        assert_eq!(alibaba_region_label("cn"), "China Mainland (Bailian)");
+    }
+
+    #[test]
+    fn zai_region_label_matches_supported_modes() {
+        assert_eq!(zai_region_label("global"), "Global");
+        assert_eq!(zai_region_label("china"), "China Mainland (BigModel)");
+    }
+
+    #[test]
+    fn gemini_cli_credentials_path_points_to_expected_location() {
+        let path = gemini_cli_credentials_path().expect("home dir should be available in tests");
+        assert!(path.ends_with(PathBuf::from(".gemini").join("oauth_creds.json")));
+    }
+
+    #[test]
+    fn compact_credentials_path_keeps_only_tail_segments() {
+        assert_eq!(
+            compact_credentials_path("C:\\Users\\mac\\.gemini\\oauth_creds.json"),
+            ".gemini/oauth_creds.json"
+        );
+        assert_eq!(
+            compact_credentials_path(
+                "C:\\Users\\mac\\AppData\\Roaming\\gcloud\\application_default_credentials.json"
+            ),
+            "gcloud/application_default_credentials.json"
+        );
+    }
+
+    #[test]
+    fn vertexai_credentials_path_points_to_expected_location() {
+        let path = vertexai_credentials_path().expect("config dir should be available in tests");
+        assert!(
+            path.ends_with(PathBuf::from("gcloud").join("application_default_credentials.json"))
+        );
+    }
+
+    #[test]
+    fn token_accounts_section_shows_for_minimax_manual_cookie_mode_without_api_token() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings {
+                minimax_cookie_source: "manual".to_string(),
+                minimax_api_token: String::new(),
+                ..Settings::default()
+            },
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::MiniMax),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(should_show_token_accounts_section(
+            ProviderId::MiniMax,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn token_accounts_section_hides_for_minimax_api_token_mode() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings {
+                minimax_cookie_source: "manual".to_string(),
+                minimax_api_token: "mmx-secret".to_string(),
+                ..Settings::default()
+            },
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::MiniMax),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(!should_show_token_accounts_section(
+            ProviderId::MiniMax,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn token_accounts_section_shows_for_augment_manual_cookie_mode() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings {
+                augment_cookie_source: "manual".to_string(),
+                ..Settings::default()
+            },
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::Augment),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(should_show_token_accounts_section(
+            ProviderId::Augment,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn token_accounts_section_shows_for_amp_manual_cookie_mode() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings {
+                amp_cookie_source: "manual".to_string(),
+                ..Settings::default()
+            },
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::Amp),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(should_show_token_accounts_section(
+            ProviderId::Amp,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn token_accounts_section_shows_for_ollama_manual_cookie_mode() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings {
+                ollama_cookie_source: "manual".to_string(),
+                ..Settings::default()
+            },
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::Ollama),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(should_show_token_accounts_section(
+            ProviderId::Ollama,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn provider_detail_source_display_uses_auto_for_cursor() {
+        assert_eq!(
+            provider_detail_source_display(ProviderId::Cursor, Language::English),
+            "web"
+        );
+        assert_eq!(
+            provider_detail_source_display(ProviderId::Claude, Language::English),
+            "auto"
+        );
+        assert_eq!(
+            provider_detail_source_display(ProviderId::Copilot, Language::English),
+            "github api"
+        );
+    }
+
+    #[test]
+    fn token_accounts_section_stays_hidden_for_cursor_without_manual_state() {
+        let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
+            is_open: false,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings::default(),
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::Cursor),
+            selected_browser: Some(BrowserType::Chrome),
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        }));
+
+        assert!(!should_show_token_accounts_section(
+            ProviderId::Cursor,
+            &shared_state
+        ));
+
+        if let Ok(mut state) = shared_state.lock() {
+            state.token_accounts.insert(
+                ProviderId::Cursor,
+                ProviderAccountData {
+                    version: 1,
+                    accounts: vec![crate::core::TokenAccount::new("Main", "Cookie: abc")],
+                    active_index: 0,
+                },
+            );
+        }
+
+        assert!(should_show_token_accounts_section(
+            ProviderId::Cursor,
+            &shared_state
+        ));
+    }
+
+    #[test]
+    fn request_screenshot_for_testing_opens_preferences_and_waits_extra_frames() {
+        let mut window = PreferencesWindow::default();
+
+        window.request_screenshot_for_testing(PathBuf::from("C:\\temp\\prefs.png"));
+
+        assert!(window.is_open);
+        let state = window.shared_state.lock().expect("shared state lock");
+        assert!(state.is_open);
+        assert_eq!(
+            state.pending_screenshot_path.as_deref(),
+            Some(std::path::Path::new("C:\\temp\\prefs.png"))
+        );
+        assert_eq!(state.pending_screenshot_delay_frames, 3);
+        assert_eq!(state.pending_screenshot_attempts, 0);
+    }
 }

@@ -35,7 +35,13 @@ impl AlibabaProvider {
         }
     }
 
-    fn get_auth_cookies(&self) -> Result<String, ProviderError> {
+    fn get_auth_cookies(&self, ctx: &FetchContext) -> Result<String, ProviderError> {
+        if let Some(ref cookie_header) = ctx.manual_cookie_header
+            && !cookie_header.trim().is_empty()
+        {
+            return Ok(cookie_header.clone());
+        }
+
         let cookies = get_cookie_header(ALIBABA_COOKIE_DOMAIN)
             .map_err(|e| ProviderError::Other(format!("Failed to get cookies: {}", e)))?;
         if cookies.is_empty() {
@@ -44,8 +50,8 @@ impl AlibabaProvider {
         Ok(cookies)
     }
 
-    async fn fetch_via_web(&self) -> Result<UsageSnapshot, ProviderError> {
-        let cookies = self.get_auth_cookies()?;
+    async fn fetch_via_web(&self, ctx: &FetchContext) -> Result<UsageSnapshot, ProviderError> {
+        let cookies = self.get_auth_cookies(ctx)?;
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
@@ -165,7 +171,7 @@ impl Provider for AlibabaProvider {
 
         match ctx.source_mode {
             SourceMode::Auto | SourceMode::Web => {
-                let usage = self.fetch_via_web().await?;
+                let usage = self.fetch_via_web(ctx).await?;
                 Ok(ProviderFetchResult::new(usage, "web"))
             }
             SourceMode::Cli => Err(ProviderError::UnsupportedSource(SourceMode::Cli)),

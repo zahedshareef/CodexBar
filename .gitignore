@@ -50,6 +50,8 @@ dist/
 nul
 
 # Local scripts and env files
+.env
+.env.*
 *.ps1
 !dev.ps1
 !scripts/*.ps1

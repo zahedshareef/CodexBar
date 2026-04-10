@@ -203,6 +203,118 @@ pub struct Settings {
     /// Show credits and extra usage information in the UI
     pub show_credits_extra_usage: bool,
 
+    /// Preferred Claude usage source for the provider settings UI
+    #[serde(default = "default_claude_usage_source")]
+    pub claude_usage_source: String,
+
+    /// Preferred Codex usage source for the provider settings UI
+    #[serde(default = "default_codex_usage_source")]
+    pub codex_usage_source: String,
+
+    /// Preferred Codex cookie source for the provider settings UI
+    #[serde(default = "default_codex_cookie_source")]
+    pub codex_cookie_source: String,
+
+    /// Whether Codex historical tracking is enabled in the settings UI
+    #[serde(default)]
+    pub codex_historical_tracking: bool,
+
+    /// Whether Codex OpenAI web extras are enabled in the settings UI
+    #[serde(default = "default_codex_openai_web_extras")]
+    pub codex_openai_web_extras: bool,
+
+    /// Preferred Claude cookie source for the provider settings UI
+    #[serde(default = "default_claude_cookie_source")]
+    pub claude_cookie_source: String,
+
+    /// Preferred Cursor cookie source for the provider settings UI
+    #[serde(default = "default_cursor_cookie_source")]
+    pub cursor_cookie_source: String,
+
+    /// Preferred OpenCode cookie source for the provider settings UI
+    #[serde(default = "default_opencode_cookie_source")]
+    pub opencode_cookie_source: String,
+
+    /// Optional OpenCode workspace ID override for the provider settings UI
+    #[serde(default)]
+    pub opencode_workspace_id: String,
+
+    /// Preferred Factory cookie source for the provider settings UI
+    #[serde(default = "default_factory_cookie_source")]
+    pub factory_cookie_source: String,
+
+    /// Preferred Alibaba cookie source for the provider settings UI
+    #[serde(default = "default_alibaba_cookie_source")]
+    pub alibaba_cookie_source: String,
+
+    /// Manual Alibaba cookie header for the provider settings UI
+    #[serde(default)]
+    pub alibaba_cookie_header: String,
+
+    /// Preferred Alibaba API gateway region for the provider settings UI
+    #[serde(default = "default_alibaba_api_region")]
+    pub alibaba_api_region: String,
+
+    /// Preferred Kimi cookie source for the provider settings UI
+    #[serde(default = "default_kimi_cookie_source")]
+    pub kimi_cookie_source: String,
+
+    /// Manual Kimi cookie header or token value for the provider settings UI
+    #[serde(default)]
+    pub kimi_manual_cookie_header: String,
+
+    /// Preferred MiniMax cookie source for the provider settings UI
+    #[serde(default = "default_minimax_cookie_source")]
+    pub minimax_cookie_source: String,
+
+    /// Preferred Augment cookie source for the provider settings UI
+    #[serde(default = "default_augment_cookie_source")]
+    pub augment_cookie_source: String,
+
+    /// Manual Augment cookie header for the provider settings UI
+    #[serde(default)]
+    pub augment_cookie_header: String,
+
+    /// Preferred Amp cookie source for the provider settings UI
+    #[serde(default = "default_amp_cookie_source")]
+    pub amp_cookie_source: String,
+
+    /// Manual Amp cookie header for the provider settings UI
+    #[serde(default)]
+    pub amp_cookie_header: String,
+
+    /// Preferred Ollama cookie source for the provider settings UI
+    #[serde(default = "default_ollama_cookie_source")]
+    pub ollama_cookie_source: String,
+
+    /// Manual Ollama cookie header for the provider settings UI
+    #[serde(default)]
+    pub ollama_cookie_header: String,
+
+    /// Preferred z.ai API region for the provider settings UI
+    #[serde(default = "default_zai_api_region")]
+    pub zai_api_region: String,
+
+    /// Optional JetBrains IDE base path override for the provider settings UI
+    #[serde(default)]
+    pub jetbrains_ide_base_path: String,
+
+    /// Manual MiniMax cookie header for the provider settings UI
+    #[serde(default)]
+    pub minimax_cookie_header: String,
+
+    /// MiniMax API token for the provider settings UI
+    #[serde(default)]
+    pub minimax_api_token: String,
+
+    /// MiniMax API region for the provider settings UI
+    #[serde(default = "default_minimax_api_region")]
+    pub minimax_api_region: String,
+
+    /// Whether prompt-free Claude keychain credential reads are enabled
+    #[serde(default)]
+    pub claude_avoid_keychain_prompts: bool,
+
     /// Hide personal info (emails, account names) for streaming/sharing
     pub hide_personal_info: bool,
 
@@ -234,6 +346,74 @@ fn default_global_shortcut() -> String {
     "Ctrl+Shift+U".to_string()
 }
 
+fn default_claude_usage_source() -> String {
+    "auto".to_string()
+}
+
+fn default_codex_usage_source() -> String {
+    "auto".to_string()
+}
+
+fn default_codex_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_codex_openai_web_extras() -> bool {
+    true
+}
+
+fn default_claude_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_cursor_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_opencode_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_factory_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_alibaba_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_alibaba_api_region() -> String {
+    "intl".to_string()
+}
+
+fn default_kimi_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_minimax_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_augment_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_amp_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_ollama_cookie_source() -> String {
+    "auto".to_string()
+}
+
+fn default_zai_api_region() -> String {
+    "global".to_string()
+}
+
+fn default_minimax_api_region() -> String {
+    "global".to_string()
+}
+
 impl Default for Settings {
     fn default() -> Self {
         let mut enabled = HashSet::new();
@@ -259,6 +439,34 @@ impl Default for Settings {
             reset_time_relative: true, // Show relative times by default
             menu_bar_display_mode: "detailed".to_string(), // Detailed mode by default
             show_credits_extra_usage: true, // Show credits + extra usage by default
+            claude_usage_source: default_claude_usage_source(),
+            codex_usage_source: default_codex_usage_source(),
+            codex_cookie_source: default_codex_cookie_source(),
+            codex_historical_tracking: false,
+            codex_openai_web_extras: default_codex_openai_web_extras(),
+            claude_cookie_source: default_claude_cookie_source(),
+            cursor_cookie_source: default_cursor_cookie_source(),
+            opencode_cookie_source: default_opencode_cookie_source(),
+            opencode_workspace_id: String::new(),
+            factory_cookie_source: default_factory_cookie_source(),
+            alibaba_cookie_source: default_alibaba_cookie_source(),
+            alibaba_cookie_header: String::new(),
+            alibaba_api_region: default_alibaba_api_region(),
+            kimi_cookie_source: default_kimi_cookie_source(),
+            kimi_manual_cookie_header: String::new(),
+            minimax_cookie_source: default_minimax_cookie_source(),
+            augment_cookie_source: default_augment_cookie_source(),
+            augment_cookie_header: String::new(),
+            amp_cookie_source: default_amp_cookie_source(),
+            amp_cookie_header: String::new(),
+            ollama_cookie_source: default_ollama_cookie_source(),
+            ollama_cookie_header: String::new(),
+            zai_api_region: default_zai_api_region(),
+            jetbrains_ide_base_path: String::new(),
+            minimax_cookie_header: String::new(),
+            minimax_api_token: String::new(),
+            minimax_api_region: default_minimax_api_region(),
+            claude_avoid_keychain_prompts: false,
             hide_personal_info: false, // Show personal info by default
             update_channel: UpdateChannel::default(), // Stable by default
             provider_metrics: HashMap::new(), // Empty = use Automatic for all
@@ -708,6 +916,17 @@ pub struct ProviderConfigInfo {
 /// Get configuration info for providers that need API keys
 pub fn get_api_key_providers() -> Vec<ProviderConfigInfo> {
     vec![
+        ProviderConfigInfo {
+            id: ProviderId::Alibaba,
+            name: "Alibaba Coding Plan",
+            requires_api_key: true,
+            api_key_env_var: Some("ALIBABA_CODING_PLAN_API_KEY"),
+            api_key_help: Some("Get your Coding Plan API key from Alibaba Model Studio / Bailian"),
+            config_file_path: Some("~/.codexbar/config.json"),
+            dashboard_url: Some(
+                "https://modelstudio.console.alibabacloud.com/ap-southeast-1/?tab=coding-plan#/efm/detail",
+            ),
+        },
         ProviderConfigInfo {
             id: ProviderId::Amp,
             name: "Amp (Sourcegraph)",

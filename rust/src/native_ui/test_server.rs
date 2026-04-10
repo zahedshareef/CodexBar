@@ -18,6 +18,9 @@ pub enum TestInput {
     SelectPreferencesTab {
         tab: String,
     },
+    SelectPreferencesProvider {
+        provider: String,
+    },
     SetSingleTrayState {
         state: String,
         provider: Option<String>,
@@ -101,6 +104,7 @@ pub fn create_queue() -> TestInputQueue {
 /// {"type":"open_window"}
 /// {"type":"select_tab","tab":"claude"}
 /// {"type":"select_preferences_tab","tab":"about"}
+/// {"type":"select_preferences_provider","provider":"cursor"}
 /// {"type":"set_single_tray_state","state":"normal","provider":"Codex","session_percent":12,"weekly_percent":34}
 /// {"type":"set_single_tray_state","state":"loading"}
 /// {"type":"set_single_tray_state","state":"error","provider":"Codex","error":"Auth failed"}
@@ -202,6 +206,9 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
         }
         "select_tab" => Some(TestInput::SelectTab { tab: input.tab? }),
         "select_preferences_tab" => Some(TestInput::SelectPreferencesTab { tab: input.tab? }),
+        "select_preferences_provider" => Some(TestInput::SelectPreferencesProvider {
+            provider: input.provider?,
+        }),
         "set_single_tray_state" => Some(TestInput::SetSingleTrayState {
             state: input.state?,
             provider: input.provider,
@@ -319,6 +326,14 @@ mod tests {
         assert!(matches!(
             parse_test_input(r#"{"type":"select_preferences_tab","tab":"about"}"#),
             Some(TestInput::SelectPreferencesTab { tab }) if tab == "about"
+        ));
+    }
+
+    #[test]
+    fn parses_select_preferences_provider_name() {
+        assert!(matches!(
+            parse_test_input(r#"{"type":"select_preferences_provider","provider":"cursor"}"#),
+            Some(TestInput::SelectPreferencesProvider { provider }) if provider == "cursor"
         ));
     }
 

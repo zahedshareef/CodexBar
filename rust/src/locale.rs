@@ -95,6 +95,7 @@ pub enum LocaleKey {
     TabCookies,
     TabAdvanced,
     TabAbout,
+    TabShortcuts,
 
     // General settings (Preferences)
     InterfaceLanguage,
@@ -140,6 +141,19 @@ pub enum LocaleKey {
     ProviderUsage,
     AuthType,
     DataSource,
+    ProviderNotDetected,
+    ProviderLastFetchFailed,
+    ProviderUsageNotFetchedYet,
+    ProviderNotFetchedYetTitle,
+    ProviderDisabledNoRecentData,
+    ProviderSourceAutoShort,
+    ProviderSourceWebShort,
+    ProviderSourceCliShort,
+    ProviderSourceOauthShort,
+    ProviderSourceApiShort,
+    ProviderSourceGithubApiShort,
+    ProviderSourceLocalShort,
+    ProviderSourceKiroEnvShort,
     TrackingItem,
     MainWindowLiveUsageData,
     StartTrackingUsage,
@@ -348,15 +362,35 @@ pub enum LocaleKey {
 
     // Provider detail - Settings section
     ProviderSettingsTitle,
+    ProviderAccountsTitle,
+    ProviderOptionsTitle,
     MenuBarMetric,
     MenuBarMetricHelper,
     UsageSource,
+    ProviderNoCodexAccountsDetected,
+    ProviderCodexAutoImportHelp,
+    ProviderCodexHistoryHelp,
+    ProviderOpenAiCookies,
+    ProviderHistoricalTracking,
+    ProviderOpenAiWebExtras,
+    ProviderOpenAiWebExtrasHelp,
+    ProviderCodexCreditsUnavailable,
+    ProviderCodexLastFetchFailedTitle,
+    ProviderCodexNotRunningHelp,
+    ProviderCookieSource,
+    ProviderClaudeCookies,
+    ProviderClaudeCookiesHelp,
+    ProviderClaudeAvoidKeychainPrompts,
+    ProviderClaudeAvoidKeychainPromptsHelp,
+    ProviderCursorCookieSourceHelp,
+    ProviderCursorCreditsHelp,
     AutoFallbackHelp,
     ProviderSourceOauthWeb,
     Automatic,
     Average,
     OAuth,
     Api,
+    Web,
 
     // General tab sections
     PrivacyTitle,
@@ -373,9 +407,21 @@ pub enum LocaleKey {
     // Keyboard shortcuts
     KeyboardShortcutsTitle,
     GlobalShortcutLabel,
+    GlobalShortcutHelper,
     ShortcutFormatHint,
     Saved,
     InvalidFormat,
+    ShortcutHintPlaceholder,
+
+    // Display/Preferences helpers
+    SurpriseAnimationsHelper,
+    SelectProvider,
+
+    // Refresh interval labels
+    RefreshInterval30Sec,
+    RefreshInterval1Min,
+    RefreshInterval5Min,
+    RefreshInterval10Min,
 
     // Cookies tab
     BrowserCookiesTitle,
@@ -433,6 +479,7 @@ impl LocaleKey {
             LocaleKey::TabCookies => "Cookies",
             LocaleKey::TabAdvanced => "Advanced",
             LocaleKey::TabAbout => "About",
+            LocaleKey::TabShortcuts => "Shortcuts",
 
             // General settings
             LocaleKey::InterfaceLanguage => "Interface Language",
@@ -478,6 +525,19 @@ impl LocaleKey {
             LocaleKey::ProviderUsage => "Usage",
             LocaleKey::AuthType => "Authentication",
             LocaleKey::DataSource => "Data Source",
+            LocaleKey::ProviderNotDetected => "not detected",
+            LocaleKey::ProviderLastFetchFailed => "last fetch failed",
+            LocaleKey::ProviderUsageNotFetchedYet => "usage not fetched yet",
+            LocaleKey::ProviderNotFetchedYetTitle => "Not fetched yet",
+            LocaleKey::ProviderDisabledNoRecentData => "Disabled — no recent data",
+            LocaleKey::ProviderSourceAutoShort => "auto",
+            LocaleKey::ProviderSourceWebShort => "web",
+            LocaleKey::ProviderSourceCliShort => "cli",
+            LocaleKey::ProviderSourceOauthShort => "oauth",
+            LocaleKey::ProviderSourceApiShort => "api",
+            LocaleKey::ProviderSourceGithubApiShort => "github api",
+            LocaleKey::ProviderSourceLocalShort => "local",
+            LocaleKey::ProviderSourceKiroEnvShort => "kiro env",
             LocaleKey::TrackingItem => "Tracked Item",
             LocaleKey::MainWindowLiveUsageData => "Live usage data in main window",
             LocaleKey::StartTrackingUsage => "Enable to start tracking usage",
@@ -669,7 +729,7 @@ impl LocaleKey {
             LocaleKey::UpdatedHoursAgo => "{} hours ago",
             LocaleKey::UpdatedDaysAgo => "{} days ago",
             LocaleKey::Status => "Status",
-            LocaleKey::AllSystemsOperational => "All Systems Operational",
+            LocaleKey::AllSystemsOperational => "All systems operational",
             LocaleKey::Plan => "Plan",
             LocaleKey::Account => "Account",
 
@@ -696,11 +756,44 @@ impl LocaleKey {
 
             // Provider detail - Settings section
             LocaleKey::ProviderSettingsTitle => "Settings",
-            LocaleKey::MenuBarMetric => "Menu Bar Metric",
-            LocaleKey::MenuBarMetricHelper => {
-                "Choose which time window drives the menu bar percentage"
+            LocaleKey::ProviderAccountsTitle => "Accounts",
+            LocaleKey::ProviderOptionsTitle => "Options",
+            LocaleKey::MenuBarMetric => "Menu bar metric",
+            LocaleKey::MenuBarMetricHelper => "Choose which window drives the menu bar percent.",
+            LocaleKey::UsageSource => "Usage source",
+            LocaleKey::ProviderNoCodexAccountsDetected => "No Codex accounts detected yet.",
+            LocaleKey::ProviderCodexAutoImportHelp => {
+                "Automatic imports browser cookies for dashboard extras."
             }
-            LocaleKey::UsageSource => "Usage Source",
+            LocaleKey::ProviderCodexHistoryHelp => {
+                "Stores local Codex usage history (8 weeks) to personalize Pace predictions."
+            }
+            LocaleKey::ProviderOpenAiCookies => "OpenAI cookies",
+            LocaleKey::ProviderHistoricalTracking => "Historical tracking",
+            LocaleKey::ProviderOpenAiWebExtras => "OpenAI web extras",
+            LocaleKey::ProviderOpenAiWebExtrasHelp => {
+                "Show usage breakdown, credits history, and code review via chatgpt.com."
+            }
+            LocaleKey::ProviderCodexCreditsUnavailable => {
+                "Credits unavailable; keep Codex running to refresh."
+            }
+            LocaleKey::ProviderCodexLastFetchFailedTitle => "Last Codex fetch failed:",
+            LocaleKey::ProviderCodexNotRunningHelp => {
+                "Codex not running. Try running a Codex command first."
+            }
+            LocaleKey::ProviderCookieSource => "Cookie source",
+            LocaleKey::ProviderClaudeCookies => "Claude cookies",
+            LocaleKey::ProviderClaudeCookiesHelp => {
+                "Automatic imports browser cookies for the web API."
+            }
+            LocaleKey::ProviderClaudeAvoidKeychainPrompts => "Avoid Keychain prompts",
+            LocaleKey::ProviderClaudeAvoidKeychainPromptsHelp => {
+                "Use /usr/bin/security to read Claude credentials and avoid CodexBar keychain prompts."
+            }
+            LocaleKey::ProviderCursorCookieSourceHelp => {
+                "Automatic imports browser cookies or stored sessions."
+            }
+            LocaleKey::ProviderCursorCreditsHelp => "On-demand usage beyond included plan limits.",
             LocaleKey::AutoFallbackHelp => {
                 "Auto falls back to the next source if the preferred one fails."
             }
@@ -709,6 +802,7 @@ impl LocaleKey {
             LocaleKey::Average => "Average",
             LocaleKey::OAuth => "OAuth",
             LocaleKey::Api => "API",
+            LocaleKey::Web => "Web",
 
             // General tab sections
             LocaleKey::PrivacyTitle => "Privacy",
@@ -733,11 +827,25 @@ impl LocaleKey {
             // Keyboard shortcuts
             LocaleKey::KeyboardShortcutsTitle => "Keyboard Shortcuts",
             LocaleKey::GlobalShortcutLabel => "Global Shortcut",
+            LocaleKey::GlobalShortcutHelper => "Press this shortcut to open CodexBar from anywhere",
             LocaleKey::ShortcutFormatHint => {
                 "Format: Ctrl+Shift+Key, Alt+Ctrl+Key, etc. Restart required to apply changes."
             }
             LocaleKey::Saved => "Saved (restart to apply)",
             LocaleKey::InvalidFormat => "Invalid shortcut format",
+            LocaleKey::ShortcutHintPlaceholder => "e.g., Ctrl+Shift+U",
+
+            // Display/Preferences helpers
+            LocaleKey::SurpriseAnimationsHelper => {
+                "Show occasional fun animations in the tray icon"
+            }
+            LocaleKey::SelectProvider => "Select a provider",
+
+            // Refresh interval labels
+            LocaleKey::RefreshInterval30Sec => "30 sec",
+            LocaleKey::RefreshInterval1Min => "1 min",
+            LocaleKey::RefreshInterval5Min => "5 min",
+            LocaleKey::RefreshInterval10Min => "10 min",
 
             // Cookies tab
             LocaleKey::BrowserCookiesTitle => "Browser Cookies",
@@ -789,6 +897,7 @@ impl LocaleKey {
             LocaleKey::TabCookies => "Cookie",
             LocaleKey::TabAdvanced => "高级",
             LocaleKey::TabAbout => "关于",
+            LocaleKey::TabShortcuts => "快捷键",
 
             // General settings
             LocaleKey::InterfaceLanguage => "界面语言",
@@ -832,6 +941,19 @@ impl LocaleKey {
             LocaleKey::ProviderUsage => "用量",
             LocaleKey::AuthType => "认证方式",
             LocaleKey::DataSource => "数据来源",
+            LocaleKey::ProviderNotDetected => "未检测到",
+            LocaleKey::ProviderLastFetchFailed => "上次获取失败",
+            LocaleKey::ProviderUsageNotFetchedYet => "尚未获取用量",
+            LocaleKey::ProviderNotFetchedYetTitle => "尚未获取",
+            LocaleKey::ProviderDisabledNoRecentData => "已禁用 — 没有最近数据",
+            LocaleKey::ProviderSourceAutoShort => "自动",
+            LocaleKey::ProviderSourceWebShort => "网页",
+            LocaleKey::ProviderSourceCliShort => "CLI",
+            LocaleKey::ProviderSourceOauthShort => "OAuth",
+            LocaleKey::ProviderSourceApiShort => "API",
+            LocaleKey::ProviderSourceGithubApiShort => "GitHub API",
+            LocaleKey::ProviderSourceLocalShort => "本地",
+            LocaleKey::ProviderSourceKiroEnvShort => "Kiro 环境",
             LocaleKey::TrackingItem => "追踪项",
             LocaleKey::MainWindowLiveUsageData => "主窗口实时用量数据",
             LocaleKey::StartTrackingUsage => "启用后开始追踪用量",
@@ -1048,15 +1170,43 @@ impl LocaleKey {
 
             // Provider detail - Settings section
             LocaleKey::ProviderSettingsTitle => "设置",
+            LocaleKey::ProviderAccountsTitle => "账号",
+            LocaleKey::ProviderOptionsTitle => "选项",
             LocaleKey::MenuBarMetric => "菜单栏指标",
-            LocaleKey::MenuBarMetricHelper => "选择由哪个时间窗口驱动菜单栏百分比",
+            LocaleKey::MenuBarMetricHelper => "选择由哪个窗口驱动菜单栏百分比。",
             LocaleKey::UsageSource => "用量来源",
+            LocaleKey::ProviderNoCodexAccountsDetected => "尚未检测到 Codex 账号。",
+            LocaleKey::ProviderCodexAutoImportHelp => "自动导入浏览器 Cookie 以补充仪表盘信息。",
+            LocaleKey::ProviderCodexHistoryHelp => {
+                "在本地保存 Codex 用量历史（8 周），用于个性化 Pace 预测。"
+            }
+            LocaleKey::ProviderOpenAiCookies => "OpenAI Cookie",
+            LocaleKey::ProviderHistoricalTracking => "历史追踪",
+            LocaleKey::ProviderOpenAiWebExtras => "OpenAI 网页扩展",
+            LocaleKey::ProviderOpenAiWebExtrasHelp => {
+                "通过 chatgpt.com 显示用量明细、额度历史和代码审查信息。"
+            }
+            LocaleKey::ProviderCodexCreditsUnavailable => {
+                "额度暂不可用；保持 Codex 运行后会自动刷新。"
+            }
+            LocaleKey::ProviderCodexLastFetchFailedTitle => "上次 Codex 获取失败：",
+            LocaleKey::ProviderCodexNotRunningHelp => "Codex 未运行。先运行一次 Codex 命令再试。",
+            LocaleKey::ProviderCookieSource => "Cookie 来源",
+            LocaleKey::ProviderClaudeCookies => "Claude Cookie",
+            LocaleKey::ProviderClaudeCookiesHelp => "自动导入浏览器 Cookie 用于网页 API。",
+            LocaleKey::ProviderClaudeAvoidKeychainPrompts => "避免钥匙串提示",
+            LocaleKey::ProviderClaudeAvoidKeychainPromptsHelp => {
+                "使用 /usr/bin/security 读取 Claude 凭据，避免 CodexBar 的钥匙串提示。"
+            }
+            LocaleKey::ProviderCursorCookieSourceHelp => "自动导入浏览器 Cookie 或已保存会话。",
+            LocaleKey::ProviderCursorCreditsHelp => "包含计划额度之外的按量计费用量。",
             LocaleKey::AutoFallbackHelp => "当首选来源失败时自动回退到下一个来源。",
             LocaleKey::ProviderSourceOauthWeb => "OAuth + 网页",
             LocaleKey::Automatic => "自动",
             LocaleKey::Average => "平均",
             LocaleKey::OAuth => "OAuth",
             LocaleKey::Api => "API",
+            LocaleKey::Web => "网页",
 
             // General tab sections
             LocaleKey::PrivacyTitle => "隐私",
@@ -1073,11 +1223,23 @@ impl LocaleKey {
             // Keyboard shortcuts
             LocaleKey::KeyboardShortcutsTitle => "快捷键",
             LocaleKey::GlobalShortcutLabel => "全局快捷键",
+            LocaleKey::GlobalShortcutHelper => "按此快捷键可从任何位置打开 CodexBar",
             LocaleKey::ShortcutFormatHint => {
                 "格式：Ctrl+Shift+Key、Alt+Ctrl+Key 等。需重启以应用更改。"
             }
             LocaleKey::Saved => "已保存（需重启以应用）",
             LocaleKey::InvalidFormat => "无效的快捷键格式",
+            LocaleKey::ShortcutHintPlaceholder => "例如：Ctrl+Shift+U",
+
+            // Display/Preferences helpers
+            LocaleKey::SurpriseAnimationsHelper => "在托盘图标中偶尔显示趣味动画",
+            LocaleKey::SelectProvider => "请选择服务商",
+
+            // Refresh interval labels
+            LocaleKey::RefreshInterval30Sec => "30 秒",
+            LocaleKey::RefreshInterval1Min => "1 分钟",
+            LocaleKey::RefreshInterval5Min => "5 分钟",
+            LocaleKey::RefreshInterval10Min => "10 分钟",
 
             // Cookies tab
             LocaleKey::BrowserCookiesTitle => "浏览器 Cookie",
@@ -1177,6 +1339,7 @@ mod tests {
             LocaleKey::TabCookies,
             LocaleKey::TabAdvanced,
             LocaleKey::TabAbout,
+            LocaleKey::TabShortcuts,
             // General settings
             LocaleKey::InterfaceLanguage,
             LocaleKey::StartupSettings,
