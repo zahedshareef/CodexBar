@@ -215,6 +215,13 @@ fn preferences_section_subtitle(tab: PreferencesTab) -> &'static str {
     }
 }
 
+fn preferences_tab_shell_label(ui_language: Language) -> &'static str {
+    match ui_language {
+        Language::Chinese => "偏好设置",
+        _ => "Preferences",
+    }
+}
+
 /// Preferences window state
 pub struct PreferencesWindow {
     pub is_open: bool,
@@ -2972,7 +2979,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             };
 
             let tab_label = match *tab {
-                PreferencesTab::Preferences => locale_text(ui_language, LocaleKey::TabGeneral),
+                PreferencesTab::Preferences => preferences_tab_shell_label(ui_language),
                 PreferencesTab::Accounts => locale_text(ui_language, LocaleKey::TabProviders),
                 PreferencesTab::Shortcuts => locale_text(ui_language, LocaleKey::TabShortcuts),
                 PreferencesTab::About => locale_text(ui_language, LocaleKey::TabAbout),
@@ -8528,30 +8535,32 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
                     let _ = open::that("https://github.com/steipete/CodexBar");
                 }
             });
-            ui.add_space(Spacing::XS);
-            if text_button(
-                ui,
-                locale_text(ui_language, LocaleKey::SubmitIssue),
-                Theme::ACCENT_PRIMARY,
-            ) {
-                let _ = open::that("https://github.com/Finesssee/Win-CodexBar/issues");
-            }
-            ui.add_space(Spacing::XS);
-            if ui
-                .add(
-                    egui::Button::new(
-                        RichText::new(locale_text(ui_language, LocaleKey::TrayCheckForUpdates))
-                            .size(FontSize::SM)
-                            .color(Theme::TEXT_PRIMARY),
+            ui.add_space(Spacing::SM);
+            ui.horizontal(|ui| {
+                if text_button(
+                    ui,
+                    locale_text(ui_language, LocaleKey::SubmitIssue),
+                    Theme::ACCENT_PRIMARY,
+                ) {
+                    let _ = open::that("https://github.com/Finesssee/Win-CodexBar/issues");
+                }
+                ui.add_space(Spacing::SM);
+                if ui
+                    .add(
+                        egui::Button::new(
+                            RichText::new(locale_text(ui_language, LocaleKey::TrayCheckForUpdates))
+                                .size(FontSize::SM)
+                                .color(Theme::TEXT_PRIMARY),
+                        )
+                        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                        .fill(Theme::CARD_BG)
+                        .rounding(Rounding::same(Radius::SM)),
                     )
-                    .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
-                    .fill(Theme::CARD_BG)
-                    .rounding(Rounding::same(Radius::SM)),
-                )
-                .clicked()
-            {
-                let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
-            }
+                    .clicked()
+                {
+                    let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
+                }
+            });
         });
     });
 
@@ -8710,10 +8719,10 @@ fn render_preferences_section_selector(
     ];
 
     egui::Frame::none()
-        .fill(Theme::NAV_BG.gamma_multiply(0.72))
-        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.5)))
+        .fill(Theme::NAV_BG.gamma_multiply(0.84))
+        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.56)))
         .rounding(Rounding::same(Radius::MD))
-        .inner_margin(egui::Margin::symmetric(4.0, 4.0))
+        .inner_margin(egui::Margin::symmetric(5.0, 5.0))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 for section in sections {
@@ -8728,17 +8737,17 @@ fn render_preferences_section_selector(
                             }),
                     )
                     .fill(if is_selected {
-                        Theme::CARD_BG
+                        Theme::BG_SECONDARY
                     } else {
                         Color32::TRANSPARENT
                     })
                     .stroke(if is_selected {
-                        Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.72))
+                        Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.34))
                     } else {
                         Stroke::NONE
                     })
                     .rounding(Rounding::same(Radius::SM))
-                    .min_size(Vec2::new(88.0, 28.0));
+                    .min_size(Vec2::new(90.0, 29.0));
 
                     if ui.add(button).clicked()
                         && let Ok(mut state) = shared_state.lock()
