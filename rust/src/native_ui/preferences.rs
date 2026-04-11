@@ -422,6 +422,16 @@ fn provider_detail_max_content_width() -> f32 {
     404.0
 }
 
+fn preferences_viewport_preferred_size(active_tab: PreferencesTab) -> Vec2 {
+    match active_tab {
+        PreferencesTab::Providers
+        | PreferencesTab::ApiKeys
+        | PreferencesTab::Cookies
+        | PreferencesTab::Accounts => egui::vec2(720.0, 580.0),
+        _ => egui::vec2(520.0, 580.0),
+    }
+}
+
 impl Default for PreferencesWindow {
     fn default() -> Self {
         let settings = Settings::load();
@@ -946,7 +956,7 @@ impl PreferencesWindow {
         let work_area = work_area_rect(ctx);
         let main_outer_rect = ctx.input(|i| i.viewport().outer_rect);
 
-        let preferred_size = egui::vec2(720.0, 660.0);
+        let preferred_size = preferences_viewport_preferred_size(self.active_tab);
         let default_min_size = egui::vec2(520.0, 420.0);
         let margin = 12.0;
         let settings_size = if let Some(area) = work_area {
@@ -8937,8 +8947,8 @@ mod tests {
         augment_cookie_source_label, compact_credentials_path, cursor_cookie_source_label,
         factory_cookie_source_label, gemini_cli_credentials_path, kimi_cookie_source_label,
         minimax_cookie_source_label, minimax_region_label, ollama_cookie_source_label,
-        opencode_cookie_source_label, preferences_tab_label, provider_detail_chrome,
-        provider_detail_display_text, provider_detail_max_content_width,
+        opencode_cookie_source_label, preferences_tab_label, preferences_viewport_preferred_size,
+        provider_detail_chrome, provider_detail_display_text, provider_detail_max_content_width,
         provider_detail_source_display, provider_detail_status_value, provider_detail_subtitle,
         provider_detail_text_chrome, provider_sidebar_display_lines, provider_sidebar_subtitle,
         providers_surface_palette, render_about_tab, set_merge_tray_icons,
@@ -9042,6 +9052,46 @@ mod tests {
         assert_eq!(
             preferences_tab_label(PreferencesTab::About, Language::English),
             "About"
+        );
+    }
+
+    #[test]
+    fn viewport_prefers_compact_width_for_non_provider_tabs() {
+        assert_eq!(
+            preferences_viewport_preferred_size(PreferencesTab::General),
+            egui::vec2(520.0, 580.0)
+        );
+        assert_eq!(
+            preferences_viewport_preferred_size(PreferencesTab::Display),
+            egui::vec2(520.0, 580.0)
+        );
+        assert_eq!(
+            preferences_viewport_preferred_size(PreferencesTab::Advanced),
+            egui::vec2(520.0, 580.0)
+        );
+        assert_eq!(
+            preferences_viewport_preferred_size(PreferencesTab::About),
+            egui::vec2(520.0, 580.0)
+        );
+    }
+
+    #[test]
+    fn viewport_keeps_accounts_tabs_wide_for_provider_detail_layout() {
+        assert_eq!(
+            preferences_viewport_preferred_size(PreferencesTab::Accounts),
+            egui::vec2(720.0, 580.0)
+        );
+        assert_eq!(
+            preferences_viewport_preferred_size(PreferencesTab::Providers),
+            egui::vec2(720.0, 580.0)
+        );
+        assert_eq!(
+            preferences_viewport_preferred_size(PreferencesTab::ApiKeys),
+            egui::vec2(720.0, 580.0)
+        );
+        assert_eq!(
+            preferences_viewport_preferred_size(PreferencesTab::Cookies),
+            egui::vec2(720.0, 580.0)
         );
     }
 
