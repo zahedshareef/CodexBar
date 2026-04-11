@@ -134,12 +134,14 @@ impl PreferencesTab {
         }
     }
 
-    /// The 4 intent-driven top-level categories shown in navigation
+    /// Mac-style top-level preferences categories, plus Windows shortcuts.
     fn top_level_tabs() -> &'static [PreferencesTab] {
         &[
-            PreferencesTab::Preferences,
+            PreferencesTab::General,
             PreferencesTab::Accounts,
+            PreferencesTab::Display,
             PreferencesTab::Shortcuts,
+            PreferencesTab::Advanced,
             PreferencesTab::About,
         ]
     }
@@ -215,10 +217,20 @@ fn preferences_section_subtitle(tab: PreferencesTab) -> &'static str {
     }
 }
 
-fn preferences_tab_shell_label(ui_language: Language) -> &'static str {
-    match ui_language {
-        Language::Chinese => "偏好设置",
-        _ => "Preferences",
+fn preferences_tab_label(tab: PreferencesTab, ui_language: Language) -> &'static str {
+    match tab {
+        PreferencesTab::General | PreferencesTab::Preferences => {
+            locale_text(ui_language, LocaleKey::TabGeneral)
+        }
+        PreferencesTab::Providers | PreferencesTab::Accounts => {
+            locale_text(ui_language, LocaleKey::TabProviders)
+        }
+        PreferencesTab::Display => locale_text(ui_language, LocaleKey::TabDisplay),
+        PreferencesTab::ApiKeys => locale_text(ui_language, LocaleKey::TabApiKeys),
+        PreferencesTab::Cookies => locale_text(ui_language, LocaleKey::TabCookies),
+        PreferencesTab::Advanced => locale_text(ui_language, LocaleKey::TabAdvanced),
+        PreferencesTab::About => locale_text(ui_language, LocaleKey::TabAbout),
+        PreferencesTab::Shortcuts => locale_text(ui_language, LocaleKey::TabShortcuts),
     }
 }
 
@@ -226,7 +238,6 @@ fn preferences_tab_shell_label(ui_language: Language) -> &'static str {
 pub struct PreferencesWindow {
     pub is_open: bool,
     pub active_tab: PreferencesTab,
-    preferences_section: PreferencesTab,
     pub settings: Settings,
     pub settings_changed: bool,
     cookies: ManualCookies,
@@ -256,7 +267,6 @@ pub struct PreferencesWindow {
 struct PreferencesSharedState {
     is_open: bool,
     active_tab: PreferencesTab,
-    preferences_section: PreferencesTab,
     settings: Settings,
     settings_changed: bool,
     cookies: ManualCookies,
@@ -422,7 +432,6 @@ impl Default for PreferencesWindow {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::General,
-            preferences_section: PreferencesTab::General,
             settings: settings.clone(),
             settings_changed: false,
             cookies: cookies.clone(),
@@ -462,7 +471,6 @@ impl Default for PreferencesWindow {
         Self {
             is_open: false,
             active_tab: PreferencesTab::General,
-            preferences_section: PreferencesTab::General,
             settings,
             settings_changed: false,
             cookies,
@@ -505,7 +513,6 @@ impl PreferencesWindow {
         if let Ok(mut state) = self.shared_state.lock() {
             state.is_open = true;
             state.active_tab = self.active_tab;
-            state.preferences_section = self.preferences_section;
             state.settings = self.settings.clone();
             state.cookies = self.cookies.clone();
             state.api_keys = self.api_keys.clone();
@@ -547,21 +554,9 @@ impl PreferencesWindow {
         }
 
         self.active_tab = target_tab;
-        if matches!(
-            target_tab,
-            PreferencesTab::General | PreferencesTab::Display | PreferencesTab::Advanced
-        ) {
-            self.preferences_section = target_tab;
-        }
         if let Ok(mut state) = self.shared_state.lock() {
             state.is_open = true;
             state.active_tab = target_tab;
-            if matches!(
-                target_tab,
-                PreferencesTab::General | PreferencesTab::Display | PreferencesTab::Advanced
-            ) {
-                state.preferences_section = target_tab;
-            }
         }
     }
 
@@ -2878,18 +2873,10 @@ fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
 /// Render the settings UI inside the viewport using shared state
 fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
     // Get current tab and language from shared state
-    let (active_tab, preferences_section, ui_language) = if let Ok(state) = shared_state.lock() {
-        (
-            state.active_tab,
-            state.preferences_section,
-            state.settings.ui_language,
-        )
+    let (active_tab, ui_language) = if let Ok(state) = shared_state.lock() {
+        (state.active_tab, state.settings.ui_language)
     } else {
-        (
-            PreferencesTab::Preferences,
-            PreferencesTab::General,
-            Language::English,
-        )
+        (PreferencesTab::General, Language::English)
     };
 
     #[cfg(debug_assertions)]
@@ -2900,12 +2887,10 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
     // Map legacy tabs to the consolidated categories for rendering
     let effective_tab = match active_tab {
-        PreferencesTab::General | PreferencesTab::Display | PreferencesTab::Advanced => {
-            PreferencesTab::Preferences
-        }
         PreferencesTab::Providers | PreferencesTab::ApiKeys | PreferencesTab::Cookies => {
             PreferencesTab::Accounts
         }
+        PreferencesTab::Preferences => PreferencesTab::General,
         other => other,
     };
 
@@ -2917,7 +2902,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
     ui.vertical(|ui| {
         // ═══════════════════════════════════════════════════════════
-        // COMMAND STRIP — 4 intent-driven tabs
+        // COMMAND STRIP — mac-style top-level preference tabs
         // ═══════════════════════════════════════════════════════════
         let tabs = PreferencesTab::top_level_tabs();
         let tab_height = 28.0;
@@ -2978,13 +2963,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 Theme::TAB_TEXT_INACTIVE.gamma_multiply(1.18)
             };
 
-            let tab_label = match *tab {
-                PreferencesTab::Preferences => preferences_tab_shell_label(ui_language),
-                PreferencesTab::Accounts => locale_text(ui_language, LocaleKey::TabProviders),
-                PreferencesTab::Shortcuts => locale_text(ui_language, LocaleKey::TabShortcuts),
-                PreferencesTab::About => locale_text(ui_language, LocaleKey::TabAbout),
-                _ => tab.label(),
-            };
+            let tab_label = preferences_tab_label(*tab, ui_language);
 
             // Icon + label centered
             let center = tab_rect.center();
@@ -3052,7 +3031,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 // Accounts = Providers sidebar/detail + API Keys + Cookies
                 render_providers_tab_layout(ui, content_height, shared_state);
             }
-            PreferencesTab::Preferences => {
+            PreferencesTab::General => {
                 egui::Frame::none()
                     .fill(content_fill)
                     .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::MD))
@@ -3062,19 +3041,37 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                             .max_height(content_height)
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                render_preferences_section_selector(
-                                    ui,
-                                    shared_state,
-                                    preferences_section,
-                                );
-                                ui.add_space(Spacing::LG);
-                                match preferences_section {
-                                    PreferencesTab::Display => render_display_tab(ui, shared_state),
-                                    PreferencesTab::Advanced => {
-                                        render_advanced_tab(ui, shared_state)
-                                    }
-                                    _ => render_general_tab(ui, shared_state),
-                                }
+                                render_general_tab(ui, shared_state);
+                                ui.add_space(Spacing::XL);
+                            });
+                    });
+            }
+            PreferencesTab::Display => {
+                egui::Frame::none()
+                    .fill(content_fill)
+                    .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::MD))
+                    .show(ui, |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_salt("settings_content_display")
+                            .max_height(content_height)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                render_display_tab(ui, shared_state);
+                                ui.add_space(Spacing::XL);
+                            });
+                    });
+            }
+            PreferencesTab::Advanced => {
+                egui::Frame::none()
+                    .fill(content_fill)
+                    .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::MD))
+                    .show(ui, |ui| {
+                        egui::ScrollArea::vertical()
+                            .id_salt("settings_content_advanced")
+                            .max_height(content_height)
+                            .auto_shrink([false, false])
+                            .show(ui, |ui| {
+                                render_advanced_tab(ui, shared_state);
                                 ui.add_space(Spacing::XL);
                             });
                     });
@@ -8741,58 +8738,6 @@ fn preferences_pane_header(ui: &mut egui::Ui, title: &str, subtitle: &str) {
     ui.add_space(Spacing::SM);
 }
 
-fn render_preferences_section_selector(
-    ui: &mut egui::Ui,
-    shared_state: &Arc<Mutex<PreferencesSharedState>>,
-    current: PreferencesTab,
-) {
-    let sections = [
-        PreferencesTab::General,
-        PreferencesTab::Display,
-        PreferencesTab::Advanced,
-    ];
-
-    egui::Frame::none()
-        .fill(Theme::NAV_BG.gamma_multiply(0.84))
-        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.56)))
-        .rounding(Rounding::same(Radius::MD))
-        .inner_margin(egui::Margin::symmetric(5.0, 5.0))
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                for section in sections {
-                    let is_selected = current == section;
-                    let button = egui::Button::new(
-                        RichText::new(preferences_section_title(section))
-                            .size(FontSize::SM)
-                            .color(if is_selected {
-                                Theme::TEXT_PRIMARY
-                            } else {
-                                Theme::TEXT_SECONDARY
-                            }),
-                    )
-                    .fill(if is_selected {
-                        Theme::BG_SECONDARY
-                    } else {
-                        Color32::TRANSPARENT
-                    })
-                    .stroke(if is_selected {
-                        Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.34))
-                    } else {
-                        Stroke::NONE
-                    })
-                    .rounding(Rounding::same(Radius::SM))
-                    .min_size(Vec2::new(90.0, 29.0));
-
-                    if ui.add(button).clicked()
-                        && let Ok(mut state) = shared_state.lock()
-                    {
-                        state.preferences_section = section;
-                    }
-                }
-            });
-        });
-}
-
 /// Settings card container - light grouping via spacing, no heavy chrome
 fn settings_card(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::none()
@@ -8992,13 +8937,13 @@ mod tests {
         augment_cookie_source_label, compact_credentials_path, cursor_cookie_source_label,
         factory_cookie_source_label, gemini_cli_credentials_path, kimi_cookie_source_label,
         minimax_cookie_source_label, minimax_region_label, ollama_cookie_source_label,
-        opencode_cookie_source_label, provider_detail_chrome, provider_detail_display_text,
-        provider_detail_max_content_width, provider_detail_source_display,
-        provider_detail_status_value, provider_detail_subtitle, provider_detail_text_chrome,
-        provider_sidebar_display_lines, provider_sidebar_subtitle, providers_surface_palette,
-        render_about_tab, set_merge_tray_icons, set_per_provider_tray_icons, settings_nav_chrome,
-        should_show_token_accounts_section, shows_shared_provider_settings,
-        vertexai_credentials_path, zai_region_label,
+        opencode_cookie_source_label, preferences_tab_label, provider_detail_chrome,
+        provider_detail_display_text, provider_detail_max_content_width,
+        provider_detail_source_display, provider_detail_status_value, provider_detail_subtitle,
+        provider_detail_text_chrome, provider_sidebar_display_lines, provider_sidebar_subtitle,
+        providers_surface_palette, render_about_tab, set_merge_tray_icons,
+        set_per_provider_tray_icons, settings_nav_chrome, should_show_token_accounts_section,
+        shows_shared_provider_settings, vertexai_credentials_path, zai_region_label,
     };
     use crate::browser::detection::BrowserType;
     use crate::core::{ProviderAccountData, ProviderId, WidgetProviderEntry};
@@ -9044,6 +8989,10 @@ mod tests {
             Some(PreferencesTab::Preferences)
         );
         assert_eq!(
+            PreferencesTab::from_test_label("general"),
+            Some(PreferencesTab::General)
+        );
+        assert_eq!(
             PreferencesTab::from_test_label("accounts"),
             Some(PreferencesTab::Accounts)
         );
@@ -9054,6 +9003,45 @@ mod tests {
         assert_eq!(
             PreferencesTab::from_test_label("about"),
             Some(PreferencesTab::About)
+        );
+    }
+
+    #[test]
+    fn top_level_tabs_match_mac_preferences_shape_with_windows_shortcuts() {
+        assert_eq!(
+            PreferencesTab::top_level_tabs(),
+            &[
+                PreferencesTab::General,
+                PreferencesTab::Accounts,
+                PreferencesTab::Display,
+                PreferencesTab::Shortcuts,
+                PreferencesTab::Advanced,
+                PreferencesTab::About,
+            ]
+        );
+    }
+
+    #[test]
+    fn top_level_tab_labels_use_mac_names_for_consolidated_windows_tabs() {
+        assert_eq!(
+            preferences_tab_label(PreferencesTab::General, Language::English),
+            "General"
+        );
+        assert_eq!(
+            preferences_tab_label(PreferencesTab::Accounts, Language::English),
+            "Providers"
+        );
+        assert_eq!(
+            preferences_tab_label(PreferencesTab::Display, Language::English),
+            "Display"
+        );
+        assert_eq!(
+            preferences_tab_label(PreferencesTab::Advanced, Language::English),
+            "Advanced"
+        );
+        assert_eq!(
+            preferences_tab_label(PreferencesTab::About, Language::English),
+            "About"
         );
     }
 
@@ -9464,7 +9452,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings {
                 cursor_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9527,7 +9514,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings {
                 opencode_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9590,7 +9576,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings {
                 factory_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9653,7 +9638,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings {
                 alibaba_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9814,7 +9798,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings {
                 minimax_cookie_source: "manual".to_string(),
                 minimax_api_token: String::new(),
@@ -9866,7 +9849,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings {
                 minimax_cookie_source: "manual".to_string(),
                 minimax_api_token: "mmx-secret".to_string(),
@@ -9918,7 +9900,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings {
                 augment_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9969,7 +9950,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings {
                 amp_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -10020,7 +10000,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings {
                 ollama_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -10087,7 +10066,6 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
-            preferences_section: PreferencesTab::General,
             settings: Settings::default(),
             settings_changed: false,
             cookies: Default::default(),
