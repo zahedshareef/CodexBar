@@ -2893,26 +2893,38 @@ impl eframe::App for CodexBarApp {
                                     // ── Provider usage cards ──
                                     for (idx, (_, provider)) in visible_providers.iter().enumerate() {
                                         if idx > 0 {
-                                            ui.add_space(2.0);
+                                            ui.add_space(Spacing::XS);
                                         }
 
                                         let brand_color = provider_color(&provider.name);
-                                        let card_h = 52.0;
+                                        let card_h = 56.0;
                                         let avail_w = ui.available_width();
 
                                         let (rect, response) = ui.allocate_exact_size(
                                             Vec2::new(avail_w, card_h), egui::Sense::click());
 
-                                        // Background: subtle on hover only
-                                        if response.hovered() {
-                                            ui.painter().rect_filled(rect, Rounding::same(Radius::SM), Theme::CARD_BG_HOVER);
-                                        }
+                                        let card_fill = if response.hovered() {
+                                            Color32::from_rgb(40, 40, 47)
+                                        } else {
+                                            Color32::from_rgb(33, 33, 39)
+                                        };
+                                        let card_stroke = if response.hovered() {
+                                            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 18))
+                                        } else {
+                                            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 10))
+                                        };
+                                        ui.painter().rect(
+                                            rect,
+                                            Rounding::same(Radius::MD),
+                                            card_fill,
+                                            card_stroke,
+                                        );
 
-                                        let left_x = rect.min.x + 4.0;
-                                        let right_x = rect.max.x - 4.0;
-                                        let top_y = rect.min.y + 8.0;
+                                        let left_x = rect.min.x + 10.0;
+                                        let right_x = rect.max.x - 12.0;
+                                        let top_y = rect.min.y + 9.0;
 
-                                        // Row 1: [icon] Provider Name ............. 72% left
+                                        // Row 1: [icon] Provider Name ............. Session · 72% used
                                         let icon_sz = 14.0;
                                         if let Some(tex) = self.icon_cache.get_icon(ui.ctx(), &provider.name, icon_sz as u32) {
                                             let ir = Rect::from_min_size(
@@ -2979,27 +2991,31 @@ impl eframe::App for CodexBarApp {
                                             let pct_label = usage_display_label(display_pct, show_as_used, ui_language);
                                             let label = format!("{} · {}", tag, pct_label);
                                             ui.painter().text(
-                                                egui::pos2(right_x, top_y + 2.0),
+                                                egui::pos2(right_x - 14.0, top_y + 2.0),
                                                 egui::Align2::RIGHT_TOP,
                                                 &label,
-                                                egui::FontId::proportional(FontSize::XS),
-                                                Theme::TEXT_PRIMARY,
+                                                egui::FontId::proportional(FontSize::INDICATOR),
+                                                Theme::TEXT_SECONDARY,
                                             );
                                         }
 
                                         // Row 2: progress bar + detail text
-                                        let bar_y = top_y + 20.0;
+                                        let bar_y = top_y + 23.0;
                                         let bar_h = 4.0;
 
                                         if provider.error.is_none() {
                                             if let Some((pct, _, ref detail)) = primary_metric {
                                                 let display_pct = usage_display_percent(pct, show_as_used);
-                                                let bar_w = right_x - name_x;
+                                                let bar_w = (right_x - 14.0) - name_x;
 
                                                 // Track
                                                 let track = Rect::from_min_size(
                                                     egui::pos2(name_x, bar_y), Vec2::new(bar_w, bar_h));
-                                                ui.painter().rect_filled(track, Rounding::same(2.0), Theme::progress_track());
+                                                ui.painter().rect_filled(
+                                                    track,
+                                                    Rounding::same(2.0),
+                                                    Color32::from_rgba_unmultiplied(255, 255, 255, 20),
+                                                );
 
                                                 // Fill
                                                 let fill_w = bar_w * (display_pct as f32 / 100.0).clamp(0.0, 1.0);
@@ -3029,17 +3045,17 @@ impl eframe::App for CodexBarApp {
                                                 let detail_y = bar_y + bar_h + 4.0;
                                                 let dot_color = status_color(provider.status_level);
                                                 ui.painter().circle_filled(
-                                                    egui::pos2(right_x, detail_y + 4.0), 2.5, dot_color);
+                                                    egui::pos2(right_x - 14.0, detail_y + 4.0), 2.5, dot_color);
                                             }
                                         }
 
-                                        // Drill-down chevron (subtle)
+                                        // Drill-down chevron (subtle, within card bounds)
                                         ui.painter().text(
-                                            egui::pos2(rect.max.x + 1.0, rect.center().y),
+                                            egui::pos2(rect.max.x - 10.0, rect.center().y),
                                             egui::Align2::RIGHT_CENTER,
                                             "›",
-                                            egui::FontId::proportional(FontSize::MD),
-                                            if response.hovered() { Theme::TEXT_SECONDARY } else { Theme::TEXT_DIM },
+                                            egui::FontId::proportional(FontSize::SM),
+                                            if response.hovered() { Theme::TEXT_SECONDARY } else { Theme::TEXT_MUTED },
                                         );
 
                                         if response.clicked()
@@ -3183,8 +3199,13 @@ impl eframe::App for CodexBarApp {
                         let refresh_resp = ui.add(
                             egui::Button::new(
                                 RichText::new(format!("↻  {}", locale_text(self.settings.ui_language, LocaleKey::ActionRefresh)))
-                                    .size(FontSize::SM).color(Theme::TEXT_SECONDARY)
-                            ).fill(Color32::TRANSPARENT).stroke(Stroke::NONE)
+                                    .size(FontSize::XS)
+                                    .color(Theme::TEXT_SECONDARY)
+                            )
+                            .min_size(Vec2::new(74.0, 22.0))
+                            .fill(Color32::from_rgba_unmultiplied(255, 255, 255, 8))
+                            .stroke(Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 12)))
+                            .rounding(Rounding::same(Radius::PILL))
                         );
                         if refresh_resp.clicked() && !is_refreshing {
                             self.refresh_providers();
@@ -3205,8 +3226,13 @@ impl eframe::App for CodexBarApp {
                             let settings_resp = ui.add(
                                 egui::Button::new(
                                     RichText::new(format!("⚙  {}", locale_text(self.settings.ui_language, LocaleKey::MenuSettings)))
-                                        .size(FontSize::SM).color(Theme::TEXT_SECONDARY)
-                                ).fill(Color32::TRANSPARENT).stroke(Stroke::NONE)
+                                        .size(FontSize::XS)
+                                        .color(Theme::TEXT_SECONDARY)
+                                )
+                                .min_size(Vec2::new(78.0, 22.0))
+                                .fill(Color32::from_rgba_unmultiplied(255, 255, 255, 8))
+                                .stroke(Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 12)))
+                                .rounding(Rounding::same(Radius::PILL))
                             );
                             if settings_resp.clicked() {
                                 self.preferences_window.open();
@@ -3794,7 +3820,7 @@ fn draw_provider_detail_card(
                 ProviderId::from_cli_name(&provider.name).unwrap_or(ProviderId::Claude),
             ) && draw_menu_item(
                 ui,
-                "->",
+                "⇄",
                 locale_text(ui_language, LocaleKey::ActionSwitchAccount),
             ) {
                 account_switch_requested = Some(provider.name.clone());
@@ -3805,7 +3831,7 @@ fn draw_provider_detail_card(
                 let dashboard_url = url.clone();
                 if draw_menu_item(
                     ui,
-                    "📊",
+                    "↗",
                     locale_text(ui_language, LocaleKey::ActionUsageDashboard),
                 ) {
                     let _ = open::that(&dashboard_url);
@@ -3816,7 +3842,7 @@ fn draw_provider_detail_card(
             if let Some(status_url) = get_status_page_url(&provider.name)
                 && draw_menu_item(
                     ui,
-                    "⚡",
+                    "!",
                     locale_text(ui_language, LocaleKey::ActionStatusPage),
                 )
             {
@@ -3828,7 +3854,7 @@ fn draw_provider_detail_card(
                 let error_text = error.clone();
                 if draw_menu_item(
                     ui,
-                    "📋",
+                    "⧉",
                     locale_text(ui_language, LocaleKey::ActionCopyError),
                 ) && let Ok(mut clipboard) = arboard::Clipboard::new()
                 {
@@ -3989,39 +4015,63 @@ fn draw_menu_item(ui: &mut egui::Ui, icon: &str, label: &str) -> bool {
     let available_width = ui.available_width();
 
     let (rect, response) =
-        ui.allocate_exact_size(Vec2::new(available_width, 26.0), egui::Sense::click());
+        ui.allocate_exact_size(Vec2::new(available_width, 24.0), egui::Sense::click());
 
     let is_hovered = response.hovered();
 
-    if is_hovered {
-        ui.painter()
-            .rect_filled(rect, Rounding::same(Radius::XS), Theme::menu_hover());
-    }
+    let bg_fill = if is_hovered {
+        Color32::from_rgba_unmultiplied(255, 255, 255, 10)
+    } else {
+        Color32::TRANSPARENT
+    };
+    ui.painter()
+        .rect_filled(rect, Rounding::same(Radius::SM), bg_fill);
 
     let text_color = if is_hovered {
         Theme::TEXT_PRIMARY
     } else {
-        Theme::TEXT_MUTED
+        Theme::TEXT_SECONDARY
     };
 
-    // Icon
-    let icon_pos = egui::pos2(rect.min.x + Spacing::XXS, rect.center().y);
+    let icon_bg = Rect::from_center_size(
+        egui::pos2(rect.min.x + 10.0, rect.center().y),
+        Vec2::new(14.0, 14.0),
+    );
+    ui.painter().rect_filled(
+        icon_bg,
+        Rounding::same(Radius::PILL),
+        Color32::from_rgba_unmultiplied(255, 255, 255, if is_hovered { 18 } else { 10 }),
+    );
+
+    let icon_pos = egui::pos2(icon_bg.center().x, rect.center().y);
     ui.painter().text(
         icon_pos,
-        egui::Align2::LEFT_CENTER,
+        egui::Align2::CENTER_CENTER,
         icon,
-        egui::FontId::proportional(FontSize::SM),
+        egui::FontId::proportional(FontSize::INDICATOR),
         text_color,
     );
 
     // Label
-    let label_pos = egui::pos2(rect.min.x + Spacing::XXS + 18.0, rect.center().y);
+    let label_pos = egui::pos2(rect.min.x + 24.0, rect.center().y);
     ui.painter().text(
         label_pos,
         egui::Align2::LEFT_CENTER,
         label,
         egui::FontId::proportional(FontSize::XS),
         text_color,
+    );
+
+    ui.painter().text(
+        egui::pos2(rect.max.x - 8.0, rect.center().y),
+        egui::Align2::RIGHT_CENTER,
+        "›",
+        egui::FontId::proportional(FontSize::INDICATOR),
+        if is_hovered {
+            Theme::TEXT_SECONDARY
+        } else {
+            Theme::TEXT_MUTED
+        },
     );
 
     response.clicked()
