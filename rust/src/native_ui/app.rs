@@ -2158,10 +2158,12 @@ impl eframe::App for CodexBarApp {
                     }
                     super::test_server::TestInput::SelectPreferencesTab { tab } => {
                         self.preferences_window.select_tab_for_testing(&tab);
+                        ctx.request_repaint();
                     }
                     super::test_server::TestInput::SelectPreferencesProvider { provider } => {
                         self.preferences_window
                             .select_provider_for_testing(&provider);
+                        ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetSingleTrayState {
                         state,

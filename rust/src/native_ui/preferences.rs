@@ -385,7 +385,7 @@ fn providers_surface_palette() -> ProvidersSurfacePalette {
 fn settings_nav_chrome() -> SettingsNavChrome {
     SettingsNavChrome {
         selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 10),
-        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 20)),
+        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 18)),
         hover_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 4),
     }
 }
@@ -428,7 +428,7 @@ fn preferences_viewport_preferred_size(active_tab: PreferencesTab) -> Vec2 {
         | PreferencesTab::ApiKeys
         | PreferencesTab::Cookies
         | PreferencesTab::Accounts => egui::vec2(720.0, 580.0),
-        _ => egui::vec2(520.0, 580.0),
+        _ => egui::vec2(500.0, 580.0),
     }
 }
 
@@ -1057,6 +1057,8 @@ impl PreferencesWindow {
                                 path.display(),
                                 state.pending_screenshot_attempts
                             ));
+                            state.pending_screenshot_path = None;
+                            state.pending_screenshot_delay_frames = 0;
                         }
                     }
                 }
@@ -2915,7 +2917,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         // COMMAND STRIP — mac-style top-level preference tabs
         // ═══════════════════════════════════════════════════════════
         let tabs = PreferencesTab::top_level_tabs();
-        let tab_height = 28.0;
+        let tab_height = 44.0;
         let nav_padding = Spacing::SM;
         let nav_chrome = settings_nav_chrome();
 
@@ -2945,21 +2947,21 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             );
 
             if is_selected {
-                let selected_rect = tab_rect.shrink2(Vec2::new(7.0, 5.0));
+                let selected_rect = tab_rect.shrink2(Vec2::new(8.0, 4.0));
                 ui.painter().rect_filled(
                     selected_rect,
-                    Rounding::same(6.0),
+                    Rounding::same(7.0),
                     nav_chrome.selected_fill,
                 );
                 ui.painter().rect_stroke(
                     selected_rect,
-                    Rounding::same(6.0),
+                    Rounding::same(7.0),
                     nav_chrome.selected_stroke,
                 );
             } else if response.hovered() {
-                let hover_rect = tab_rect.shrink2(Vec2::new(7.0, 5.0));
+                let hover_rect = tab_rect.shrink2(Vec2::new(8.0, 4.0));
                 ui.painter()
-                    .rect_filled(hover_rect, Rounding::same(6.0), nav_chrome.hover_fill);
+                    .rect_filled(hover_rect, Rounding::same(7.0), nav_chrome.hover_fill);
             }
 
             let icon_color = if is_selected {
@@ -2975,28 +2977,20 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
             let tab_label = preferences_tab_label(*tab, ui_language);
 
-            // Icon + label centered
+            // Icon above label centered, closer to the mac preferences chrome
             let center = tab_rect.center();
-            let label_galley = ui.painter().layout_no_wrap(
-                tab_label.to_string(),
-                egui::FontId::proportional(FontSize::SM),
-                Color32::WHITE,
-            );
-            let total_content_width = 13.0 + 4.0 + label_galley.size().x;
-            let start_x = center.x - total_content_width / 2.0;
-
             ui.painter().text(
-                egui::pos2(start_x, center.y),
-                egui::Align2::LEFT_CENTER,
+                egui::pos2(center.x, center.y - 7.5),
+                egui::Align2::CENTER_CENTER,
                 tab.icon(),
-                egui::FontId::proportional(12.0),
+                egui::FontId::proportional(16.0),
                 icon_color,
             );
             ui.painter().text(
-                egui::pos2(start_x + 17.0, center.y),
-                egui::Align2::LEFT_CENTER,
+                egui::pos2(center.x, center.y + 9.5),
+                egui::Align2::CENTER_CENTER,
                 tab_label,
-                egui::FontId::proportional(FontSize::SM),
+                egui::FontId::proportional(FontSize::XS),
                 label_color,
             );
 
@@ -7088,426 +7082,129 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         Language::English
     };
 
-    preferences_pane_header(
-        ui,
-        preferences_section_title(PreferencesTab::General),
-        preferences_section_subtitle(PreferencesTab::General),
-    );
-
-    // LANGUAGE section - at the top of General tab
-    section_header(ui, locale_text(ui_language, LocaleKey::InterfaceLanguage));
-
-    settings_card(ui, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(locale_text(ui_language, LocaleKey::InterfaceLanguage))
-                    .size(FontSize::MD)
-                    .color(Theme::TEXT_PRIMARY),
-            );
-            ui.add_space(Spacing::MD);
-
-            // Language selector ComboBox
-            let current_language = if let Ok(state) = shared_state.lock() {
-                state.settings.ui_language
-            } else {
-                Language::English
-            };
-            let current_label = current_language.display_name();
-
-            egui::ComboBox::from_id_salt("language_selector_viewport")
-                .selected_text(current_label)
-                .show_ui(ui, |ui| {
-                    for lang in Language::all() {
-                        let is_selected = current_language == *lang;
-                        if ui
-                            .selectable_label(is_selected, lang.display_name())
-                            .clicked()
-                            && let Ok(mut state) = shared_state.lock()
-                        {
-                            state.settings.ui_language = *lang;
-                            state.settings_changed = true;
-                        }
-                    }
-                });
-        });
-    });
-
-    ui.add_space(Spacing::MD);
-
-    section_header(ui, locale_text(ui_language, LocaleKey::StartupSettings));
-
-    settings_card(ui, |ui| {
-        let mut start_at_login = if let Ok(state) = shared_state.lock() {
-            state.settings.start_at_login
-        } else {
-            false
-        };
-
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::StartAtLogin),
-            locale_text(ui_language, LocaleKey::StartAtLoginHelper),
-            &mut start_at_login,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            if let Err(e) = state.settings.set_start_at_login(start_at_login) {
-                tracing::error!("Failed to set start at login: {}", e);
-            } else {
-                state.settings_changed = true;
-            }
-        }
-
-        setting_divider(ui);
-
-        let mut start_minimized = if let Ok(state) = shared_state.lock() {
-            state.settings.start_minimized
-        } else {
-            false
-        };
-
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::StartMinimized),
-            locale_text(ui_language, LocaleKey::StartMinimizedHelper),
-            &mut start_minimized,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            state.settings.start_minimized = start_minimized;
-            state.settings_changed = true;
-        }
-    });
-
-    ui.add_space(Spacing::MD);
-
-    section_header(ui, locale_text(ui_language, LocaleKey::ShowNotifications));
-
-    settings_card(ui, |ui| {
-        let mut show_notifications = if let Ok(state) = shared_state.lock() {
-            state.settings.show_notifications
-        } else {
-            true
-        };
-
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::ShowNotifications),
-            locale_text(ui_language, LocaleKey::ShowNotificationsHelper),
-            &mut show_notifications,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            state.settings.show_notifications = show_notifications;
-            state.settings_changed = true;
-        }
-
-        setting_divider(ui);
-
-        // Sound effects toggle
-        let mut sound_enabled = if let Ok(state) = shared_state.lock() {
-            state.settings.sound_enabled
-        } else {
-            true
-        };
-
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::SoundEnabled),
-            locale_text(ui_language, LocaleKey::SoundEnabledHelper),
-            &mut sound_enabled,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            state.settings.sound_enabled = sound_enabled;
-            state.settings_changed = true;
-        }
-
-        // Sound volume slider (only show if sound is enabled)
-        if sound_enabled {
-            setting_divider(ui);
-
-            ui.vertical(|ui| {
-                let mut volume = if let Ok(state) = shared_state.lock() {
-                    state.settings.sound_volume as i32
-                } else {
-                    100
-                };
-
-                // Title row with volume badge on right
-                ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new(locale_text(ui_language, LocaleKey::SoundVolume))
-                            .size(FontSize::MD)
-                            .color(Theme::TEXT_PRIMARY),
-                    );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        egui::Frame::none()
-                            .fill(Theme::ACCENT_PRIMARY.gamma_multiply(0.15))
-                            .rounding(Rounding::same(10.0))
-                            .inner_margin(egui::Margin::symmetric(10.0, 3.0))
-                            .show(ui, |ui| {
-                                ui.label(
-                                    RichText::new(format!("{}%", volume))
-                                        .size(FontSize::SM)
-                                        .color(Theme::ACCENT_PRIMARY)
-                                        .strong(),
-                                );
-                            });
-                    });
-                });
-
-                ui.add_space(2.0);
-                ui.label(
-                    RichText::new(locale_text(ui_language, LocaleKey::SoundVolume))
-                        .size(FontSize::SM)
-                        .color(Theme::TEXT_MUTED),
-                );
-                ui.add_space(6.0);
-
-                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
-
-                let slider = ui.add(
-                    egui::Slider::new(&mut volume, 0..=100)
-                        .show_value(false)
-                        .trailing_fill(true),
-                );
-
-                if slider.changed()
-                    && let Ok(mut state) = shared_state.lock()
-                {
-                    state.settings.sound_volume = volume as u8;
-                    state.settings_changed = true;
-                }
-            });
-        }
-
-        setting_divider(ui);
-
-        // High warning threshold
-        ui.vertical(|ui| {
-            let mut threshold = if let Ok(state) = shared_state.lock() {
-                state.settings.high_usage_threshold as i32
-            } else {
-                70
-            };
-
-            // Title row with percentage badge on right
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(locale_text(ui_language, LocaleKey::HighUsageAlert))
-                        .size(FontSize::MD)
-                        .color(Theme::TEXT_PRIMARY),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    egui::Frame::none()
-                        .fill(Theme::ACCENT_PRIMARY.gamma_multiply(0.15))
-                        .rounding(Rounding::same(10.0))
-                        .inner_margin(egui::Margin::symmetric(10.0, 3.0))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(format!("{}%", threshold))
-                                    .size(FontSize::SM)
-                                    .color(Theme::ACCENT_PRIMARY)
-                                    .strong(),
-                            );
-                        });
-                });
-            });
-
-            ui.add_space(2.0);
-            ui.label(
-                RichText::new(locale_text(
-                    ui_language,
-                    LocaleKey::HighUsageThresholdHelper,
-                ))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_MUTED),
-            );
-            ui.add_space(6.0);
-
-            ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
-
-            let slider = ui.add(
-                egui::Slider::new(&mut threshold, 50..=95)
-                    .show_value(false)
-                    .trailing_fill(true),
-            );
-
-            if slider.changed()
-                && let Ok(mut state) = shared_state.lock()
-            {
-                state.settings.high_usage_threshold = threshold as f64;
-                state.settings_changed = true;
-            }
-        });
-
-        setting_divider(ui);
-
-        // Critical alert threshold
-        ui.vertical(|ui| {
-            let mut threshold = if let Ok(state) = shared_state.lock() {
-                state.settings.critical_usage_threshold as i32
-            } else {
-                90
-            };
-
-            let badge_color = Color32::from_rgb(239, 68, 68);
-
-            // Title row with percentage badge on right
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(locale_text(ui_language, LocaleKey::CriticalUsageAlert))
-                        .size(FontSize::MD)
-                        .color(Theme::TEXT_PRIMARY),
-                );
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    egui::Frame::none()
-                        .fill(badge_color.gamma_multiply(0.15))
-                        .rounding(Rounding::same(10.0))
-                        .inner_margin(egui::Margin::symmetric(10.0, 3.0))
-                        .show(ui, |ui| {
-                            ui.label(
-                                RichText::new(format!("{}%", threshold))
-                                    .size(FontSize::SM)
-                                    .color(badge_color)
-                                    .strong(),
-                            );
-                        });
-                });
-            });
-
-            ui.add_space(2.0);
-            ui.label(
-                RichText::new(locale_text(
-                    ui_language,
-                    LocaleKey::CriticalUsageThresholdHelper,
-                ))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_MUTED),
-            );
-            ui.add_space(6.0);
-
-            ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
-
-            let slider = ui.add(
-                egui::Slider::new(&mut threshold, 80..=100)
-                    .show_value(false)
-                    .trailing_fill(true),
-            );
-
-            if slider.changed()
-                && let Ok(mut state) = shared_state.lock()
-            {
-                state.settings.critical_usage_threshold = threshold as f64;
-                state.settings_changed = true;
-            }
-        });
-    });
-
-    ui.add_space(Spacing::MD);
-
-    section_header(ui, locale_text(ui_language, LocaleKey::UpdatesTitle));
-
-    settings_card(ui, |ui| {
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new(locale_text(ui_language, LocaleKey::UpdateChannelChoice))
-                        .size(FontSize::MD)
-                        .color(Theme::TEXT_PRIMARY),
-                );
-                ui.label(
-                    RichText::new(locale_text(
-                        ui_language,
-                        LocaleKey::UpdateChannelChoiceHelper,
-                    ))
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_MUTED),
-                );
-            });
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let current_channel = if let Ok(state) = shared_state.lock() {
-                    state.settings.update_channel
-                } else {
-                    crate::settings::UpdateChannel::Stable
-                };
-
-                egui::Frame::none()
-                    .fill(Theme::BG_TERTIARY)
-                    .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
-                    .rounding(Rounding::same(Radius::SM))
-                    .inner_margin(egui::Margin::symmetric(Spacing::XS, 2.0))
-                    .show(ui, |ui| {
-                        let channels = [
-                            (
-                                crate::settings::UpdateChannel::Stable,
-                                locale_text(ui_language, LocaleKey::UpdateChannelStable),
-                            ),
-                            (
-                                crate::settings::UpdateChannel::Beta,
-                                locale_text(ui_language, LocaleKey::UpdateChannelBeta),
-                            ),
-                        ];
-
-                        let mut selected = current_channel;
-                        egui::ComboBox::from_id_salt("update_channel")
-                            .selected_text(
-                                channels
-                                    .iter()
-                                    .find(|(ch, _)| *ch == selected)
-                                    .map(|(_, label)| *label)
-                                    .unwrap_or(locale_text(
-                                        ui_language,
-                                        LocaleKey::UpdateChannelStable,
-                                    )),
-                            )
-                            .show_ui(ui, |ui| {
-                                for (channel, label) in channels {
-                                    if ui.selectable_value(&mut selected, channel, label).changed()
-                                        && let Ok(mut state) = shared_state.lock()
-                                    {
-                                        state.settings.update_channel = selected;
-                                        state.settings_changed = true;
-                                    }
-                                }
-                            });
-                    });
-            });
-
-            setting_divider(ui);
-
-            let mut auto_download_updates = if let Ok(state) = shared_state.lock() {
-                state.settings.auto_download_updates
-            } else {
-                true
-            };
-
-            if setting_toggle(
-                ui,
-                locale_text(ui_language, LocaleKey::AutoDownloadUpdates),
-                locale_text(ui_language, LocaleKey::AutoDownloadUpdatesHelper),
-                &mut auto_download_updates,
-            ) && let Ok(mut state) = shared_state.lock()
-            {
-                state.settings.auto_download_updates = auto_download_updates;
-                state.settings_changed = true;
-            }
-
-            setting_divider(ui);
-
-            let mut install_updates_on_quit = if let Ok(state) = shared_state.lock() {
-                state.settings.install_updates_on_quit
+    compact_preferences_body(ui, 392.0, |ui| {
+        preferences_stack_section(ui, "SYSTEM", |ui| {
+            let mut start_at_login = if let Ok(state) = shared_state.lock() {
+                state.settings.start_at_login
             } else {
                 false
             };
 
             if setting_toggle(
                 ui,
-                locale_text(ui_language, LocaleKey::InstallUpdatesOnQuit),
-                locale_text(ui_language, LocaleKey::InstallUpdatesOnQuitHelper),
-                &mut install_updates_on_quit,
+                locale_text(ui_language, LocaleKey::StartAtLogin),
+                locale_text(ui_language, LocaleKey::StartAtLoginHelper),
+                &mut start_at_login,
             ) && let Ok(mut state) = shared_state.lock()
             {
-                state.settings.install_updates_on_quit = install_updates_on_quit;
+                if let Err(e) = state.settings.set_start_at_login(start_at_login) {
+                    tracing::error!("Failed to set start at login: {}", e);
+                } else {
+                    state.settings_changed = true;
+                }
+            }
+        });
+
+        settings_section_separator(ui);
+
+        preferences_stack_section(ui, "USAGE", |ui| {
+            let mut show_credits_extra = if let Ok(state) = shared_state.lock() {
+                state.settings.show_credits_extra_usage
+            } else {
+                true
+            };
+
+            if setting_toggle(
+                ui,
+                "Show cost summary",
+                "Reads local usage logs. Shows today + last 30 days cost in the menu.",
+                &mut show_credits_extra,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.show_credits_extra_usage = show_credits_extra;
                 state.settings_changed = true;
+            }
+        });
+
+        settings_section_separator(ui);
+
+        preferences_stack_section(ui, "AUTOMATION", |ui| {
+            let current_interval = if let Ok(state) = shared_state.lock() {
+                state.settings.refresh_interval_secs
+            } else {
+                300
+            };
+            let intervals = [0, 30, 60, 300, 600];
+            let current_label = refresh_interval_text(current_interval, ui_language);
+
+            setting_picker_row(
+                ui,
+                "Refresh cadence",
+                "How often CodexBar polls providers in the background.",
+                |ui| {
+                    styled_combo_box(ui, "general_refresh_interval", current_label, 92.0, |ui| {
+                        for value in intervals {
+                            let label = refresh_interval_text(value, ui_language);
+                            if ui
+                                .selectable_label(current_interval == value, label)
+                                .clicked()
+                                && let Ok(mut state) = shared_state.lock()
+                            {
+                                state.settings.refresh_interval_secs = value;
+                                state.settings_changed = true;
+                            }
+                        }
+                    });
+                },
+            );
+
+            setting_divider(ui);
+
+            let mut check_provider_status = current_interval > 0;
+
+            if setting_toggle(
+                ui,
+                "Check provider status",
+                "Surfaces incidents in the icon and menu while background refresh is enabled.",
+                &mut check_provider_status,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.refresh_interval_secs = if check_provider_status {
+                    if state.settings.refresh_interval_secs == 0 {
+                        300
+                    } else {
+                        state.settings.refresh_interval_secs
+                    }
+                } else {
+                    0
+                };
+                state.settings_changed = true;
+            }
+
+            setting_divider(ui);
+
+            let mut session_quota_notifications = if let Ok(state) = shared_state.lock() {
+                state.settings.show_notifications
+            } else {
+                true
+            };
+
+            if setting_toggle(
+                ui,
+                "Session quota notifications",
+                "Notifies when session quota hits 0% and when it becomes available again.",
+                &mut session_quota_notifications,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.show_notifications = session_quota_notifications;
+                state.settings_changed = true;
+            }
+        });
+
+        ui.add_space(Spacing::LG);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if primary_button(ui, "Quit CodexBar") {
+                std::process::exit(0);
             }
         });
     });
@@ -7521,101 +7218,97 @@ fn render_shortcuts_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesS
         Language::English
     };
 
-    section_header(
-        ui,
-        locale_text(ui_language, LocaleKey::KeyboardShortcutsTitle),
-    );
-
-    settings_card(ui, |ui| {
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new(locale_text(ui_language, LocaleKey::GlobalShortcutLabel))
-                        .size(FontSize::SM)
-                        .color(Theme::TEXT_PRIMARY),
-                );
-                ui.label(
-                    RichText::new(locale_text(ui_language, LocaleKey::GlobalShortcutHelper))
-                        .size(FontSize::XS)
-                        .color(Theme::TEXT_SECONDARY),
-                );
-            });
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let (mut shortcut_input, _) = if let Ok(state) = shared_state.lock() {
-                    (
-                        state.shortcut_input.clone(),
-                        state.shortcut_status_msg.clone(),
-                    )
+    compact_preferences_body(ui, 392.0, |ui| {
+        preferences_stack_section(
+            ui,
+            locale_text(ui_language, LocaleKey::KeyboardShortcutsTitle),
+            |ui| {
+                let status_msg = if let Ok(state) = shared_state.lock() {
+                    state.shortcut_status_msg.clone()
                 } else {
-                    ("Ctrl+Shift+U".to_string(), None)
+                    None
                 };
 
-                egui::Frame::none()
-                    .fill(Theme::BG_TERTIARY)
-                    .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
-                    .rounding(Rounding::same(Radius::SM))
-                    .inner_margin(egui::Margin::symmetric(Spacing::SM, 4.0))
-                    .show(ui, |ui| {
-                        let text_edit = egui::TextEdit::singleline(&mut shortcut_input)
-                            .desired_width(120.0)
-                            .hint_text(locale_text(
-                                ui_language,
-                                LocaleKey::ShortcutHintPlaceholder,
-                            ));
-                        let response = ui.add(text_edit);
+                setting_picker_row(
+                    ui,
+                    locale_text(ui_language, LocaleKey::GlobalShortcutLabel),
+                    locale_text(ui_language, LocaleKey::GlobalShortcutHelper),
+                    |ui| {
+                        let (mut shortcut_input, _) = if let Ok(state) = shared_state.lock() {
+                            (
+                                state.shortcut_input.clone(),
+                                state.shortcut_status_msg.clone(),
+                            )
+                        } else {
+                            ("Ctrl+Shift+U".to_string(), None)
+                        };
 
-                        if response.changed()
-                            && let Ok(mut state) = shared_state.lock()
-                        {
-                            state.shortcut_input = shortcut_input.clone();
-                        }
+                        picker_shell(ui, |ui| {
+                            let text_edit = egui::TextEdit::singleline(&mut shortcut_input)
+                                .desired_width(120.0)
+                                .frame(false)
+                                .hint_text(locale_text(
+                                    ui_language,
+                                    LocaleKey::ShortcutHintPlaceholder,
+                                ));
+                            let response = ui.add(text_edit);
 
-                        if response.lost_focus() {
-                            let shortcut_str = shortcut_input.trim().to_string();
-                            if !shortcut_str.is_empty() {
-                                if let Some((modifiers, key)) =
-                                    crate::shortcuts::parse_shortcut(&shortcut_str)
-                                {
-                                    let formatted = format_shortcut(modifiers, key);
-                                    if let Ok(mut state) = shared_state.lock() {
-                                        state.settings.global_shortcut = formatted.clone();
-                                        state.shortcut_input = formatted;
-                                        state.settings_changed = true;
+                            if response.changed()
+                                && let Ok(mut state) = shared_state.lock()
+                            {
+                                state.shortcut_input = shortcut_input.clone();
+                            }
+
+                            if response.lost_focus() {
+                                let shortcut_str = shortcut_input.trim().to_string();
+                                if !shortcut_str.is_empty() {
+                                    if let Some((modifiers, key)) =
+                                        crate::shortcuts::parse_shortcut(&shortcut_str)
+                                    {
+                                        let formatted = format_shortcut(modifiers, key);
+                                        if let Ok(mut state) = shared_state.lock() {
+                                            state.settings.global_shortcut = formatted.clone();
+                                            state.shortcut_input = formatted;
+                                            state.settings_changed = true;
+                                            state.shortcut_status_msg = Some((
+                                                locale_text(ui_language, LocaleKey::Saved)
+                                                    .to_string(),
+                                                false,
+                                            ));
+                                        }
+                                    } else if let Ok(mut state) = shared_state.lock() {
                                         state.shortcut_status_msg = Some((
-                                            locale_text(ui_language, LocaleKey::Saved).to_string(),
-                                            false,
+                                            locale_text(ui_language, LocaleKey::InvalidFormat)
+                                                .to_string(),
+                                            true,
                                         ));
                                     }
-                                } else if let Ok(mut state) = shared_state.lock() {
-                                    state.shortcut_status_msg = Some((
-                                        locale_text(ui_language, LocaleKey::InvalidFormat)
-                                            .to_string(),
-                                        true,
-                                    ));
                                 }
                             }
-                        }
-                    });
-            });
-        });
+                        });
+                    },
+                );
 
-        // Render status feedback below the input using the shared helper
-        let status_msg = if let Ok(state) = shared_state.lock() {
-            state.shortcut_status_msg.clone()
-        } else {
-            None
-        };
-        if let Some((msg, is_error)) = &status_msg {
-            ui.add_space(Spacing::XS);
-            status_message(ui, msg, *is_error);
-        }
+                if let Some((msg, is_error)) = &status_msg {
+                    ui.add_space(Spacing::XS);
+                    if *is_error {
+                        status_message(ui, msg, true);
+                    } else {
+                        ui.label(
+                            RichText::new(msg)
+                                .size(FontSize::XS)
+                                .color(Theme::TEXT_MUTED),
+                        );
+                    }
+                }
 
-        ui.add_space(4.0);
-        ui.label(
-            RichText::new(locale_text(ui_language, LocaleKey::ShortcutFormatHint))
-                .size(FontSize::XS)
-                .color(Theme::TEXT_MUTED),
+                ui.add_space(4.0);
+                ui.label(
+                    RichText::new(locale_text(ui_language, LocaleKey::ShortcutFormatHint))
+                        .size(FontSize::XS)
+                        .color(Theme::TEXT_MUTED),
+                );
+            },
         );
     });
 }
@@ -7629,164 +7322,144 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         Language::English
     };
 
-    preferences_pane_header(
-        ui,
-        preferences_section_title(PreferencesTab::Display),
-        preferences_section_subtitle(PreferencesTab::Display),
-    );
+    compact_preferences_body(ui, 392.0, |ui| {
+        preferences_stack_section(ui, "Menu Bar", |ui| {
+            let mut merge_icons = if let Ok(state) = shared_state.lock() {
+                state.settings.merge_tray_icons
+            } else {
+                true
+            };
 
-    section_header(ui, locale_text(ui_language, LocaleKey::Appearance));
+            if setting_toggle(
+                ui,
+                locale_text(ui_language, LocaleKey::MergeTrayIcons),
+                locale_text(ui_language, LocaleKey::MergeTrayIconsHelper),
+                &mut merge_icons,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                set_merge_tray_icons(&mut state.settings, merge_icons);
+                state.settings_changed = true;
+            }
 
-    settings_card(ui, |ui| {
-        ui.horizontal(|ui| {
-            ui.vertical(|ui| {
-                ui.label(
-                    RichText::new("Menu bar display mode")
-                        .size(FontSize::SM)
-                        .color(Theme::TEXT_PRIMARY),
-                );
-                ui.label(
-                    RichText::new("Choose how much menu bar detail CodexBar keeps visible.")
-                        .size(FontSize::XS)
-                        .color(Theme::TEXT_SECONDARY),
-                );
-            });
+            setting_divider(ui);
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let mut selected_mode = if let Ok(state) = shared_state.lock() {
-                    state.settings.menu_bar_display_mode.clone()
-                } else {
-                    "detailed".to_string()
-                };
+            let mut per_provider = if let Ok(state) = shared_state.lock() {
+                state.settings.tray_icon_mode == TrayIconMode::PerProvider
+            } else {
+                false
+            };
 
-                egui::ComboBox::from_id_salt("menu_bar_display_mode_viewport")
-                    .selected_text(match selected_mode.as_str() {
-                        "minimal" => "Minimal",
-                        "compact" => "Compact",
-                        _ => "Detailed",
-                    })
-                    .width(120.0)
-                    .show_ui(ui, |ui| {
-                        for (value, label) in [
-                            ("minimal", "Minimal"),
-                            ("compact", "Compact"),
-                            ("detailed", "Detailed"),
-                        ] {
-                            if ui
-                                .selectable_value(&mut selected_mode, value.to_string(), label)
-                                .changed()
-                                && let Ok(mut state) = shared_state.lock()
-                            {
-                                state.settings.menu_bar_display_mode = selected_mode.clone();
-                                state.settings_changed = true;
+            if setting_toggle(
+                ui,
+                locale_text(ui_language, LocaleKey::PerProviderTrayIcons),
+                locale_text(ui_language, LocaleKey::PerProviderTrayIconsHelper),
+                &mut per_provider,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                set_per_provider_tray_icons(&mut state.settings, per_provider);
+                state.settings_changed = true;
+            }
+
+            setting_divider(ui);
+
+            let mut selected_mode = if let Ok(state) = shared_state.lock() {
+                state.settings.menu_bar_display_mode.clone()
+            } else {
+                "detailed".to_string()
+            };
+
+            setting_picker_row(
+                ui,
+                "Menu bar display mode",
+                "Choose how much menu bar detail CodexBar keeps visible.",
+                |ui| {
+                    styled_combo_box(
+                        ui,
+                        "menu_bar_display_mode_viewport",
+                        match selected_mode.as_str() {
+                            "minimal" => "Minimal",
+                            "compact" => "Compact",
+                            _ => "Detailed",
+                        },
+                        120.0,
+                        |ui| {
+                            for (value, label) in [
+                                ("minimal", "Minimal"),
+                                ("compact", "Compact"),
+                                ("detailed", "Detailed"),
+                            ] {
+                                if ui
+                                    .selectable_value(&mut selected_mode, value.to_string(), label)
+                                    .changed()
+                                    && let Ok(mut state) = shared_state.lock()
+                                {
+                                    state.settings.menu_bar_display_mode = selected_mode.clone();
+                                    state.settings_changed = true;
+                                }
                             }
-                        }
-                    });
-            });
+                        },
+                    );
+                },
+            );
         });
 
-        setting_divider(ui);
+        settings_section_separator(ui);
 
-        let mut relative_time = if let Ok(state) = shared_state.lock() {
-            state.settings.reset_time_relative
-        } else {
-            true
-        };
+        preferences_stack_section(ui, "Menu Content", |ui| {
+            let mut relative_time = if let Ok(state) = shared_state.lock() {
+                state.settings.reset_time_relative
+            } else {
+                true
+            };
 
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::ResetTimeRelative),
-            locale_text(ui_language, LocaleKey::ResetTimeRelativeHelper),
-            &mut relative_time,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            state.settings.reset_time_relative = relative_time;
-            state.settings_changed = true;
-        }
-    });
+            if setting_toggle(
+                ui,
+                locale_text(ui_language, LocaleKey::ResetTimeRelative),
+                locale_text(ui_language, LocaleKey::ResetTimeRelativeHelper),
+                &mut relative_time,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.reset_time_relative = relative_time;
+                state.settings_changed = true;
+            }
+            setting_divider(ui);
 
-    ui.add_space(Spacing::MD);
+            let mut show_as_used = if let Ok(state) = shared_state.lock() {
+                state.settings.show_as_used
+            } else {
+                false
+            };
 
-    section_header(ui, locale_text(ui_language, LocaleKey::ShowUsageAsUsed));
+            if setting_toggle(
+                ui,
+                locale_text(ui_language, LocaleKey::ShowUsageAsUsed),
+                locale_text(ui_language, LocaleKey::ShowUsageAsUsedHelper),
+                &mut show_as_used,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.show_as_used = show_as_used;
+                state.settings_changed = true;
+            }
 
-    settings_card(ui, |ui| {
-        let mut show_as_used = if let Ok(state) = shared_state.lock() {
-            state.settings.show_as_used
-        } else {
-            false
-        };
+            setting_divider(ui);
 
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::ShowUsageAsUsed),
-            locale_text(ui_language, LocaleKey::ShowUsageAsUsedHelper),
-            &mut show_as_used,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            state.settings.show_as_used = show_as_used;
-            state.settings_changed = true;
-        }
+            let mut show_credits_extra = if let Ok(state) = shared_state.lock() {
+                state.settings.show_credits_extra_usage
+            } else {
+                true
+            };
 
-        setting_divider(ui);
-
-        let mut show_credits_extra = if let Ok(state) = shared_state.lock() {
-            state.settings.show_credits_extra_usage
-        } else {
-            true
-        };
-
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::ShowCreditsExtra),
-            locale_text(ui_language, LocaleKey::ShowCreditsExtraHelper),
-            &mut show_credits_extra,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            state.settings.show_credits_extra_usage = show_credits_extra;
-            state.settings_changed = true;
-        }
-    });
-
-    ui.add_space(Spacing::MD);
-
-    section_header(ui, locale_text(ui_language, LocaleKey::MergeTrayIcons));
-
-    settings_card(ui, |ui| {
-        let mut merge_icons = if let Ok(state) = shared_state.lock() {
-            state.settings.merge_tray_icons
-        } else {
-            true
-        };
-
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::MergeTrayIcons),
-            locale_text(ui_language, LocaleKey::MergeTrayIconsHelper),
-            &mut merge_icons,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            set_merge_tray_icons(&mut state.settings, merge_icons);
-            state.settings_changed = true;
-        }
-
-        setting_divider(ui);
-
-        let mut per_provider = if let Ok(state) = shared_state.lock() {
-            state.settings.tray_icon_mode == TrayIconMode::PerProvider
-        } else {
-            false
-        };
-
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::PerProviderTrayIcons),
-            locale_text(ui_language, LocaleKey::PerProviderTrayIconsHelper),
-            &mut per_provider,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            set_per_provider_tray_icons(&mut state.settings, per_provider);
-            state.settings_changed = true;
-        }
+            if setting_toggle(
+                ui,
+                locale_text(ui_language, LocaleKey::ShowCreditsExtra),
+                locale_text(ui_language, LocaleKey::ShowCreditsExtraHelper),
+                &mut show_credits_extra,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.show_credits_extra_usage = show_credits_extra;
+                state.settings_changed = true;
+            }
+        });
     });
 }
 
@@ -8386,104 +8059,203 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
     } else {
         Language::English
     };
-    preferences_pane_header(
-        ui,
-        preferences_section_title(PreferencesTab::Advanced),
-        preferences_section_subtitle(PreferencesTab::Advanced),
-    );
+    compact_preferences_body(ui, 392.0, |ui| {
+        preferences_stack_section(ui, "Interface", |ui| {
+            let current_language = if let Ok(state) = shared_state.lock() {
+                state.settings.ui_language
+            } else {
+                Language::English
+            };
+            let current_label = current_language.display_name();
 
-    section_header(ui, locale_text(ui_language, LocaleKey::RefreshSettings));
-
-    settings_card(ui, |ui| {
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(locale_text(ui_language, LocaleKey::AutoRefreshInterval))
-                    .size(FontSize::MD)
-                    .color(Theme::TEXT_PRIMARY),
+            setting_picker_row(
+                ui,
+                locale_text(ui_language, LocaleKey::InterfaceLanguage),
+                "Choose the language CodexBar uses in settings and menus.",
+                |ui| {
+                    styled_combo_box(
+                        ui,
+                        "language_selector_viewport",
+                        current_label,
+                        124.0,
+                        |ui| {
+                            for lang in Language::all() {
+                                let is_selected = current_language == *lang;
+                                if ui
+                                    .selectable_label(is_selected, lang.display_name())
+                                    .clicked()
+                                    && let Ok(mut state) = shared_state.lock()
+                                {
+                                    state.settings.ui_language = *lang;
+                                    state.settings_changed = true;
+                                }
+                            }
+                        },
+                    );
+                },
             );
+        });
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let current_interval = if let Ok(state) = shared_state.lock() {
-                    state.settings.refresh_interval_secs
+        settings_section_separator(ui);
+
+        preferences_stack_section(ui, "Alerts", |ui| {
+            render_notifications_settings(ui, shared_state, ui_language);
+        });
+
+        settings_section_separator(ui);
+
+        preferences_stack_section(
+            ui,
+            locale_text(ui_language, LocaleKey::PrivacyTitle),
+            |ui| {
+                let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
+                    state.settings.hide_personal_info
                 } else {
-                    60
+                    false
                 };
 
-                let intervals = [0, 30, 60, 300, 600];
-                let current_label = refresh_interval_text(current_interval, ui_language);
+                if setting_toggle(
+                    ui,
+                    locale_text(ui_language, LocaleKey::HidePersonalInfo),
+                    locale_text(ui_language, LocaleKey::HidePersonalInfoHelper),
+                    &mut hide_personal_info,
+                ) && let Ok(mut state) = shared_state.lock()
+                {
+                    state.settings.hide_personal_info = hide_personal_info;
+                    state.settings_changed = true;
+                }
+            },
+        );
 
-                // Style combobox to match theme
-                ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
-                ui.style_mut().visuals.widgets.inactive.weak_bg_fill = Theme::BG_TERTIARY;
-                ui.style_mut().visuals.widgets.hovered.bg_fill = Theme::CARD_BG_HOVER;
-                ui.style_mut().visuals.widgets.active.bg_fill = Theme::CARD_BG;
-                ui.style_mut().visuals.widgets.inactive.rounding = Rounding::same(Radius::SM);
-                ui.style_mut().visuals.widgets.hovered.rounding = Rounding::same(Radius::SM);
-                ui.style_mut().visuals.widgets.active.rounding = Rounding::same(Radius::SM);
+        settings_section_separator(ui);
 
-                egui::ComboBox::from_id_salt("refresh_interval")
-                    .selected_text(current_label)
-                    .width(90.0)
-                    .show_ui(ui, |ui| {
-                        for value in intervals {
-                            let label = refresh_interval_text(value, ui_language);
-                            if ui
-                                .selectable_label(current_interval == value, label)
-                                .clicked()
-                                && let Ok(mut state) = shared_state.lock()
-                            {
-                                state.settings.refresh_interval_secs = value;
-                                state.settings_changed = true;
-                            }
-                        }
-                    });
-            });
+        preferences_stack_section(ui, locale_text(ui_language, LocaleKey::Fun), |ui| {
+            let mut surprise = if let Ok(state) = shared_state.lock() {
+                state.settings.surprise_animations
+            } else {
+                false
+            };
+
+            if setting_toggle(
+                ui,
+                locale_text(ui_language, LocaleKey::Fun),
+                locale_text(ui_language, LocaleKey::SurpriseAnimationsHelper),
+                &mut surprise,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.surprise_animations = surprise;
+                state.settings_changed = true;
+            }
         });
     });
+}
 
-    ui.add_space(Spacing::MD);
-    section_header(ui, locale_text(ui_language, LocaleKey::PrivacyTitle));
+fn render_notifications_settings(
+    ui: &mut egui::Ui,
+    shared_state: &Arc<Mutex<PreferencesSharedState>>,
+    ui_language: Language,
+) {
+    let mut show_notifications = if let Ok(state) = shared_state.lock() {
+        state.settings.show_notifications
+    } else {
+        true
+    };
 
-    settings_card(ui, |ui| {
-        let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
-            state.settings.hide_personal_info
+    if setting_toggle(
+        ui,
+        locale_text(ui_language, LocaleKey::ShowNotifications),
+        locale_text(ui_language, LocaleKey::ShowNotificationsHelper),
+        &mut show_notifications,
+    ) && let Ok(mut state) = shared_state.lock()
+    {
+        state.settings.show_notifications = show_notifications;
+        state.settings_changed = true;
+    }
+
+    setting_divider(ui);
+
+    let mut sound_enabled = if let Ok(state) = shared_state.lock() {
+        state.settings.sound_enabled
+    } else {
+        true
+    };
+
+    if setting_toggle(
+        ui,
+        locale_text(ui_language, LocaleKey::SoundEnabled),
+        locale_text(ui_language, LocaleKey::SoundEnabledHelper),
+        &mut sound_enabled,
+    ) && let Ok(mut state) = shared_state.lock()
+    {
+        state.settings.sound_enabled = sound_enabled;
+        state.settings_changed = true;
+    }
+
+    if sound_enabled {
+        setting_divider(ui);
+
+        let mut volume = if let Ok(state) = shared_state.lock() {
+            state.settings.sound_volume as i32
         } else {
-            false
+            100
         };
 
-        if setting_toggle(
+        if slider_setting_row(
             ui,
-            locale_text(ui_language, LocaleKey::HidePersonalInfo),
-            locale_text(ui_language, LocaleKey::HidePersonalInfoHelper),
-            &mut hide_personal_info,
+            locale_text(ui_language, LocaleKey::SoundVolume),
+            "Adjust the sound level for notifications.",
+            &mut volume,
+            0..=100,
+            Theme::ACCENT_PRIMARY,
         ) && let Ok(mut state) = shared_state.lock()
         {
-            state.settings.hide_personal_info = hide_personal_info;
+            state.settings.sound_volume = volume as u8;
             state.settings_changed = true;
         }
-    });
+    }
 
-    ui.add_space(Spacing::MD);
-    section_header(ui, locale_text(ui_language, LocaleKey::Fun));
+    setting_divider(ui);
 
-    settings_card(ui, |ui| {
-        let mut surprise = if let Ok(state) = shared_state.lock() {
-            state.settings.surprise_animations
-        } else {
-            false
-        };
+    let mut high_threshold = if let Ok(state) = shared_state.lock() {
+        state.settings.high_usage_threshold as i32
+    } else {
+        70
+    };
 
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::Fun),
-            locale_text(ui_language, LocaleKey::SurpriseAnimationsHelper),
-            &mut surprise,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            state.settings.surprise_animations = surprise;
-            state.settings_changed = true;
-        }
-    });
+    if slider_setting_row(
+        ui,
+        locale_text(ui_language, LocaleKey::HighUsageAlert),
+        locale_text(ui_language, LocaleKey::HighUsageThresholdHelper),
+        &mut high_threshold,
+        50..=95,
+        Theme::ACCENT_PRIMARY,
+    ) && let Ok(mut state) = shared_state.lock()
+    {
+        state.settings.high_usage_threshold = high_threshold as f64;
+        state.settings_changed = true;
+    }
+
+    setting_divider(ui);
+
+    let mut critical_threshold = if let Ok(state) = shared_state.lock() {
+        state.settings.critical_usage_threshold as i32
+    } else {
+        90
+    };
+    let critical_color = Color32::from_rgb(239, 68, 68);
+
+    if slider_setting_row(
+        ui,
+        locale_text(ui_language, LocaleKey::CriticalUsageAlert),
+        locale_text(ui_language, LocaleKey::CriticalUsageThresholdHelper),
+        &mut critical_threshold,
+        80..=100,
+        critical_color,
+    ) && let Ok(mut state) = shared_state.lock()
+    {
+        state.settings.critical_usage_threshold = critical_threshold as f64;
+        state.settings_changed = true;
+    }
 }
 
 /// Render About tab for viewport
@@ -8493,155 +8265,167 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
     } else {
         Language::English
     };
-    let git_commit = option_env!("GIT_COMMIT").unwrap_or("dev");
     let build_date = option_env!("BUILD_DATE").unwrap_or("unknown");
 
-    ui.add_space(Spacing::LG);
     ui.vertical_centered(|ui| {
+        ui.set_max_width(304.0);
+        ui.add_space(16.0);
         egui::Frame::none()
-            .fill(Theme::BG_SECONDARY)
-            .stroke(Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.22)))
-            .rounding(Rounding::same(16.0))
-            .inner_margin(egui::Margin::same(18.0))
+            .fill(Color32::from_rgb(240, 244, 250))
+            .rounding(Rounding::same(20.0))
+            .inner_margin(egui::Margin::same(10.0))
             .show(ui, |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        RichText::new("◐")
-                            .size(34.0)
-                            .color(Theme::ACCENT_PRIMARY.gamma_multiply(1.08)),
-                    );
-                    ui.add_space(6.0);
-                    ui.label(
-                        RichText::new("CodexBar")
-                            .size(FontSize::XL)
-                            .color(Theme::TEXT_PRIMARY)
-                            .strong(),
-                    );
-                    ui.add_space(2.0);
-                    ui.label(
-                        RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
-                            .size(FontSize::SM)
-                            .color(Theme::TEXT_SECONDARY),
-                    );
-                    ui.add_space(2.0);
-                    ui.label(
-                        RichText::new(format!("Built {}", build_date))
-                            .size(FontSize::XS)
-                            .color(Theme::TEXT_MUTED),
-                    );
-                });
+                egui::Frame::none()
+                    .fill(Color32::from_rgb(82, 136, 244))
+                    .rounding(Rounding::same(16.0))
+                    .inner_margin(egui::Margin::symmetric(20.0, 17.0))
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new("</>")
+                                .size(30.0)
+                                .color(Color32::WHITE)
+                                .strong(),
+                        );
+                    });
             });
-
-        ui.add_space(Spacing::MD);
+        ui.add_space(12.0);
         ui.label(
-            RichText::new(locale_text(ui_language, LocaleKey::AboutDescription))
+            RichText::new("CodexBar")
+                .size(FontSize::XL)
+                .color(Theme::TEXT_PRIMARY)
+                .strong(),
+        );
+        ui.add_space(2.0);
+        ui.label(
+            RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
                 .size(FontSize::SM)
                 .color(Theme::TEXT_SECONDARY),
         );
         ui.label(
-            RichText::new(locale_text(ui_language, LocaleKey::AboutDescriptionLine2))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_SECONDARY),
-        );
-        ui.add_space(4.0);
-        ui.label(
-            RichText::new("May your tokens never run out.")
+            RichText::new(format!("Built {}", build_date))
                 .size(FontSize::XS)
                 .color(Theme::TEXT_MUTED),
         );
-    });
+        ui.label(
+            RichText::new("May your tokens never run out—keep agent limits in view.")
+                .size(FontSize::XS)
+                .color(Theme::TEXT_MUTED),
+        );
 
-    ui.add_space(Spacing::LG);
-    section_header(ui, locale_text(ui_language, LocaleKey::Links));
-    settings_card(ui, |ui| {
+        ui.add_space(14.0);
         ui.vertical_centered(|ui| {
-            ui.horizontal(|ui| {
-                if ui
-                    .link(locale_text(ui_language, LocaleKey::ViewOnGitHub))
-                    .clicked()
-                {
-                    let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
-                }
-                ui.label(RichText::new("·").color(Theme::TEXT_DIM));
-                if ui
-                    .link(locale_text(ui_language, LocaleKey::OriginalMacOSVersion))
-                    .clicked()
-                {
-                    let _ = open::that("https://github.com/steipete/CodexBar");
-                }
-            });
-            ui.add_space(Spacing::SM);
-            ui.horizontal(|ui| {
-                if text_button(
-                    ui,
-                    locale_text(ui_language, LocaleKey::SubmitIssue),
-                    Theme::ACCENT_PRIMARY,
-                ) {
-                    let _ = open::that("https://github.com/Finesssee/Win-CodexBar/issues");
-                }
-                ui.add_space(Spacing::SM);
-                if ui
-                    .add(
-                        egui::Button::new(
-                            RichText::new(locale_text(ui_language, LocaleKey::TrayCheckForUpdates))
-                                .size(FontSize::SM)
-                                .color(Theme::TEXT_PRIMARY),
-                        )
-                        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
-                        .fill(Theme::CARD_BG)
-                        .rounding(Rounding::same(Radius::SM)),
-                    )
-                    .clicked()
-                {
+            if text_button(ui, "</>  GitHub", Theme::ACCENT_PRIMARY) {
+                let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
+            }
+            ui.add_space(2.0);
+            if text_button(ui, "◉  Website", Theme::ACCENT_PRIMARY) {
+                let _ = open::that("https://github.com/steipete/CodexBar");
+            }
+            ui.add_space(2.0);
+            if text_button(ui, "↗  Twitter", Theme::ACCENT_PRIMARY) {
+                let _ = open::that("https://x.com/steipete");
+            }
+            ui.add_space(2.0);
+            if text_button(ui, "✉  Email", Theme::ACCENT_PRIMARY) {
+                let _ = open::that("mailto:peter@steipete.me");
+            }
+        });
+
+        settings_section_separator(ui);
+
+        ui.vertical(|ui| {
+            ui.set_max_width(288.0);
+
+            let mut auto_download_updates = if let Ok(state) = shared_state.lock() {
+                state.settings.auto_download_updates
+            } else {
+                true
+            };
+
+            if about_checkbox_row(
+                ui,
+                "Check for updates automatically",
+                &mut auto_download_updates,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.auto_download_updates = auto_download_updates;
+                state.settings_changed = true;
+            }
+
+            setting_divider(ui);
+
+            let current_channel = if let Ok(state) = shared_state.lock() {
+                state.settings.update_channel
+            } else {
+                crate::settings::UpdateChannel::Stable
+            };
+            let channels = [
+                (
+                    crate::settings::UpdateChannel::Stable,
+                    locale_text(ui_language, LocaleKey::UpdateChannelStable),
+                ),
+                (
+                    crate::settings::UpdateChannel::Beta,
+                    locale_text(ui_language, LocaleKey::UpdateChannelBeta),
+                ),
+            ];
+            let mut selected = current_channel;
+            setting_picker_row(
+                ui,
+                locale_text(ui_language, LocaleKey::UpdateChannelChoice),
+                locale_text(ui_language, LocaleKey::UpdateChannelChoiceHelper),
+                |ui| {
+                    styled_combo_box(
+                        ui,
+                        "update_channel",
+                        channels
+                            .iter()
+                            .find(|(ch, _)| *ch == selected)
+                            .map(|(_, label)| *label)
+                            .unwrap_or(locale_text(ui_language, LocaleKey::UpdateChannelStable)),
+                        108.0,
+                        |ui| {
+                            for (channel, label) in channels {
+                                if ui.selectable_value(&mut selected, channel, label).changed()
+                                    && let Ok(mut state) = shared_state.lock()
+                                {
+                                    state.settings.update_channel = selected;
+                                    state.settings_changed = true;
+                                }
+                            }
+                        },
+                    );
+                },
+            );
+
+            ui.add_space(8.0);
+            ui.horizontal_centered(|ui| {
+                if simple_action_button(ui, "Check for Updates...") {
                     let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
                 }
             });
-            ui.add_space(Spacing::XS);
+        });
+
+        settings_section_separator(ui);
+
+        ui.vertical_centered(|ui| {
             ui.label(
-                RichText::new("Updates and issues open in your browser.")
+                RichText::new("© 2026 Peter Steinberger. MIT License.")
                     .size(FontSize::XS)
                     .color(Theme::TEXT_MUTED),
             );
         });
     });
+}
 
-    ui.add_space(Spacing::MD);
-    section_header(ui, locale_text(ui_language, LocaleKey::BuildInfo));
-    settings_card(ui, |ui| {
-        ui.vertical_centered(|ui| {
-            ui.label(
-                RichText::new(locale_text(ui_language, LocaleKey::MaintainedBy))
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_PRIMARY),
-            );
-            ui.add_space(Spacing::XS);
-            ui.label(
-                RichText::new("MIT License")
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_MUTED),
-            );
-            ui.add_space(Spacing::SM);
-            ui.label(
-                RichText::new(format!(
-                    "{}: {}",
-                    locale_text(ui_language, LocaleKey::CommitLabel),
-                    git_commit
-                ))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_SECONDARY)
-                .monospace(),
-            );
-            ui.label(
-                RichText::new(format!(
-                    "{}: {}",
-                    locale_text(ui_language, LocaleKey::BuildDateLabel),
-                    build_date
-                ))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_SECONDARY),
-            );
-        });
-    });
+fn about_checkbox_row(ui: &mut egui::Ui, title: &str, value: &mut bool) -> bool {
+    ui.checkbox(
+        value,
+        RichText::new(title)
+            .size(FontSize::SM)
+            .color(Theme::TEXT_PRIMARY),
+    )
+    .changed()
 }
 
 /// Render Providers tab for viewport
@@ -8715,21 +8499,50 @@ fn render_providers_tab(
 // HELPER COMPONENTS - Refined, reusable UI elements
 // ════════════════════════════════════════════════════════════════════════════════
 
-/// Section header - subtle, uppercase
+/// Section header - subtle and quiet, like the mac preferences panes
 fn section_header(ui: &mut egui::Ui, text: &str) {
     let display_text = if text.is_ascii() {
         text.to_uppercase()
     } else {
         text.to_string()
     };
-    ui.add_space(Spacing::LG);
+    ui.add_space(Spacing::MD);
     ui.label(
         RichText::new(display_text)
             .size(FontSize::XS)
             .color(Theme::TEXT_SECTION)
             .strong(),
     );
-    ui.add_space(Spacing::SM);
+    ui.add_space(5.0);
+}
+
+fn preferences_stack_section(ui: &mut egui::Ui, text: &str, content: impl FnOnce(&mut egui::Ui)) {
+    section_header(ui, text);
+    content(ui);
+}
+
+fn compact_preferences_body(
+    ui: &mut egui::Ui,
+    max_width: f32,
+    content: impl FnOnce(&mut egui::Ui),
+) {
+    let width = ui.available_width().min(max_width);
+    ui.horizontal_centered(|ui| {
+        ui.set_min_width(width);
+        ui.set_max_width(width);
+        ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 4.0;
+            content(ui);
+        });
+    });
+}
+
+fn settings_section_separator(ui: &mut egui::Ui) {
+    ui.add_space(8.0);
+    let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
+    ui.painter()
+        .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.42));
+    ui.add_space(6.0);
 }
 
 fn preferences_pane_header(ui: &mut egui::Ui, title: &str, subtitle: &str) {
@@ -8760,11 +8573,11 @@ fn settings_card(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
 
 /// Divider line between settings in a card
 fn setting_divider(ui: &mut egui::Ui) {
-    ui.add_space(Spacing::SM);
+    ui.add_space(6.0);
     let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
     ui.painter()
-        .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.62));
-    ui.add_space(Spacing::SM + 1.0);
+        .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.48));
+    ui.add_space(7.0);
 }
 
 /// iOS-style switch toggle component
@@ -8838,12 +8651,44 @@ fn switch_toggle(ui: &mut egui::Ui, id: impl std::hash::Hash, value: &mut bool) 
     switch_toggle_visual(ui, id, value, true)
 }
 
-/// Toggle setting row - iOS-style switch on right, title and subtitle on left
+/// Toggle setting row - mac-style checkbox with supporting caption
 fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bool) -> bool {
     let mut changed = false;
 
+    ui.vertical(|ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 5.0;
+            let checkbox = ui.checkbox(value, "");
+            changed = checkbox.changed();
+
+            ui.label(
+                RichText::new(title)
+                    .size(FontSize::SM)
+                    .color(Theme::TEXT_PRIMARY),
+            );
+        });
+
+        if !subtitle.is_empty() {
+            ui.add_space(0.5);
+            ui.horizontal(|ui| {
+                ui.add_space(20.0);
+                ui.label(RichText::new(subtitle).size(10.5).color(Theme::TEXT_MUTED));
+            });
+        }
+    });
+
+    changed
+}
+
+fn setting_picker_row(
+    ui: &mut egui::Ui,
+    title: &str,
+    subtitle: &str,
+    control: impl FnOnce(&mut egui::Ui),
+) {
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 1.0;
             ui.label(
                 RichText::new(title)
                     .size(FontSize::SM)
@@ -8853,17 +8698,70 @@ fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bo
                 ui.label(
                     RichText::new(subtitle)
                         .size(FontSize::XS)
-                        .color(Theme::TEXT_SECONDARY),
+                        .color(Theme::TEXT_MUTED),
                 );
             }
         });
 
-        // Switch on the right
+        ui.add_space(6.0);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if switch_toggle(ui, format!("switch_{}", title), value) {
-                changed = true;
-            }
+            control(ui);
         });
+    });
+}
+
+fn slider_setting_row(
+    ui: &mut egui::Ui,
+    title: &str,
+    subtitle: &str,
+    value: &mut i32,
+    range: std::ops::RangeInclusive<i32>,
+    accent_color: Color32,
+) -> bool {
+    let mut changed = false;
+
+    ui.vertical(|ui| {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 1.0;
+                ui.label(
+                    RichText::new(title)
+                        .size(FontSize::SM)
+                        .color(Theme::TEXT_PRIMARY),
+                );
+                if !subtitle.is_empty() {
+                    ui.label(
+                        RichText::new(subtitle)
+                            .size(FontSize::XS)
+                            .color(Theme::TEXT_MUTED),
+                    );
+                }
+            });
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                egui::Frame::none()
+                    .fill(accent_color.gamma_multiply(0.11))
+                    .rounding(Rounding::same(10.0))
+                    .inner_margin(egui::Margin::symmetric(9.0, 2.0))
+                    .show(ui, |ui| {
+                        ui.label(
+                            RichText::new(format!("{}%", value))
+                                .size(FontSize::XS)
+                                .color(accent_color),
+                        );
+                    });
+            });
+        });
+
+        ui.add_space(4.0);
+        ui.style_mut().visuals.widgets.inactive.bg_fill = Theme::BG_TERTIARY;
+
+        let slider = ui.add(
+            egui::Slider::new(value, range)
+                .show_value(false)
+                .trailing_fill(true),
+        );
+        changed = slider.changed();
     });
 
     changed
@@ -8873,13 +8771,13 @@ fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bo
 fn status_message(ui: &mut egui::Ui, msg: &str, is_error: bool) {
     let (bg_color, text_color, icon) = if is_error {
         (
-            Color32::from_rgba_unmultiplied(224, 80, 72, 25),
+            Color32::from_rgba_unmultiplied(224, 80, 72, 18),
             Theme::RED,
             "✕",
         )
     } else {
         (
-            Color32::from_rgba_unmultiplied(74, 198, 104, 25),
+            Color32::from_rgba_unmultiplied(74, 198, 104, 18),
             Theme::GREEN,
             "✓",
         )
@@ -8888,12 +8786,12 @@ fn status_message(ui: &mut egui::Ui, msg: &str, is_error: bool) {
     egui::Frame::none()
         .fill(bg_color)
         .rounding(Rounding::same(Radius::SM))
-        .inner_margin(Spacing::SM)
+        .inner_margin(egui::Margin::symmetric(8.0, 6.0))
         .show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(RichText::new(icon).size(FontSize::SM).color(text_color));
+                ui.label(RichText::new(icon).size(FontSize::XS).color(text_color));
                 ui.add_space(Spacing::XS);
-                ui.label(RichText::new(msg).size(FontSize::SM).color(text_color));
+                ui.label(RichText::new(msg).size(FontSize::XS).color(text_color));
             });
         });
 }
@@ -8929,6 +8827,44 @@ fn text_button(ui: &mut egui::Ui, text: &str, color: Color32) -> bool {
     .clicked()
 }
 
+fn picker_shell(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
+    egui::Frame::none()
+        .fill(Theme::BG_TERTIARY.gamma_multiply(0.42))
+        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.62)))
+        .rounding(Rounding::same(Radius::SM))
+        .inner_margin(egui::Margin::symmetric(8.0, 2.5))
+        .show(ui, content);
+}
+
+fn styled_combo_box(
+    ui: &mut egui::Ui,
+    id: impl std::hash::Hash,
+    selected_text: impl Into<egui::WidgetText>,
+    width: f32,
+    menu_contents: impl FnOnce(&mut egui::Ui),
+) {
+    picker_shell(ui, |ui| {
+        egui::ComboBox::from_id_salt(id)
+            .selected_text(selected_text)
+            .width(width)
+            .show_ui(ui, menu_contents);
+    });
+}
+
+fn simple_action_button(ui: &mut egui::Ui, text: &str) -> bool {
+    ui.add(
+        egui::Button::new(
+            RichText::new(text)
+                .size(FontSize::SM)
+                .color(Theme::TEXT_PRIMARY),
+        )
+        .fill(Theme::CARD_BG.gamma_multiply(0.28))
+        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.82)))
+        .rounding(Rounding::same(Radius::SM)),
+    )
+    .clicked()
+}
+
 /// Primary action button
 fn primary_button(ui: &mut egui::Ui, text: &str) -> bool {
     ui.add(
@@ -8951,9 +8887,10 @@ mod tests {
         provider_detail_chrome, provider_detail_display_text, provider_detail_max_content_width,
         provider_detail_source_display, provider_detail_status_value, provider_detail_subtitle,
         provider_detail_text_chrome, provider_sidebar_display_lines, provider_sidebar_subtitle,
-        providers_surface_palette, render_about_tab, set_merge_tray_icons,
-        set_per_provider_tray_icons, settings_nav_chrome, should_show_token_accounts_section,
-        shows_shared_provider_settings, vertexai_credentials_path, zai_region_label,
+        providers_surface_palette, render_about_tab, render_advanced_tab, render_general_tab,
+        set_merge_tray_icons, set_per_provider_tray_icons, settings_nav_chrome,
+        should_show_token_accounts_section, shows_shared_provider_settings,
+        vertexai_credentials_path, zai_region_label,
     };
     use crate::browser::detection::BrowserType;
     use crate::core::{ProviderAccountData, ProviderId, WidgetProviderEntry};
@@ -9059,19 +8996,19 @@ mod tests {
     fn viewport_prefers_compact_width_for_non_provider_tabs() {
         assert_eq!(
             preferences_viewport_preferred_size(PreferencesTab::General),
-            egui::vec2(520.0, 580.0)
+            egui::vec2(500.0, 580.0)
         );
         assert_eq!(
             preferences_viewport_preferred_size(PreferencesTab::Display),
-            egui::vec2(520.0, 580.0)
+            egui::vec2(500.0, 580.0)
         );
         assert_eq!(
             preferences_viewport_preferred_size(PreferencesTab::Advanced),
-            egui::vec2(520.0, 580.0)
+            egui::vec2(500.0, 580.0)
         );
         assert_eq!(
             preferences_viewport_preferred_size(PreferencesTab::About),
-            egui::vec2(520.0, 580.0)
+            egui::vec2(500.0, 580.0)
         );
     }
 
@@ -9096,7 +9033,7 @@ mod tests {
     }
 
     #[test]
-    fn viewport_about_tab_no_longer_renders_hero_icon() {
+    fn viewport_about_tab_renders_centered_about_identity_and_updates_copy() {
         let ctx = egui::Context::default();
         let shared_state = PreferencesWindow::default().shared_state.clone();
 
@@ -9107,11 +9044,55 @@ mod tests {
         let full_output = ctx.end_pass();
         let rendered = format!("{:?}", full_output.shapes);
 
-        assert!(
-            !rendered.contains('◆'),
-            "about viewport still renders old hero icon"
-        );
         assert!(rendered.contains("CodexBar"));
+        assert!(rendered.contains("Check for updates automatically"));
+        assert!(rendered.contains("Check for Updates..."));
+    }
+
+    #[test]
+    fn viewport_general_tab_tracks_current_mac_general_sections() {
+        let ctx = egui::Context::default();
+        let shared_state = PreferencesWindow::default().shared_state.clone();
+
+        ctx.begin_pass(egui::RawInput::default());
+        CentralPanel::default().show(&ctx, |ui| {
+            render_general_tab(ui, &shared_state);
+        });
+        let full_output = ctx.end_pass();
+        let rendered = format!("{:?}", full_output.shapes);
+
+        assert!(rendered.contains("SYSTEM"));
+        assert!(rendered.contains("USAGE"));
+        assert!(rendered.contains("AUTOMATION"));
+        assert!(rendered.contains("Show cost summary"));
+        assert!(rendered.contains("Check provider status"));
+        assert!(rendered.contains("Session quota notifications"));
+        assert!(
+            !rendered.contains("Interface Language"),
+            "General should stay focused on the mac General pane structure"
+        );
+    }
+
+    #[test]
+    fn viewport_advanced_tab_keeps_language_alerts_privacy_and_fun_out_of_general() {
+        let ctx = egui::Context::default();
+        let shared_state = PreferencesWindow::default().shared_state.clone();
+
+        ctx.begin_pass(egui::RawInput::default());
+        CentralPanel::default().show(&ctx, |ui| {
+            render_advanced_tab(ui, &shared_state);
+        });
+        let full_output = ctx.end_pass();
+        let rendered = format!("{:?}", full_output.shapes);
+
+        assert!(rendered.contains("INTERFACE"));
+        assert!(rendered.contains("ALERTS"));
+        assert!(rendered.contains("PRIVACY"));
+        assert!(rendered.contains("FUN"));
+        assert!(
+            !rendered.contains("Refresh cadence"),
+            "Refresh cadence belongs in General, matching the mac pane split"
+        );
     }
 
     #[test]
@@ -9186,7 +9167,7 @@ mod tests {
             chrome.selected_stroke,
             eframe::egui::Stroke::new(
                 1.0,
-                eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 20)
+                eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 18)
             )
         );
         assert_eq!(
