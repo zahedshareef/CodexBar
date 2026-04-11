@@ -8491,19 +8491,41 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
 
     ui.add_space(Spacing::LG);
     ui.vertical_centered(|ui| {
-        ui.label(
-            RichText::new("CodexBar")
-                .size(FontSize::XL)
-                .color(Theme::TEXT_PRIMARY)
-                .strong(),
-        );
-        ui.add_space(2.0);
-        ui.label(
-            RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
-                .size(FontSize::SM)
-                .color(Theme::TEXT_SECONDARY),
-        );
-        ui.add_space(Spacing::XS);
+        egui::Frame::none()
+            .fill(Theme::BG_SECONDARY)
+            .stroke(Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.22)))
+            .rounding(Rounding::same(16.0))
+            .inner_margin(egui::Margin::same(18.0))
+            .show(ui, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.label(
+                        RichText::new("◐")
+                            .size(34.0)
+                            .color(Theme::ACCENT_PRIMARY.gamma_multiply(1.08)),
+                    );
+                    ui.add_space(6.0);
+                    ui.label(
+                        RichText::new("CodexBar")
+                            .size(FontSize::XL)
+                            .color(Theme::TEXT_PRIMARY)
+                            .strong(),
+                    );
+                    ui.add_space(2.0);
+                    ui.label(
+                        RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
+                            .size(FontSize::SM)
+                            .color(Theme::TEXT_SECONDARY),
+                    );
+                    ui.add_space(2.0);
+                    ui.label(
+                        RichText::new(format!("Built {}", build_date))
+                            .size(FontSize::XS)
+                            .color(Theme::TEXT_MUTED),
+                    );
+                });
+            });
+
+        ui.add_space(Spacing::MD);
         ui.label(
             RichText::new(locale_text(ui_language, LocaleKey::AboutDescription))
                 .size(FontSize::SM)
@@ -8513,6 +8535,12 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
             RichText::new(locale_text(ui_language, LocaleKey::AboutDescriptionLine2))
                 .size(FontSize::SM)
                 .color(Theme::TEXT_SECONDARY),
+        );
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new("May your tokens never run out.")
+                .size(FontSize::XS)
+                .color(Theme::TEXT_MUTED),
         );
     });
 
@@ -8561,6 +8589,12 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
                     let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
                 }
             });
+            ui.add_space(Spacing::XS);
+            ui.label(
+                RichText::new("Updates and issues open in your browser.")
+                    .size(FontSize::XS)
+                    .color(Theme::TEXT_MUTED),
+            );
         });
     });
 
