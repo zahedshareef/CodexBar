@@ -396,8 +396,11 @@ fn choose_tray_update_plan<'a>(
         return Some(TrayUpdatePlan::Merged(provider_usages));
     }
 
-    let provider = match settings.menu_bar_display_mode.as_str() {
-        "minimal" => provider_usages.iter().max_by(|a, b| {
+    let provider = match (
+        settings.menu_bar_shows_highest_usage,
+        settings.menu_bar_display_mode.as_str(),
+    ) {
+        (true, _) | (_, "minimal") => provider_usages.iter().max_by(|a, b| {
             a.session_percent
                 .partial_cmp(&b.session_percent)
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -583,7 +586,7 @@ fn write_debug_state_with_targets_file(
     );
 
     let payload = format!(
-        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"menu_bar_display_mode\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"tray_icon_mode\":{},\"selected_provider\":{},\"tray_state\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
+        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"menu_bar_display_mode\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"switcher_shows_icons\":{},\"menu_bar_shows_highest_usage\":{},\"menu_bar_shows_percent\":{},\"show_all_token_accounts_in_menu\":{},\"tray_icon_mode\":{},\"selected_provider\":{},\"tray_state\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
         selected_tab.replace('\\', "\\\\").replace('\"', "\\\""),
         preferences_open,
         preferences_tab,
@@ -597,6 +600,10 @@ fn write_debug_state_with_targets_file(
         preferences_settings.show_as_used,
         preferences_settings.show_credits_extra_usage,
         preferences_settings.merge_tray_icons,
+        preferences_settings.switcher_shows_icons,
+        preferences_settings.menu_bar_shows_highest_usage,
+        preferences_settings.menu_bar_shows_percent,
+        preferences_settings.show_all_token_accounts_in_menu,
         string_json(&preferences_settings.tray_icon_mode),
         preferences_settings
             .selected_provider
@@ -4293,6 +4300,26 @@ mod tests {
             merge_tray_icons: false,
             tray_icon_mode: TrayIconMode::Single,
             menu_bar_display_mode: "minimal".to_string(),
+            ..Settings::default()
+        };
+        let usages = vec![tray_usage("Codex", 10.0), tray_usage("Claude", 60.0)];
+
+        let plan = choose_tray_update_plan(&usages, &settings);
+
+        assert!(matches!(
+            plan,
+            Some(TrayUpdatePlan::Single(provider))
+                if provider.name == "Claude" && (provider.session_percent - 60.0).abs() < f64::EPSILON
+        ));
+    }
+
+    #[test]
+    fn tray_plan_picks_highest_usage_when_display_setting_is_enabled() {
+        let settings = Settings {
+            merge_tray_icons: false,
+            tray_icon_mode: TrayIconMode::Single,
+            menu_bar_display_mode: "detailed".to_string(),
+            menu_bar_shows_highest_usage: true,
             ..Settings::default()
         };
         let usages = vec![tray_usage("Codex", 10.0), tray_usage("Claude", 60.0)];

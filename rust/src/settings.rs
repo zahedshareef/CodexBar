@@ -185,6 +185,18 @@ pub struct Settings {
     #[serde(default)]
     pub tray_icon_mode: TrayIconMode,
 
+    /// Show provider icons in the merged switcher UI
+    #[serde(default = "default_true")]
+    pub switcher_shows_icons: bool,
+
+    /// Prefer the provider closest to its limit in merged menu bar display
+    #[serde(default)]
+    pub menu_bar_shows_highest_usage: bool,
+
+    /// Replace bar-only tray display with provider branding plus percent text where supported
+    #[serde(default)]
+    pub menu_bar_shows_percent: bool,
+
     /// Show usage bars as "used" (true) or "remaining" (false)
     pub show_as_used: bool,
 
@@ -202,6 +214,10 @@ pub struct Settings {
 
     /// Show credits and extra usage information in the UI
     pub show_credits_extra_usage: bool,
+
+    /// Show all token accounts in provider menus instead of collapsing behind switchers
+    #[serde(default)]
+    pub show_all_token_accounts_in_menu: bool,
 
     /// Preferred Claude usage source for the provider settings UI
     #[serde(default = "default_claude_usage_source")]
@@ -315,6 +331,14 @@ pub struct Settings {
     #[serde(default)]
     pub claude_avoid_keychain_prompts: bool,
 
+    /// Show debug-oriented settings and troubleshooting surfaces
+    #[serde(default)]
+    pub show_debug_settings: bool,
+
+    /// Disable credential/keychain-style reads where supported
+    #[serde(default)]
+    pub disable_keychain_access: bool,
+
     /// Hide personal info (emails, account names) for streaming/sharing
     pub hide_personal_info: bool,
 
@@ -344,6 +368,10 @@ pub struct Settings {
 
 fn default_global_shortcut() -> String {
     "Ctrl+Shift+U".to_string()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_claude_usage_source() -> String {
@@ -433,12 +461,16 @@ impl Default for Settings {
             critical_usage_threshold: 90.0,
             merge_tray_icons: false, // Show single provider by default
             tray_icon_mode: TrayIconMode::default(), // Single icon by default
-            show_as_used: true,      // Show as "used" by default
+            switcher_shows_icons: true,
+            menu_bar_shows_highest_usage: false,
+            menu_bar_shows_percent: false,
+            show_as_used: true,         // Show as "used" by default
             surprise_animations: false, // Off by default
-            enable_animations: true, // Animations enabled by default
-            reset_time_relative: true, // Show relative times by default
+            enable_animations: true,    // Animations enabled by default
+            reset_time_relative: true,  // Show relative times by default
             menu_bar_display_mode: "detailed".to_string(), // Detailed mode by default
             show_credits_extra_usage: true, // Show credits + extra usage by default
+            show_all_token_accounts_in_menu: false,
             claude_usage_source: default_claude_usage_source(),
             codex_usage_source: default_codex_usage_source(),
             codex_cookie_source: default_codex_cookie_source(),
@@ -467,6 +499,8 @@ impl Default for Settings {
             minimax_api_token: String::new(),
             minimax_api_region: default_minimax_api_region(),
             claude_avoid_keychain_prompts: false,
+            show_debug_settings: false,
+            disable_keychain_access: false,
             hide_personal_info: false, // Show personal info by default
             update_channel: UpdateChannel::default(), // Stable by default
             provider_metrics: HashMap::new(), // Empty = use Automatic for all

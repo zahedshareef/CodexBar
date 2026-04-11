@@ -134,13 +134,12 @@ impl PreferencesTab {
         }
     }
 
-    /// Mac-style top-level preferences categories, plus Windows shortcuts.
+    /// Mac-style top-level preferences categories.
     fn top_level_tabs() -> &'static [PreferencesTab] {
         &[
             PreferencesTab::General,
             PreferencesTab::Accounts,
             PreferencesTab::Display,
-            PreferencesTab::Shortcuts,
             PreferencesTab::Advanced,
             PreferencesTab::About,
         ]
@@ -177,6 +176,10 @@ pub(crate) struct PreferencesDebugSettingsSnapshot {
     pub show_as_used: bool,
     pub show_credits_extra_usage: bool,
     pub merge_tray_icons: bool,
+    pub switcher_shows_icons: bool,
+    pub menu_bar_shows_highest_usage: bool,
+    pub menu_bar_shows_percent: bool,
+    pub show_all_token_accounts_in_menu: bool,
     pub tray_icon_mode: String,
     pub selected_provider: Option<String>,
 }
@@ -668,6 +671,10 @@ impl PreferencesWindow {
                     show_as_used: state.settings.show_as_used,
                     show_credits_extra_usage: state.settings.show_credits_extra_usage,
                     merge_tray_icons: state.settings.merge_tray_icons,
+                    switcher_shows_icons: state.settings.switcher_shows_icons,
+                    menu_bar_shows_highest_usage: state.settings.menu_bar_shows_highest_usage,
+                    menu_bar_shows_percent: state.settings.menu_bar_shows_percent,
+                    show_all_token_accounts_in_menu: state.settings.show_all_token_accounts_in_menu,
                     tray_icon_mode: match state.settings.tray_icon_mode {
                         TrayIconMode::Single => "single".to_string(),
                         // Match settings.json serialization so debug exports and persisted
@@ -705,6 +712,10 @@ impl PreferencesWindow {
                     show_as_used: false,
                     show_credits_extra_usage: false,
                     merge_tray_icons: false,
+                    switcher_shows_icons: false,
+                    menu_bar_shows_highest_usage: false,
+                    menu_bar_shows_percent: false,
+                    show_all_token_accounts_in_menu: false,
                     tray_icon_mode: "single".to_string(),
                     selected_provider: None,
                 },
@@ -807,6 +818,14 @@ impl PreferencesWindow {
                 "show_as_used" => state.settings.show_as_used = enabled,
                 "show_credits_extra_usage" => state.settings.show_credits_extra_usage = enabled,
                 "merge_tray_icons" => set_merge_tray_icons(&mut state.settings, enabled),
+                "switcher_shows_icons" => state.settings.switcher_shows_icons = enabled,
+                "menu_bar_shows_highest_usage" => {
+                    state.settings.menu_bar_shows_highest_usage = enabled;
+                }
+                "menu_bar_shows_percent" => state.settings.menu_bar_shows_percent = enabled,
+                "show_all_token_accounts_in_menu" => {
+                    state.settings.show_all_token_accounts_in_menu = enabled;
+                }
                 "per_provider_tray_icons" => {
                     set_per_provider_tray_icons(&mut state.settings, enabled);
                 }
@@ -7223,85 +7242,7 @@ fn render_shortcuts_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesS
             ui,
             locale_text(ui_language, LocaleKey::KeyboardShortcutsTitle),
             |ui| {
-                let status_msg = if let Ok(state) = shared_state.lock() {
-                    state.shortcut_status_msg.clone()
-                } else {
-                    None
-                };
-
-                setting_picker_row(
-                    ui,
-                    locale_text(ui_language, LocaleKey::GlobalShortcutLabel),
-                    locale_text(ui_language, LocaleKey::GlobalShortcutHelper),
-                    |ui| {
-                        let (mut shortcut_input, _) = if let Ok(state) = shared_state.lock() {
-                            (
-                                state.shortcut_input.clone(),
-                                state.shortcut_status_msg.clone(),
-                            )
-                        } else {
-                            ("Ctrl+Shift+U".to_string(), None)
-                        };
-
-                        picker_shell(ui, |ui| {
-                            let text_edit = egui::TextEdit::singleline(&mut shortcut_input)
-                                .desired_width(120.0)
-                                .frame(false)
-                                .hint_text(locale_text(
-                                    ui_language,
-                                    LocaleKey::ShortcutHintPlaceholder,
-                                ));
-                            let response = ui.add(text_edit);
-
-                            if response.changed()
-                                && let Ok(mut state) = shared_state.lock()
-                            {
-                                state.shortcut_input = shortcut_input.clone();
-                            }
-
-                            if response.lost_focus() {
-                                let shortcut_str = shortcut_input.trim().to_string();
-                                if !shortcut_str.is_empty() {
-                                    if let Some((modifiers, key)) =
-                                        crate::shortcuts::parse_shortcut(&shortcut_str)
-                                    {
-                                        let formatted = format_shortcut(modifiers, key);
-                                        if let Ok(mut state) = shared_state.lock() {
-                                            state.settings.global_shortcut = formatted.clone();
-                                            state.shortcut_input = formatted;
-                                            state.settings_changed = true;
-                                            state.shortcut_status_msg = Some((
-                                                locale_text(ui_language, LocaleKey::Saved)
-                                                    .to_string(),
-                                                false,
-                                            ));
-                                        }
-                                    } else if let Ok(mut state) = shared_state.lock() {
-                                        state.shortcut_status_msg = Some((
-                                            locale_text(ui_language, LocaleKey::InvalidFormat)
-                                                .to_string(),
-                                            true,
-                                        ));
-                                    }
-                                }
-                            }
-                        });
-                    },
-                );
-
-                if let Some((msg, is_error)) = &status_msg {
-                    ui.add_space(Spacing::XS);
-                    if *is_error {
-                        status_message(ui, msg, true);
-                    } else {
-                        ui.label(
-                            RichText::new(msg)
-                                .size(FontSize::XS)
-                                .color(Theme::TEXT_MUTED),
-                        );
-                    }
-                }
-
+                render_open_menu_shortcut_row(ui, shared_state, ui_language);
                 ui.add_space(4.0);
                 ui.label(
                     RichText::new(locale_text(ui_language, LocaleKey::ShortcutFormatHint))
@@ -7311,6 +7252,83 @@ fn render_shortcuts_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesS
             },
         );
     });
+}
+
+fn render_open_menu_shortcut_row(
+    ui: &mut egui::Ui,
+    shared_state: &Arc<Mutex<PreferencesSharedState>>,
+    ui_language: Language,
+) {
+    let status_msg = if let Ok(state) = shared_state.lock() {
+        state.shortcut_status_msg.clone()
+    } else {
+        None
+    };
+
+    setting_picker_row(
+        ui,
+        "Open menu",
+        "Trigger the menu bar menu from anywhere.",
+        |ui| {
+            let mut shortcut_input = if let Ok(state) = shared_state.lock() {
+                state.shortcut_input.clone()
+            } else {
+                "Ctrl+Shift+U".to_string()
+            };
+
+            picker_shell(ui, |ui| {
+                let text_edit = egui::TextEdit::singleline(&mut shortcut_input)
+                    .desired_width(128.0)
+                    .frame(false)
+                    .hint_text(locale_text(ui_language, LocaleKey::ShortcutHintPlaceholder));
+                let response = ui.add(text_edit);
+
+                if response.changed()
+                    && let Ok(mut state) = shared_state.lock()
+                {
+                    state.shortcut_input = shortcut_input.clone();
+                }
+
+                if response.lost_focus() {
+                    let shortcut_str = shortcut_input.trim().to_string();
+                    if !shortcut_str.is_empty() {
+                        if let Some((modifiers, key)) =
+                            crate::shortcuts::parse_shortcut(&shortcut_str)
+                        {
+                            let formatted = format_shortcut(modifiers, key);
+                            if let Ok(mut state) = shared_state.lock() {
+                                state.settings.global_shortcut = formatted.clone();
+                                state.shortcut_input = formatted;
+                                state.settings_changed = true;
+                                state.shortcut_status_msg = Some((
+                                    locale_text(ui_language, LocaleKey::Saved).to_string(),
+                                    false,
+                                ));
+                            }
+                        } else if let Ok(mut state) = shared_state.lock() {
+                            state.shortcut_status_msg = Some((
+                                locale_text(ui_language, LocaleKey::InvalidFormat).to_string(),
+                                true,
+                            ));
+                        }
+                    }
+                }
+            });
+        },
+    );
+
+    if let Some((msg, is_error)) = &status_msg {
+        ui.add_space(Spacing::XS);
+        if *is_error {
+            status_message(ui, msg, true);
+        } else {
+            ui.label(
+                RichText::new(msg)
+                    .size(FontSize::XS)
+                    .color(Theme::TEXT_MUTED),
+            );
+        }
+    }
 }
 
 /// Render Display tab for viewport
@@ -7336,6 +7354,118 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
             setting_divider(ui);
 
+            let mut switcher_shows_icons = if let Ok(state) = shared_state.lock() {
+                state.settings.switcher_shows_icons
+            } else {
+                true
+            };
+
+            ui.add_enabled_ui(merge_icons, |ui| {
+                if setting_toggle(
+                    ui,
+                    "Switcher shows icons",
+                    "Show provider icons in the switcher (otherwise show a weekly progress line).",
+                    &mut switcher_shows_icons,
+                ) && let Ok(mut state) = shared_state.lock()
+                {
+                    state.settings.switcher_shows_icons = switcher_shows_icons;
+                    state.settings_changed = true;
+                }
+            });
+
+            setting_divider(ui);
+
+            let mut show_highest_usage = if let Ok(state) = shared_state.lock() {
+                state.settings.menu_bar_shows_highest_usage
+            } else {
+                false
+            };
+
+            ui.add_enabled_ui(merge_icons, |ui| {
+                if setting_toggle(
+                    ui,
+                    "Show most-used provider",
+                    "Menu bar auto-shows the provider closest to its rate limit.",
+                    &mut show_highest_usage,
+                ) && let Ok(mut state) = shared_state.lock()
+                {
+                    state.settings.menu_bar_shows_highest_usage = show_highest_usage;
+                    state.settings_changed = true;
+                }
+            });
+
+            setting_divider(ui);
+
+            let mut menu_bar_shows_percent = if let Ok(state) = shared_state.lock() {
+                state.settings.menu_bar_shows_percent
+            } else {
+                false
+            };
+
+            if setting_toggle(
+                ui,
+                "Menu bar shows percent",
+                "Replace critter bars with provider branding icons and a percentage.",
+                &mut menu_bar_shows_percent,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.menu_bar_shows_percent = menu_bar_shows_percent;
+                state.settings_changed = true;
+            }
+
+            setting_divider(ui);
+
+            let mut selected_mode = if let Ok(state) = shared_state.lock() {
+                state.settings.menu_bar_display_mode.clone()
+            } else {
+                "detailed".to_string()
+            };
+
+            ui.add_enabled_ui(menu_bar_shows_percent, |ui| {
+                setting_picker_row(
+                    ui,
+                    "Display mode",
+                    "Choose what to show in the menu bar.",
+                    |ui| {
+                        styled_combo_box(
+                            ui,
+                            "menu_bar_display_mode_viewport",
+                            match selected_mode.as_str() {
+                                "minimal" => "Minimal",
+                                "compact" => "Compact",
+                                _ => "Detailed",
+                            },
+                            120.0,
+                            |ui| {
+                                for (value, label) in [
+                                    ("minimal", "Minimal"),
+                                    ("compact", "Compact"),
+                                    ("detailed", "Detailed"),
+                                ] {
+                                    if ui
+                                        .selectable_value(
+                                            &mut selected_mode,
+                                            value.to_string(),
+                                            label,
+                                        )
+                                        .changed()
+                                        && let Ok(mut state) = shared_state.lock()
+                                    {
+                                        state.settings.menu_bar_display_mode =
+                                            selected_mode.clone();
+                                        state.settings_changed = true;
+                                    }
+                                }
+                            },
+                        );
+                    },
+                );
+            });
+        });
+
+        settings_section_separator(ui);
+
+        preferences_stack_section(ui, "Windows tray", |ui| {
             let mut per_provider = if let Ok(state) = shared_state.lock() {
                 state.settings.tray_icon_mode == TrayIconMode::PerProvider
             } else {
@@ -7352,48 +7482,6 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 set_per_provider_tray_icons(&mut state.settings, per_provider);
                 state.settings_changed = true;
             }
-
-            setting_divider(ui);
-
-            let mut selected_mode = if let Ok(state) = shared_state.lock() {
-                state.settings.menu_bar_display_mode.clone()
-            } else {
-                "detailed".to_string()
-            };
-
-            setting_picker_row(
-                ui,
-                "Display mode",
-                "Choose what to show in the menu bar.",
-                |ui| {
-                    styled_combo_box(
-                        ui,
-                        "menu_bar_display_mode_viewport",
-                        match selected_mode.as_str() {
-                            "minimal" => "Minimal",
-                            "compact" => "Compact",
-                            _ => "Detailed",
-                        },
-                        120.0,
-                        |ui| {
-                            for (value, label) in [
-                                ("minimal", "Minimal"),
-                                ("compact", "Compact"),
-                                ("detailed", "Detailed"),
-                            ] {
-                                if ui
-                                    .selectable_value(&mut selected_mode, value.to_string(), label)
-                                    .changed()
-                                    && let Ok(mut state) = shared_state.lock()
-                                {
-                                    state.settings.menu_bar_display_mode = selected_mode.clone();
-                                    state.settings_changed = true;
-                                }
-                            }
-                        },
-                    );
-                },
-            );
         });
 
         settings_section_separator(ui);
@@ -7451,6 +7539,25 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             ) && let Ok(mut state) = shared_state.lock()
             {
                 state.settings.show_credits_extra_usage = show_credits_extra;
+                state.settings_changed = true;
+            }
+
+            setting_divider(ui);
+
+            let mut show_all_token_accounts = if let Ok(state) = shared_state.lock() {
+                state.settings.show_all_token_accounts_in_menu
+            } else {
+                false
+            };
+
+            if setting_toggle(
+                ui,
+                "Show all token accounts",
+                "Stack token accounts in the menu (otherwise show an account switcher bar).",
+                &mut show_all_token_accounts,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.show_all_token_accounts_in_menu = show_all_token_accounts;
                 state.settings_changed = true;
             }
         });
@@ -8054,76 +8161,53 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
         Language::English
     };
     compact_preferences_body(ui, 392.0, |ui| {
-        preferences_stack_section(ui, "Interface", |ui| {
-            let current_language = if let Ok(state) = shared_state.lock() {
-                state.settings.ui_language
-            } else {
-                Language::English
-            };
-            let current_label = current_language.display_name();
+        preferences_stack_section(ui, "Keyboard shortcut", |ui| {
+            render_open_menu_shortcut_row(ui, shared_state, ui_language);
+        });
 
-            setting_picker_row(
-                ui,
-                locale_text(ui_language, LocaleKey::InterfaceLanguage),
-                "Choose the language CodexBar uses in settings and menus.",
-                |ui| {
-                    styled_combo_box(
-                        ui,
-                        "language_selector_viewport",
-                        current_label,
-                        124.0,
-                        |ui| {
-                            for lang in Language::all() {
-                                let is_selected = current_language == *lang;
-                                if ui
-                                    .selectable_label(is_selected, lang.display_name())
-                                    .clicked()
-                                    && let Ok(mut state) = shared_state.lock()
-                                {
-                                    state.settings.ui_language = *lang;
-                                    state.settings_changed = true;
-                                }
-                            }
-                        },
-                    );
-                },
+        settings_section_separator(ui);
+
+        preferences_stack_section(ui, "", |ui| {
+            ui.horizontal(|ui| {
+                if simple_action_button(ui, "Install CLI")
+                    && let Ok(exe_path) = std::env::current_exe()
+                    && let Some(parent) = exe_path.parent()
+                {
+                    let _ = open::that(parent);
+                }
+            });
+            ui.add_space(4.0);
+            ui.label(
+                RichText::new(
+                    "Open the CodexBar executable folder so you can add it to PATH as codexbar.",
+                )
+                .size(FontSize::XS)
+                .color(Theme::TEXT_MUTED),
             );
         });
 
         settings_section_separator(ui);
 
-        preferences_stack_section(ui, "Alerts", |ui| {
-            render_notifications_settings(ui, shared_state, ui_language);
-        });
+        preferences_stack_section(ui, "", |ui| {
+            let mut show_debug_settings = if let Ok(state) = shared_state.lock() {
+                state.settings.show_debug_settings
+            } else {
+                false
+            };
 
-        settings_section_separator(ui);
+            if setting_toggle(
+                ui,
+                "Show Debug Settings",
+                "Expose troubleshooting tools in the Debug tab.",
+                &mut show_debug_settings,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.show_debug_settings = show_debug_settings;
+                state.settings_changed = true;
+            }
 
-        preferences_stack_section(
-            ui,
-            locale_text(ui_language, LocaleKey::PrivacyTitle),
-            |ui| {
-                let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
-                    state.settings.hide_personal_info
-                } else {
-                    false
-                };
+            setting_divider(ui);
 
-                if setting_toggle(
-                    ui,
-                    locale_text(ui_language, LocaleKey::HidePersonalInfo),
-                    locale_text(ui_language, LocaleKey::HidePersonalInfoHelper),
-                    &mut hide_personal_info,
-                ) && let Ok(mut state) = shared_state.lock()
-                {
-                    state.settings.hide_personal_info = hide_personal_info;
-                    state.settings_changed = true;
-                }
-            },
-        );
-
-        settings_section_separator(ui);
-
-        preferences_stack_section(ui, locale_text(ui_language, LocaleKey::Fun), |ui| {
             let mut surprise = if let Ok(state) = shared_state.lock() {
                 state.settings.surprise_animations
             } else {
@@ -8132,12 +8216,64 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
 
             if setting_toggle(
                 ui,
-                locale_text(ui_language, LocaleKey::Fun),
-                locale_text(ui_language, LocaleKey::SurpriseAnimationsHelper),
+                "Surprise me",
+                "Check if you like your agents having some fun up there.",
                 &mut surprise,
             ) && let Ok(mut state) = shared_state.lock()
             {
                 state.settings.surprise_animations = surprise;
+                state.settings_changed = true;
+            }
+        });
+
+        settings_section_separator(ui);
+
+        preferences_stack_section(ui, "", |ui| {
+            let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
+                state.settings.hide_personal_info
+            } else {
+                false
+            };
+
+            if setting_toggle(
+                ui,
+                "Hide personal information",
+                "Obscure email addresses in the menu bar and menu UI.",
+                &mut hide_personal_info,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.hide_personal_info = hide_personal_info;
+                state.settings_changed = true;
+            }
+        });
+
+        settings_section_separator(ui);
+
+        preferences_stack_section(ui, "Keychain access", |ui| {
+            ui.label(
+                RichText::new(
+                    "Disable credential reads where supported. Browser cookie import may be unavailable; paste Cookie headers manually in Providers.",
+                )
+                .size(FontSize::XS)
+                .color(Theme::TEXT_MUTED),
+            );
+            ui.add_space(6.0);
+
+            let mut disable_keychain_access = if let Ok(state) = shared_state.lock() {
+                state.settings.disable_keychain_access
+            } else {
+                false
+            };
+
+            if setting_toggle(
+                ui,
+                "Disable Keychain access",
+                "Prevents supported keychain-style access while enabled.",
+                &mut disable_keychain_access,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.disable_keychain_access = disable_keychain_access;
+                state.settings.claude_avoid_keychain_prompts = disable_keychain_access;
                 state.settings_changed = true;
             }
         });
@@ -8948,14 +9084,13 @@ mod tests {
     }
 
     #[test]
-    fn top_level_tabs_match_mac_preferences_shape_with_windows_shortcuts() {
+    fn top_level_tabs_match_mac_preferences_shape() {
         assert_eq!(
             PreferencesTab::top_level_tabs(),
             &[
                 PreferencesTab::General,
                 PreferencesTab::Accounts,
                 PreferencesTab::Display,
-                PreferencesTab::Shortcuts,
                 PreferencesTab::Advanced,
                 PreferencesTab::About,
             ]
@@ -9068,7 +9203,7 @@ mod tests {
     }
 
     #[test]
-    fn viewport_advanced_tab_keeps_language_alerts_privacy_and_fun_out_of_general() {
+    fn viewport_advanced_tab_tracks_current_mac_advanced_sections() {
         let ctx = egui::Context::default();
         let shared_state = PreferencesWindow::default().shared_state.clone();
 
@@ -9079,13 +9214,21 @@ mod tests {
         let full_output = ctx.end_pass();
         let rendered = format!("{:?}", full_output.shapes);
 
-        assert!(rendered.contains("INTERFACE"));
-        assert!(rendered.contains("ALERTS"));
-        assert!(rendered.contains("PRIVACY"));
-        assert!(rendered.contains("FUN"));
+        assert!(rendered.contains("KEYBOARD SHORTCUT"));
+        assert!(rendered.contains("Open menu"));
+        assert!(rendered.contains("Install CLI"));
+        assert!(rendered.contains("Show Debug Settings"));
+        assert!(rendered.contains("Surprise me"));
+        assert!(rendered.contains("Hide personal information"));
+        assert!(rendered.contains("KEYCHAIN ACCESS"));
+        assert!(rendered.contains("Disable Keychain access"));
         assert!(
             !rendered.contains("Refresh cadence"),
             "Refresh cadence belongs in General, matching the mac pane split"
+        );
+        assert!(
+            !rendered.contains("Interface Language"),
+            "Advanced should follow the live mac pane instead of the older Windows language/alerts grouping"
         );
     }
 
@@ -9103,11 +9246,17 @@ mod tests {
 
         assert!(rendered.contains("MENU BAR"));
         assert!(rendered.contains("Merge Icons"));
+        assert!(rendered.contains("Switcher shows icons"));
+        assert!(rendered.contains("Show most-used provider"));
+        assert!(rendered.contains("Menu bar shows percent"));
         assert!(rendered.contains("Display mode"));
+        assert!(rendered.contains("WINDOWS TRAY"));
+        assert!(rendered.contains("Separate provider icons"));
         assert!(rendered.contains("MENU CONTENT"));
         assert!(rendered.contains("Show usage as used"));
         assert!(rendered.contains("Show reset time as clock"));
         assert!(rendered.contains("Show credits + extra usage"));
+        assert!(rendered.contains("Show all token accounts"));
     }
 
     #[test]
