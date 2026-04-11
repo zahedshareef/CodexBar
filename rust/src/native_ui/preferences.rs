@@ -7315,15 +7315,8 @@ fn render_shortcuts_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesS
 
 /// Render Display tab for viewport
 fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
-    // Get current language from shared state
-    let ui_language = if let Ok(state) = shared_state.lock() {
-        state.settings.ui_language
-    } else {
-        Language::English
-    };
-
     compact_preferences_body(ui, 392.0, |ui| {
-        preferences_stack_section(ui, "Menu Bar", |ui| {
+        preferences_stack_section(ui, "Menu bar", |ui| {
             let mut merge_icons = if let Ok(state) = shared_state.lock() {
                 state.settings.merge_tray_icons
             } else {
@@ -7332,8 +7325,8 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
             if setting_toggle(
                 ui,
-                locale_text(ui_language, LocaleKey::MergeTrayIcons),
-                locale_text(ui_language, LocaleKey::MergeTrayIconsHelper),
+                "Merge Icons",
+                "Use a single menu bar icon with a provider switcher.",
                 &mut merge_icons,
             ) && let Ok(mut state) = shared_state.lock()
             {
@@ -7351,8 +7344,8 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
             if setting_toggle(
                 ui,
-                locale_text(ui_language, LocaleKey::PerProviderTrayIcons),
-                locale_text(ui_language, LocaleKey::PerProviderTrayIconsHelper),
+                "Separate provider icons",
+                "Show one Windows tray icon per provider instead of a single switcher icon.",
                 &mut per_provider,
             ) && let Ok(mut state) = shared_state.lock()
             {
@@ -7370,8 +7363,8 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
             setting_picker_row(
                 ui,
-                "Menu bar display mode",
-                "Choose how much menu bar detail CodexBar keeps visible.",
+                "Display mode",
+                "Choose what to show in the menu bar.",
                 |ui| {
                     styled_combo_box(
                         ui,
@@ -7405,25 +7398,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         settings_section_separator(ui);
 
-        preferences_stack_section(ui, "Menu Content", |ui| {
-            let mut relative_time = if let Ok(state) = shared_state.lock() {
-                state.settings.reset_time_relative
-            } else {
-                true
-            };
-
-            if setting_toggle(
-                ui,
-                locale_text(ui_language, LocaleKey::ResetTimeRelative),
-                locale_text(ui_language, LocaleKey::ResetTimeRelativeHelper),
-                &mut relative_time,
-            ) && let Ok(mut state) = shared_state.lock()
-            {
-                state.settings.reset_time_relative = relative_time;
-                state.settings_changed = true;
-            }
-            setting_divider(ui);
-
+        preferences_stack_section(ui, "Menu content", |ui| {
             let mut show_as_used = if let Ok(state) = shared_state.lock() {
                 state.settings.show_as_used
             } else {
@@ -7432,12 +7407,31 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
             if setting_toggle(
                 ui,
-                locale_text(ui_language, LocaleKey::ShowUsageAsUsed),
-                locale_text(ui_language, LocaleKey::ShowUsageAsUsedHelper),
+                "Show usage as used",
+                "Progress bars fill as you consume quota instead of showing remaining.",
                 &mut show_as_used,
             ) && let Ok(mut state) = shared_state.lock()
             {
                 state.settings.show_as_used = show_as_used;
+                state.settings_changed = true;
+            }
+
+            setting_divider(ui);
+
+            let mut show_reset_as_clock = if let Ok(state) = shared_state.lock() {
+                !state.settings.reset_time_relative
+            } else {
+                false
+            };
+
+            if setting_toggle(
+                ui,
+                "Show reset time as clock",
+                "Display reset times as absolute clock values instead of countdowns.",
+                &mut show_reset_as_clock,
+            ) && let Ok(mut state) = shared_state.lock()
+            {
+                state.settings.reset_time_relative = !show_reset_as_clock;
                 state.settings_changed = true;
             }
 
@@ -7451,8 +7445,8 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
             if setting_toggle(
                 ui,
-                locale_text(ui_language, LocaleKey::ShowCreditsExtra),
-                locale_text(ui_language, LocaleKey::ShowCreditsExtraHelper),
+                "Show credits + extra usage",
+                "Show Codex Credits and Claude Extra usage sections in the menu.",
                 &mut show_credits_extra,
             ) && let Ok(mut state) = shared_state.lock()
             {
@@ -8315,15 +8309,15 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
         ui.add_space(14.0);
         ui.vertical_centered(|ui| {
             if text_button(ui, "</>  GitHub", Theme::ACCENT_PRIMARY) {
-                let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
-            }
-            ui.add_space(2.0);
-            if text_button(ui, "◉  Website", Theme::ACCENT_PRIMARY) {
                 let _ = open::that("https://github.com/steipete/CodexBar");
             }
             ui.add_space(2.0);
+            if text_button(ui, "◉  Website", Theme::ACCENT_PRIMARY) {
+                let _ = open::that("https://steipete.me");
+            }
+            ui.add_space(2.0);
             if text_button(ui, "↗  Twitter", Theme::ACCENT_PRIMARY) {
-                let _ = open::that("https://x.com/steipete");
+                let _ = open::that("https://twitter.com/steipete");
             }
             ui.add_space(2.0);
             if text_button(ui, "✉  Email", Theme::ACCENT_PRIMARY) {
@@ -8887,8 +8881,8 @@ mod tests {
         provider_detail_chrome, provider_detail_display_text, provider_detail_max_content_width,
         provider_detail_source_display, provider_detail_status_value, provider_detail_subtitle,
         provider_detail_text_chrome, provider_sidebar_display_lines, provider_sidebar_subtitle,
-        providers_surface_palette, render_about_tab, render_advanced_tab, render_general_tab,
-        set_merge_tray_icons, set_per_provider_tray_icons, settings_nav_chrome,
+        providers_surface_palette, render_about_tab, render_advanced_tab, render_display_tab,
+        render_general_tab, set_merge_tray_icons, set_per_provider_tray_icons, settings_nav_chrome,
         should_show_token_accounts_section, shows_shared_provider_settings,
         vertexai_credentials_path, zai_region_label,
     };
@@ -9093,6 +9087,27 @@ mod tests {
             !rendered.contains("Refresh cadence"),
             "Refresh cadence belongs in General, matching the mac pane split"
         );
+    }
+
+    #[test]
+    fn viewport_display_tab_uses_mac_display_order_for_supported_rows() {
+        let ctx = egui::Context::default();
+        let shared_state = PreferencesWindow::default().shared_state.clone();
+
+        ctx.begin_pass(egui::RawInput::default());
+        CentralPanel::default().show(&ctx, |ui| {
+            render_display_tab(ui, &shared_state);
+        });
+        let full_output = ctx.end_pass();
+        let rendered = format!("{:?}", full_output.shapes);
+
+        assert!(rendered.contains("MENU BAR"));
+        assert!(rendered.contains("Merge Icons"));
+        assert!(rendered.contains("Display mode"));
+        assert!(rendered.contains("MENU CONTENT"));
+        assert!(rendered.contains("Show usage as used"));
+        assert!(rendered.contains("Show reset time as clock"));
+        assert!(rendered.contains("Show credits + extra usage"));
     }
 
     #[test]
