@@ -3464,72 +3464,72 @@ fn draw_provider_detail_card(
     let mut refresh_requested = false;
     let mut account_switch_requested: Option<String> = None;
     let brand_color = provider_color(&provider.name);
+    let display_account = provider.account.as_ref().map(|account| {
+        PersonalInfoRedactor::redact_email(Some(account.as_str()), hide_personal_info)
+    });
+    let subtitle_text = if let Some(error) = &provider.error {
+        error.clone()
+    } else if let Some(status_desc) = &provider.status_description
+        && provider.status_level != StatusLevel::Operational
+        && provider.status_level != StatusLevel::Unknown
+    {
+        let status_template = locale_text(ui_language, LocaleKey::StatusLabel);
+        status_template.replace("{}", status_desc)
+    } else {
+        locale_text(ui_language, LocaleKey::StatusJustUpdated).to_string()
+    };
+    let subtitle_color = if provider.error.is_some() {
+        Theme::RED
+    } else if provider.status_level != StatusLevel::Operational
+        && provider.status_level != StatusLevel::Unknown
+    {
+        status_color(provider.status_level)
+    } else {
+        Theme::TEXT_MUTED
+    };
 
     ui.vertical(|ui| {
         // ═══════════════════════════════════════════════════════════════════
         // HEADER — provider identity block
         // ═══════════════════════════════════════════════════════════════════
 
-        // Row 1: Provider name (left) | Plan (right)
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new(&provider.display_name)
                     .size(FontSize::MD)
-                    .color(brand_color)
+                    .color(Theme::TEXT_PRIMARY)
                     .strong(),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if let Some(account) = &display_account
+                    && !account.is_empty()
+                {
+                    ui.label(
+                        RichText::new(account)
+                            .size(FontSize::SM)
+                            .color(Theme::TEXT_SECONDARY),
+                    );
+                }
+            });
+        });
+
+        ui.add_space(2.0);
+        ui.horizontal(|ui| {
+            ui.label(
+                RichText::new(&subtitle_text)
+                    .size(FontSize::XS)
+                    .color(subtitle_color),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if let Some(plan) = &provider.plan {
                     ui.label(
                         RichText::new(plan)
                             .size(FontSize::XS)
-                            .color(Theme::TEXT_MUTED),
+                            .color(Theme::TEXT_SECONDARY),
                     );
                 }
             });
         });
-
-        // Row 2: Subtitle or error (left) | Account email (right)
-        ui.horizontal(|ui| {
-            if let Some(error) = &provider.error {
-                ui.label(RichText::new(error).size(FontSize::XS).color(Theme::RED));
-            } else {
-                ui.label(
-                    RichText::new(locale_text(ui_language, LocaleKey::StatusJustUpdated))
-                        .size(FontSize::XS)
-                        .color(Theme::TEXT_MUTED),
-                );
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if let Some(account) = &provider.account {
-                    let display_account = PersonalInfoRedactor::redact_email(
-                        Some(account.as_str()),
-                        hide_personal_info,
-                    );
-                    if !display_account.is_empty() {
-                        ui.label(
-                            RichText::new(&display_account)
-                                .size(FontSize::XS)
-                                .color(Theme::TEXT_MUTED),
-                        );
-                    }
-                }
-            });
-        });
-
-        // Row 3: Status description (only when degraded)
-        if let Some(status_desc) = &provider.status_description
-            && provider.status_level != StatusLevel::Operational
-            && provider.status_level != StatusLevel::Unknown
-        {
-            let status_col = status_color(provider.status_level);
-            let status_template = locale_text(ui_language, LocaleKey::StatusLabel);
-            ui.label(
-                RichText::new(status_template.replace("{}", status_desc))
-                    .size(FontSize::XS)
-                    .color(status_col),
-            );
-        }
 
         // ═══════════════════════════════════════════════════════════════════
         // DIVIDER — only if content follows
@@ -3655,7 +3655,7 @@ fn draw_provider_detail_card(
 
             ui.label(
                 RichText::new(locale_text(ui_language, LocaleKey::CreditsTitle))
-                    .size(FontSize::SM)
+                    .size(FontSize::BASE)
                     .color(Theme::TEXT_PRIMARY)
                     .strong(),
             );
@@ -3728,7 +3728,7 @@ fn draw_provider_detail_card(
 
             ui.label(
                 RichText::new(locale_text(ui_language, LocaleKey::SectionUsageBreakdown))
-                    .size(FontSize::SM)
+                    .size(FontSize::BASE)
                     .color(Theme::TEXT_PRIMARY)
                     .strong(),
             );
@@ -3751,7 +3751,7 @@ fn draw_provider_detail_card(
             // Title: "Cost" - .font(.body).fontWeight(.medium)
             ui.label(
                 RichText::new(locale_text(ui_language, LocaleKey::SectionCost))
-                    .size(FontSize::SM)
+                    .size(FontSize::BASE)
                     .color(Theme::TEXT_PRIMARY)
                     .strong(),
             );
@@ -3915,19 +3915,19 @@ fn draw_metric_row(ui: &mut egui::Ui, metric: MetricRow<'_>) {
     // Title
     ui.label(
         RichText::new(title)
-            .size(FontSize::SM)
+            .size(FontSize::BASE)
             .color(Theme::TEXT_PRIMARY)
             .strong(),
     );
 
-    ui.add_space(4.0);
+    ui.add_space(3.0);
 
     let display_percent = usage_display_percent(percent, show_as_used);
     let display_pace_percent = pace_percent.map(|pace| if show_as_used { pace } else { -pace });
 
     // Progress bar
     let bar_width = ui.available_width();
-    let bar_height = 6.0;
+    let bar_height = 5.0;
     let (rect, _) = ui.allocate_exact_size(Vec2::new(bar_width, bar_height), egui::Sense::hover());
 
     // Track
@@ -3959,7 +3959,7 @@ fn draw_metric_row(ui: &mut egui::Ui, metric: MetricRow<'_>) {
             .rect_filled(marker_rect, Rounding::same(1.0), marker_color);
     }
 
-    ui.add_space(4.0);
+    ui.add_space(3.0);
 
     // Info row: X% used (left) | Pace status | Resets in Xh (right)
     ui.horizontal(|ui| {
