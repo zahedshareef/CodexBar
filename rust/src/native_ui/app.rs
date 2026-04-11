@@ -4,7 +4,9 @@
 use eframe::egui::{
     self, Color32, FontData, FontDefinitions, FontFamily, Rect, RichText, Rounding, Stroke, Vec2,
 };
+#[cfg(debug_assertions)]
 use image::ColorType;
+#[cfg(debug_assertions)]
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver};
@@ -2160,7 +2162,7 @@ fn create_provider(id: ProviderId) -> Box<dyn Provider> {
 }
 
 impl eframe::App for CodexBarApp {
-    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, _raw_input: &mut egui::RawInput) {
         #[cfg(debug_assertions)]
         {
             let drained_inputs: Vec<_> = if let Ok(mut queue) = self.test_input_queue.lock() {
@@ -2171,19 +2173,19 @@ impl eframe::App for CodexBarApp {
             for input in drained_inputs {
                 match input {
                     super::test_server::TestInput::OpenWindow => {
-                        self.open_main_window_for_testing(ctx);
+                        self.open_main_window_for_testing(_ctx);
                     }
                     super::test_server::TestInput::SelectTab { tab } => {
-                        self.select_tab_for_testing(&tab, ctx);
+                        self.select_tab_for_testing(&tab, _ctx);
                     }
                     super::test_server::TestInput::SelectPreferencesTab { tab } => {
                         self.preferences_window.select_tab_for_testing(&tab);
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SelectPreferencesProvider { provider } => {
                         self.preferences_window
                             .select_provider_for_testing(&provider);
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetSingleTrayState {
                         state,
@@ -2199,7 +2201,7 @@ impl eframe::App for CodexBarApp {
                             weekly_percent,
                             error.as_deref(),
                         );
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetProviderTrayState {
                         provider,
@@ -2215,13 +2217,13 @@ impl eframe::App for CodexBarApp {
                             weekly_percent,
                             error.as_deref(),
                         );
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetProviderEnabled { provider, enabled } => {
                         self.preferences_window
                             .set_provider_enabled_for_testing(&provider, enabled);
                         self.debug_tray_override = None;
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetRuntimeProviderState {
                         provider,
@@ -2237,59 +2239,59 @@ impl eframe::App for CodexBarApp {
                             weekly_percent,
                             error.as_deref(),
                         );
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetRefreshInterval { seconds } => {
                         self.preferences_window
                             .set_refresh_interval_for_testing(seconds);
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetDisplaySetting { name, enabled } => {
                         self.preferences_window
                             .set_display_setting_for_testing(&name, enabled);
                         self.debug_tray_override = None;
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetDisplayMode { mode } => {
                         self.preferences_window.set_display_mode_for_testing(&mode);
                         self.debug_tray_override = None;
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetApiKeyInput { provider, value } => {
                         self.preferences_window
                             .set_api_key_input_for_testing(&provider, &value);
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SubmitApiKey => {
                         self.preferences_window.submit_api_key_for_testing();
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SetCookieInput { provider, value } => {
                         self.preferences_window
                             .set_cookie_input_for_testing(&provider, &value);
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SubmitCookie => {
                         self.preferences_window.submit_cookie_for_testing();
-                        ctx.request_repaint();
+                        _ctx.request_repaint();
                     }
                     super::test_server::TestInput::SaveState { path } => {
-                        self.request_test_state_dump(PathBuf::from(path), ctx);
+                        self.request_test_state_dump(PathBuf::from(path), _ctx);
                     }
                     super::test_server::TestInput::SaveScreenshot { path } => {
-                        self.request_test_screenshot(PathBuf::from(path), ctx);
+                        self.request_test_screenshot(PathBuf::from(path), _ctx);
                     }
                     super::test_server::TestInput::SavePreferencesScreenshot { path } => {
-                        self.request_test_preferences_screenshot(PathBuf::from(path), ctx);
+                        self.request_test_preferences_screenshot(PathBuf::from(path), _ctx);
                     }
                     super::test_server::TestInput::Click { x, y } => {
                         let pos = egui::pos2(x, y);
-                        self.queue_test_click(ctx, pos, egui::PointerButton::Primary);
+                        self.queue_test_click(_ctx, pos, egui::PointerButton::Primary);
                         tracing::debug!("Injected staged test click at ({}, {})", x, y);
                     }
                     super::test_server::TestInput::DoubleClick { x, y } => {
                         let pos = egui::pos2(x, y);
-                        self.open_main_window_for_testing(ctx);
+                        self.open_main_window_for_testing(_ctx);
                         self.queue_test_pointer_batches([
                             vec![egui::Event::PointerMoved(pos)],
                             vec![egui::Event::PointerButton {
@@ -2324,7 +2326,7 @@ impl eframe::App for CodexBarApp {
                     }
                     super::test_server::TestInput::RightClick { x, y } => {
                         let pos = egui::pos2(x, y);
-                        self.queue_test_click(ctx, pos, egui::PointerButton::Secondary);
+                        self.queue_test_click(_ctx, pos, egui::PointerButton::Secondary);
                         tracing::debug!("Injected staged test right-click at ({}, {})", x, y);
                     }
                 }
@@ -2333,7 +2335,7 @@ impl eframe::App for CodexBarApp {
 
         #[cfg(debug_assertions)]
         if let Some(events) = self.pending_test_event_batches.pop_front() {
-            raw_input.events.extend(events);
+            _raw_input.events.extend(events);
         }
     }
 

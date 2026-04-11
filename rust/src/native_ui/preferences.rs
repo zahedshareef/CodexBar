@@ -6,6 +6,7 @@
 #![allow(dead_code)] // Legacy show_* methods kept for potential future use
 
 use eframe::egui::{self, Color32, Rect, RichText, Rounding, Stroke, TextureHandle, Vec2};
+#[cfg(debug_assertions)]
 use image::ColorType;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -558,7 +559,10 @@ impl PreferencesWindow {
             state.selected_provider = self.selected_provider;
             state.shortcut_input = self.settings.global_shortcut.clone();
             state.shortcut_status_msg = None;
-            state.debug_viewport_outer_rect = None;
+            #[cfg(debug_assertions)]
+            {
+                state.debug_viewport_outer_rect = None;
+            }
         }
     }
 
@@ -571,7 +575,10 @@ impl PreferencesWindow {
         self.is_open = false;
         if let Ok(mut state) = self.shared_state.lock() {
             state.is_open = false;
-            state.debug_viewport_outer_rect = None;
+            #[cfg(debug_assertions)]
+            {
+                state.debug_viewport_outer_rect = None;
+            }
         }
         self.needs_viewport_placement = false;
     }
@@ -1039,6 +1046,7 @@ impl PreferencesWindow {
             builder = builder.with_position(position);
         }
 
+        #[cfg(debug_assertions)]
         let mut pending_viewport_screenshot_request: Option<PathBuf> = None;
         ctx.show_viewport_immediate(settings_viewport_id, builder, |ctx, _class| {
             // Check if window was closed
@@ -1172,6 +1180,7 @@ impl PreferencesWindow {
             }
         });
 
+        #[cfg(debug_assertions)]
         if let Some(path) = pending_viewport_screenshot_request {
             append_preferences_screenshot_debug_log(&format!(
                 "send_root_viewport_screenshot path={} viewport={:?}",
