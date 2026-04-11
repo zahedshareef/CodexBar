@@ -2601,6 +2601,16 @@ impl eframe::App for CodexBarApp {
                         self.anchor_main_window_to_pointer = true;
                         self.layout_main_window(ctx, true);
                     }
+                    TrayMenuAction::OpenProvider(provider_name) => {
+                        if let Some(provider_id) = ProviderId::from_cli_name(&provider_name) {
+                            if let Ok(mut state) = self.state.lock() {
+                                state.selected_tab = SelectedTab::Provider(provider_id);
+                            }
+                            self.pending_main_window_layout = true;
+                            self.anchor_main_window_to_pointer = true;
+                            self.layout_main_window(ctx, true);
+                        }
+                    }
                     TrayMenuAction::Refresh => {
                         if !is_refreshing {
                             self.refresh_providers();

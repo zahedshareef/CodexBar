@@ -279,21 +279,36 @@ fn debug_provider_tooltip_text(
 pub struct TrayManager {
     tray_icon: TrayIcon,
     /// Provider menu items for updating with status prefixes
-    provider_menu_items: HashMap<ProviderId, CheckMenuItem>,
+    provider_menu_items: RefCell<HashMap<ProviderId, CheckMenuItem>>,
+    /// Native tray rows that open provider detail directly.
+    provider_open_items: RefCell<HashMap<ProviderId, MenuItem>>,
+    /// Last rendered provider row labels so menu rebuilds can restore live state.
+    provider_open_labels: RefCell<HashMap<ProviderId, String>>,
     last_usage_signature: Cell<Option<u64>>,
     last_merged_signature: Cell<Option<u64>>,
     /// Current tooltip state for language relocalization
     tooltip_state: RefCell<TrayTooltipState>,
 }
 
+type SingleTrayMenuBundle = (
+    Menu,
+    HashMap<ProviderId, CheckMenuItem>,
+    HashMap<ProviderId, MenuItem>,
+    HashMap<ProviderId, String>,
+);
+
 impl TrayManager {
-    /// Create a new tray manager with default icon
-    pub fn new() -> anyhow::Result<Self> {
-        let settings = Settings::load();
-        let lang = settings.ui_language;
+    fn default_provider_open_label(provider_id: ProviderId) -> String {
+        format!("{}  Loading...", provider_id.display_name())
+    }
+
+    fn format_provider_open_label(provider_id: ProviderId, detail: &str) -> String {
+        format!("{}  {}", provider_id.display_name(), detail)
+    }
+
+    fn build_menu(lang: Language, settings: &Settings) -> anyhow::Result<SingleTrayMenuBundle> {
         let menu = Menu::new();
 
-        // Open CodexBar
         let open_item = MenuItem::with_id(
             "open",
             locale::get_text(lang, locale::LocaleKey::TrayOpenCodexBar),
@@ -302,10 +317,27 @@ impl TrayManager {
         );
         menu.append(&open_item)?;
 
-        // Separator
         menu.append(&PredefinedMenuItem::separator())?;
 
-        // Refresh All
+        let open_details_submenu = Submenu::new("Open Provider", true);
+        let mut provider_open_items = HashMap::new();
+        let mut provider_open_labels = HashMap::new();
+        for provider_id in settings.get_enabled_provider_ids() {
+            let label = Self::default_provider_open_label(provider_id);
+            let item = MenuItem::with_id(
+                format!("open_provider_{}", provider_id.cli_name()),
+                &label,
+                true,
+                None,
+            );
+            open_details_submenu.append(&item)?;
+            provider_open_labels.insert(provider_id, label);
+            provider_open_items.insert(provider_id, item);
+        }
+        menu.append(&open_details_submenu)?;
+
+        menu.append(&PredefinedMenuItem::separator())?;
+
         let refresh_item = MenuItem::with_id(
             "refresh",
             locale::get_text(lang, locale::LocaleKey::TrayRefreshAll),
@@ -314,11 +346,8 @@ impl TrayManager {
         );
         menu.append(&refresh_item)?;
 
-        // Separator
         menu.append(&PredefinedMenuItem::separator())?;
 
-        // Providers submenu with check items
-        // Build submenu items first, then add to parent menu to avoid Windows duplication bug
         let providers_submenu = Submenu::new(
             locale::get_text(lang, locale::LocaleKey::TrayProviders),
             true,
@@ -335,10 +364,8 @@ impl TrayManager {
         }
         menu.append(&providers_submenu)?;
 
-        // Separator
         menu.append(&PredefinedMenuItem::separator())?;
 
-        // Settings
         let settings_item = MenuItem::with_id(
             "settings",
             locale::get_text(lang, locale::LocaleKey::TraySettings),
@@ -347,7 +374,6 @@ impl TrayManager {
         );
         menu.append(&settings_item)?;
 
-        // Check for Updates
         let updates_item = MenuItem::with_id(
             "updates",
             locale::get_text(lang, locale::LocaleKey::TrayCheckForUpdates),
@@ -356,10 +382,8 @@ impl TrayManager {
         );
         menu.append(&updates_item)?;
 
-        // Separator
         menu.append(&PredefinedMenuItem::separator())?;
 
-        // Quit
         let quit_item = MenuItem::with_id(
             "quit",
             locale::get_text(lang, locale::LocaleKey::TrayQuit),
@@ -367,6 +391,30 @@ impl TrayManager {
             None,
         );
         menu.append(&quit_item)?;
+
+        Ok((
+            menu,
+            provider_menu_items,
+            provider_open_items,
+            provider_open_labels,
+        ))
+    }
+
+    fn set_provider_open_label(&self, provider_id: ProviderId, label: String) {
+        if let Some(item) = self.provider_open_items.borrow().get(&provider_id) {
+            item.set_text(&label);
+        }
+        self.provider_open_labels
+            .borrow_mut()
+            .insert(provider_id, label);
+    }
+
+    /// Create a new tray manager with default icon
+    pub fn new() -> anyhow::Result<Self> {
+        let settings = Settings::load();
+        let lang = settings.ui_language;
+        let (menu, provider_menu_items, provider_open_items, provider_open_labels) =
+            Self::build_menu(lang, &settings)?;
 
         let icon = create_bar_icon(0.0, 0.0, IconOverlay::None);
 
@@ -379,7 +427,9 @@ impl TrayManager {
 
         Ok(Self {
             tray_icon,
-            provider_menu_items,
+            provider_menu_items: RefCell::new(provider_menu_items),
+            provider_open_items: RefCell::new(provider_open_items),
+            provider_open_labels: RefCell::new(provider_open_labels),
             last_usage_signature: Cell::new(None),
             last_merged_signature: Cell::new(None),
             tooltip_state: RefCell::new(TrayTooltipState::Default),
@@ -397,6 +447,18 @@ impl TrayManager {
 
         let tooltip = locale::tray_tooltip(provider_name, session_percent, weekly_percent);
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
+        if let Some(provider_id) = ProviderId::from_cli_name(provider_name) {
+            self.set_provider_open_label(
+                provider_id,
+                Self::format_provider_open_label(
+                    provider_id,
+                    &format!(
+                        "Session {:.0}%  Weekly {:.0}%",
+                        session_percent, weekly_percent
+                    ),
+                ),
+            );
+        }
 
         if !self.should_update_usage(
             session_percent,
@@ -442,6 +504,18 @@ impl TrayManager {
             status,
         );
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
+        if let Some(provider_id) = ProviderId::from_cli_name(provider_name) {
+            self.set_provider_open_label(
+                provider_id,
+                Self::format_provider_open_label(
+                    provider_id,
+                    &format!(
+                        "Session {:.0}%  Weekly {:.0}%",
+                        session_percent, weekly_percent
+                    ),
+                ),
+            );
+        }
 
         if !self.should_update_usage(session_percent, weekly_percent, provider_name, overlay) {
             return;
@@ -464,6 +538,12 @@ impl TrayManager {
         let _ = self.tray_icon.set_icon(Some(icon));
         let tooltip = format!("{}: {}", provider_name, error_msg);
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
+        if let Some(provider_id) = ProviderId::from_cli_name(provider_name) {
+            self.set_provider_open_label(
+                provider_id,
+                Self::format_provider_open_label(provider_id, &format!("Error: {}", error_msg)),
+            );
+        }
     }
 
     /// Show stale data indicator
@@ -522,6 +602,14 @@ impl TrayManager {
                 lang,
                 locale::LocaleKey::TrayNoProviders,
             )));
+            let provider_ids: Vec<ProviderId> =
+                self.provider_open_labels.borrow().keys().copied().collect();
+            for provider_id in provider_ids {
+                self.set_provider_open_label(
+                    provider_id,
+                    Self::default_provider_open_label(provider_id),
+                );
+            }
             return;
         }
 
@@ -555,6 +643,21 @@ impl TrayManager {
         let tooltip = format!("CodexBar\n{}", tooltip_lines.join("\n"));
         let _ = self.tray_icon.set_tooltip(Some(&tooltip));
 
+        for usage in providers {
+            if let Some(provider_id) = ProviderId::from_cli_name(&usage.name) {
+                self.set_provider_open_label(
+                    provider_id,
+                    Self::format_provider_open_label(
+                        provider_id,
+                        &format!(
+                            "Session {:.0}%  Weekly {:.0}%",
+                            usage.session_percent, usage.weekly_percent
+                        ),
+                    ),
+                );
+            }
+        }
+
         self.last_merged_signature.set(Some(signature));
     }
 
@@ -576,6 +679,14 @@ impl TrayManager {
         let _ = self
             .tray_icon
             .set_tooltip(Some(locale::get_text(lang, locale::LocaleKey::TrayLoading)));
+        let provider_ids: Vec<ProviderId> =
+            self.provider_open_labels.borrow().keys().copied().collect();
+        for provider_id in provider_ids {
+            self.set_provider_open_label(
+                provider_id,
+                Self::default_provider_open_label(provider_id),
+            );
+        }
     }
 
     /// Show morph animation on the tray icon (Unbraid effect)
@@ -609,7 +720,7 @@ impl TrayManager {
     /// Takes a map of provider IDs to their current status levels and updates
     /// the corresponding menu item labels to show status dots for non-operational providers.
     pub fn update_provider_statuses(&self, statuses: &HashMap<ProviderId, IndicatorStatusLevel>) {
-        for (provider_id, check_item) in &self.provider_menu_items {
+        for (provider_id, check_item) in self.provider_menu_items.borrow().iter() {
             let base_name = provider_id.display_name();
             if let Some(status_level) = statuses.get(provider_id) {
                 let prefix = status_level.status_prefix();
@@ -628,7 +739,7 @@ impl TrayManager {
         provider_id: ProviderId,
         status_level: IndicatorStatusLevel,
     ) {
-        if let Some(check_item) = self.provider_menu_items.get(&provider_id) {
+        if let Some(check_item) = self.provider_menu_items.borrow().get(&provider_id) {
             let base_name = provider_id.display_name();
             let prefix = status_level.status_prefix();
             let new_label = format!("{}{}", prefix, base_name);
@@ -638,7 +749,7 @@ impl TrayManager {
 
     /// Clear status prefix from a provider's menu item (revert to plain name)
     pub fn clear_provider_status(&self, provider_id: ProviderId) {
-        if let Some(check_item) = self.provider_menu_items.get(&provider_id) {
+        if let Some(check_item) = self.provider_menu_items.borrow().get(&provider_id) {
             check_item.set_text(provider_id.display_name());
         }
     }
@@ -646,20 +757,7 @@ impl TrayManager {
     /// Check for menu events
     pub fn check_events() -> Option<TrayMenuAction> {
         if let Ok(event) = MenuEvent::receiver().try_recv() {
-            let id_str = event.id.0.as_str();
-            if id_str == "quit" {
-                return Some(TrayMenuAction::Quit);
-            } else if id_str == "open" {
-                return Some(TrayMenuAction::Open);
-            } else if id_str == "refresh" {
-                return Some(TrayMenuAction::Refresh);
-            } else if id_str == "settings" {
-                return Some(TrayMenuAction::Settings);
-            } else if id_str == "updates" {
-                return Some(TrayMenuAction::CheckForUpdates);
-            } else if let Some(provider_name) = id_str.strip_prefix("provider_") {
-                return Some(TrayMenuAction::ToggleProvider(provider_name.to_string()));
-            }
+            return tray_action_from_event_id(event.id.0.as_str());
         }
         None
     }
@@ -670,79 +768,20 @@ impl TrayManager {
         let settings = Settings::load();
         let lang = settings.ui_language;
 
-        // Rebuild the menu with current language
-        let menu = Menu::new();
-
-        // Open CodexBar
-        let open_item = MenuItem::with_id(
-            "open",
-            locale::get_text(lang, locale::LocaleKey::TrayOpenCodexBar),
-            true,
-            None,
-        );
-        let _ = menu.append(&open_item);
-
-        let _ = menu.append(&PredefinedMenuItem::separator());
-
-        // Refresh All
-        let refresh_item = MenuItem::with_id(
-            "refresh",
-            locale::get_text(lang, locale::LocaleKey::TrayRefreshAll),
-            true,
-            None,
-        );
-        let _ = menu.append(&refresh_item);
-
-        let _ = menu.append(&PredefinedMenuItem::separator());
-
-        // Providers submenu
-        let providers_submenu = Submenu::new(
-            locale::get_text(lang, locale::LocaleKey::TrayProviders),
-            true,
-        );
-        for provider_id in ProviderId::all() {
-            let cli_name = provider_id.cli_name();
-            let display_name = provider_id.display_name();
-            let is_enabled = settings.is_provider_enabled(*provider_id);
-            let item_id = format!("provider_{}", cli_name);
-            let check_item = CheckMenuItem::with_id(&item_id, display_name, true, is_enabled, None);
-            let _ = providers_submenu.append(&check_item);
+        if let Ok((menu, provider_menu_items, provider_open_items, mut provider_open_labels)) =
+            Self::build_menu(lang, &settings)
+        {
+            for (provider_id, label) in self.provider_open_labels.borrow().iter() {
+                provider_open_labels.insert(*provider_id, label.clone());
+                if let Some(item) = provider_open_items.get(provider_id) {
+                    item.set_text(label);
+                }
+            }
+            self.provider_menu_items.replace(provider_menu_items);
+            self.provider_open_items.replace(provider_open_items);
+            self.provider_open_labels.replace(provider_open_labels);
+            self.tray_icon.set_menu(Some(Box::new(menu)));
         }
-        let _ = menu.append(&providers_submenu);
-
-        let _ = menu.append(&PredefinedMenuItem::separator());
-
-        // Settings
-        let settings_item = MenuItem::with_id(
-            "settings",
-            locale::get_text(lang, locale::LocaleKey::TraySettings),
-            true,
-            None,
-        );
-        let _ = menu.append(&settings_item);
-
-        // Check for Updates
-        let updates_item = MenuItem::with_id(
-            "updates",
-            locale::get_text(lang, locale::LocaleKey::TrayCheckForUpdates),
-            true,
-            None,
-        );
-        let _ = menu.append(&updates_item);
-
-        let _ = menu.append(&PredefinedMenuItem::separator());
-
-        // Quit
-        let quit_item = MenuItem::with_id(
-            "quit",
-            locale::get_text(lang, locale::LocaleKey::TrayQuit),
-            true,
-            None,
-        );
-        let _ = menu.append(&quit_item);
-
-        // Update the tray icon's menu
-        self.tray_icon.set_menu(Some(Box::new(menu)));
 
         // Relocalize the tooltip based on the current state (not reset to loading)
         let tooltip = self.relocalize_tooltip(lang);
@@ -892,14 +931,35 @@ impl TrayManager {
 }
 
 /// Tray menu actions
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrayMenuAction {
     Open,
+    OpenProvider(String),
     Refresh,
     Settings,
     CheckForUpdates,
     ToggleProvider(String),
     Quit,
+}
+
+fn tray_action_from_event_id(id_str: &str) -> Option<TrayMenuAction> {
+    if id_str == "quit" {
+        Some(TrayMenuAction::Quit)
+    } else if id_str == "open" {
+        Some(TrayMenuAction::Open)
+    } else if id_str == "refresh" {
+        Some(TrayMenuAction::Refresh)
+    } else if id_str == "settings" {
+        Some(TrayMenuAction::Settings)
+    } else if id_str == "updates" {
+        Some(TrayMenuAction::CheckForUpdates)
+    } else if let Some(provider_name) = id_str.strip_prefix("open_provider_") {
+        Some(TrayMenuAction::OpenProvider(provider_name.to_string()))
+    } else {
+        id_str
+            .strip_prefix("provider_")
+            .map(|provider_name| TrayMenuAction::ToggleProvider(provider_name.to_string()))
+    }
 }
 
 /// Per-provider tray state for tooltip relocalization
@@ -2294,6 +2354,22 @@ mod tests {
         assert_ne!(
             sig_a1, sig_c,
             "length/content change should alter signature"
+        );
+    }
+
+    #[test]
+    fn test_tray_action_from_event_id_maps_provider_open() {
+        assert_eq!(
+            tray_action_from_event_id("open_provider_codex"),
+            Some(TrayMenuAction::OpenProvider("codex".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_tray_action_from_event_id_maps_provider_toggle() {
+        assert_eq!(
+            tray_action_from_event_id("provider_claude"),
+            Some(TrayMenuAction::ToggleProvider("claude".to_string()))
         );
     }
 
