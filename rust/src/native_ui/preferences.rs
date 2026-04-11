@@ -388,24 +388,24 @@ struct ProviderDetailTextChrome {
 
 fn active_provider_sidebar_style() -> ProviderSidebarStyle {
     ProviderSidebarStyle {
-        frame_fill: Some(Color32::from_rgba_unmultiplied(255, 255, 255, 8)),
-        frame_stroke: Some(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.56))),
+        frame_fill: Some(Color32::from_rgba_unmultiplied(255, 255, 255, 6)),
+        frame_stroke: Some(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.44))),
         inner_margin: Spacing::SM,
         item_spacing_y: 0.0,
-        row_height: 58.0,
-        row_corner_radius: 7.0,
-        selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 11),
-        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 18)),
-        hover_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 4),
+        row_height: 54.0,
+        row_corner_radius: 8.0,
+        selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 8),
+        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 12)),
+        hover_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 3),
     }
 }
 
 fn providers_surface_palette() -> ProvidersSurfacePalette {
     ProvidersSurfacePalette {
-        shell_fill: Color32::from_rgb(56, 56, 64),
-        content_fill: Color32::from_rgb(54, 54, 62),
-        detail_fill: Color32::from_rgb(58, 58, 66),
-        detail_stroke: Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.24)),
+        shell_fill: Color32::from_rgb(55, 55, 63),
+        content_fill: Color32::from_rgb(53, 53, 61),
+        detail_fill: Color32::from_rgb(56, 56, 64),
+        detail_stroke: Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.18)),
     }
 }
 
@@ -3371,11 +3371,8 @@ fn render_provider_sidebar_row(
     );
     let (subtitle_primary, subtitle_secondary) = provider_sidebar_display_lines(&subtitle);
 
-    render_provider_sidebar_reorder_handle(ui, is_selected);
-    ui.add_space(3.0);
-
     render_provider_sidebar_icon(ui, provider_name, brand_color, icon_size);
-    ui.add_space(5.0);
+    ui.add_space(7.0);
 
     let name_color = if is_selected {
         Theme::TEXT_PRIMARY
@@ -3395,13 +3392,13 @@ fn render_provider_sidebar_row(
             }
             ui.label(name_text);
             if is_enabled {
-                ui.add_space(3.0);
+                ui.add_space(2.0);
                 let (dot_rect, _) =
                     ui.allocate_exact_size(Vec2::new(6.0, 6.0), egui::Sense::hover());
                 ui.painter().circle_filled(
                     dot_rect.center(),
-                    1.35,
-                    Theme::GREEN.gamma_multiply(if is_selected { 0.58 } else { 0.42 }),
+                    1.2,
+                    Theme::GREEN.gamma_multiply(if is_selected { 0.42 } else { 0.28 }),
                 );
             }
         });
@@ -9270,34 +9267,34 @@ mod tests {
         assert_eq!(
             style.frame_fill,
             Some(eframe::egui::Color32::from_rgba_unmultiplied(
-                255, 255, 255, 8
+                255, 255, 255, 6
             ))
         );
         assert_eq!(
             style.frame_stroke,
             Some(eframe::egui::Stroke::new(
                 1.0,
-                super::Theme::BORDER_SUBTLE.gamma_multiply(0.56)
+                super::Theme::BORDER_SUBTLE.gamma_multiply(0.44)
             ))
         );
         assert_eq!(style.inner_margin, super::Spacing::SM);
         assert_eq!(style.item_spacing_y, 0.0);
-        assert_eq!(style.row_height, 58.0);
-        assert_eq!(style.row_corner_radius, 7.0);
+        assert_eq!(style.row_height, 54.0);
+        assert_eq!(style.row_corner_radius, 8.0);
         assert_eq!(
             style.selected_fill,
-            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 11)
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 8)
         );
         assert_eq!(
             style.selected_stroke,
             eframe::egui::Stroke::new(
                 1.0,
-                eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 18)
+                eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 12)
             )
         );
         assert_eq!(
             style.hover_fill,
-            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 4)
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 3)
         );
     }
 
@@ -9307,19 +9304,19 @@ mod tests {
 
         assert_eq!(
             palette.shell_fill,
-            eframe::egui::Color32::from_rgb(56, 56, 64)
+            eframe::egui::Color32::from_rgb(55, 55, 63)
         );
         assert_eq!(
             palette.content_fill,
-            eframe::egui::Color32::from_rgb(54, 54, 62)
+            eframe::egui::Color32::from_rgb(53, 53, 61)
         );
         assert_eq!(
             palette.detail_fill,
-            eframe::egui::Color32::from_rgb(58, 58, 66)
+            eframe::egui::Color32::from_rgb(56, 56, 64)
         );
         assert_eq!(
             palette.detail_stroke,
-            eframe::egui::Stroke::new(1.0, super::Theme::BORDER_SUBTLE.gamma_multiply(0.24))
+            eframe::egui::Stroke::new(1.0, super::Theme::BORDER_SUBTLE.gamma_multiply(0.18))
         );
     }
 
