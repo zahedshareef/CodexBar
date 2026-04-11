@@ -2631,6 +2631,16 @@ impl eframe::App for CodexBarApp {
                             ctx.request_repaint();
                         }
                     }
+                    TrayMenuAction::RefreshProvider(provider_name) => {
+                        if !is_refreshing {
+                            tracing::info!(
+                                "Refreshing provider tray request for {}; using shared refresh pass",
+                                provider_name
+                            );
+                            self.refresh_providers();
+                            ctx.request_repaint();
+                        }
+                    }
                     TrayMenuAction::Settings => {
                         self.preferences_window.open();
                         // Move main window off-screen so only settings viewport is visible.
