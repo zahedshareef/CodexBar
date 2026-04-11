@@ -249,6 +249,7 @@ fn build_native_options() -> eframe::NativeOptions {
         .with_resizable(true)
         .with_decorations(true)
         .with_transparent(false)
+        .with_taskbar(false)
         .with_always_on_top()
         .with_title("CodexBar");
 
@@ -1397,7 +1398,12 @@ impl CodexBarApp {
             std::thread::spawn(move || {
                 loop {
                     if let Some(action) = UnifiedTrayManager::check_events() {
-                        if matches!(action, TrayMenuAction::Open | TrayMenuAction::Refresh) {
+                        if matches!(
+                            action,
+                            TrayMenuAction::Open
+                                | TrayMenuAction::OpenProvider(_)
+                                | TrayMenuAction::Refresh
+                        ) {
                             // Egui viewport commands alone can be ignored while minimized.
                             // Force a native restore first so the update loop wakes up.
                             restore_main_window();
@@ -1477,6 +1483,13 @@ impl CodexBarApp {
             cc.egui_ctx
                 .send_viewport_cmd(egui::ViewportCommand::Visible(true));
             cc.egui_ctx.request_repaint();
+        }
+
+        #[cfg(not(debug_assertions))]
+        {
+            append_launch_log("CodexBarApp::new release startup hidden to tray");
+            cc.egui_ctx
+                .send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
 
         append_launch_log("CodexBarApp::new completed");
