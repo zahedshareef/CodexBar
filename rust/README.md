@@ -194,7 +194,11 @@ A badge appears in the corner for status issues:
 cargo test
 ```
 
-On Linux hosts, override the repo's default Windows target:
+Plain `cargo test` now follows the host target by default:
+- Windows hosts build and test the native Windows target
+- Linux hosts build and test the native Linux target
+
+If you explicitly want a cross-target pass, provide the target yourself:
 
 ```bash
 cargo test --target x86_64-unknown-linux-gnu
