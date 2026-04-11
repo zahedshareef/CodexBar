@@ -197,10 +197,29 @@ fn set_per_provider_tray_icons(settings: &mut Settings, enabled: bool) {
     }
 }
 
+fn preferences_section_title(tab: PreferencesTab) -> &'static str {
+    match tab {
+        PreferencesTab::Display => "Display",
+        PreferencesTab::Advanced => "Advanced",
+        _ => "General",
+    }
+}
+
+fn preferences_section_subtitle(tab: PreferencesTab) -> &'static str {
+    match tab {
+        PreferencesTab::Display => "Tune how the menu bar looks, reads, and prioritizes detail.",
+        PreferencesTab::Advanced => {
+            "Control refresh cadence, privacy behavior, and power-user knobs."
+        }
+        _ => "Core behavior, startup defaults, alerts, and update preferences.",
+    }
+}
+
 /// Preferences window state
 pub struct PreferencesWindow {
     pub is_open: bool,
     pub active_tab: PreferencesTab,
+    preferences_section: PreferencesTab,
     pub settings: Settings,
     pub settings_changed: bool,
     cookies: ManualCookies,
@@ -230,6 +249,7 @@ pub struct PreferencesWindow {
 struct PreferencesSharedState {
     is_open: bool,
     active_tab: PreferencesTab,
+    preferences_section: PreferencesTab,
     settings: Settings,
     settings_changed: bool,
     cookies: ManualCookies,
@@ -395,6 +415,7 @@ impl Default for PreferencesWindow {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::General,
+            preferences_section: PreferencesTab::General,
             settings: settings.clone(),
             settings_changed: false,
             cookies: cookies.clone(),
@@ -434,6 +455,7 @@ impl Default for PreferencesWindow {
         Self {
             is_open: false,
             active_tab: PreferencesTab::General,
+            preferences_section: PreferencesTab::General,
             settings,
             settings_changed: false,
             cookies,
@@ -476,6 +498,7 @@ impl PreferencesWindow {
         if let Ok(mut state) = self.shared_state.lock() {
             state.is_open = true;
             state.active_tab = self.active_tab;
+            state.preferences_section = self.preferences_section;
             state.settings = self.settings.clone();
             state.cookies = self.cookies.clone();
             state.api_keys = self.api_keys.clone();
@@ -517,9 +540,21 @@ impl PreferencesWindow {
         }
 
         self.active_tab = target_tab;
+        if matches!(
+            target_tab,
+            PreferencesTab::General | PreferencesTab::Display | PreferencesTab::Advanced
+        ) {
+            self.preferences_section = target_tab;
+        }
         if let Ok(mut state) = self.shared_state.lock() {
             state.is_open = true;
             state.active_tab = target_tab;
+            if matches!(
+                target_tab,
+                PreferencesTab::General | PreferencesTab::Display | PreferencesTab::Advanced
+            ) {
+                state.preferences_section = target_tab;
+            }
         }
     }
 
@@ -2836,10 +2871,18 @@ fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
 /// Render the settings UI inside the viewport using shared state
 fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
     // Get current tab and language from shared state
-    let (active_tab, ui_language) = if let Ok(state) = shared_state.lock() {
-        (state.active_tab, state.settings.ui_language)
+    let (active_tab, preferences_section, ui_language) = if let Ok(state) = shared_state.lock() {
+        (
+            state.active_tab,
+            state.preferences_section,
+            state.settings.ui_language,
+        )
     } else {
-        (PreferencesTab::Preferences, Language::English)
+        (
+            PreferencesTab::Preferences,
+            PreferencesTab::General,
+            Language::English,
+        )
     };
 
     #[cfg(debug_assertions)]
@@ -3003,7 +3046,6 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 render_providers_tab_layout(ui, content_height, shared_state);
             }
             PreferencesTab::Preferences => {
-                // Preferences = General + Display + Advanced
                 egui::Frame::none()
                     .fill(content_fill)
                     .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::MD))
@@ -3013,11 +3055,19 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                             .max_height(content_height)
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                render_general_tab(ui, shared_state);
+                                render_preferences_section_selector(
+                                    ui,
+                                    shared_state,
+                                    preferences_section,
+                                );
                                 ui.add_space(Spacing::LG);
-                                render_display_tab(ui, shared_state);
-                                ui.add_space(Spacing::LG);
-                                render_advanced_tab(ui, shared_state);
+                                match preferences_section {
+                                    PreferencesTab::Display => render_display_tab(ui, shared_state),
+                                    PreferencesTab::Advanced => {
+                                        render_advanced_tab(ui, shared_state)
+                                    }
+                                    _ => render_general_tab(ui, shared_state),
+                                }
                                 ui.add_space(Spacing::XL);
                             });
                     });
@@ -7024,6 +7074,12 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         Language::English
     };
 
+    preferences_pane_header(
+        ui,
+        preferences_section_title(PreferencesTab::General),
+        preferences_section_subtitle(PreferencesTab::General),
+    );
+
     // LANGUAGE section - at the top of General tab
     section_header(ui, locale_text(ui_language, LocaleKey::InterfaceLanguage));
 
@@ -7333,29 +7389,6 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
     ui.add_space(Spacing::MD);
 
-    section_header(ui, locale_text(ui_language, LocaleKey::PrivacyTitle));
-
-    settings_card(ui, |ui| {
-        let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
-            state.settings.hide_personal_info
-        } else {
-            false
-        };
-
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::HidePersonalInfo),
-            locale_text(ui_language, LocaleKey::HidePersonalInfoHelper),
-            &mut hide_personal_info,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            state.settings.hide_personal_info = hide_personal_info;
-            state.settings_changed = true;
-        }
-    });
-
-    ui.add_space(Spacing::MD);
-
     section_header(ui, locale_text(ui_language, LocaleKey::UpdatesTitle));
 
     settings_card(ui, |ui| {
@@ -7582,9 +7615,64 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         Language::English
     };
 
+    preferences_pane_header(
+        ui,
+        preferences_section_title(PreferencesTab::Display),
+        preferences_section_subtitle(PreferencesTab::Display),
+    );
+
     section_header(ui, locale_text(ui_language, LocaleKey::Appearance));
 
     settings_card(ui, |ui| {
+        ui.horizontal(|ui| {
+            ui.vertical(|ui| {
+                ui.label(
+                    RichText::new("Menu bar display mode")
+                        .size(FontSize::SM)
+                        .color(Theme::TEXT_PRIMARY),
+                );
+                ui.label(
+                    RichText::new("Choose how much menu bar detail CodexBar keeps visible.")
+                        .size(FontSize::XS)
+                        .color(Theme::TEXT_SECONDARY),
+                );
+            });
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let mut selected_mode = if let Ok(state) = shared_state.lock() {
+                    state.settings.menu_bar_display_mode.clone()
+                } else {
+                    "detailed".to_string()
+                };
+
+                egui::ComboBox::from_id_salt("menu_bar_display_mode_viewport")
+                    .selected_text(match selected_mode.as_str() {
+                        "minimal" => "Minimal",
+                        "compact" => "Compact",
+                        _ => "Detailed",
+                    })
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        for (value, label) in [
+                            ("minimal", "Minimal"),
+                            ("compact", "Compact"),
+                            ("detailed", "Detailed"),
+                        ] {
+                            if ui
+                                .selectable_value(&mut selected_mode, value.to_string(), label)
+                                .changed()
+                                && let Ok(mut state) = shared_state.lock()
+                            {
+                                state.settings.menu_bar_display_mode = selected_mode.clone();
+                                state.settings_changed = true;
+                            }
+                        }
+                    });
+            });
+        });
+
+        setting_divider(ui);
+
         let mut relative_time = if let Ok(state) = shared_state.lock() {
             state.settings.reset_time_relative
         } else {
@@ -7599,25 +7687,6 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
         ) && let Ok(mut state) = shared_state.lock()
         {
             state.settings.reset_time_relative = relative_time;
-            state.settings_changed = true;
-        }
-
-        setting_divider(ui);
-
-        let mut surprise = if let Ok(state) = shared_state.lock() {
-            state.settings.surprise_animations
-        } else {
-            false
-        };
-
-        if setting_toggle(
-            ui,
-            locale_text(ui_language, LocaleKey::Fun),
-            locale_text(ui_language, LocaleKey::SurpriseAnimationsHelper),
-            &mut surprise,
-        ) && let Ok(mut state) = shared_state.lock()
-        {
-            state.settings.surprise_animations = surprise;
             state.settings_changed = true;
         }
     });
@@ -8303,6 +8372,12 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
     } else {
         Language::English
     };
+    preferences_pane_header(
+        ui,
+        preferences_section_title(PreferencesTab::Advanced),
+        preferences_section_subtitle(PreferencesTab::Advanced),
+    );
+
     section_header(ui, locale_text(ui_language, LocaleKey::RefreshSettings));
 
     settings_card(ui, |ui| {
@@ -8351,6 +8426,50 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
             });
         });
     });
+
+    ui.add_space(Spacing::MD);
+    section_header(ui, locale_text(ui_language, LocaleKey::PrivacyTitle));
+
+    settings_card(ui, |ui| {
+        let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
+            state.settings.hide_personal_info
+        } else {
+            false
+        };
+
+        if setting_toggle(
+            ui,
+            locale_text(ui_language, LocaleKey::HidePersonalInfo),
+            locale_text(ui_language, LocaleKey::HidePersonalInfoHelper),
+            &mut hide_personal_info,
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.hide_personal_info = hide_personal_info;
+            state.settings_changed = true;
+        }
+    });
+
+    ui.add_space(Spacing::MD);
+    section_header(ui, locale_text(ui_language, LocaleKey::Fun));
+
+    settings_card(ui, |ui| {
+        let mut surprise = if let Ok(state) = shared_state.lock() {
+            state.settings.surprise_animations
+        } else {
+            false
+        };
+
+        if setting_toggle(
+            ui,
+            locale_text(ui_language, LocaleKey::Fun),
+            locale_text(ui_language, LocaleKey::SurpriseAnimationsHelper),
+            &mut surprise,
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.surprise_animations = surprise;
+            state.settings_changed = true;
+        }
+    });
 }
 
 /// Render About tab for viewport
@@ -8360,41 +8479,86 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
     } else {
         Language::English
     };
-    ui.add_space(Spacing::LG);
+    let git_commit = option_env!("GIT_COMMIT").unwrap_or("dev");
+    let build_date = option_env!("BUILD_DATE").unwrap_or("unknown");
 
-    ui.horizontal(|ui| {
+    ui.add_space(Spacing::LG);
+    ui.vertical_centered(|ui| {
         ui.label(
             RichText::new("CodexBar")
-                .size(FontSize::LG)
+                .size(FontSize::XL)
                 .color(Theme::TEXT_PRIMARY)
                 .strong(),
         );
+        ui.add_space(2.0);
         ui.label(
-            RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
+            RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
                 .size(FontSize::SM)
-                .color(Theme::TEXT_MUTED),
+                .color(Theme::TEXT_SECONDARY),
+        );
+        ui.add_space(Spacing::XS);
+        ui.label(
+            RichText::new(locale_text(ui_language, LocaleKey::AboutDescription))
+                .size(FontSize::SM)
+                .color(Theme::TEXT_SECONDARY),
+        );
+        ui.label(
+            RichText::new(locale_text(ui_language, LocaleKey::AboutDescriptionLine2))
+                .size(FontSize::SM)
+                .color(Theme::TEXT_SECONDARY),
         );
     });
-    ui.add_space(Spacing::XS);
-    ui.label(
-        RichText::new(locale_text(ui_language, LocaleKey::AboutDescription))
-            .size(FontSize::SM)
-            .color(Theme::TEXT_SECONDARY),
-    );
-    ui.label(
-        RichText::new(locale_text(ui_language, LocaleKey::AboutDescriptionLine2))
-            .size(FontSize::SM)
-            .color(Theme::TEXT_SECONDARY),
-    );
 
     ui.add_space(Spacing::LG);
-    setting_divider(ui);
-    ui.add_space(Spacing::SM);
-
-    // Credits section
-    section_header(ui, locale_text(ui_language, LocaleKey::CreditsTitle));
+    section_header(ui, locale_text(ui_language, LocaleKey::Links));
     settings_card(ui, |ui| {
-        ui.vertical(|ui| {
+        ui.vertical_centered(|ui| {
+            ui.horizontal(|ui| {
+                if ui
+                    .link(locale_text(ui_language, LocaleKey::ViewOnGitHub))
+                    .clicked()
+                {
+                    let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
+                }
+                ui.label(RichText::new("·").color(Theme::TEXT_DIM));
+                if ui
+                    .link(locale_text(ui_language, LocaleKey::OriginalMacOSVersion))
+                    .clicked()
+                {
+                    let _ = open::that("https://github.com/steipete/CodexBar");
+                }
+            });
+            ui.add_space(Spacing::XS);
+            if text_button(
+                ui,
+                locale_text(ui_language, LocaleKey::SubmitIssue),
+                Theme::ACCENT_PRIMARY,
+            ) {
+                let _ = open::that("https://github.com/Finesssee/Win-CodexBar/issues");
+            }
+            ui.add_space(Spacing::XS);
+            if ui
+                .add(
+                    egui::Button::new(
+                        RichText::new(locale_text(ui_language, LocaleKey::TrayCheckForUpdates))
+                            .size(FontSize::SM)
+                            .color(Theme::TEXT_PRIMARY),
+                    )
+                    .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+                    .fill(Theme::CARD_BG)
+                    .rounding(Rounding::same(Radius::SM)),
+                )
+                .clicked()
+            {
+                let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
+            }
+        });
+    });
+
+    ui.add_space(Spacing::MD);
+    section_header(ui, locale_text(ui_language, LocaleKey::BuildInfo));
+    settings_card(ui, |ui| {
+        ui.vertical_centered(|ui| {
             ui.label(
                 RichText::new(locale_text(ui_language, LocaleKey::MaintainedBy))
                     .size(FontSize::SM)
@@ -8406,98 +8570,26 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
                     .size(FontSize::SM)
                     .color(Theme::TEXT_MUTED),
             );
-        });
-    });
-
-    ui.add_space(Spacing::MD);
-
-    // Links section
-    section_header(ui, locale_text(ui_language, LocaleKey::Links));
-    settings_card(ui, |ui| {
-        ui.horizontal(|ui| {
-            if ui
-                .link(locale_text(ui_language, LocaleKey::ViewOnGitHub))
-                .clicked()
-            {
-                let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
-            }
-            ui.label(RichText::new("·").color(Theme::TEXT_DIM));
-            if ui
-                .link(locale_text(ui_language, LocaleKey::OriginalMacOSVersion))
-                .clicked()
-            {
-                let _ = open::that("https://github.com/steipete/CodexBar");
-            }
-        });
-        ui.add_space(Spacing::XS);
-        if text_button(
-            ui,
-            locale_text(ui_language, LocaleKey::SubmitIssue),
-            Theme::ACCENT_PRIMARY,
-        ) {
-            let _ = open::that("https://github.com/Finesssee/Win-CodexBar/issues");
-        }
-        ui.add_space(Spacing::XS);
-        if ui
-            .add(
-                egui::Button::new(
-                    RichText::new(locale_text(ui_language, LocaleKey::TrayCheckForUpdates))
-                        .size(FontSize::SM)
-                        .color(Theme::TEXT_PRIMARY),
-                )
-                .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
-                .fill(Theme::CARD_BG)
-                .rounding(Rounding::same(Radius::SM)),
-            )
-            .clicked()
-        {
-            let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
-        }
-    });
-
-    ui.add_space(Spacing::MD);
-
-    // Build info section
-    section_header(ui, locale_text(ui_language, LocaleKey::BuildInfo));
-    settings_card(ui, |ui| {
-        ui.vertical(|ui| {
-            let git_commit = option_env!("GIT_COMMIT").unwrap_or("dev");
-            let build_date = option_env!("BUILD_DATE").unwrap_or("unknown");
-
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(format!(
-                        "{}:",
-                        locale_text(ui_language, LocaleKey::CommitLabel)
-                    ))
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_MUTED),
-                );
-                ui.label(
-                    RichText::new(git_commit)
-                        .size(FontSize::SM)
-                        .color(Theme::TEXT_SECONDARY)
-                        .monospace(),
-                );
-            });
-
-            ui.add_space(Spacing::XS);
-
-            ui.horizontal(|ui| {
-                ui.label(
-                    RichText::new(format!(
-                        "{}:",
-                        locale_text(ui_language, LocaleKey::BuildDateLabel)
-                    ))
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_MUTED),
-                );
-                ui.label(
-                    RichText::new(build_date)
-                        .size(FontSize::SM)
-                        .color(Theme::TEXT_SECONDARY),
-                );
-            });
+            ui.add_space(Spacing::SM);
+            ui.label(
+                RichText::new(format!(
+                    "{}: {}",
+                    locale_text(ui_language, LocaleKey::CommitLabel),
+                    git_commit
+                ))
+                .size(FontSize::SM)
+                .color(Theme::TEXT_SECONDARY)
+                .monospace(),
+            );
+            ui.label(
+                RichText::new(format!(
+                    "{}: {}",
+                    locale_text(ui_language, LocaleKey::BuildDateLabel),
+                    build_date
+                ))
+                .size(FontSize::SM)
+                .color(Theme::TEXT_SECONDARY),
+            );
         });
     });
 }
@@ -8590,9 +8682,80 @@ fn section_header(ui: &mut egui::Ui, text: &str) {
     ui.add_space(Spacing::SM);
 }
 
+fn preferences_pane_header(ui: &mut egui::Ui, title: &str, subtitle: &str) {
+    ui.label(
+        RichText::new(title)
+            .size(FontSize::LG)
+            .color(Theme::TEXT_PRIMARY)
+            .strong(),
+    );
+    ui.add_space(2.0);
+    ui.label(
+        RichText::new(subtitle)
+            .size(FontSize::SM)
+            .color(Theme::TEXT_SECONDARY),
+    );
+    ui.add_space(Spacing::SM);
+}
+
+fn render_preferences_section_selector(
+    ui: &mut egui::Ui,
+    shared_state: &Arc<Mutex<PreferencesSharedState>>,
+    current: PreferencesTab,
+) {
+    let sections = [
+        PreferencesTab::General,
+        PreferencesTab::Display,
+        PreferencesTab::Advanced,
+    ];
+
+    egui::Frame::none()
+        .fill(Theme::NAV_BG.gamma_multiply(0.72))
+        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.5)))
+        .rounding(Rounding::same(Radius::MD))
+        .inner_margin(egui::Margin::symmetric(4.0, 4.0))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for section in sections {
+                    let is_selected = current == section;
+                    let button = egui::Button::new(
+                        RichText::new(preferences_section_title(section))
+                            .size(FontSize::SM)
+                            .color(if is_selected {
+                                Theme::TEXT_PRIMARY
+                            } else {
+                                Theme::TEXT_SECONDARY
+                            }),
+                    )
+                    .fill(if is_selected {
+                        Theme::CARD_BG
+                    } else {
+                        Color32::TRANSPARENT
+                    })
+                    .stroke(if is_selected {
+                        Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.72))
+                    } else {
+                        Stroke::NONE
+                    })
+                    .rounding(Rounding::same(Radius::SM))
+                    .min_size(Vec2::new(88.0, 28.0));
+
+                    if ui.add(button).clicked()
+                        && let Ok(mut state) = shared_state.lock()
+                    {
+                        state.preferences_section = section;
+                    }
+                }
+            });
+        });
+}
+
 /// Settings card container - light grouping via spacing, no heavy chrome
 fn settings_card(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::none()
+        .fill(Theme::CARD_BG.gamma_multiply(0.24))
+        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.26)))
+        .rounding(Rounding::same(Radius::MD))
         .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::SM))
         .show(ui, content);
 }
