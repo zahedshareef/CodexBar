@@ -29,6 +29,35 @@ thread_local! {
     static VIEWPORT_ICON_CACHE: RefCell<ProviderIconCache> = RefCell::new(ProviderIconCache::new());
 }
 
+fn render_about_app_icon(ui: &mut egui::Ui) {
+    let outer_size = Vec2::splat(84.0);
+    let (rect, _) = ui.allocate_exact_size(outer_size, egui::Sense::hover());
+    let outer = rect.shrink(2.0);
+    let inner = outer.shrink(10.0);
+
+    ui.painter().rect_filled(
+        outer,
+        Rounding::same(18.0),
+        Color32::from_rgb(247, 248, 251),
+    );
+    ui.painter()
+        .rect_filled(inner, Rounding::same(15.0), Color32::from_rgb(91, 149, 255));
+    ui.painter().text(
+        inner.center_top() + egui::vec2(0.0, 17.0),
+        egui::Align2::CENTER_TOP,
+        "</>",
+        egui::FontId::proportional(26.0),
+        Color32::WHITE,
+    );
+    ui.painter().text(
+        inner.center_bottom() - egui::vec2(0.0, 19.0),
+        egui::Align2::CENTER_BOTTOM,
+        "▔▔▔",
+        egui::FontId::proportional(16.0),
+        Color32::WHITE.gamma_multiply(0.92),
+    );
+}
+
 #[cfg(debug_assertions)]
 fn save_color_image_to_png(path: &std::path::Path, image: &egui::ColorImage) -> anyhow::Result<()> {
     if let Some(parent) = path.parent()
@@ -8398,34 +8427,16 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
     let build_date = option_env!("BUILD_DATE").unwrap_or("unknown");
 
     ui.vertical_centered(|ui| {
-        ui.set_max_width(304.0);
-        ui.add_space(16.0);
-        egui::Frame::none()
-            .fill(Color32::from_rgb(240, 244, 250))
-            .rounding(Rounding::same(20.0))
-            .inner_margin(egui::Margin::same(10.0))
-            .show(ui, |ui| {
-                egui::Frame::none()
-                    .fill(Color32::from_rgb(82, 136, 244))
-                    .rounding(Rounding::same(16.0))
-                    .inner_margin(egui::Margin::symmetric(20.0, 17.0))
-                    .show(ui, |ui| {
-                        ui.label(
-                            RichText::new("</>")
-                                .size(30.0)
-                                .color(Color32::WHITE)
-                                .strong(),
-                        );
-                    });
-            });
-        ui.add_space(12.0);
+        ui.set_max_width(284.0);
+        ui.add_space(14.0);
+        render_about_app_icon(ui);
+        ui.add_space(10.0);
         ui.label(
             RichText::new("CodexBar")
-                .size(FontSize::XL)
+                .size(FontSize::LG + 2.0)
                 .color(Theme::TEXT_PRIMARY)
                 .strong(),
         );
-        ui.add_space(2.0);
         ui.label(
             RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
                 .size(FontSize::SM)
@@ -8436,26 +8447,24 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
                 .size(FontSize::XS)
                 .color(Theme::TEXT_MUTED),
         );
+        ui.add_space(4.0);
         ui.label(
             RichText::new("May your tokens never run out—keep agent limits in view.")
                 .size(FontSize::XS)
                 .color(Theme::TEXT_MUTED),
         );
 
-        ui.add_space(14.0);
+        ui.add_space(12.0);
         ui.vertical_centered(|ui| {
             if text_button(ui, "</>  GitHub", Theme::ACCENT_PRIMARY) {
                 let _ = open::that("https://github.com/steipete/CodexBar");
             }
-            ui.add_space(2.0);
             if text_button(ui, "◉  Website", Theme::ACCENT_PRIMARY) {
                 let _ = open::that("https://steipete.me");
             }
-            ui.add_space(2.0);
             if text_button(ui, "↗  Twitter", Theme::ACCENT_PRIMARY) {
                 let _ = open::that("https://twitter.com/steipete");
             }
-            ui.add_space(2.0);
             if text_button(ui, "✉  Email", Theme::ACCENT_PRIMARY) {
                 let _ = open::that("mailto:peter@steipete.me");
             }
@@ -8464,7 +8473,7 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
         settings_section_separator(ui);
 
         ui.vertical(|ui| {
-            ui.set_max_width(288.0);
+            ui.set_max_width(274.0);
 
             let mut auto_download_updates = if let Ok(state) = shared_state.lock() {
                 state.settings.auto_download_updates
@@ -8528,7 +8537,7 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
                 },
             );
 
-            ui.add_space(8.0);
+            ui.add_space(6.0);
             ui.horizontal_centered(|ui| {
                 if simple_action_button(ui, "Check for Updates...") {
                     let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
