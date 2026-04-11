@@ -5,7 +5,7 @@
 
 #![allow(dead_code)] // Legacy show_* methods kept for potential future use
 
-use eframe::egui::{self, Color32, Rect, RichText, Rounding, Stroke, Vec2};
+use eframe::egui::{self, Color32, Rect, RichText, Rounding, Stroke, TextureHandle, Vec2};
 use image::ColorType;
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
@@ -27,35 +27,30 @@ use std::collections::HashMap;
 // Thread-local icon cache for viewport rendering
 thread_local! {
     static VIEWPORT_ICON_CACHE: RefCell<ProviderIconCache> = RefCell::new(ProviderIconCache::new());
+    static ABOUT_APP_ICON_CACHE: RefCell<Option<TextureHandle>> = const { RefCell::new(None) };
+}
+
+fn about_app_icon_texture(ctx: &egui::Context) -> Option<TextureHandle> {
+    ABOUT_APP_ICON_CACHE.with(|cache| {
+        if let Some(texture) = cache.borrow().clone() {
+            return Some(texture);
+        }
+
+        let image = image::load_from_memory(include_bytes!("../../icons/icon.png"))
+            .ok()?
+            .to_rgba8();
+        let size = [image.width() as usize, image.height() as usize];
+        let color_image = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
+        let texture = ctx.load_texture("about_app_icon", color_image, egui::TextureOptions::LINEAR);
+        *cache.borrow_mut() = Some(texture.clone());
+        Some(texture)
+    })
 }
 
 fn render_about_app_icon(ui: &mut egui::Ui) {
-    let outer_size = Vec2::splat(84.0);
-    let (rect, _) = ui.allocate_exact_size(outer_size, egui::Sense::hover());
-    let outer = rect.shrink(2.0);
-    let inner = outer.shrink(10.0);
-
-    ui.painter().rect_filled(
-        outer,
-        Rounding::same(18.0),
-        Color32::from_rgb(247, 248, 251),
-    );
-    ui.painter()
-        .rect_filled(inner, Rounding::same(15.0), Color32::from_rgb(91, 149, 255));
-    ui.painter().text(
-        inner.center_top() + egui::vec2(0.0, 17.0),
-        egui::Align2::CENTER_TOP,
-        "</>",
-        egui::FontId::proportional(26.0),
-        Color32::WHITE,
-    );
-    ui.painter().text(
-        inner.center_bottom() - egui::vec2(0.0, 19.0),
-        egui::Align2::CENTER_BOTTOM,
-        "▔▔▔",
-        egui::FontId::proportional(16.0),
-        Color32::WHITE.gamma_multiply(0.92),
-    );
+    if let Some(texture) = about_app_icon_texture(ui.ctx()) {
+        ui.add(egui::Image::new(&texture).fit_to_exact_size(Vec2::splat(84.0)));
+    }
 }
 
 #[cfg(debug_assertions)]

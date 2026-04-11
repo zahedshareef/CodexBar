@@ -13,8 +13,16 @@ fn get_icon_data() -> &'static HashMap<&'static str, &'static [u8]> {
     ICON_DATA.get_or_init(|| {
         let mut map = HashMap::new();
         map.insert(
+            "alibaba",
+            include_bytes!("../../assets/icons/ProviderIcon-alibaba.svg").as_slice(),
+        );
+        map.insert(
             "amp",
             include_bytes!("../../assets/icons/ProviderIcon-amp.svg").as_slice(),
+        );
+        map.insert(
+            "ollama",
+            include_bytes!("../../assets/icons/ProviderIcon-ollama.svg").as_slice(),
         );
         map.insert(
             "antigravity",
@@ -69,12 +77,20 @@ fn get_icon_data() -> &'static HashMap<&'static str, &'static [u8]> {
             include_bytes!("../../assets/icons/ProviderIcon-opencode.svg").as_slice(),
         );
         map.insert(
+            "openrouter",
+            include_bytes!("../../assets/icons/ProviderIcon-openrouter.svg").as_slice(),
+        );
+        map.insert(
             "synthetic",
             include_bytes!("../../assets/icons/ProviderIcon-synthetic.svg").as_slice(),
         );
         map.insert(
             "vertexai",
             include_bytes!("../../assets/icons/ProviderIcon-vertexai.svg").as_slice(),
+        );
+        map.insert(
+            "warp",
+            include_bytes!("../../assets/icons/ProviderIcon-warp.svg").as_slice(),
         );
         map.insert(
             "zai",
@@ -125,6 +141,9 @@ fn normalize_provider_name(name: &str) -> String {
         "vertex ai" => "vertexai".to_string(),
         "jetbrains ai" => "jetbrains".to_string(),
         "kimi k2" | "kimik2" => "kimi".to_string(),
+        "tongyi" | "qwen" | "qianwen" => "alibaba".to_string(),
+        "open router" => "openrouter".to_string(),
+        "warp terminal" | "warp ai" => "warp".to_string(),
         _ => lower.replace(" ", "").replace("-", ""),
     }
 }
