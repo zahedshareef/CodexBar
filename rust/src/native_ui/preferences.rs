@@ -9464,6 +9464,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings {
                 cursor_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9526,6 +9527,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings {
                 opencode_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9588,6 +9590,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings {
                 factory_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9650,6 +9653,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings {
                 alibaba_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9810,6 +9814,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings {
                 minimax_cookie_source: "manual".to_string(),
                 minimax_api_token: String::new(),
@@ -9861,6 +9866,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings {
                 minimax_cookie_source: "manual".to_string(),
                 minimax_api_token: "mmx-secret".to_string(),
@@ -9912,6 +9918,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings {
                 augment_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -9962,6 +9969,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings {
                 amp_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -10012,6 +10020,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings {
                 ollama_cookie_source: "manual".to_string(),
                 ..Settings::default()
@@ -10078,6 +10087,7 @@ mod tests {
         let shared_state = Arc::new(Mutex::new(PreferencesSharedState {
             is_open: false,
             active_tab: PreferencesTab::Providers,
+            preferences_section: PreferencesTab::General,
             settings: Settings::default(),
             settings_changed: false,
             cookies: Default::default(),

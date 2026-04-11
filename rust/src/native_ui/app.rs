@@ -1250,6 +1250,7 @@ pub struct CodexBarApp {
     first_update_logged: bool,
 }
 
+#[cfg(any(test, not(windows)))]
 fn prepend_font(fonts: &mut FontDefinitions, family: FontFamily, font_name: &str) {
     let entries = fonts.families.entry(family).or_default();
     if !entries.iter().any(|existing| existing == font_name) {
@@ -1265,7 +1266,7 @@ fn append_font(fonts: &mut FontDefinitions, family: FontFamily, font_name: &str)
     }
 }
 
-#[cfg(any(test, not(windows)))]
+#[cfg(not(windows))]
 fn add_font_if_present(fonts: &mut FontDefinitions, font_name: &str, path: &str) {
     if let Ok(font_data) = std::fs::read(path) {
         fonts
