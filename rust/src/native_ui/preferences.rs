@@ -495,7 +495,8 @@ fn preferences_viewport_preferred_size(active_tab: PreferencesTab) -> Vec2 {
         | PreferencesTab::ApiKeys
         | PreferencesTab::Cookies
         | PreferencesTab::Accounts => egui::vec2(720.0, 580.0),
-        PreferencesTab::About => egui::vec2(500.0, 600.0),
+        PreferencesTab::About => egui::vec2(500.0, 620.0),
+        PreferencesTab::Display => egui::vec2(500.0, 820.0),
         _ => egui::vec2(500.0, 580.0),
     }
 }
@@ -2838,19 +2839,7 @@ impl PreferencesWindow {
 
         // Check for updates row
         ui.horizontal(|ui| {
-            if ui
-                .add(
-                    egui::Button::new(
-                        RichText::new("检查更新")
-                            .size(FontSize::SM)
-                            .color(Theme::TEXT_PRIMARY),
-                    )
-                    .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
-                    .fill(Theme::CARD_BG)
-                    .rounding(Rounding::same(Radius::SM)),
-                )
-                .clicked()
-            {
+            if simple_action_button(ui, "检查更新") {
                 let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
             }
         });
@@ -3134,7 +3123,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .show(ui, |ui| {
                         egui::ScrollArea::vertical()
                             .id_salt("settings_content_preferences")
-                            .max_height(content_height)
+                            .max_height(ui.available_height())
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 render_general_tab(ui, shared_state);
@@ -3149,7 +3138,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .show(ui, |ui| {
                         egui::ScrollArea::vertical()
                             .id_salt("settings_content_display")
-                            .max_height(content_height)
+                            .max_height(ui.available_height())
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 render_display_tab(ui, shared_state);
@@ -3164,7 +3153,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .show(ui, |ui| {
                         egui::ScrollArea::vertical()
                             .id_salt("settings_content_advanced")
-                            .max_height(content_height)
+                            .max_height(ui.available_height())
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 render_advanced_tab(ui, shared_state);
@@ -3179,7 +3168,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .show(ui, |ui| {
                         egui::ScrollArea::vertical()
                             .id_salt("settings_content_shortcuts")
-                            .max_height(content_height)
+                            .max_height(ui.available_height())
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 render_shortcuts_tab(ui, shared_state);
@@ -3194,7 +3183,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .show(ui, |ui| {
                         egui::ScrollArea::vertical()
                             .id_salt("settings_content_about")
-                            .max_height(content_height)
+                            .max_height(ui.available_height())
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 render_about_tab(ui, shared_state);
@@ -3210,7 +3199,7 @@ fn render_settings_ui(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                     .show(ui, |ui| {
                         egui::ScrollArea::vertical()
                             .id_salt("settings_content_fallback")
-                            .max_height(content_height)
+                            .max_height(ui.available_height())
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
                                 render_general_tab(ui, shared_state);
@@ -7401,7 +7390,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 state.settings_changed = true;
             }
 
-            setting_divider(ui);
+            compact_setting_divider(ui);
 
             let mut switcher_shows_icons = if let Ok(state) = shared_state.lock() {
                 state.settings.switcher_shows_icons
@@ -7428,7 +7417,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 });
             });
 
-            setting_divider(ui);
+            compact_setting_divider(ui);
 
             let mut show_highest_usage = if let Ok(state) = shared_state.lock() {
                 state.settings.menu_bar_shows_highest_usage
@@ -7455,7 +7444,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 });
             });
 
-            setting_divider(ui);
+            compact_setting_divider(ui);
 
             let mut menu_bar_shows_percent = if let Ok(state) = shared_state.lock() {
                 state.settings.menu_bar_shows_percent
@@ -7474,7 +7463,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 state.settings_changed = true;
             }
 
-            setting_divider(ui);
+            compact_setting_divider(ui);
 
             let mut selected_mode = if let Ok(state) = shared_state.lock() {
                 state.settings.menu_bar_display_mode.clone()
@@ -7530,7 +7519,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             });
         });
 
-        settings_section_separator(ui);
+        compact_section_separator(ui);
 
         preferences_stack_section(ui, "Windows tray", |ui| {
             let mut per_provider = if let Ok(state) = shared_state.lock() {
@@ -7551,7 +7540,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
             }
         });
 
-        settings_section_separator(ui);
+        compact_section_separator(ui);
 
         preferences_stack_section(ui, "Menu content", |ui| {
             let mut show_as_used = if let Ok(state) = shared_state.lock() {
@@ -7571,7 +7560,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 state.settings_changed = true;
             }
 
-            setting_divider(ui);
+            compact_setting_divider(ui);
 
             let mut show_reset_as_clock = if let Ok(state) = shared_state.lock() {
                 !state.settings.reset_time_relative
@@ -7590,7 +7579,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 state.settings_changed = true;
             }
 
-            setting_divider(ui);
+            compact_setting_divider(ui);
 
             let mut show_credits_extra = if let Ok(state) = shared_state.lock() {
                 state.settings.show_credits_extra_usage
@@ -7609,7 +7598,7 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 state.settings_changed = true;
             }
 
-            setting_divider(ui);
+            compact_setting_divider(ui);
 
             let mut show_all_token_accounts = if let Ok(state) = shared_state.lock() {
                 state.settings.show_all_token_accounts_in_menu
@@ -8465,7 +8454,7 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
     let build_date = option_env!("BUILD_DATE").unwrap_or("unknown");
 
     ui.vertical_centered(|ui| {
-        ui.set_max_width(340.0);
+        ui.set_max_width(400.0);
         ui.add_space(14.0);
         render_about_app_icon(ui);
         ui.add_space(10.0);
@@ -8496,7 +8485,7 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
         );
         ui.spacing_mut().item_spacing.y = prev_spacing;
 
-        ui.add_space(8.0);
+        ui.add_space(12.0);
 
         // Links — matching mac VStack(spacing: 10) with per-link icon colors
         ui.spacing_mut().item_spacing.y = 10.0;
@@ -8578,17 +8567,18 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
             },
         );
 
-        ui.add_space(10.0);
+        ui.add_space(14.0);
         if simple_action_button(ui, "Check for Updates...") {
             let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
         }
 
-        ui.add_space(8.0);
+        ui.add_space(12.0);
         ui.label(
-            RichText::new("NessZerra - Window Version. MIT License.")
+            RichText::new("NessZerra - Windows Version. MIT License.")
                 .size(FontSize::XS)
                 .color(Theme::TEXT_MUTED),
         );
+        ui.add_space(16.0);
     });
 }
 
@@ -8721,6 +8711,14 @@ fn settings_section_separator(ui: &mut egui::Ui) {
     ui.add_space(4.0);
 }
 
+fn compact_section_separator(ui: &mut egui::Ui) {
+    ui.add_space(4.0);
+    let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
+    ui.painter()
+        .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.42));
+    ui.add_space(3.0);
+}
+
 fn preferences_pane_header(ui: &mut egui::Ui, title: &str, subtitle: &str) {
     ui.label(
         RichText::new(title)
@@ -8754,6 +8752,14 @@ fn setting_divider(ui: &mut egui::Ui) {
     ui.painter()
         .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.48));
     ui.add_space(7.0);
+}
+
+fn compact_setting_divider(ui: &mut egui::Ui) {
+    ui.add_space(4.0);
+    let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
+    ui.painter()
+        .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.48));
+    ui.add_space(4.0);
 }
 
 /// iOS-style switch toggle component
@@ -8879,7 +8885,7 @@ fn setting_picker_row(
                     .color(Theme::TEXT_PRIMARY),
             );
             if !subtitle.is_empty() {
-                let max_w = ui.available_width().min(300.0);
+                let max_w = (ui.available_width() - 160.0).clamp(100.0, 300.0);
                 ui.allocate_ui(Vec2::new(max_w, 0.0), |ui| {
                     ui.add(
                         egui::Label::new(
@@ -9019,8 +9025,8 @@ fn text_button(ui: &mut egui::Ui, text: &str, color: Color32) -> bool {
 
 fn picker_shell(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::none()
-        .fill(Theme::BG_TERTIARY.gamma_multiply(0.42))
-        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.62)))
+        .fill(Theme::INPUT_BG)
+        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
         .rounding(Rounding::same(Radius::SM))
         .inner_margin(egui::Margin::symmetric(8.0, 2.5))
         .show(ui, content);
@@ -9048,9 +9054,10 @@ fn simple_action_button(ui: &mut egui::Ui, text: &str) -> bool {
                 .size(FontSize::SM)
                 .color(Theme::TEXT_PRIMARY),
         )
-        .fill(Theme::CARD_BG.gamma_multiply(0.28))
-        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.82)))
-        .rounding(Rounding::same(Radius::SM)),
+        .fill(Theme::BG_TERTIARY)
+        .stroke(Stroke::new(1.0, Theme::BORDER_SUBTLE))
+        .rounding(Rounding::same(Radius::SM))
+        .min_size(egui::vec2(0.0, 28.0)),
     )
     .clicked()
 }
@@ -9189,7 +9196,7 @@ mod tests {
         );
         assert_eq!(
             preferences_viewport_preferred_size(PreferencesTab::Display),
-            egui::vec2(500.0, 580.0)
+            egui::vec2(500.0, 820.0)
         );
         assert_eq!(
             preferences_viewport_preferred_size(PreferencesTab::Advanced),
@@ -9197,7 +9204,7 @@ mod tests {
         );
         assert_eq!(
             preferences_viewport_preferred_size(PreferencesTab::About),
-            egui::vec2(500.0, 600.0)
+            egui::vec2(500.0, 620.0)
         );
     }
 
