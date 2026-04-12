@@ -37,9 +37,10 @@ fn about_app_icon_texture(ctx: &egui::Context) -> Option<TextureHandle> {
             return Some(texture);
         }
 
-        let image = image::load_from_memory(include_bytes!("../../icons/icon.png"))
+        let image = image::load_from_memory(include_bytes!("../../icons/about-icon.png"))
             .ok()?
             .to_rgba8();
+        let image = sanitize_transparent_pixels(&crop_alpha_bounds(&image));
         let size = [image.width() as usize, image.height() as usize];
         let color_image = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
         let texture = ctx.load_texture("about_app_icon", color_image, egui::TextureOptions::LINEAR);
@@ -52,6 +53,44 @@ fn render_about_app_icon(ui: &mut egui::Ui) {
     if let Some(texture) = about_app_icon_texture(ui.ctx()) {
         ui.add(egui::Image::new(&texture).fit_to_exact_size(Vec2::splat(84.0)));
     }
+}
+
+fn crop_alpha_bounds(image: &image::RgbaImage) -> image::RgbaImage {
+    let mut min_x = image.width();
+    let mut min_y = image.height();
+    let mut max_x = 0;
+    let mut max_y = 0;
+    let mut found = false;
+
+    for (x, y, pixel) in image.enumerate_pixels() {
+        if pixel[3] == 0 {
+            continue;
+        }
+
+        found = true;
+        min_x = min_x.min(x);
+        min_y = min_y.min(y);
+        max_x = max_x.max(x);
+        max_y = max_y.max(y);
+    }
+
+    if !found {
+        return image.clone();
+    }
+
+    image::imageops::crop_imm(image, min_x, min_y, max_x - min_x + 1, max_y - min_y + 1).to_image()
+}
+
+fn sanitize_transparent_pixels(image: &image::RgbaImage) -> image::RgbaImage {
+    let mut sanitized = image.clone();
+    for pixel in sanitized.pixels_mut() {
+        if pixel[3] == 0 {
+            pixel[0] = 0;
+            pixel[1] = 0;
+            pixel[2] = 0;
+        }
+    }
+    sanitized
 }
 
 #[cfg(debug_assertions)]
@@ -7390,17 +7429,23 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 true
             };
 
-            ui.add_enabled_ui(merge_icons, |ui| {
-                if setting_toggle(
-                    ui,
-                    "Switcher shows icons",
-                    "Show provider icons in the switcher (otherwise show a weekly progress line).",
-                    &mut switcher_shows_icons,
-                ) && let Ok(mut state) = shared_state.lock()
-                {
-                    state.settings.switcher_shows_icons = switcher_shows_icons;
-                    state.settings_changed = true;
+            ui.scope(|ui| {
+                if !merge_icons {
+                    ui.visuals_mut().override_text_color =
+                        Some(Theme::TEXT_MUTED.gamma_multiply(0.78));
                 }
+                ui.add_enabled_ui(merge_icons, |ui| {
+                    if setting_toggle(
+                        ui,
+                        "Switcher shows icons",
+                        "Show provider icons in the switcher (otherwise show a weekly progress line).",
+                        &mut switcher_shows_icons,
+                    ) && let Ok(mut state) = shared_state.lock()
+                    {
+                        state.settings.switcher_shows_icons = switcher_shows_icons;
+                        state.settings_changed = true;
+                    }
+                });
             });
 
             setting_divider(ui);
@@ -7411,17 +7456,23 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 false
             };
 
-            ui.add_enabled_ui(merge_icons, |ui| {
-                if setting_toggle(
-                    ui,
-                    "Show most-used provider",
-                    "Menu bar auto-shows the provider closest to its rate limit.",
-                    &mut show_highest_usage,
-                ) && let Ok(mut state) = shared_state.lock()
-                {
-                    state.settings.menu_bar_shows_highest_usage = show_highest_usage;
-                    state.settings_changed = true;
+            ui.scope(|ui| {
+                if !merge_icons {
+                    ui.visuals_mut().override_text_color =
+                        Some(Theme::TEXT_MUTED.gamma_multiply(0.78));
                 }
+                ui.add_enabled_ui(merge_icons, |ui| {
+                    if setting_toggle(
+                        ui,
+                        "Show most-used provider",
+                        "Menu bar auto-shows the provider closest to its rate limit.",
+                        &mut show_highest_usage,
+                    ) && let Ok(mut state) = shared_state.lock()
+                    {
+                        state.settings.menu_bar_shows_highest_usage = show_highest_usage;
+                        state.settings_changed = true;
+                    }
+                });
             });
 
             setting_divider(ui);
@@ -7451,45 +7502,51 @@ fn render_display_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
                 "detailed".to_string()
             };
 
-            ui.add_enabled_ui(menu_bar_shows_percent, |ui| {
-                setting_picker_row(
-                    ui,
-                    "Display mode",
-                    "Choose what to show in the menu bar.",
-                    |ui| {
-                        styled_combo_box(
-                            ui,
-                            "menu_bar_display_mode_viewport",
-                            match selected_mode.as_str() {
-                                "minimal" => "Minimal",
-                                "compact" => "Compact",
-                                _ => "Detailed",
-                            },
-                            120.0,
-                            |ui| {
-                                for (value, label) in [
-                                    ("minimal", "Minimal"),
-                                    ("compact", "Compact"),
-                                    ("detailed", "Detailed"),
-                                ] {
-                                    if ui
-                                        .selectable_value(
-                                            &mut selected_mode,
-                                            value.to_string(),
-                                            label,
-                                        )
-                                        .changed()
-                                        && let Ok(mut state) = shared_state.lock()
-                                    {
-                                        state.settings.menu_bar_display_mode =
-                                            selected_mode.clone();
-                                        state.settings_changed = true;
+            ui.scope(|ui| {
+                if !menu_bar_shows_percent {
+                    ui.visuals_mut().override_text_color =
+                        Some(Theme::TEXT_MUTED.gamma_multiply(0.78));
+                }
+                ui.add_enabled_ui(menu_bar_shows_percent, |ui| {
+                    setting_picker_row(
+                        ui,
+                        "Display mode",
+                        "Choose what to show in the menu bar (Pace shows usage vs. expected).",
+                        |ui| {
+                            styled_combo_box(
+                                ui,
+                                "menu_bar_display_mode_viewport",
+                                match selected_mode.as_str() {
+                                    "minimal" => "Minimal",
+                                    "compact" => "Compact",
+                                    _ => "Detailed",
+                                },
+                                120.0,
+                                |ui| {
+                                    for (value, label) in [
+                                        ("minimal", "Minimal"),
+                                        ("compact", "Compact"),
+                                        ("detailed", "Detailed"),
+                                    ] {
+                                        if ui
+                                            .selectable_value(
+                                                &mut selected_mode,
+                                                value.to_string(),
+                                                label,
+                                            )
+                                            .changed()
+                                            && let Ok(mut state) = shared_state.lock()
+                                        {
+                                            state.settings.menu_bar_display_mode =
+                                                selected_mode.clone();
+                                            state.settings_changed = true;
+                                        }
                                     }
-                                }
-                            },
-                        );
-                    },
-                );
+                                },
+                            );
+                        },
+                    );
+                });
             });
         });
 
@@ -8197,7 +8254,7 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
 
         settings_section_separator(ui);
 
-        preferences_stack_section(ui, "", |ui| {
+        preferences_stack_section(ui, "CLI", |ui| {
             ui.horizontal(|ui| {
                 if simple_action_button(ui, "Install CLI")
                     && let Ok(exe_path) = std::env::current_exe()
@@ -8218,7 +8275,7 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
 
         settings_section_separator(ui);
 
-        preferences_stack_section(ui, "", |ui| {
+        preferences_stack_section(ui, "Troubleshooting", |ui| {
             let mut show_debug_settings = if let Ok(state) = shared_state.lock() {
                 state.settings.show_debug_settings
             } else {
@@ -8258,7 +8315,7 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
 
         settings_section_separator(ui);
 
-        preferences_stack_section(ui, "", |ui| {
+        preferences_stack_section(ui, "Privacy", |ui| {
             let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
                 state.settings.hide_personal_info
             } else {
@@ -8458,16 +8515,13 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
         ui.add_space(12.0);
         ui.vertical_centered(|ui| {
             if text_button(ui, "</>  GitHub", Theme::ACCENT_PRIMARY) {
-                let _ = open::that("https://github.com/steipete/CodexBar");
+                let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
             }
             if text_button(ui, "◉  Website", Theme::ACCENT_PRIMARY) {
                 let _ = open::that("https://steipete.me");
             }
             if text_button(ui, "↗  Twitter", Theme::ACCENT_PRIMARY) {
-                let _ = open::that("https://twitter.com/steipete");
-            }
-            if text_button(ui, "✉  Email", Theme::ACCENT_PRIMARY) {
-                let _ = open::that("mailto:peter@steipete.me");
+                let _ = open::that("https://x.com/NessZerra");
             }
         });
 
@@ -8550,7 +8604,7 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
 
         ui.vertical_centered(|ui| {
             ui.label(
-                RichText::new("© 2026 Peter Steinberger. MIT License.")
+                RichText::new("NessZerra - Window Version. MIT License.")
                     .size(FontSize::XS)
                     .color(Theme::TEXT_MUTED),
             );
@@ -8657,7 +8711,9 @@ fn section_header(ui: &mut egui::Ui, text: &str) {
 }
 
 fn preferences_stack_section(ui: &mut egui::Ui, text: &str, content: impl FnOnce(&mut egui::Ui)) {
-    section_header(ui, text);
+    if !text.is_empty() {
+        section_header(ui, text);
+    }
     content(ui);
 }
 
@@ -8809,10 +8865,18 @@ fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bo
         });
 
         if !subtitle.is_empty() {
-            ui.add_space(0.5);
+            ui.add_space(1.0);
             ui.horizontal(|ui| {
-                ui.add_space(20.0);
-                ui.label(RichText::new(subtitle).size(10.5).color(Theme::TEXT_MUTED));
+                ui.add_space(22.0);
+                ui.add_sized(
+                    [ui.available_width(), 0.0],
+                    egui::Label::new(
+                        RichText::new(subtitle)
+                            .size(FontSize::XS)
+                            .color(Theme::TEXT_MUTED),
+                    )
+                    .wrap(),
+                );
             });
         }
     });
@@ -8827,6 +8891,7 @@ fn setting_picker_row(
     control: impl FnOnce(&mut egui::Ui),
 ) {
     ui.horizontal(|ui| {
+        ui.set_width(ui.available_width());
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 1.0;
             ui.label(
@@ -8835,15 +8900,19 @@ fn setting_picker_row(
                     .color(Theme::TEXT_PRIMARY),
             );
             if !subtitle.is_empty() {
-                ui.label(
-                    RichText::new(subtitle)
-                        .size(FontSize::XS)
-                        .color(Theme::TEXT_MUTED),
+                ui.add_sized(
+                    [ui.available_width().min(224.0), 0.0],
+                    egui::Label::new(
+                        RichText::new(subtitle)
+                            .size(FontSize::XS)
+                            .color(Theme::TEXT_MUTED),
+                    )
+                    .wrap(),
                 );
             }
         });
 
-        ui.add_space(6.0);
+        ui.add_space(12.0);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             control(ui);
         });
@@ -9172,7 +9241,7 @@ mod tests {
     }
 
     #[test]
-    fn viewport_about_tab_renders_centered_about_identity_and_updates_copy() {
+    fn viewport_about_tab_renders_identity_links_and_updates() {
         let ctx = egui::Context::default();
         let shared_state = PreferencesWindow::default().shared_state.clone();
 
@@ -9184,8 +9253,11 @@ mod tests {
         let rendered = format!("{:?}", full_output.shapes);
 
         assert!(rendered.contains("CodexBar"));
-        assert!(rendered.contains("Check for updates automatically"));
-        assert!(rendered.contains("Check for Updates..."));
+        assert!(rendered.contains("Version"));
+        assert!(rendered.contains("May your tokens never run out"));
+        assert!(rendered.contains("Built"));
+        assert!(rendered.contains("GitHub"));
+        assert!(rendered.contains("Twitter"));
     }
 
     #[test]
