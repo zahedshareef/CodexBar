@@ -51,7 +51,7 @@ fn about_app_icon_texture(ctx: &egui::Context) -> Option<TextureHandle> {
 
 fn render_about_app_icon(ui: &mut egui::Ui) {
     if let Some(texture) = about_app_icon_texture(ui.ctx()) {
-        ui.add(egui::Image::new(&texture).fit_to_exact_size(Vec2::splat(84.0)));
+        ui.add(egui::Image::new(&texture).fit_to_exact_size(Vec2::splat(92.0)));
     }
 }
 
@@ -8489,6 +8489,10 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
         ui.add_space(14.0);
         render_about_app_icon(ui);
         ui.add_space(10.0);
+
+        // Identity block — tight spacing matching mac VStack(spacing: 2)
+        let prev_spacing = ui.spacing().item_spacing.y;
+        ui.spacing_mut().item_spacing.y = 2.0;
         ui.label(
             RichText::new("CodexBar")
                 .size(FontSize::LG + 2.0)
@@ -8505,14 +8509,17 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
                 .size(FontSize::XS)
                 .color(Theme::TEXT_MUTED),
         );
-        ui.add_space(4.0);
         ui.label(
             RichText::new("May your tokens never run out—keep agent limits in view.")
                 .size(FontSize::XS)
                 .color(Theme::TEXT_MUTED),
         );
+        ui.spacing_mut().item_spacing.y = prev_spacing;
 
-        ui.add_space(12.0);
+        ui.add_space(8.0);
+
+        // Links — matching mac VStack(spacing: 10)
+        ui.spacing_mut().item_spacing.y = 10.0;
         ui.vertical_centered(|ui| {
             if text_button(ui, "</>  GitHub", Theme::ACCENT_PRIMARY) {
                 let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
@@ -8524,6 +8531,7 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
                 let _ = open::that("https://x.com/NessZerra");
             }
         });
+        ui.spacing_mut().item_spacing.y = prev_spacing;
 
         settings_section_separator(ui);
 
@@ -8602,6 +8610,7 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
 
         settings_section_separator(ui);
 
+        ui.add_space(4.0);
         ui.vertical_centered(|ui| {
             ui.label(
                 RichText::new("NessZerra - Window Version. MIT License.")
