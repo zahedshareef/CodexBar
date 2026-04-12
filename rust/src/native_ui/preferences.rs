@@ -434,8 +434,8 @@ fn active_provider_sidebar_style() -> ProviderSidebarStyle {
         item_spacing_y: 0.0,
         row_height: 46.0,
         row_corner_radius: 8.0,
-        selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 8),
-        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 12)),
+        selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 6),
+        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 10)),
         hover_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 3),
     }
 }
@@ -486,7 +486,46 @@ fn provider_detail_chrome() -> ProviderDetailChrome {
 }
 
 fn provider_detail_max_content_width() -> f32 {
-    404.0
+    420.0
+}
+
+fn ensure_selected_provider(
+    shared_state: &Arc<Mutex<PreferencesSharedState>>,
+    fallback: ProviderId,
+) -> ProviderId {
+    if let Ok(mut state) = shared_state.lock() {
+        if state.selected_provider.is_none() {
+            state.selected_provider = Some(fallback);
+        }
+        state.selected_provider.unwrap_or(fallback)
+    } else {
+        fallback
+    }
+}
+
+fn set_selected_provider(
+    shared_state: &Arc<Mutex<PreferencesSharedState>>,
+    provider_id: ProviderId,
+) {
+    if let Ok(mut state) = shared_state.lock() {
+        state.selected_provider = Some(provider_id);
+    }
+}
+
+fn set_provider_enabled(
+    shared_state: &Arc<Mutex<PreferencesSharedState>>,
+    provider_id: ProviderId,
+    enabled: bool,
+) {
+    if let Ok(mut state) = shared_state.lock() {
+        let name = provider_id.cli_name().to_string();
+        if enabled {
+            state.settings.enabled_providers.insert(name);
+        } else {
+            state.settings.enabled_providers.remove(&name);
+        }
+        state.settings_changed = true;
+    }
 }
 
 fn preferences_viewport_preferred_size(active_tab: PreferencesTab) -> Vec2 {
@@ -3222,21 +3261,17 @@ fn render_providers_tab_layout(
     let sidebar_corner_radius = 12.0; // sidebarCornerRadius
     let icon_size = 16.0;
     let total_width = ui.available_width();
-    let sidebar_width = (total_width * 0.42).clamp(244.0, 286.0);
+    let sidebar_width = (total_width * 0.39).clamp(232.0, 268.0);
     let detail_width = (total_width - sidebar_width - Spacing::SM).max(0.0);
     let surface_palette = providers_surface_palette();
     let detail_fill = surface_palette.detail_fill;
     let detail_stroke = surface_palette.detail_stroke;
 
-    // Get selected provider
-    let selected_provider = if let Ok(state) = shared_state.lock() {
-        state.selected_provider
-    } else {
-        None
-    };
-
     let providers = ProviderId::all();
-    let selected = selected_provider.unwrap_or(providers[0]);
+    let Some(default_provider) = providers.first().copied() else {
+        return;
+    };
+    let selected = ensure_selected_provider(shared_state, default_provider);
 
     // Create a horizontal layout with two fixed regions
     let sidebar_rect = ui.available_rect_before_wrap();
@@ -3281,29 +3316,30 @@ fn render_providers_tab_layout(
                                 Vec2::new(row_width, row_height),
                                 egui::Sense::click(),
                             );
+                            let paint_rect = rect.shrink2(Vec2::new(4.0, 0.0));
 
                             // Use a light selection stroke/fill instead of a chunky slab.
                             if is_selected {
                                 response.scroll_to_me(Some(egui::Align::Center));
                                 ui.painter().rect_filled(
-                                    rect,
+                                    paint_rect,
                                     Rounding::same(sidebar_style.row_corner_radius),
                                     sidebar_style.selected_fill,
                                 );
                                 ui.painter().rect_stroke(
-                                    rect,
+                                    paint_rect,
                                     Rounding::same(sidebar_style.row_corner_radius),
                                     sidebar_style.selected_stroke,
                                 );
                             } else if response.hovered() {
                                 ui.painter().rect_filled(
-                                    rect,
+                                    paint_rect,
                                     Rounding::same(sidebar_style.row_corner_radius),
                                     sidebar_style.hover_fill,
                                 );
                             }
 
-                            let content_rect = rect.shrink2(Vec2::new(4.0, 4.0));
+                            let content_rect = paint_rect.shrink2(Vec2::new(6.0, 4.0));
                             let mut checkbox_clicked = false;
                             ui.scope_builder(
                                 egui::UiBuilder::new()
@@ -3323,11 +3359,11 @@ fn render_providers_tab_layout(
                             );
 
                             // Handle clicks
-                            if response.clicked()
-                                && !checkbox_clicked
-                                && let Ok(mut state) = shared_state.lock()
-                            {
-                                state.selected_provider = Some(*provider_id);
+                            if checkbox_clicked {
+                                set_provider_enabled(shared_state, *provider_id, !is_enabled);
+                                set_selected_provider(shared_state, *provider_id);
+                            } else if response.clicked() {
+                                set_selected_provider(shared_state, *provider_id);
                             }
 
                             ui.add_space(0.0);
@@ -3361,9 +3397,6 @@ fn render_providers_tab_layout(
                     .show(ui, |ui| {
                         let max_content_width = provider_detail_max_content_width();
                         let available = ui.available_width();
-                        if available > max_content_width {
-                            ui.add_space((available - max_content_width) * 0.5);
-                        }
                         ui.set_max_width(max_content_width.min(available));
                         render_provider_detail_panel(ui, selected, shared_state);
                     });
@@ -4084,28 +4117,31 @@ fn render_provider_sidebar_icon(
 }
 
 fn render_provider_sidebar_checkbox(ui: &mut egui::Ui, is_enabled: bool) -> bool {
-    let checkbox_size = 16.0;
+    let checkbox_size = 14.0;
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(checkbox_size), egui::Sense::click());
-    let rounding = Rounding::same(3.0);
+    let rounding = Rounding::same(4.0);
     if is_enabled {
-        // Filled blue checkbox like macOS
         ui.painter()
-            .rect_filled(rect, rounding, Theme::ACCENT_PRIMARY);
+            .rect_filled(rect, rounding, Theme::ACCENT_PRIMARY.gamma_multiply(0.92));
+        ui.painter().rect_stroke(
+            rect,
+            rounding,
+            Stroke::new(1.0, Theme::ACCENT_PRIMARY.gamma_multiply(0.55)),
+        );
         ui.painter().text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             "✓",
-            egui::FontId::proportional(11.0),
+            egui::FontId::proportional(10.0),
             Color32::WHITE,
         );
     } else {
-        // Empty bordered checkbox
         ui.painter()
             .rect_filled(rect, rounding, Color32::TRANSPARENT);
         ui.painter().rect_stroke(
             rect,
             rounding,
-            Stroke::new(1.2, Theme::BORDER_SUBTLE.gamma_multiply(0.6)),
+            Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.54)),
         );
     }
     response.clicked()
@@ -4264,15 +4300,8 @@ fn render_provider_detail_panel(
                         ui,
                         egui::Id::new(format!("detail_toggle_{}", provider_id.cli_name())),
                         &mut enabled,
-                    ) && let Ok(mut state) = shared_state.lock()
-                    {
-                        let name = provider_id.cli_name().to_string();
-                        if enabled {
-                            state.settings.enabled_providers.insert(name);
-                        } else {
-                            state.settings.enabled_providers.remove(&name);
-                        }
-                        state.settings_changed = true;
+                    ) {
+                        set_provider_enabled(shared_state, provider_id, enabled);
                     }
 
                     ui.add_space(12.0);
@@ -9072,16 +9101,17 @@ mod tests {
         PreferencesSharedState, PreferencesTab, PreferencesWindow, active_provider_sidebar_style,
         alibaba_cookie_source_label, alibaba_region_label, amp_cookie_source_label,
         augment_cookie_source_label, compact_credentials_path, cursor_cookie_source_label,
-        factory_cookie_source_label, gemini_cli_credentials_path, kimi_cookie_source_label,
-        minimax_cookie_source_label, minimax_region_label, ollama_cookie_source_label,
-        opencode_cookie_source_label, preferences_tab_label, preferences_viewport_preferred_size,
-        provider_detail_chrome, provider_detail_display_text, provider_detail_max_content_width,
-        provider_detail_source_display, provider_detail_status_value, provider_detail_subtitle,
-        provider_detail_text_chrome, provider_sidebar_display_lines, provider_sidebar_subtitle,
-        providers_surface_palette, render_about_tab, render_advanced_tab, render_display_tab,
-        render_general_tab, set_merge_tray_icons, set_per_provider_tray_icons, settings_nav_chrome,
-        should_show_token_accounts_section, shows_shared_provider_settings,
-        vertexai_credentials_path, zai_region_label,
+        ensure_selected_provider, factory_cookie_source_label, gemini_cli_credentials_path,
+        kimi_cookie_source_label, minimax_cookie_source_label, minimax_region_label,
+        ollama_cookie_source_label, opencode_cookie_source_label, preferences_tab_label,
+        preferences_viewport_preferred_size, provider_detail_chrome, provider_detail_display_text,
+        provider_detail_max_content_width, provider_detail_source_display,
+        provider_detail_status_value, provider_detail_subtitle, provider_detail_text_chrome,
+        provider_sidebar_display_lines, provider_sidebar_subtitle, providers_surface_palette,
+        render_about_tab, render_advanced_tab, render_display_tab, render_general_tab,
+        set_merge_tray_icons, set_per_provider_tray_icons, set_provider_enabled,
+        set_selected_provider, settings_nav_chrome, should_show_token_accounts_section,
+        shows_shared_provider_settings, vertexai_credentials_path, zai_region_label,
     };
     use crate::browser::detection::BrowserType;
     use crate::core::{ProviderAccountData, ProviderId, WidgetProviderEntry};
@@ -9346,13 +9376,13 @@ mod tests {
         assert_eq!(style.row_corner_radius, 8.0);
         assert_eq!(
             style.selected_fill,
-            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 8)
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 6)
         );
         assert_eq!(
             style.selected_stroke,
             eframe::egui::Stroke::new(
                 1.0,
-                eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 12)
+                eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 10)
             )
         );
         assert_eq!(
@@ -9463,7 +9493,53 @@ mod tests {
 
     #[test]
     fn provider_detail_max_content_width_matches_roomier_mac_like_layout() {
-        assert_eq!(provider_detail_max_content_width(), 404.0);
+        assert_eq!(provider_detail_max_content_width(), 420.0);
+    }
+
+    #[test]
+    fn ensure_selected_provider_persists_first_provider_when_missing() {
+        let shared_state = PreferencesWindow::default().shared_state;
+
+        let selected = ensure_selected_provider(&shared_state, ProviderId::Claude);
+
+        assert_eq!(selected, ProviderId::Claude);
+        assert_eq!(
+            shared_state.lock().unwrap().selected_provider,
+            Some(ProviderId::Claude)
+        );
+    }
+
+    #[test]
+    fn set_provider_enabled_updates_shared_settings_state() {
+        let shared_state = PreferencesWindow::default().shared_state;
+
+        set_provider_enabled(&shared_state, ProviderId::Codex, true);
+        {
+            let state = shared_state.lock().unwrap();
+            assert!(state.settings.enabled_providers.contains("codex"));
+            assert!(state.settings_changed);
+        }
+
+        if let Ok(mut state) = shared_state.lock() {
+            state.settings_changed = false;
+        }
+
+        set_provider_enabled(&shared_state, ProviderId::Codex, false);
+        let state = shared_state.lock().unwrap();
+        assert!(!state.settings.enabled_providers.contains("codex"));
+        assert!(state.settings_changed);
+    }
+
+    #[test]
+    fn set_selected_provider_updates_sidebar_focus_target() {
+        let shared_state = PreferencesWindow::default().shared_state;
+
+        set_selected_provider(&shared_state, ProviderId::Cursor);
+
+        assert_eq!(
+            shared_state.lock().unwrap().selected_provider,
+            Some(ProviderId::Cursor)
+        );
     }
 
     #[test]
