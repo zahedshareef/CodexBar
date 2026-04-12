@@ -495,6 +495,7 @@ fn preferences_viewport_preferred_size(active_tab: PreferencesTab) -> Vec2 {
         | PreferencesTab::ApiKeys
         | PreferencesTab::Cookies
         | PreferencesTab::Accounts => egui::vec2(720.0, 580.0),
+        PreferencesTab::About => egui::vec2(500.0, 600.0),
         _ => egui::vec2(500.0, 580.0),
     }
 }
@@ -8535,89 +8536,80 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
 
         settings_section_separator(ui);
 
-        ui.vertical(|ui| {
-            ui.set_max_width(274.0);
+        // Updates section — inline, no extra wrapper
+        let mut auto_download_updates = if let Ok(state) = shared_state.lock() {
+            state.settings.auto_download_updates
+        } else {
+            true
+        };
 
-            let mut auto_download_updates = if let Ok(state) = shared_state.lock() {
-                state.settings.auto_download_updates
-            } else {
-                true
-            };
+        if about_checkbox_row(
+            ui,
+            "Check for updates automatically",
+            &mut auto_download_updates,
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.auto_download_updates = auto_download_updates;
+            state.settings_changed = true;
+        }
 
-            if about_checkbox_row(
-                ui,
-                "Check for updates automatically",
-                &mut auto_download_updates,
-            ) && let Ok(mut state) = shared_state.lock()
-            {
-                state.settings.auto_download_updates = auto_download_updates;
-                state.settings_changed = true;
-            }
+        setting_divider(ui);
 
-            setting_divider(ui);
-
-            let current_channel = if let Ok(state) = shared_state.lock() {
-                state.settings.update_channel
-            } else {
-                crate::settings::UpdateChannel::Stable
-            };
-            let channels = [
-                (
-                    crate::settings::UpdateChannel::Stable,
-                    locale_text(ui_language, LocaleKey::UpdateChannelStable),
-                ),
-                (
-                    crate::settings::UpdateChannel::Beta,
-                    locale_text(ui_language, LocaleKey::UpdateChannelBeta),
-                ),
-            ];
-            let mut selected = current_channel;
-            setting_picker_row(
-                ui,
-                locale_text(ui_language, LocaleKey::UpdateChannelChoice),
-                locale_text(ui_language, LocaleKey::UpdateChannelChoiceHelper),
-                |ui| {
-                    styled_combo_box(
-                        ui,
-                        "update_channel",
-                        channels
-                            .iter()
-                            .find(|(ch, _)| *ch == selected)
-                            .map(|(_, label)| *label)
-                            .unwrap_or(locale_text(ui_language, LocaleKey::UpdateChannelStable)),
-                        108.0,
-                        |ui| {
-                            for (channel, label) in channels {
-                                if ui.selectable_value(&mut selected, channel, label).changed()
-                                    && let Ok(mut state) = shared_state.lock()
-                                {
-                                    state.settings.update_channel = selected;
-                                    state.settings_changed = true;
-                                }
+        let current_channel = if let Ok(state) = shared_state.lock() {
+            state.settings.update_channel
+        } else {
+            crate::settings::UpdateChannel::Stable
+        };
+        let channels = [
+            (
+                crate::settings::UpdateChannel::Stable,
+                locale_text(ui_language, LocaleKey::UpdateChannelStable),
+            ),
+            (
+                crate::settings::UpdateChannel::Beta,
+                locale_text(ui_language, LocaleKey::UpdateChannelBeta),
+            ),
+        ];
+        let mut selected = current_channel;
+        setting_picker_row(
+            ui,
+            locale_text(ui_language, LocaleKey::UpdateChannelChoice),
+            locale_text(ui_language, LocaleKey::UpdateChannelChoiceHelper),
+            |ui| {
+                styled_combo_box(
+                    ui,
+                    "update_channel",
+                    channels
+                        .iter()
+                        .find(|(ch, _)| *ch == selected)
+                        .map(|(_, label)| *label)
+                        .unwrap_or(locale_text(ui_language, LocaleKey::UpdateChannelStable)),
+                    108.0,
+                    |ui| {
+                        for (channel, label) in channels {
+                            if ui.selectable_value(&mut selected, channel, label).changed()
+                                && let Ok(mut state) = shared_state.lock()
+                            {
+                                state.settings.update_channel = selected;
+                                state.settings_changed = true;
                             }
-                        },
-                    );
-                },
-            );
+                        }
+                    },
+                );
+            },
+        );
 
-            ui.add_space(6.0);
-            ui.horizontal_centered(|ui| {
-                if simple_action_button(ui, "Check for Updates...") {
-                    let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
-                }
-            });
-        });
+        ui.add_space(10.0);
+        if simple_action_button(ui, "Check for Updates...") {
+            let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
+        }
 
-        settings_section_separator(ui);
-
-        ui.add_space(4.0);
-        ui.vertical_centered(|ui| {
-            ui.label(
-                RichText::new("NessZerra - Window Version. MIT License.")
-                    .size(FontSize::XS)
-                    .color(Theme::TEXT_MUTED),
-            );
-        });
+        ui.add_space(8.0);
+        ui.label(
+            RichText::new("NessZerra - Window Version. MIT License.")
+                .size(FontSize::XS)
+                .color(Theme::TEXT_MUTED),
+        );
     });
 }
 
@@ -9225,7 +9217,7 @@ mod tests {
         );
         assert_eq!(
             preferences_viewport_preferred_size(PreferencesTab::About),
-            egui::vec2(500.0, 580.0)
+            egui::vec2(500.0, 600.0)
         );
     }
 
