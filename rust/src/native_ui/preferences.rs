@@ -540,6 +540,12 @@ fn preferences_viewport_preferred_size(active_tab: PreferencesTab) -> Vec2 {
     }
 }
 
+fn preferences_viewport_outer_padding() -> Vec2 {
+    // Reserve room for native window chrome so the viewport stays inside the
+    // Windows work area instead of slipping under the taskbar.
+    egui::vec2(16.0, 40.0)
+}
+
 impl Default for PreferencesWindow {
     fn default() -> Self {
         let settings = Settings::load();
@@ -1087,15 +1093,17 @@ impl PreferencesWindow {
         let main_outer_rect = ctx.input(|i| i.viewport().outer_rect);
 
         let preferred_size = preferences_viewport_preferred_size(self.active_tab);
+        let viewport_outer_padding = preferences_viewport_outer_padding();
         let default_min_size = egui::vec2(520.0, 420.0);
         let margin = 12.0;
         let settings_size = if let Some(area) = work_area {
-            let max_w = (area.width() - margin * 2.0).max(360.0);
-            let max_h = (area.height() - margin * 2.0).max(360.0);
+            let max_w = (area.width() - margin * 2.0 - viewport_outer_padding.x).max(360.0);
+            let max_h = (area.height() - margin * 2.0 - viewport_outer_padding.y).max(360.0);
             egui::vec2(preferred_size.x.min(max_w), preferred_size.y.min(max_h))
         } else {
             preferred_size
         };
+        let settings_outer_size = settings_size + viewport_outer_padding;
         let settings_min_size = egui::vec2(
             default_min_size.x.min(settings_size.x),
             default_min_size.y.min(settings_size.y),
@@ -1104,7 +1112,7 @@ impl PreferencesWindow {
             match (main_outer_rect, work_area) {
                 (Some(main_rect), Some(area)) => Some(settings_position_near_main_window(
                     main_rect,
-                    settings_size,
+                    settings_outer_size,
                     area,
                 )),
                 _ => None,
@@ -2898,16 +2906,16 @@ impl PreferencesWindow {
 
 fn settings_position_near_main_window(
     main_rect: Rect,
-    settings_size: Vec2,
-    monitor_size: Rect,
+    settings_outer_size: Vec2,
+    work_area: Rect,
 ) -> egui::Pos2 {
     let margin = 12.0;
     let gap = 12.0;
 
-    let right_space = monitor_size.max.x - main_rect.max.x - gap - margin;
-    let left_space = main_rect.min.x - monitor_size.min.x - gap - margin;
-    let bottom_space = monitor_size.max.y - main_rect.max.y - gap - margin;
-    let top_space = main_rect.min.y - monitor_size.min.y - gap - margin;
+    let right_space = work_area.max.x - main_rect.max.x - gap - margin;
+    let left_space = main_rect.min.x - work_area.min.x - gap - margin;
+    let bottom_space = work_area.max.y - main_rect.max.y - gap - margin;
+    let top_space = main_rect.min.y - work_area.min.y - gap - margin;
 
     let mut best_side = "right";
     let mut best_space = right_space;
@@ -2922,10 +2930,10 @@ fn settings_position_near_main_window(
         }
     }
 
-    let min_x = monitor_size.min.x + margin;
-    let min_y = monitor_size.min.y + margin;
-    let max_x = (monitor_size.max.x - settings_size.x - margin).max(min_x);
-    let max_y = (monitor_size.max.y - settings_size.y - margin).max(min_y);
+    let min_x = work_area.min.x + margin;
+    let min_y = work_area.min.y + margin;
+    let max_x = (work_area.max.x - settings_outer_size.x - margin).max(min_x);
+    let max_y = (work_area.max.y - settings_outer_size.y - margin).max(min_y);
     let clamp_x = |value: f32| {
         if max_x <= min_x {
             min_x
@@ -2944,13 +2952,13 @@ fn settings_position_near_main_window(
     let (x, y) = match best_side {
         "right" => (clamp_x(main_rect.max.x + gap), clamp_y(main_rect.min.y)),
         "left" => (
-            clamp_x(main_rect.min.x - settings_size.x - gap),
+            clamp_x(main_rect.min.x - settings_outer_size.x - gap),
             clamp_y(main_rect.min.y),
         ),
         "bottom" => (clamp_x(main_rect.min.x), clamp_y(main_rect.max.y + gap)),
         _ => (
             clamp_x(main_rect.min.x),
-            clamp_y(main_rect.min.y - settings_size.y - gap),
+            clamp_y(main_rect.min.y - settings_outer_size.y - gap),
         ),
     };
 
@@ -9136,13 +9144,14 @@ mod tests {
         ensure_selected_provider, factory_cookie_source_label, gemini_cli_credentials_path,
         kimi_cookie_source_label, minimax_cookie_source_label, minimax_region_label,
         ollama_cookie_source_label, opencode_cookie_source_label, preferences_tab_label,
-        preferences_viewport_preferred_size, provider_detail_chrome, provider_detail_display_text,
-        provider_detail_identity_rows, provider_detail_max_content_width,
-        provider_detail_source_display, provider_detail_status_value, provider_detail_subtitle,
-        provider_detail_text_chrome, provider_sidebar_display_lines, provider_sidebar_subtitle,
-        providers_surface_palette, render_about_tab, render_advanced_tab, render_display_tab,
-        render_general_tab, set_merge_tray_icons, set_per_provider_tray_icons,
-        set_provider_enabled, set_selected_provider, settings_nav_chrome,
+        preferences_viewport_outer_padding, preferences_viewport_preferred_size,
+        provider_detail_chrome, provider_detail_display_text, provider_detail_identity_rows,
+        provider_detail_max_content_width, provider_detail_source_display,
+        provider_detail_status_value, provider_detail_subtitle, provider_detail_text_chrome,
+        provider_sidebar_display_lines, provider_sidebar_subtitle, providers_surface_palette,
+        render_about_tab, render_advanced_tab, render_display_tab, render_general_tab,
+        set_merge_tray_icons, set_per_provider_tray_icons, set_provider_enabled,
+        set_selected_provider, settings_nav_chrome, settings_position_near_main_window,
         should_show_token_accounts_section, shows_shared_provider_settings,
         vertexai_credentials_path, zai_region_label,
     };
@@ -9283,6 +9292,26 @@ mod tests {
             preferences_viewport_preferred_size(PreferencesTab::Cookies),
             egui::vec2(720.0, 580.0)
         );
+    }
+
+    #[test]
+    fn viewport_outer_padding_reserves_room_for_native_window_chrome() {
+        assert_eq!(preferences_viewport_outer_padding(), egui::vec2(16.0, 40.0));
+    }
+
+    #[test]
+    fn settings_position_clamps_provider_viewport_inside_work_area() {
+        let work_area = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1366.0, 728.0));
+        let main_rect = egui::Rect::from_min_max(egui::pos2(83.0, 224.0), egui::pos2(459.0, 535.0));
+        let outer_size = preferences_viewport_preferred_size(PreferencesTab::Providers)
+            + preferences_viewport_outer_padding();
+
+        let position = settings_position_near_main_window(main_rect, outer_size, work_area);
+        let outer_rect = egui::Rect::from_min_size(position, outer_size);
+
+        assert!(outer_rect.bottom() <= work_area.bottom() - 12.0);
+        assert!(outer_rect.right() <= work_area.right() - 12.0);
+        assert!(outer_rect.top() >= work_area.top() + 12.0);
     }
 
     #[test]
