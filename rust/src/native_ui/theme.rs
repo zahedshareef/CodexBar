@@ -107,8 +107,8 @@ impl Theme {
     /// Dimmed text — placeholder, disabled
     pub const TEXT_DIM: Color32 = Color32::from_rgb(66, 66, 78);
 
-    /// Section header text — uppercase labels
-    pub const TEXT_SECTION: Color32 = Color32::from_rgb(120, 120, 136);
+    /// Section header text — uppercase labels (brightened for mac parity)
+    pub const TEXT_SECTION: Color32 = Color32::from_rgb(142, 142, 158);
 
     // ═══════════════════════════════════════════════════════════════════
     // BORDERS & SEPARATORS — Subtle depth cues

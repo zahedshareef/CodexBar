@@ -3441,13 +3441,13 @@ fn render_provider_sidebar_row(
             }
             ui.label(name_text);
             if is_enabled {
-                ui.add_space(2.0);
+                ui.add_space(3.0);
                 let (dot_rect, _) =
-                    ui.allocate_exact_size(Vec2::new(6.0, 6.0), egui::Sense::hover());
+                    ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
                 ui.painter().circle_filled(
                     dot_rect.center(),
-                    1.2,
-                    Theme::GREEN.gamma_multiply(if is_selected { 0.42 } else { 0.28 }),
+                    3.0,
+                    Theme::GREEN.gamma_multiply(if is_selected { 0.9 } else { 0.7 }),
                 );
             }
         });
@@ -7292,7 +7292,7 @@ fn render_general_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSha
 
         ui.add_space(Spacing::LG);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if primary_button(ui, "Quit CodexBar") {
+            if simple_action_button(ui, "Quit CodexBar") {
                 std::process::exit(0);
             }
         });
@@ -8486,7 +8486,7 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
     let build_date = option_env!("BUILD_DATE").unwrap_or("unknown");
 
     ui.vertical_centered(|ui| {
-        ui.set_max_width(284.0);
+        ui.set_max_width(340.0);
         ui.add_space(14.0);
         render_about_app_icon(ui);
         ui.add_space(10.0);
@@ -8519,16 +8519,16 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
 
         ui.add_space(8.0);
 
-        // Links — matching mac VStack(spacing: 10)
+        // Links — matching mac VStack(spacing: 10) with per-link icon colors
         ui.spacing_mut().item_spacing.y = 10.0;
         ui.vertical_centered(|ui| {
-            if text_button(ui, "</>  GitHub", Theme::ACCENT_PRIMARY) {
+            if text_button(ui, "</>  GitHub", Color32::from_rgb(110, 168, 254)) {
                 let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
             }
-            if text_button(ui, "◉  Website", Theme::ACCENT_PRIMARY) {
+            if text_button(ui, "◉  Website", Color32::from_rgb(100, 200, 140)) {
                 let _ = open::that("https://steipete.me");
             }
-            if text_button(ui, "↗  Twitter", Theme::ACCENT_PRIMARY) {
+            if text_button(ui, "↗  Twitter", Color32::from_rgb(96, 165, 250)) {
                 let _ = open::that("https://x.com/NessZerra");
             }
         });
@@ -8701,14 +8701,14 @@ fn section_header(ui: &mut egui::Ui, text: &str) {
     } else {
         text.to_string()
     };
-    ui.add_space(Spacing::MD);
+    ui.add_space(Spacing::SM);
     ui.label(
         RichText::new(display_text)
-            .size(FontSize::XS)
+            .size(FontSize::NAV)
             .color(Theme::TEXT_SECTION)
             .strong(),
     );
-    ui.add_space(5.0);
+    ui.add_space(4.0);
 }
 
 fn preferences_stack_section(ui: &mut egui::Ui, text: &str, content: impl FnOnce(&mut egui::Ui)) {
@@ -8735,11 +8735,11 @@ fn compact_preferences_body(
 }
 
 fn settings_section_separator(ui: &mut egui::Ui) {
-    ui.add_space(8.0);
+    ui.add_space(6.0);
     let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
     ui.painter()
         .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.42));
-    ui.add_space(6.0);
+    ui.add_space(4.0);
 }
 
 fn preferences_pane_header(ui: &mut egui::Ui, title: &str, subtitle: &str) {
@@ -8869,8 +8869,7 @@ fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bo
             ui.add_space(1.0);
             ui.horizontal(|ui| {
                 ui.add_space(22.0);
-                ui.add_sized(
-                    [ui.available_width(), 0.0],
+                ui.add(
                     egui::Label::new(
                         RichText::new(subtitle)
                             .size(FontSize::XS)
@@ -8901,15 +8900,17 @@ fn setting_picker_row(
                     .color(Theme::TEXT_PRIMARY),
             );
             if !subtitle.is_empty() {
-                ui.add_sized(
-                    [ui.available_width().min(224.0), 0.0],
-                    egui::Label::new(
-                        RichText::new(subtitle)
-                            .size(FontSize::XS)
-                            .color(Theme::TEXT_MUTED),
-                    )
-                    .wrap(),
-                );
+                let max_w = ui.available_width().min(300.0);
+                ui.allocate_ui(Vec2::new(max_w, 0.0), |ui| {
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(subtitle)
+                                .size(FontSize::XS)
+                                .color(Theme::TEXT_MUTED),
+                        )
+                        .wrap(),
+                    );
+                });
             }
         });
 
