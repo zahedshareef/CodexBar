@@ -432,7 +432,7 @@ fn active_provider_sidebar_style() -> ProviderSidebarStyle {
         frame_stroke: Some(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.44))),
         inner_margin: Spacing::SM,
         item_spacing_y: 0.0,
-        row_height: 54.0,
+        row_height: 42.0,
         row_corner_radius: 8.0,
         selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 8),
         selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 12)),
@@ -3418,7 +3418,7 @@ fn render_provider_sidebar_row(
         runtime_error.as_deref(),
         ui_language,
     );
-    let (subtitle_primary, subtitle_secondary) = provider_sidebar_display_lines(&subtitle);
+    let (subtitle_primary, _) = provider_sidebar_display_lines(&subtitle);
 
     render_provider_sidebar_icon(ui, provider_name, brand_color, icon_size);
     ui.add_space(7.0);
@@ -3464,20 +3464,6 @@ fn render_provider_sidebar_row(
                 .size(FontSize::XS)
                 .color(primary_subtitle_color),
         );
-        if let Some(secondary_line) = subtitle_secondary.as_deref() {
-            let secondary_subtitle_color = if is_selected {
-                Theme::TEXT_DIM.gamma_multiply(1.16)
-            } else if is_enabled {
-                Theme::TEXT_DIM.gamma_multiply(1.04)
-            } else {
-                Theme::TEXT_DIM.gamma_multiply(1.08)
-            };
-            ui.label(
-                RichText::new(secondary_line)
-                    .size(FontSize::XS)
-                    .color(secondary_subtitle_color),
-            );
-        }
     });
 
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -3496,40 +3482,29 @@ fn provider_sidebar_subtitle(
 
     if !is_enabled {
         return format!(
-            "{} — {}\n{}",
+            "{} — {}",
             locale_text(ui_language, LocaleKey::ProviderDisabled),
             provider_disabled_detail_hint(provider_id, runtime_error, ui_language),
-            locale_text(ui_language, LocaleKey::ProviderUsageNotFetchedYet)
         );
     }
 
     let Some(entry) = entry else {
-        return format!(
-            "{}\n{}",
-            locale_text(ui_language, LocaleKey::ProviderNotDetected),
-            locale_text(ui_language, LocaleKey::ProviderLastFetchFailed)
-        );
+        return locale_text(ui_language, LocaleKey::ProviderNotDetected).to_string();
     };
 
-    let status_detail = if provider_sidebar_has_usage(entry) {
-        provider_sidebar_updated_display(entry.updated_at, ui_language)
+    if provider_sidebar_has_usage(entry) {
+        format!(
+            "{source_hint} · {}",
+            provider_sidebar_updated_display(entry.updated_at, ui_language)
+        )
     } else {
-        locale_text(ui_language, LocaleKey::ProviderUsageNotFetchedYet).to_string()
-    };
-
-    format!("{source_hint}\n{status_detail}")
+        source_hint
+    }
 }
 
 fn provider_sidebar_display_lines(subtitle: &str) -> (String, Option<String>) {
-    let (primary, secondary) = subtitle
-        .split_once('\n')
-        .map(|(primary, secondary)| (primary, Some(secondary)))
-        .unwrap_or((subtitle, None));
-
-    let primary = ellipsize_text(primary, 40);
-    let secondary = secondary.map(|line| ellipsize_text(line, 22));
-
-    (primary, secondary)
+    // Single truncated line like macOS sidebar
+    (ellipsize_text(subtitle, 22), None)
 }
 
 fn provider_detail_display_text(subtitle: &str) -> String {
@@ -3554,7 +3529,7 @@ fn provider_sidebar_row_height(
     _is_enabled: bool,
     _shared_state: &Arc<Mutex<PreferencesSharedState>>,
 ) -> f32 {
-    58.0
+    42.0
 }
 
 fn provider_disabled_detail_hint(
@@ -4120,24 +4095,28 @@ fn render_provider_sidebar_icon(
 }
 
 fn render_provider_sidebar_checkbox(ui: &mut egui::Ui, is_enabled: bool) -> bool {
-    let checkbox_size = 8.0;
+    let checkbox_size = 16.0;
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(checkbox_size), egui::Sense::click());
-    let border = Theme::BORDER_SUBTLE.gamma_multiply(if is_enabled { 0.66 } else { 0.46 });
-    let fill = if is_enabled {
-        Color32::from_rgba_unmultiplied(255, 255, 255, 3)
-    } else {
-        Color32::TRANSPARENT
-    };
-    ui.painter().rect_filled(rect, Rounding::same(3.0), fill);
-    ui.painter()
-        .rect_stroke(rect, Rounding::same(3.0), Stroke::new(0.85, border));
+    let rounding = Rounding::same(3.0);
     if is_enabled {
+        // Filled blue checkbox like macOS
+        ui.painter()
+            .rect_filled(rect, rounding, Theme::ACCENT_PRIMARY);
         ui.painter().text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             "✓",
-            egui::FontId::proportional(6.5),
-            Theme::TEXT_SECONDARY.gamma_multiply(0.98),
+            egui::FontId::proportional(11.0),
+            Color32::WHITE,
+        );
+    } else {
+        // Empty bordered checkbox
+        ui.painter()
+            .rect_filled(rect, rounding, Color32::TRANSPARENT);
+        ui.painter().rect_stroke(
+            rect,
+            rounding,
+            Stroke::new(1.2, Theme::BORDER_SUBTLE.gamma_multiply(0.6)),
         );
     }
     response.clicked()
@@ -9362,7 +9341,7 @@ mod tests {
         );
         assert_eq!(style.inner_margin, super::Spacing::SM);
         assert_eq!(style.item_spacing_y, 0.0);
-        assert_eq!(style.row_height, 54.0);
+        assert_eq!(style.row_height, 42.0);
         assert_eq!(style.row_corner_radius, 8.0);
         assert_eq!(
             style.selected_fill,
@@ -9491,10 +9470,10 @@ mod tests {
         let subtitle =
             provider_sidebar_subtitle(ProviderId::Copilot, false, None, None, Language::English);
 
-        assert_eq!(subtitle, "Disabled — github api\nusage not fetched yet");
+        assert_eq!(subtitle, "Disabled — github api");
         assert_eq!(
             provider_sidebar_subtitle(ProviderId::MiniMax, false, None, None, Language::English),
-            "Disabled — auto\nusage not fetched yet"
+            "Disabled — auto"
         );
     }
 
@@ -9503,7 +9482,7 @@ mod tests {
         let subtitle =
             provider_sidebar_subtitle(ProviderId::Codex, true, None, None, Language::English);
 
-        assert_eq!(subtitle, "not detected\nlast fetch failed");
+        assert_eq!(subtitle, "not detected");
     }
 
     #[test]
@@ -9518,7 +9497,7 @@ mod tests {
             Language::English,
         );
 
-        assert_eq!(subtitle, "web\nusage not fetched yet");
+        assert_eq!(subtitle, "web");
     }
 
     #[test]
@@ -9555,14 +9534,11 @@ mod tests {
     fn provider_sidebar_subtitle_uses_provider_specific_disabled_hint_when_needed() {
         let subtitle =
             provider_sidebar_subtitle(ProviderId::Claude, false, None, None, Language::English);
-        assert_eq!(
-            subtitle,
-            "Disabled — claude not detected\nusage not fetched yet"
-        );
+        assert_eq!(subtitle, "Disabled — claude not detected");
 
         let cursor_subtitle =
             provider_sidebar_subtitle(ProviderId::Cursor, false, None, None, Language::English);
-        assert_eq!(cursor_subtitle, "Disabled — web\nusage not fetched yet");
+        assert_eq!(cursor_subtitle, "Disabled — web");
     }
 
     #[test]
@@ -9577,7 +9553,7 @@ mod tests {
 
         assert_eq!(
             subtitle,
-            "Disabled — kiro env: kiro-cli: No such file or directory\nusage not fetched yet"
+            "Disabled — kiro env: kiro-cli: No such file or directory"
         );
     }
 
@@ -9694,12 +9670,13 @@ mod tests {
 
     #[test]
     fn provider_sidebar_display_lines_clamp_to_two_visual_lines() {
+        // Now single-line truncated like macOS sidebar
         let (primary, secondary) = provider_sidebar_display_lines(
-            "Disabled — kiro env: kiro-cli: No such file or directory\nusage not fetched yet",
+            "Disabled — kiro env: kiro-cli: No such file or directory",
         );
 
-        assert_eq!(primary, "Disabled — kiro env: kiro-cli: No such …");
-        assert_eq!(secondary.as_deref(), Some("usage not fetched yet"));
+        assert_eq!(primary, "Disabled — kiro env: …");
+        assert_eq!(secondary, None);
     }
 
     #[test]
