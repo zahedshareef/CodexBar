@@ -440,6 +440,10 @@ fn active_provider_sidebar_style() -> ProviderSidebarStyle {
     }
 }
 
+fn provider_sidebar_card_inset() -> Vec2 {
+    egui::vec2(4.0, 1.0)
+}
+
 fn providers_surface_palette() -> ProvidersSurfacePalette {
     ProvidersSurfacePalette {
         shell_fill: Color32::from_rgb(55, 55, 63),
@@ -3324,7 +3328,9 @@ fn render_providers_tab_layout(
                                 Vec2::new(row_width, row_height),
                                 egui::Sense::click(),
                             );
-                            let paint_rect = rect.shrink2(Vec2::new(4.0, 0.0));
+                            // Keep hover cards visually distinct without loosening the compact
+                            // provider list hit targets.
+                            let paint_rect = rect.shrink2(provider_sidebar_card_inset());
 
                             // Use a light selection stroke/fill instead of a chunky slab.
                             if is_selected {
@@ -9148,12 +9154,12 @@ mod tests {
         provider_detail_chrome, provider_detail_display_text, provider_detail_identity_rows,
         provider_detail_max_content_width, provider_detail_source_display,
         provider_detail_status_value, provider_detail_subtitle, provider_detail_text_chrome,
-        provider_sidebar_display_lines, provider_sidebar_subtitle, providers_surface_palette,
-        render_about_tab, render_advanced_tab, render_display_tab, render_general_tab,
-        set_merge_tray_icons, set_per_provider_tray_icons, set_provider_enabled,
-        set_selected_provider, settings_nav_chrome, settings_position_near_main_window,
-        should_show_token_accounts_section, shows_shared_provider_settings,
-        vertexai_credentials_path, zai_region_label,
+        provider_sidebar_card_inset, provider_sidebar_display_lines, provider_sidebar_subtitle,
+        providers_surface_palette, render_about_tab, render_advanced_tab, render_display_tab,
+        render_general_tab, set_merge_tray_icons, set_per_provider_tray_icons,
+        set_provider_enabled, set_selected_provider, settings_nav_chrome,
+        settings_position_near_main_window, should_show_token_accounts_section,
+        shows_shared_provider_settings, vertexai_credentials_path, zai_region_label,
     };
     use crate::browser::detection::BrowserType;
     use crate::core::{ProviderAccountData, ProviderId, WidgetProviderEntry};
@@ -9451,6 +9457,11 @@ mod tests {
             style.hover_fill,
             eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 5)
         );
+    }
+
+    #[test]
+    fn provider_sidebar_card_inset_separates_adjacent_hover_cards() {
+        assert_eq!(provider_sidebar_card_inset(), egui::vec2(4.0, 1.0));
     }
 
     #[test]
