@@ -434,9 +434,9 @@ fn active_provider_sidebar_style() -> ProviderSidebarStyle {
         item_spacing_y: 0.0,
         row_height: 46.0,
         row_corner_radius: 8.0,
-        selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 6),
-        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 10)),
-        hover_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 3),
+        selected_fill: Color32::from_rgba_unmultiplied(86, 156, 214, 30),
+        selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(86, 156, 214, 52)),
+        hover_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 5),
     }
 }
 
@@ -475,9 +475,9 @@ fn provider_detail_chrome() -> ProviderDetailChrome {
         control_stroke: Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.28)),
         control_inner_margin_x: 8.0,
         control_inner_margin_y: 3.0,
-        info_grid_spacing_x: 10.0,
+        info_grid_spacing_x: 12.0,
         info_grid_spacing_y: 6.0,
-        section_gap: 12.0,
+        section_gap: 16.0,
         detail_label_width: 92.0,
         picker_label_width: 92.0,
         metric_bar_width: 220.0,
@@ -486,7 +486,7 @@ fn provider_detail_chrome() -> ProviderDetailChrome {
 }
 
 fn provider_detail_max_content_width() -> f32 {
-    420.0
+    580.0
 }
 
 fn ensure_selected_provider(
@@ -3259,9 +3259,9 @@ fn render_providers_tab_layout(
     // macOS metrics
     let sidebar_style = active_provider_sidebar_style();
     let sidebar_corner_radius = 12.0; // sidebarCornerRadius
-    let icon_size = 16.0;
+    let icon_size = 18.0;
     let total_width = ui.available_width();
-    let sidebar_width = (total_width * 0.39).clamp(232.0, 268.0);
+    let sidebar_width = (total_width * 0.35).clamp(220.0, 244.0);
     let detail_width = (total_width - sidebar_width - Spacing::SM).max(0.0);
     let surface_palette = providers_surface_palette();
     let detail_fill = surface_palette.detail_fill;
@@ -3443,7 +3443,7 @@ fn render_provider_sidebar_row(
     let (subtitle_primary, _) = provider_sidebar_display_lines(&subtitle);
 
     render_provider_sidebar_icon(ui, provider_name, brand_color, icon_size);
-    ui.add_space(7.0);
+    ui.add_space(10.0);
 
     let name_color = if is_selected {
         Theme::TEXT_PRIMARY
@@ -3463,12 +3463,12 @@ fn render_provider_sidebar_row(
             }
             ui.label(name_text);
             if is_enabled {
-                ui.add_space(3.0);
+                ui.add_space(4.0);
                 let (dot_rect, _) =
-                    ui.allocate_exact_size(Vec2::new(8.0, 8.0), egui::Sense::hover());
+                    ui.allocate_exact_size(Vec2::new(6.0, 6.0), egui::Sense::hover());
                 ui.painter().circle_filled(
                     dot_rect.center(),
-                    3.0,
+                    2.5,
                     Theme::GREEN.gamma_multiply(if is_selected { 0.9 } else { 0.7 }),
                 );
             }
@@ -3652,6 +3652,20 @@ fn provider_detail_source_display(provider_id: ProviderId, ui_language: Language
         }
         _ => provider_sidebar_source_hint(provider_id, ui_language),
     }
+}
+
+fn provider_detail_identity_rows<'a>(
+    entry: Option<&'a WidgetProviderEntry>,
+    source_display: &str,
+) -> (Option<&'a str>, Option<&'a str>) {
+    let account_display = entry
+        .and_then(|entry| entry.account_email.as_deref())
+        .filter(|email| !email.trim().is_empty());
+    let plan_display = entry
+        .and_then(|entry| entry.login_method.as_deref())
+        .filter(|plan| !plan.trim().is_empty() && !plan.eq_ignore_ascii_case(source_display));
+
+    (account_display, plan_display)
 }
 
 fn cursor_cookie_source_label(source: &str, ui_language: Language) -> String {
@@ -4117,7 +4131,7 @@ fn render_provider_sidebar_icon(
 }
 
 fn render_provider_sidebar_checkbox(ui: &mut egui::Ui, is_enabled: bool) -> bool {
-    let checkbox_size = 14.0;
+    let checkbox_size = 16.0;
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(checkbox_size), egui::Sense::click());
     let rounding = Rounding::same(4.0);
     if is_enabled {
@@ -4132,7 +4146,7 @@ fn render_provider_sidebar_checkbox(ui: &mut egui::Ui, is_enabled: bool) -> bool
             rect.center(),
             egui::Align2::CENTER_CENTER,
             "✓",
-            egui::FontId::proportional(10.0),
+            egui::FontId::proportional(11.0),
             Color32::WHITE,
         );
     } else {
@@ -4248,13 +4262,15 @@ fn render_provider_detail_panel(
         runtime_error.as_deref(),
         ui_language,
     );
+    let (account_display, plan_display) =
+        provider_detail_identity_rows(entry.as_ref(), &source_display);
 
     // ═══════════════════════════════════════════════════════════
     // HEADER - Icon, name, version, refresh, toggle
     // ═══════════════════════════════════════════════════════════
     ui.horizontal(|ui| {
         // Large provider icon (28x28) - use SVG if available
-        let icon_size = 24.0;
+        let icon_size = 28.0;
         let has_svg = VIEWPORT_ICON_CACHE.with(|cache| {
             let mut cache = cache.borrow_mut();
             if let Some(texture) =
@@ -4275,7 +4291,7 @@ fn render_provider_detail_panel(
             );
         }
 
-        ui.add_space(10.0);
+        ui.add_space(12.0);
 
         let controls_reserve = detail_chrome.refresh_button_size + 54.0;
         let text_width = (ui.available_width() - controls_reserve).max(140.0);
@@ -4285,10 +4301,10 @@ fn render_provider_detail_panel(
 
             ui.horizontal(|ui| {
                 ui.add_sized(
-                    [text_width, 18.0],
+                    [text_width, 20.0],
                     egui::Label::new(
                         RichText::new(provider_preferences_display_name(provider_id))
-                            .size(FontSize::MD)
+                            .size(FontSize::LG)
                             .color(Theme::TEXT_PRIMARY)
                             .strong(),
                     ),
@@ -4435,6 +4451,22 @@ fn render_provider_detail_panel(
                     &detail_status,
                     detail_chrome.detail_label_width,
                 );
+                if let Some(account_email) = account_display {
+                    info_row(
+                        ui,
+                        locale_text(ui_language, LocaleKey::ProviderAccount),
+                        account_email,
+                        detail_chrome.detail_label_width,
+                    );
+                }
+                if let Some(plan) = plan_display {
+                    info_row(
+                        ui,
+                        locale_text(ui_language, LocaleKey::ProviderPlan),
+                        plan,
+                        detail_chrome.detail_label_width,
+                    );
+                }
             });
 
         provider_detail_section_title(ui, locale_text(ui_language, LocaleKey::ProviderUsage));
@@ -6701,18 +6733,18 @@ fn provider_detail_soft_divider(ui: &mut egui::Ui) {
 fn info_row(ui: &mut egui::Ui, label: &str, value: &str, label_width: f32) {
     let text_chrome = provider_detail_text_chrome();
     ui.add_sized(
-        [label_width, 18.0],
+        [label_width, 20.0],
         egui::Label::new(
             RichText::new(label)
-                .size(FontSize::XS)
+                .size(FontSize::SM)
                 .color(text_chrome.info_label),
         ),
     );
     ui.add_sized(
-        [ui.available_width(), 18.0],
+        [ui.available_width(), 20.0],
         egui::Label::new(
             RichText::new(value)
-                .size(FontSize::XS)
+                .size(FontSize::SM)
                 .color(Theme::TEXT_PRIMARY),
         )
         .wrap(),
@@ -9105,13 +9137,14 @@ mod tests {
         kimi_cookie_source_label, minimax_cookie_source_label, minimax_region_label,
         ollama_cookie_source_label, opencode_cookie_source_label, preferences_tab_label,
         preferences_viewport_preferred_size, provider_detail_chrome, provider_detail_display_text,
-        provider_detail_max_content_width, provider_detail_source_display,
-        provider_detail_status_value, provider_detail_subtitle, provider_detail_text_chrome,
-        provider_sidebar_display_lines, provider_sidebar_subtitle, providers_surface_palette,
-        render_about_tab, render_advanced_tab, render_display_tab, render_general_tab,
-        set_merge_tray_icons, set_per_provider_tray_icons, set_provider_enabled,
-        set_selected_provider, settings_nav_chrome, should_show_token_accounts_section,
-        shows_shared_provider_settings, vertexai_credentials_path, zai_region_label,
+        provider_detail_identity_rows, provider_detail_max_content_width,
+        provider_detail_source_display, provider_detail_status_value, provider_detail_subtitle,
+        provider_detail_text_chrome, provider_sidebar_display_lines, provider_sidebar_subtitle,
+        providers_surface_palette, render_about_tab, render_advanced_tab, render_display_tab,
+        render_general_tab, set_merge_tray_icons, set_per_provider_tray_icons,
+        set_provider_enabled, set_selected_provider, settings_nav_chrome,
+        should_show_token_accounts_section, shows_shared_provider_settings,
+        vertexai_credentials_path, zai_region_label,
     };
     use crate::browser::detection::BrowserType;
     use crate::core::{ProviderAccountData, ProviderId, WidgetProviderEntry};
@@ -9376,18 +9409,18 @@ mod tests {
         assert_eq!(style.row_corner_radius, 8.0);
         assert_eq!(
             style.selected_fill,
-            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 6)
+            eframe::egui::Color32::from_rgba_unmultiplied(86, 156, 214, 30)
         );
         assert_eq!(
             style.selected_stroke,
             eframe::egui::Stroke::new(
                 1.0,
-                eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 10)
+                eframe::egui::Color32::from_rgba_unmultiplied(86, 156, 214, 52)
             )
         );
         assert_eq!(
             style.hover_fill,
-            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 3)
+            eframe::egui::Color32::from_rgba_unmultiplied(255, 255, 255, 5)
         );
     }
 
@@ -9482,9 +9515,9 @@ mod tests {
         );
         assert_eq!(chrome.control_inner_margin_x, 8.0);
         assert_eq!(chrome.control_inner_margin_y, 3.0);
-        assert_eq!(chrome.info_grid_spacing_x, 10.0);
+        assert_eq!(chrome.info_grid_spacing_x, 12.0);
         assert_eq!(chrome.info_grid_spacing_y, 6.0);
-        assert_eq!(chrome.section_gap, 12.0);
+        assert_eq!(chrome.section_gap, 16.0);
         assert_eq!(chrome.detail_label_width, 92.0);
         assert_eq!(chrome.picker_label_width, 92.0);
         assert_eq!(chrome.metric_bar_width, 220.0);
@@ -9493,7 +9526,7 @@ mod tests {
 
     #[test]
     fn provider_detail_max_content_width_matches_roomier_mac_like_layout() {
-        assert_eq!(provider_detail_max_content_width(), 420.0);
+        assert_eq!(provider_detail_max_content_width(), 580.0);
     }
 
     #[test]
@@ -9540,6 +9573,34 @@ mod tests {
             shared_state.lock().unwrap().selected_provider,
             Some(ProviderId::Cursor)
         );
+    }
+
+    #[test]
+    fn provider_detail_identity_rows_include_account_and_non_source_plan() {
+        let entry = WidgetProviderEntry::new(ProviderId::Codex, Utc::now() - Duration::hours(1))
+            .with_account_email("terry@example.com")
+            .with_login_method("Team");
+
+        let (account, plan) = provider_detail_identity_rows(Some(&entry), "Auto");
+
+        assert_eq!(account, Some("terry@example.com"));
+        assert_eq!(plan, Some("Team"));
+    }
+
+    #[test]
+    fn provider_detail_identity_rows_skip_blank_or_duplicate_plan() {
+        let blank_plan = WidgetProviderEntry::new(ProviderId::Codex, Utc::now())
+            .with_account_email("terry@example.com")
+            .with_login_method("  ");
+        let duplicate_plan = WidgetProviderEntry::new(ProviderId::Codex, Utc::now())
+            .with_account_email("terry@example.com")
+            .with_login_method("auto");
+
+        let (_, blank) = provider_detail_identity_rows(Some(&blank_plan), "Auto");
+        let (_, duplicate) = provider_detail_identity_rows(Some(&duplicate_plan), "Auto");
+
+        assert_eq!(blank, None);
+        assert_eq!(duplicate, None);
     }
 
     #[test]
