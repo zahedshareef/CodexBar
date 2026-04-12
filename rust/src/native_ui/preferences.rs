@@ -432,7 +432,7 @@ fn active_provider_sidebar_style() -> ProviderSidebarStyle {
         frame_stroke: Some(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.44))),
         inner_margin: Spacing::SM,
         item_spacing_y: 0.0,
-        row_height: 42.0,
+        row_height: 46.0,
         row_corner_radius: 8.0,
         selected_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 8),
         selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 255, 255, 12)),
@@ -474,8 +474,8 @@ fn provider_detail_chrome() -> ProviderDetailChrome {
         control_fill_active: Color32::from_rgba_unmultiplied(255, 255, 255, 11),
         control_stroke: Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.28)),
         control_inner_margin_x: 8.0,
-        control_inner_margin_y: 0.0,
-        info_grid_spacing_x: 14.0,
+        control_inner_margin_y: 3.0,
+        info_grid_spacing_x: 10.0,
         info_grid_spacing_y: 6.0,
         section_gap: 12.0,
         detail_label_width: 92.0,
@@ -3303,12 +3303,12 @@ fn render_providers_tab_layout(
                                 );
                             }
 
-                            let content_rect = rect.shrink2(Vec2::new(4.0, 2.0));
+                            let content_rect = rect.shrink2(Vec2::new(4.0, 4.0));
                             let mut checkbox_clicked = false;
                             ui.scope_builder(
                                 egui::UiBuilder::new()
                                     .max_rect(content_rect)
-                                    .layout(egui::Layout::left_to_right(egui::Align::Min)),
+                                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
                                 |ui| {
                                     render_provider_sidebar_row(
                                         ui,
@@ -3352,7 +3352,7 @@ fn render_providers_tab_layout(
             .fill(detail_fill)
             .stroke(detail_stroke)
             .rounding(Rounding::same(12.0))
-            .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::SM))
+            .inner_margin(egui::Margin::symmetric(Spacing::MD, Spacing::MD))
             .show(ui, |ui| {
                 egui::ScrollArea::vertical()
                     .id_salt("provider_detail_scroll_v3")
@@ -3420,10 +3420,10 @@ fn render_provider_sidebar_row(
         Theme::TEXT_SECONDARY.gamma_multiply(1.30)
     };
     ui.vertical(|ui| {
-        ui.spacing_mut().item_spacing.y = 1.0;
+        ui.spacing_mut().item_spacing.y = 0.0;
         ui.horizontal(|ui| {
             let mut name_text = RichText::new(provider_preferences_display_name(provider_id))
-                .size(FontSize::SM)
+                .size(FontSize::BASE)
                 .color(name_color);
             if is_selected {
                 name_text = name_text.strong();
@@ -3493,7 +3493,7 @@ fn provider_sidebar_subtitle(
 
 fn provider_sidebar_display_lines(subtitle: &str) -> (String, Option<String>) {
     // Single truncated line like macOS sidebar
-    (ellipsize_text(subtitle, 22), None)
+    (ellipsize_text(subtitle, 30), None)
 }
 
 fn provider_detail_display_text(subtitle: &str) -> String {
@@ -3518,7 +3518,7 @@ fn provider_sidebar_row_height(
     _is_enabled: bool,
     _shared_state: &Arc<Mutex<PreferencesSharedState>>,
 ) -> f32 {
-    42.0
+    46.0
 }
 
 fn provider_disabled_detail_hint(
@@ -4309,7 +4309,7 @@ fn render_provider_detail_panel(
         });
     });
 
-    ui.add_space(6.0);
+    ui.add_space(10.0);
 
     // ═══════════════════════════════════════════════════════════
     // INFO GRID - Mac-like provider summary
@@ -6672,7 +6672,7 @@ fn provider_detail_soft_divider(ui: &mut egui::Ui) {
 fn info_row(ui: &mut egui::Ui, label: &str, value: &str, label_width: f32) {
     let text_chrome = provider_detail_text_chrome();
     ui.add_sized(
-        [label_width, 17.0],
+        [label_width, 18.0],
         egui::Label::new(
             RichText::new(label)
                 .size(FontSize::XS)
@@ -6680,7 +6680,7 @@ fn info_row(ui: &mut egui::Ui, label: &str, value: &str, label_width: f32) {
         ),
     );
     ui.add_sized(
-        [ui.available_width(), 17.0],
+        [ui.available_width(), 18.0],
         egui::Label::new(
             RichText::new(value)
                 .size(FontSize::XS)
@@ -8221,87 +8221,81 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
             render_open_menu_shortcut_row(ui, shared_state, ui_language);
         });
 
-        settings_section_separator(ui);
+        setting_divider(ui);
 
-        preferences_stack_section(ui, "CLI", |ui| {
-            ui.horizontal(|ui| {
-                if simple_action_button(ui, "Install CLI")
-                    && let Ok(exe_path) = std::env::current_exe()
-                    && let Some(parent) = exe_path.parent()
-                {
-                    let _ = open::that(parent);
-                }
-            });
-            ui.add_space(4.0);
-            ui.label(
-                RichText::new(
-                    "Open the CodexBar executable folder so you can add it to PATH as codexbar.",
-                )
-                .size(FontSize::XS)
-                .color(Theme::TEXT_MUTED),
-            );
-        });
-
-        settings_section_separator(ui);
-
-        preferences_stack_section(ui, "Troubleshooting", |ui| {
-            let mut show_debug_settings = if let Ok(state) = shared_state.lock() {
-                state.settings.show_debug_settings
-            } else {
-                false
-            };
-
-            if setting_toggle(
-                ui,
-                "Show Debug Settings",
-                "Expose troubleshooting tools in the Debug tab.",
-                &mut show_debug_settings,
-            ) && let Ok(mut state) = shared_state.lock()
+        ui.horizontal(|ui| {
+            if simple_action_button(ui, "Install CLI")
+                && let Ok(exe_path) = std::env::current_exe()
+                && let Some(parent) = exe_path.parent()
             {
-                state.settings.show_debug_settings = show_debug_settings;
-                state.settings_changed = true;
-            }
-
-            setting_divider(ui);
-
-            let mut surprise = if let Ok(state) = shared_state.lock() {
-                state.settings.surprise_animations
-            } else {
-                false
-            };
-
-            if setting_toggle(
-                ui,
-                "Surprise me",
-                "Check if you like your agents having some fun up there.",
-                &mut surprise,
-            ) && let Ok(mut state) = shared_state.lock()
-            {
-                state.settings.surprise_animations = surprise;
-                state.settings_changed = true;
+                let _ = open::that(parent);
             }
         });
+        ui.add_space(4.0);
+        ui.label(
+            RichText::new(
+                "Open the CodexBar executable folder so you can add it to PATH as codexbar.",
+            )
+            .size(FontSize::XS)
+            .color(Theme::TEXT_MUTED),
+        );
 
-        settings_section_separator(ui);
+        setting_divider(ui);
 
-        preferences_stack_section(ui, "Privacy", |ui| {
-            let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
-                state.settings.hide_personal_info
-            } else {
-                false
-            };
+        let mut show_debug_settings = if let Ok(state) = shared_state.lock() {
+            state.settings.show_debug_settings
+        } else {
+            false
+        };
 
-            if setting_toggle(
-                ui,
-                "Hide personal information",
-                "Obscure email addresses in the menu bar and menu UI.",
-                &mut hide_personal_info,
-            ) && let Ok(mut state) = shared_state.lock()
-            {
-                state.settings.hide_personal_info = hide_personal_info;
-                state.settings_changed = true;
-            }
-        });
+        if setting_toggle(
+            ui,
+            "Show Debug Settings",
+            "Expose troubleshooting tools in the Debug tab.",
+            &mut show_debug_settings,
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.show_debug_settings = show_debug_settings;
+            state.settings_changed = true;
+        }
+
+        setting_divider(ui);
+
+        let mut surprise = if let Ok(state) = shared_state.lock() {
+            state.settings.surprise_animations
+        } else {
+            false
+        };
+
+        if setting_toggle(
+            ui,
+            "Surprise me",
+            "Check if you like your agents having some fun up there.",
+            &mut surprise,
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.surprise_animations = surprise;
+            state.settings_changed = true;
+        }
+
+        setting_divider(ui);
+
+        let mut hide_personal_info = if let Ok(state) = shared_state.lock() {
+            state.settings.hide_personal_info
+        } else {
+            false
+        };
+
+        if setting_toggle(
+            ui,
+            "Hide personal information",
+            "Obscure email addresses in the menu bar and menu UI.",
+            &mut hide_personal_info,
+        ) && let Ok(mut state) = shared_state.lock()
+        {
+            state.settings.hide_personal_info = hide_personal_info;
+            state.settings_changed = true;
+        }
 
         settings_section_separator(ui);
 
@@ -8704,11 +8698,11 @@ fn compact_preferences_body(
 }
 
 fn settings_section_separator(ui: &mut egui::Ui) {
-    ui.add_space(6.0);
+    ui.add_space(8.0);
     let rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), 1.0));
     ui.painter()
         .rect_filled(rect, 0.0, Theme::SEPARATOR.gamma_multiply(0.42));
-    ui.add_space(4.0);
+    ui.add_space(6.0);
 }
 
 fn compact_section_separator(ui: &mut egui::Ui) {
@@ -8851,7 +8845,7 @@ fn setting_toggle(ui: &mut egui::Ui, title: &str, subtitle: &str, value: &mut bo
         });
 
         if !subtitle.is_empty() {
-            ui.add_space(1.0);
+            ui.add_space(2.0);
             ui.horizontal(|ui| {
                 ui.add_space(22.0);
                 ui.add(
@@ -8878,7 +8872,7 @@ fn setting_picker_row(
     ui.horizontal(|ui| {
         ui.set_width(ui.available_width());
         ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 1.0;
+            ui.spacing_mut().item_spacing.y = 2.0;
             ui.label(
                 RichText::new(title)
                     .size(FontSize::SM)
@@ -8919,7 +8913,7 @@ fn slider_setting_row(
     ui.vertical(|ui| {
         ui.horizontal(|ui| {
             ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 1.0;
+                ui.spacing_mut().item_spacing.y = 2.0;
                 ui.label(
                     RichText::new(title)
                         .size(FontSize::SM)
@@ -9348,7 +9342,7 @@ mod tests {
         );
         assert_eq!(style.inner_margin, super::Spacing::SM);
         assert_eq!(style.item_spacing_y, 0.0);
-        assert_eq!(style.row_height, 42.0);
+        assert_eq!(style.row_height, 46.0);
         assert_eq!(style.row_corner_radius, 8.0);
         assert_eq!(
             style.selected_fill,
@@ -9457,8 +9451,8 @@ mod tests {
             eframe::egui::Stroke::new(1.0, super::Theme::BORDER_SUBTLE.gamma_multiply(0.28))
         );
         assert_eq!(chrome.control_inner_margin_x, 8.0);
-        assert_eq!(chrome.control_inner_margin_y, 0.0);
-        assert_eq!(chrome.info_grid_spacing_x, 14.0);
+        assert_eq!(chrome.control_inner_margin_y, 3.0);
+        assert_eq!(chrome.info_grid_spacing_x, 10.0);
         assert_eq!(chrome.info_grid_spacing_y, 6.0);
         assert_eq!(chrome.section_gap, 12.0);
         assert_eq!(chrome.detail_label_width, 92.0);
@@ -9682,7 +9676,7 @@ mod tests {
             "Disabled — kiro env: kiro-cli: No such file or directory",
         );
 
-        assert_eq!(primary, "Disabled — kiro env: …");
+        assert_eq!(primary, "Disabled — kiro env: kiro-cli…");
         assert_eq!(secondary, None);
     }
 
