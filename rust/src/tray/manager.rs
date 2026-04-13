@@ -423,6 +423,9 @@ impl TrayManager {
             .with_tooltip(locale::get_text(lang, locale::LocaleKey::TrayLoading))
             .with_icon(icon)
             .build()?;
+        // Belt-and-suspenders: even though no menu is attached, ensure
+        // left-click can never trigger a native menu popup.
+        tray_icon.set_show_menu_on_left_click(false);
 
         Ok(Self {
             tray_icon,
@@ -1173,6 +1176,7 @@ impl MultiTrayManager {
             .with_tooltip(&tooltip)
             .with_icon(icon)
             .build()?;
+        tray_icon.set_show_menu_on_left_click(false);
 
         self.provider_menus.borrow_mut().insert(provider_id, menu);
         self.provider_menu_detail_items
