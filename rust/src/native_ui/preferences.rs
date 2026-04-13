@@ -525,6 +525,14 @@ fn set_selected_provider(
     }
 }
 
+fn sync_window_state_from_shared(window: &mut PreferencesWindow, state: &PreferencesSharedState) {
+    window.is_open = state.is_open;
+    window.settings = state.settings.clone();
+    window.settings_changed = state.settings_changed;
+    window.active_tab = state.active_tab;
+    window.selected_provider = state.selected_provider;
+}
+
 fn set_provider_enabled(
     shared_state: &Arc<Mutex<PreferencesSharedState>>,
     provider_id: ProviderId,
@@ -636,34 +644,41 @@ impl PreferencesWindow {
     }
 
     pub fn open(&mut self) {
+        let was_open = self.is_open;
         self.is_open = true;
-        self.needs_viewport_placement = true;
-        self.settings = Settings::load();
-        self.cookies = ManualCookies::load();
-        self.api_keys = ApiKeys::load();
-        self.settings_changed = false;
-        self.cookie_status_msg = None;
-        self.api_key_status_msg = None;
-        self.new_api_key_value.clear();
-        self.show_api_key_input = false;
+        if !was_open {
+            self.needs_viewport_placement = true;
+            self.settings = Settings::load();
+            self.cookies = ManualCookies::load();
+            self.api_keys = ApiKeys::load();
+            self.settings_changed = false;
+            self.cookie_status_msg = None;
+            self.api_key_status_msg = None;
+            self.new_api_key_value.clear();
+            self.show_api_key_input = false;
+        }
 
         // Sync to shared state and reload snapshot for fresh data after any background refreshes
         if let Ok(mut state) = self.shared_state.lock() {
+            let selected_provider_changed = state.selected_provider != self.selected_provider;
             state.is_open = true;
             state.active_tab = self.active_tab;
-            state.settings = self.settings.clone();
-            state.cookies = self.cookies.clone();
-            state.api_keys = self.api_keys.clone();
-            state.settings_changed = false;
-            state.cached_snapshot = WidgetSnapshotStore::load();
-            state.selected_provider = self.selected_provider;
-            state.scroll_to_selected = self.selected_provider.is_some();
-            state.shortcut_input = self.settings.global_shortcut.clone();
-            state.shortcut_status_msg = None;
-            #[cfg(debug_assertions)]
-            {
-                state.debug_viewport_outer_rect = None;
+            if !was_open {
+                state.settings = self.settings.clone();
+                state.cookies = self.cookies.clone();
+                state.api_keys = self.api_keys.clone();
+                state.settings_changed = false;
+                state.cached_snapshot = WidgetSnapshotStore::load();
+                state.shortcut_input = self.settings.global_shortcut.clone();
+                state.shortcut_status_msg = None;
+                #[cfg(debug_assertions)]
+                {
+                    state.debug_viewport_outer_rect = None;
+                }
             }
+            state.selected_provider = self.selected_provider;
+            state.scroll_to_selected =
+                self.selected_provider.is_some() && (!was_open || selected_provider_changed);
         }
     }
 
@@ -1310,11 +1325,9 @@ impl PreferencesWindow {
         }
 
         // Sync state back from shared state
-        if let Ok(state) = self.shared_state.lock() {
-            self.is_open = state.is_open;
-            self.settings = state.settings.clone();
-            self.settings_changed = state.settings_changed;
-            self.active_tab = state.active_tab;
+        let snapshot = self.shared_state.lock().ok().map(|state| state.clone());
+        if let Some(snapshot) = snapshot {
+            sync_window_state_from_shared(self, &snapshot);
         }
     }
 
@@ -9196,7 +9209,7 @@ mod tests {
         set_merge_tray_icons, set_per_provider_tray_icons, set_provider_enabled,
         set_selected_provider, settings_nav_chrome, settings_position_near_main_window,
         should_show_token_accounts_section, shows_shared_provider_settings,
-        vertexai_credentials_path, zai_region_label,
+        sync_window_state_from_shared, vertexai_credentials_path, zai_region_label,
     };
     use crate::browser::detection::BrowserType;
     use crate::core::{ProviderAccountData, ProviderId, WidgetProviderEntry};
@@ -9659,6 +9672,105 @@ mod tests {
             shared_state.lock().unwrap().selected_provider,
             Some(ProviderId::Cursor)
         );
+    }
+
+    #[test]
+    fn reopening_open_preferences_does_not_rearm_same_provider_scroll() {
+        let mut window = PreferencesWindow {
+            is_open: true,
+            selected_provider: Some(ProviderId::Codex),
+            needs_viewport_placement: false,
+            ..PreferencesWindow::default()
+        };
+
+        {
+            let mut state = window.shared_state.lock().unwrap();
+            state.is_open = true;
+            state.selected_provider = Some(ProviderId::Codex);
+            state.scroll_to_selected = false;
+        }
+
+        window.open();
+
+        let state = window.shared_state.lock().unwrap();
+        assert!(state.is_open);
+        assert_eq!(state.selected_provider, Some(ProviderId::Codex));
+        assert!(!state.scroll_to_selected);
+        assert!(!window.needs_viewport_placement);
+    }
+
+    #[test]
+    fn reopening_open_preferences_rearms_scroll_when_provider_changes() {
+        let mut window = PreferencesWindow {
+            is_open: true,
+            selected_provider: Some(ProviderId::Codex),
+            needs_viewport_placement: false,
+            ..PreferencesWindow::default()
+        };
+
+        {
+            let mut state = window.shared_state.lock().unwrap();
+            state.is_open = true;
+            state.selected_provider = Some(ProviderId::Cursor);
+            state.scroll_to_selected = false;
+        }
+
+        window.open();
+
+        let state = window.shared_state.lock().unwrap();
+        assert_eq!(state.selected_provider, Some(ProviderId::Codex));
+        assert!(state.scroll_to_selected);
+        assert!(!window.needs_viewport_placement);
+    }
+
+    #[test]
+    fn sync_window_state_from_shared_updates_selected_provider() {
+        let mut window = PreferencesWindow::default();
+        let state = PreferencesSharedState {
+            is_open: true,
+            active_tab: PreferencesTab::Providers,
+            settings: Settings::default(),
+            settings_changed: false,
+            cookies: Default::default(),
+            new_cookie_provider: String::new(),
+            new_cookie_value: String::new(),
+            cookie_status_msg: None,
+            api_keys: Default::default(),
+            new_api_key_provider: String::new(),
+            new_api_key_value: String::new(),
+            show_api_key_input: false,
+            api_key_status_msg: None,
+            selected_provider: Some(ProviderId::Factory),
+            scroll_to_selected: false,
+            selected_browser: None,
+            browser_import_status: None,
+            refresh_requested: false,
+            cached_snapshot: None,
+            runtime_provider_errors: HashMap::new(),
+            token_accounts: HashMap::new(),
+            new_account_label: String::new(),
+            new_account_token: String::new(),
+            show_add_account_input: false,
+            token_account_status_msg: None,
+            shortcut_input: String::new(),
+            shortcut_status_msg: None,
+            #[cfg(debug_assertions)]
+            debug_tab_targets: Vec::new(),
+            #[cfg(debug_assertions)]
+            debug_viewport_outer_rect: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_path: None,
+            #[cfg(debug_assertions)]
+            pending_screenshot_delay_frames: 0,
+            #[cfg(debug_assertions)]
+            pending_screenshot_attempts: 0,
+        };
+
+        sync_window_state_from_shared(&mut window, &state);
+
+        assert!(window.is_open);
+        assert_eq!(window.active_tab, PreferencesTab::Providers);
+        assert_eq!(window.selected_provider, Some(ProviderId::Factory));
     }
 
     #[test]
