@@ -346,6 +346,9 @@ struct PreferencesSharedState {
     show_api_key_input: bool,
     api_key_status_msg: Option<(String, bool)>,
     selected_provider: Option<ProviderId>,
+    /// One-shot flag: scroll the sidebar to reveal the selected provider row.
+    /// Set `true` on selection change, consumed after `scroll_to_me` fires once.
+    scroll_to_selected: bool,
     selected_browser: Option<BrowserType>,
     browser_import_status: Option<(String, bool)>,
     refresh_requested: bool,
@@ -500,6 +503,7 @@ fn ensure_selected_provider(
     if let Ok(mut state) = shared_state.lock() {
         if state.selected_provider.is_none() {
             state.selected_provider = Some(fallback);
+            state.scroll_to_selected = true;
         }
         state.selected_provider.unwrap_or(fallback)
     } else {
@@ -513,6 +517,7 @@ fn set_selected_provider(
 ) {
     if let Ok(mut state) = shared_state.lock() {
         state.selected_provider = Some(provider_id);
+        state.scroll_to_selected = true;
     }
 }
 
@@ -572,6 +577,7 @@ impl Default for PreferencesWindow {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: None,
+            scroll_to_selected: false,
             selected_browser: None,
             browser_import_status: None,
             refresh_requested: false,
@@ -647,6 +653,7 @@ impl PreferencesWindow {
             state.settings_changed = false;
             state.cached_snapshot = WidgetSnapshotStore::load();
             state.selected_provider = self.selected_provider;
+            state.scroll_to_selected = self.selected_provider.is_some();
             state.shortcut_input = self.settings.global_shortcut.clone();
             state.shortcut_status_msg = None;
             #[cfg(debug_assertions)]
@@ -711,6 +718,7 @@ impl PreferencesWindow {
             state.is_open = true;
             state.active_tab = PreferencesTab::Providers;
             state.selected_provider = Some(provider_id);
+            state.scroll_to_selected = true;
         }
     }
 
@@ -3334,7 +3342,15 @@ fn render_providers_tab_layout(
 
                             // Use a light selection stroke/fill instead of a chunky slab.
                             if is_selected {
-                                response.scroll_to_me(Some(egui::Align::Center));
+                                // One-shot scroll: only scroll to the selected row on the
+                                // frame where the selection actually changed, so that
+                                // normal mouse-wheel scrolling is never fought.
+                                if let Ok(mut st) = shared_state.lock()
+                                    && st.scroll_to_selected
+                                {
+                                    response.scroll_to_me(Some(egui::Align::Center));
+                                    st.scroll_to_selected = false;
+                                }
                                 ui.painter().rect_filled(
                                     paint_rect,
                                     Rounding::same(sidebar_style.row_corner_radius),
@@ -9914,6 +9930,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::Cursor),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
@@ -9976,6 +9993,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::OpenCode),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
@@ -10038,6 +10056,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::Factory),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
@@ -10100,6 +10119,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::Alibaba),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
@@ -10261,6 +10281,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::MiniMax),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
@@ -10312,6 +10333,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::MiniMax),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
@@ -10362,6 +10384,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::Augment),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
@@ -10412,6 +10435,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::Amp),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
@@ -10462,6 +10486,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::Ollama),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
@@ -10525,6 +10550,7 @@ mod tests {
             show_api_key_input: false,
             api_key_status_msg: None,
             selected_provider: Some(ProviderId::Cursor),
+            scroll_to_selected: false,
             selected_browser: Some(BrowserType::Chrome),
             browser_import_status: None,
             refresh_requested: false,
