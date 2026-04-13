@@ -266,19 +266,34 @@ captures="$(capture_host_batch)"
 wait "$guest_pid" || true
 
 # ── Tauri shell proof path ──────────────────────────────────────────────────
-# The Tauri app has no TCP test-command harness, so we cannot navigate the UI
-# programmatically.  The proof is: build → launch → verify process → capture
-# desktop screenshots showing the tray icon and (if visible) the window.
+# The Tauri app uses the CODEXBAR_PROOF_MODE env-var harness to show each
+# surface (trayPanel, popOut, settings, settings tabs) visibly for capture.
 if [[ "$proof_shell" == "tauri" ]]; then
   best_capture="$(printf '%s\n' "$captures" | pick_best_capture || true)"
 
-  # Try to fetch the window-level capture produced inside the guest.
+  # Collect per-surface proof artifacts produced inside the guest.
+  proof_surfaces=("trayPanel" "popOut" "settings-general" "settings-apiKeys" "settings-cookies" "settings-about")
+  for surf in "${proof_surfaces[@]}"; do
+    win_png="${proof_dir}/${proof_name}-${surf}-window-${date_stamp}.png"
+    fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-${surf}-window.png" "$win_png" 2>/dev/null || true
+    desk_png="${proof_dir}/${proof_name}-${surf}-desktop-${date_stamp}.png"
+    fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-${surf}-desktop.png" "$desk_png" 2>/dev/null || true
+    if [[ -s "$win_png" ]]; then
+      echo "${surf}_window=$win_png"
+    fi
+    if [[ -s "$desk_png" ]]; then
+      echo "${surf}_desktop=$desk_png"
+    fi
+  done
+
+  # Also fetch legacy single-capture files if present.
   window_png="${proof_dir}/${proof_name}-window-capture-${date_stamp}.png"
   fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-window-capture.png" "$window_png" 2>/dev/null || true
   desktop_png="${proof_dir}/${proof_name}-desktop-full-${date_stamp}.png"
   fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-desktop-full.png" "$desktop_png" 2>/dev/null || true
 
   echo "shell=tauri"
+  echo "proof_harness=CODEXBAR_PROOF_MODE"
   if [[ -n "${best_capture:-}" ]]; then
     echo "best_host_capture=$best_capture"
   fi
@@ -288,7 +303,6 @@ if [[ "$proof_shell" == "tauri" ]]; then
   if [[ -s "$desktop_png" ]]; then
     echo "desktop_capture=$desktop_png"
   fi
-  echo "NOTE: Tauri proof captures desktop/tray only. Interactive UI navigation proofs require the egui shell (CODEXBAR_PROOF_SHELL=egui)."
   exit 0
 fi
 

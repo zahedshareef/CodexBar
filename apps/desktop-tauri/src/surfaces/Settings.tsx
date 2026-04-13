@@ -172,9 +172,15 @@ const TAB_META: { id: SettingsTab; label: string; icon: string }[] = [
 
 // ── main component ──────────────────────────────────────────────────
 
-export default function Settings({ state }: { state: BootstrapState }) {
+function isSettingsTab(value: string): value is SettingsTab {
+  return TAB_META.some((t) => t.id === value);
+}
+
+export default function Settings({ state, initialTab }: { state: BootstrapState; initialTab?: string }) {
   const { settings, saving, error, update } = useSettings(state.settings);
-  const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  const resolvedInitial: SettingsTab =
+    initialTab && isSettingsTab(initialTab) ? initialTab : "general";
+  const [activeTab, setActiveTab] = useState<SettingsTab>(resolvedInitial);
 
   const set = (patch: SettingsUpdate) => void update(patch);
 

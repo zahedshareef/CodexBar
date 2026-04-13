@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 use crate::events;
+use crate::proof_harness::ProofConfig;
 use crate::state::{AppState, UpdateState, UpdateStatePayload};
 use crate::surface::{SurfaceMode, WindowProperties};
 
@@ -1042,4 +1043,11 @@ fn open_url_in_browser(url: &str) -> Result<(), String> {
             .map_err(|e| format!("Failed to open URL: {e}"))?;
     }
     Ok(())
+}
+
+// ── Proof harness commands ───────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_proof_config(state: tauri::State<'_, Mutex<AppState>>) -> Option<ProofConfig> {
+    state.lock().ok().and_then(|g| g.proof_config.clone())
 }

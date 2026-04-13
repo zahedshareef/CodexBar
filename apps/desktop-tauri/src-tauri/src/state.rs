@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use serde::Serialize;
 
 use crate::commands::ProviderUsageSnapshot;
+use crate::proof_harness::ProofConfig;
 use crate::surface::SurfaceStateMachine;
 
 /// App-update lifecycle tracking.
@@ -122,6 +123,8 @@ pub struct AppState {
     pub update_info: Option<codexbar::updater::UpdateInfo>,
     /// Path to a downloaded installer ready to apply.
     pub installer_path: Option<PathBuf>,
+    /// Proof-harness configuration (set when `CODEXBAR_PROOF_MODE` is active).
+    pub proof_config: Option<ProofConfig>,
 }
 
 impl Default for AppState {
@@ -140,6 +143,7 @@ impl AppState {
             update_state: UpdateState::Idle,
             update_info: None,
             installer_path: None,
+            proof_config: None,
         }
     }
 

@@ -5,6 +5,7 @@ import type {
   AppInfoBridge,
   BootstrapState,
   CookieInfoBridge,
+  ProofConfig,
   ProviderCatalogEntry,
   ProviderUsageSnapshot,
   SettingsSnapshot,
@@ -118,4 +119,10 @@ export function removeManualCookie(
 
 export function getAppInfo(): Promise<AppInfoBridge> {
   return invoke<AppInfoBridge>("get_app_info");
+}
+
+// ── Proof harness bridge ─────────────────────────────────────────────
+
+export function getProofConfig(): Promise<ProofConfig | null> {
+  return invoke<ProofConfig | null>("get_proof_config");
 }

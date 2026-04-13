@@ -4,17 +4,17 @@
 
 .DESCRIPTION
     Builds and launches the Tauri-based CodexBar Desktop app inside a Windows VM,
-    captures desktop and window screenshots as proof artifacts.
+    using the CODEXBAR_PROOF_MODE env-var harness to programmatically show each
+    UI surface (TrayPanel, PopOut, Settings, Settings tabs) and capture
+    window-level and desktop screenshots as proof artifacts.
 
-    Unlike the egui-based provider_osclick_proof_unc.ps1, this script does NOT
-    rely on a TCP test-command server.  The Tauri shell does not expose one.
-    Proof collection is limited to:
-      - verifying the process starts and stays running
-      - verifying the tray icon / window appears
-      - capturing full-desktop and per-window screenshots
-
-    For interactive UI navigation proofs (tab switching, preferences drill-down),
-    use the egui shell workflow until a Tauri-native test harness is added.
+    Proof surfaces captured:
+      - trayPanel   — the borderless tray-anchored panel
+      - popOut      — the decorated pop-out dashboard
+      - settings    — settings General tab
+      - settings:apiKeys   — settings API Keys tab
+      - settings:cookies   — settings Cookies tab
+      - settings:about     — settings About tab
 #>
 
 param(
@@ -23,7 +23,8 @@ param(
   [switch]$CleanBuild,
   [switch]$SkipMirror,
   [switch]$SkipBuild,
-  [switch]$SkipFrontend
+  [switch]$SkipFrontend,
+  [string]$ProofSurface = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -142,6 +143,93 @@ function Save-WindowScreenshot {
   return $captured
 }
 
+function Save-DesktopScreenshot {
+  param([Parameter(Mandatory)] [string]$Path)
+  try {
+    $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
+    $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bmp.Size)
+    $bmp.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
+    $g.Dispose()
+    $bmp.Dispose()
+    return $true
+  } catch {
+    return $false
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Launch the app in proof mode for a given surface, wait for visible window,
+# capture window + desktop screenshots, then stop the process.
+# ---------------------------------------------------------------------------
+
+function Invoke-ProofCapture {
+  param(
+    [Parameter(Mandatory)] [string]$Surface,
+    [Parameter(Mandatory)] [string]$TauriExePath,
+    [Parameter(Mandatory)] [string]$Tag
+  )
+  Stop-TauriProcesses
+  Start-Sleep -Milliseconds 500
+
+  $env:CODEXBAR_PROOF_MODE = $Surface
+  Log-Proof "proof_launch surface=$Surface tag=$Tag"
+  Start-Process -FilePath $TauriExePath -WorkingDirectory (Split-Path $TauriExePath) | Out-Null
+
+  # Wait for process to start
+  $processUp = $false
+  for ($i = 0; $i -lt 30; $i++) {
+    Start-Sleep -Milliseconds 500
+    if (Get-Process 'codexbar-desktop-tauri' -ErrorAction SilentlyContinue) {
+      $processUp = $true
+      break
+    }
+  }
+  if (-not $processUp) {
+    Log-Proof "proof_process_not_found surface=$Surface"
+    return
+  }
+  Log-Proof "proof_process_confirmed surface=$Surface"
+
+  # Wait for the window to become visible (proof mode shows it immediately)
+  $windowHandle = [IntPtr]::Zero
+  for ($i = 0; $i -lt 30; $i++) {
+    Start-Sleep -Milliseconds 500
+    $windowHandle = Find-VisibleWindowByTitle -Prefix 'CodexBar Desktop'
+    if ($windowHandle -ne [IntPtr]::Zero) { break }
+  }
+
+  # Extra settle time for the webview to render content
+  Start-Sleep -Seconds 3
+
+  # Capture window screenshot
+  $winShot = "C:\Users\mac\Desktop\$ProofName-$Tag-window.png"
+  if ($windowHandle -ne [IntPtr]::Zero) {
+    if (Save-WindowScreenshot -Handle $windowHandle -Path $winShot) {
+      Log-Proof "proof_window_captured surface=$Surface path=$winShot"
+      Get-Item $winShot | Select-Object FullName, Length, LastWriteTime
+    } else {
+      Log-Proof "proof_window_printwindow_failed surface=$Surface"
+    }
+  } else {
+    Log-Proof "proof_window_not_visible surface=$Surface"
+  }
+
+  # Capture desktop screenshot
+  $deskShot = "C:\Users\mac\Desktop\$ProofName-$Tag-desktop.png"
+  if (Save-DesktopScreenshot -Path $deskShot) {
+    Log-Proof "proof_desktop_captured surface=$Surface path=$deskShot"
+    Get-Item $deskShot | Select-Object FullName, Length, LastWriteTime
+  } else {
+    Log-Proof "proof_desktop_capture_failed surface=$Surface"
+  }
+
+  Stop-TauriProcesses
+  $env:CODEXBAR_PROOF_MODE = ''
+  Log-Proof "proof_done surface=$Surface"
+}
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
@@ -152,8 +240,6 @@ $repoDst          = 'C:\Users\mac\src\Win-CodexBar'
 $tauriAppDir      = Join-Path $repoDst 'apps\desktop-tauri'
 $tauriSrcTauriDir = Join-Path $tauriAppDir 'src-tauri'
 
-$desktopShot      = "C:\Users\mac\Desktop\$ProofName-desktop-full.png"
-$windowShot       = "C:\Users\mac\Desktop\$ProofName-window-capture.png"
 $readyMarkerPath  = "C:\Users\mac\Desktop\$ProofName-ready.txt"
 $captureLog       = "C:\Users\mac\Desktop\$ProofName-tauri-capture.log"
 $buildLog         = Join-Path $env:TEMP ("codexbar-tauri-{0}-robocopy.log" -f $ProofName)
@@ -185,13 +271,11 @@ if (-not $SkipMirror) {
 }
 
 # ---------------------------------------------------------------------------
-# Clean old artifacts
+# Clean old proof artifacts
 # ---------------------------------------------------------------------------
 
-Remove-Item $desktopShot    -ErrorAction SilentlyContinue
-Remove-Item $windowShot     -ErrorAction SilentlyContinue
-Remove-Item $readyMarkerPath -ErrorAction SilentlyContinue
-Remove-Item $captureLog     -ErrorAction SilentlyContinue
+Remove-Item "C:\Users\mac\Desktop\$ProofName-*" -ErrorAction SilentlyContinue
+Remove-Item $captureLog -ErrorAction SilentlyContinue
 
 # ---------------------------------------------------------------------------
 # Build
@@ -243,32 +327,29 @@ if (-not $tauriExe) {
 Log-Proof "exe_resolved=$tauriExe"
 
 # ---------------------------------------------------------------------------
-# Launch
+# Proof captures: iterate over surfaces
 # ---------------------------------------------------------------------------
 
-Stop-TauriProcesses
-Start-Sleep -Seconds 1
-
-Start-Process -FilePath $tauriExe -WorkingDirectory (Split-Path $tauriExe) | Out-Null
-Log-Proof 'tauri_launched'
-
-# Wait for the process to stabilise
-$processUp = $false
-for ($i = 0; $i -lt 30; $i++) {
-  Start-Sleep -Milliseconds 500
-  if (Get-Process 'codexbar-desktop-tauri' -ErrorAction SilentlyContinue) {
-    $processUp = $true
-    break
-  }
+# If a specific surface was requested, only capture that one.
+# Otherwise capture the full proof set.
+if ($ProofSurface -ne '') {
+  $proofTargets = @(
+    @{ Surface = $ProofSurface; Tag = ($ProofSurface -replace ':', '-') }
+  )
+} else {
+  $proofTargets = @(
+    @{ Surface = 'trayPanel';       Tag = 'trayPanel' },
+    @{ Surface = 'popOut';          Tag = 'popOut' },
+    @{ Surface = 'settings';        Tag = 'settings-general' },
+    @{ Surface = 'settings:apiKeys';  Tag = 'settings-apiKeys' },
+    @{ Surface = 'settings:cookies';  Tag = 'settings-cookies' },
+    @{ Surface = 'settings:about';    Tag = 'settings-about' }
+  )
 }
-if (-not $processUp) {
-  Log-Proof 'tauri_process_not_found'
-  throw 'codexbar-desktop-tauri did not stay running after launch'
-}
-Log-Proof 'tauri_process_confirmed'
 
-# Give the app time to initialise tray icon and webview
-Start-Sleep -Seconds 4
+foreach ($target in $proofTargets) {
+  Invoke-ProofCapture -Surface $target.Surface -TauriExePath $tauriExe -Tag $target.Tag
+}
 
 # ---------------------------------------------------------------------------
 # Signal ready for host-side captures
@@ -278,46 +359,7 @@ Set-Content -Path $readyMarkerPath -Encoding UTF8 -Value ("ready " + (Get-Date -
 Log-Proof 'ready_marker_written'
 
 # ---------------------------------------------------------------------------
-# Capture: window screenshot via PrintWindow
-# ---------------------------------------------------------------------------
-
-$windowHandle = Find-VisibleWindowByTitle -Prefix 'CodexBar Desktop'
-if ($windowHandle -ne [IntPtr]::Zero) {
-  if (Save-WindowScreenshot -Handle $windowHandle -Path $windowShot) {
-    Log-Proof 'window_screenshot_saved'
-    Get-Item $windowShot | Select-Object FullName, Length, LastWriteTime
-  } else {
-    Log-Proof 'window_printwindow_failed'
-  }
-} else {
-  Log-Proof 'window_not_visible_for_capture'
-  # The Tauri window starts hidden (visible: false in tauri.conf.json).
-  # It only becomes visible after a tray left-click or shortcut toggle.
-  # Without a TCP test harness, we cannot programmatically show it.
-  # The host-side Parallels capture will still get the tray icon in the taskbar.
-}
-
-# ---------------------------------------------------------------------------
-# Capture: full desktop screenshot
-# ---------------------------------------------------------------------------
-
-Start-Sleep -Seconds 2
-try {
-  $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
-  $bmp = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bmp.Size)
-  $bmp.Save($desktopShot, [System.Drawing.Imaging.ImageFormat]::Png)
-  $g.Dispose()
-  $bmp.Dispose()
-  Log-Proof 'desktop_screenshot_saved'
-  Get-Item $desktopShot | Select-Object FullName, Length, LastWriteTime
-} catch {
-  Log-Proof ("desktop_screenshot_failed=" + $_.Exception.Message)
-}
-
-# ---------------------------------------------------------------------------
-# Also try NirCmd for a second desktop capture (belt-and-suspenders)
+# Also try NirCmd for a final desktop capture (belt-and-suspenders)
 # ---------------------------------------------------------------------------
 
 try {

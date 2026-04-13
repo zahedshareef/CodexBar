@@ -159,3 +159,10 @@ export interface AppInfoBridge {
   updateChannel: string;
   tagline: string;
 }
+
+// ── Proof harness types ──────────────────────────────────────────────
+
+export interface ProofConfig {
+  targetSurface: SurfaceMode;
+  settingsTab: string | null;
+}

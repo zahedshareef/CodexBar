@@ -1,5 +1,6 @@
 mod commands;
 mod events;
+mod proof_harness;
 mod shell;
 mod shortcut_bridge;
 mod state;
@@ -14,8 +15,14 @@ use surface::SurfaceMode;
 use tauri::Manager;
 
 fn main() {
+    let proof_config = proof_harness::ProofConfig::from_env();
+    let is_proof_mode = proof_config.is_some();
+
+    let mut initial_state = AppState::new();
+    initial_state.proof_config = proof_config;
+
     tauri::Builder::default()
-        .manage(Mutex::new(AppState::new()))
+        .manage(Mutex::new(initial_state))
         .plugin(shortcut_bridge::plugin())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // Second launch → show/focus the existing surface.
@@ -53,17 +60,29 @@ fn main() {
             commands::set_manual_cookie,
             commands::remove_manual_cookie,
             commands::get_app_info,
+            commands::get_proof_config,
         ])
-        .setup(|app| {
+        .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
                 window.hide()?;
             }
             tray_bridge::setup(app)?;
             shortcut_bridge::register(app.handle());
+
+            // In proof mode, immediately show the target surface.
+            if is_proof_mode {
+                proof_harness::activate(app.handle());
+            }
+
             Ok(())
         })
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::Focused(false) => {
+                // Suppress blur-dismiss in proof mode so the window stays
+                // visible for automated screenshot capture.
+                if proof_harness::is_proof_mode(window.app_handle()) {
+                    return;
+                }
                 // Blur in TrayPanel mode → auto-hide.
                 let Some(st) = window.try_state::<Mutex<AppState>>() else {
                     return;

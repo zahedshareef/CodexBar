@@ -47,7 +47,12 @@ if [[ "$proof_shell" == "tauri" ]]; then
       "$prlctl exec \"Windows 11\" powershell -ExecutionPolicy Bypass -Command \"Copy-Item '\\\\\\\\Mac\\codexbarshare\\tmp-tauri-proof.ps1' '$script_path' -Force\""
   fi
 
-  ps_script="& '$script_path' -ProofName '$proof_name'$clean_build_arg$skip_build_arg$skip_mirror_arg$skip_frontend_arg"
+  proof_surface_arg=""
+  if [[ -n "${CODEXBAR_PROOF_SURFACE:-}" ]]; then
+    proof_surface_arg=" -ProofSurface '$CODEXBAR_PROOF_SURFACE'"
+  fi
+
+  ps_script="& '$script_path' -ProofName '$proof_name'$clean_build_arg$skip_build_arg$skip_mirror_arg$skip_frontend_arg$proof_surface_arg"
 else
   # ── Legacy egui proof path ────────────────────────────────────────────
   script_path='C:\Users\mac\provider-proof.ps1'
