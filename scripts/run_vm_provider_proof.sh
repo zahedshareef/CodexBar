@@ -3,12 +3,16 @@ set -euo pipefail
 
 if [[ $# -lt 1 || $# -gt 3 ]]; then
   echo "Usage: $0 <launch-profile> [date-stamp] [proof-name]" >&2
+  echo "  Set CODEXBAR_PROOF_SHELL=tauri (default) or egui to select the shell." >&2
   exit 1
 fi
 
 provider="$1"
 date_stamp="${2:-$(date +%Y%m%d)}"
 proof_name="${3:-$provider}"
+
+# Shell selection: "tauri" (default) or "egui" (legacy).
+proof_shell="${CODEXBAR_PROOF_SHELL:-tauri}"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 proof_dir="/tmp/win-codexbar-settings"
@@ -82,6 +86,9 @@ sync_repo() {
   rsync -az --delete \
     --exclude '.git' \
     --exclude 'rust/target' \
+    --exclude 'target' \
+    --exclude 'apps/desktop-tauri/node_modules' \
+    --exclude 'apps/desktop-tauri/dist' \
     "$repo_root/" \
     mac@imac-ca-mac:/Users/mac/codexbar-share/repo/
 }
@@ -94,11 +101,15 @@ sync_share_root_scripts() {
   if [[ -f "$provider_script" ]]; then
     scp "$provider_script" "mac@imac-ca-mac:/Users/mac/codexbar-share/tmp-provider-osclick-proof-unc.ps1" >/dev/null
   fi
+  local tauri_script="$repo_root/scripts/vm/tauri_proof.ps1"
+  if [[ -f "$tauri_script" ]]; then
+    scp "$tauri_script" "mac@imac-ca-mac:/Users/mac/codexbar-share/tmp-tauri-proof.ps1" >/dev/null
+  fi
 }
 
 clear_guest_proof_artifacts() {
   ssh mac@imac-ca-mac \
-    '"/Applications/Parallels Desktop.app/Contents/MacOS/prlctl" exec "Windows 11" powershell -NoProfile -Command "Remove-Item -ErrorAction SilentlyContinue C:\\Users\\mac\\Desktop\\'"${proof_name}"'-ready.txt,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-state.json,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-interactive-full.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-menu-full.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-preferences-proof.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-osclick-proof.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-window-capture.log"' \
+    '"/Applications/Parallels Desktop.app/Contents/MacOS/prlctl" exec "Windows 11" powershell -NoProfile -Command "Remove-Item -ErrorAction SilentlyContinue C:\\Users\\mac\\Desktop\\'"${proof_name}"'-ready.txt,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-state.json,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-interactive-full.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-menu-full.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-preferences-proof.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-osclick-proof.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-window-capture.log,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-desktop-full.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-window-capture.png,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-tauri-capture.log,C:\\Users\\mac\\Desktop\\'"${proof_name}"'-nircmd-full.png"' \
     >/dev/null 2>&1 || true
 }
 
@@ -253,6 +264,35 @@ fi
 sleep 2
 captures="$(capture_host_batch)"
 wait "$guest_pid" || true
+
+# ── Tauri shell proof path ──────────────────────────────────────────────────
+# The Tauri app has no TCP test-command harness, so we cannot navigate the UI
+# programmatically.  The proof is: build → launch → verify process → capture
+# desktop screenshots showing the tray icon and (if visible) the window.
+if [[ "$proof_shell" == "tauri" ]]; then
+  best_capture="$(printf '%s\n' "$captures" | pick_best_capture || true)"
+
+  # Try to fetch the window-level capture produced inside the guest.
+  window_png="${proof_dir}/${proof_name}-window-capture-${date_stamp}.png"
+  fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-window-capture.png" "$window_png" 2>/dev/null || true
+  desktop_png="${proof_dir}/${proof_name}-desktop-full-${date_stamp}.png"
+  fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-desktop-full.png" "$desktop_png" 2>/dev/null || true
+
+  echo "shell=tauri"
+  if [[ -n "${best_capture:-}" ]]; then
+    echo "best_host_capture=$best_capture"
+  fi
+  if [[ -s "$window_png" ]]; then
+    echo "window_capture=$window_png"
+  fi
+  if [[ -s "$desktop_png" ]]; then
+    echo "desktop_capture=$desktop_png"
+  fi
+  echo "NOTE: Tauri proof captures desktop/tray only. Interactive UI navigation proofs require the egui shell (CODEXBAR_PROOF_SHELL=egui)."
+  exit 0
+fi
+
+# ── Legacy egui proof path (unchanged) ──────────────────────────────────────
 
 validate_state_json_menu() {
   local json_path="$1"

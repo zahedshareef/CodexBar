@@ -21,22 +21,46 @@ skip_mirror_arg=""
 if [[ "${CODEXBAR_PROOF_SKIP_MIRROR:-0}" == "1" ]]; then
   skip_mirror_arg=" -SkipMirror"
 fi
+skip_frontend_arg=""
+if [[ "${CODEXBAR_PROOF_SKIP_FRONTEND:-0}" == "1" ]]; then
+  skip_frontend_arg=" -SkipFrontend"
+fi
 capture_mode="${CODEXBAR_PROOF_CAPTURE_MODE:-provider}"
 preferences_tab="${CODEXBAR_PROOF_PREFERENCES_TAB:-providers}"
 menu_selected_tab="${CODEXBAR_PROOF_MENU_SELECTED_TAB:-}"
 use_local_vm_repo="${CODEXBAR_PROOF_USE_LOCAL_VM_REPO:-0}"
 
+# Shell selection: "tauri" (default) or "egui" (legacy).
+proof_shell="${CODEXBAR_PROOF_SHELL:-tauri}"
+
 prlctl='"/Applications/Parallels Desktop.app/Contents/MacOS/prlctl"'
 
-script_path='C:\Users\mac\provider-proof.ps1'
-if [[ "$use_local_vm_repo" == "1" ]]; then
-  script_path='C:\Users\mac\src\Win-CodexBar\scripts\vm\provider_osclick_proof_unc.ps1'
+if [[ "$proof_shell" == "tauri" ]]; then
+  # ── Tauri proof path ──────────────────────────────────────────────────
+  script_path='C:\Users\mac\tauri-proof.ps1'
+  if [[ "$use_local_vm_repo" == "1" ]]; then
+    script_path='C:\Users\mac\src\Win-CodexBar\scripts\vm\tauri_proof.ps1'
+  else
+    local_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/vm/tauri_proof.ps1"
+    scp "$local_script" "mac@imac-ca-mac:/Users/mac/codexbar-share/tmp-tauri-proof.ps1" >/dev/null
+    ssh mac@imac-ca-mac \
+      "$prlctl exec \"Windows 11\" powershell -ExecutionPolicy Bypass -Command \"Copy-Item '\\\\\\\\Mac\\codexbarshare\\tmp-tauri-proof.ps1' '$script_path' -Force\""
+  fi
+
+  ps_script="& '$script_path' -ProofName '$proof_name'$clean_build_arg$skip_build_arg$skip_mirror_arg$skip_frontend_arg"
 else
-  ssh mac@imac-ca-mac \
-    "$prlctl exec \"Windows 11\" powershell -ExecutionPolicy Bypass -Command \"Copy-Item '\\\\\\\\Mac\\codexbarshare\\tmp-provider-osclick-proof-unc.ps1' '$script_path' -Force\""
+  # ── Legacy egui proof path ────────────────────────────────────────────
+  script_path='C:\Users\mac\provider-proof.ps1'
+  if [[ "$use_local_vm_repo" == "1" ]]; then
+    script_path='C:\Users\mac\src\Win-CodexBar\scripts\vm\provider_osclick_proof_unc.ps1'
+  else
+    ssh mac@imac-ca-mac \
+      "$prlctl exec \"Windows 11\" powershell -ExecutionPolicy Bypass -Command \"Copy-Item '\\\\\\\\Mac\\codexbarshare\\tmp-provider-osclick-proof-unc.ps1' '$script_path' -Force\""
+  fi
+
+  ps_script="& '$script_path' -LaunchProfile '$launch_profile' -ProofName '$proof_name' -SelectedProvider '$selected_provider' -CaptureMode '$capture_mode' -MenuSelectedTab '$menu_selected_tab' -PreferencesTab '$preferences_tab'$clean_build_arg$skip_build_arg$skip_mirror_arg"
 fi
 
-ps_script="& '$script_path' -LaunchProfile '$launch_profile' -ProofName '$proof_name' -SelectedProvider '$selected_provider' -CaptureMode '$capture_mode' -MenuSelectedTab '$menu_selected_tab' -PreferencesTab '$preferences_tab'$clean_build_arg$skip_build_arg$skip_mirror_arg"
 encoded_command="$(PS_SCRIPT="$ps_script" python3 - <<'PY'
 import base64, os
 print(base64.b64encode(os.environ["PS_SCRIPT"].encode("utf-16le")).decode())

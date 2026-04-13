@@ -102,13 +102,30 @@ if (Get-Command dlltool -ErrorAction SilentlyContinue) {
 
 # ── 4. Verify ────────────────────────────────────────────────────────────────
 
+Write-Step "Checking Node.js (required for Tauri frontend builds)"
+
+if (Get-Command node -ErrorAction SilentlyContinue) {
+    $nodeVersion = node --version
+    Write-Host "   Found: node $nodeVersion" -ForegroundColor Green
+} else {
+    Write-Step "Installing Node.js via winget"
+    try {
+        winget install --id OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
+        Write-Host "   Node.js installed (restart terminal to pick up PATH)" -ForegroundColor Yellow
+    } catch {
+        Write-Host "   [WARN] winget install failed — install Node.js LTS manually from https://nodejs.org" -ForegroundColor Yellow
+    }
+}
+
 Write-Step "Verifying toolchain"
 
 $checks = @(
     @{ Name = "rustc";   Cmd = "rustc --version" },
     @{ Name = "cargo";   Cmd = "cargo --version" },
     @{ Name = "dlltool"; Cmd = "dlltool --version" },
-    @{ Name = "gcc";     Cmd = "gcc --version" }
+    @{ Name = "gcc";     Cmd = "gcc --version" },
+    @{ Name = "node";    Cmd = "node --version" },
+    @{ Name = "npm";     Cmd = "npm --version" }
 )
 
 $allOk = $true
@@ -125,8 +142,11 @@ foreach ($check in $checks) {
 Write-Host ""
 if ($allOk) {
     Write-Host "All prerequisites installed. You can now build:" -ForegroundColor Green
-    Write-Host "   cd rust" -ForegroundColor White
-    Write-Host "   cargo build" -ForegroundColor White
+    Write-Host "   # Legacy egui shell:" -ForegroundColor White
+    Write-Host "   cd rust && cargo build" -ForegroundColor White
+    Write-Host "   # Tauri desktop shell:" -ForegroundColor White
+    Write-Host "   cd apps\desktop-tauri && npm install && npm run build" -ForegroundColor White
+    Write-Host "   cargo build -p codexbar-desktop-tauri" -ForegroundColor White
 } else {
     Write-Host "Some tools are missing. Restart your terminal and re-run this script." -ForegroundColor Yellow
 }
