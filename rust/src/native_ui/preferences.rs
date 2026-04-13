@@ -431,9 +431,9 @@ fn active_provider_sidebar_style() -> ProviderSidebarStyle {
         frame_fill: Some(Color32::from_rgba_unmultiplied(255, 255, 255, 6)),
         frame_stroke: Some(Stroke::new(1.0, Theme::BORDER_SUBTLE.gamma_multiply(0.44))),
         inner_margin: Spacing::SM,
-        item_spacing_y: 0.0,
+        item_spacing_y: 4.0,
         row_height: 46.0,
-        row_corner_radius: 8.0,
+        row_corner_radius: 6.0,
         selected_fill: Color32::from_rgba_unmultiplied(86, 156, 214, 30),
         selected_stroke: Stroke::new(1.0, Color32::from_rgba_unmultiplied(86, 156, 214, 52)),
         hover_fill: Color32::from_rgba_unmultiplied(255, 255, 255, 5),
@@ -441,7 +441,7 @@ fn active_provider_sidebar_style() -> ProviderSidebarStyle {
 }
 
 fn provider_sidebar_card_inset() -> Vec2 {
-    egui::vec2(4.0, 1.0)
+    egui::vec2(4.0, 2.0)
 }
 
 fn providers_surface_palette() -> ProvidersSurfacePalette {
@@ -3371,6 +3371,19 @@ fn render_providers_tab_layout(
                                     );
                                 },
                             );
+
+                            #[cfg(debug_assertions)]
+                            if let Ok(mut state) = shared_state.lock() {
+                                state.debug_tab_targets.push(PreferencesDebugTabTarget {
+                                    name: format!("provider:{}", provider_id.cli_name()),
+                                    rect,
+                                    hovered: response.hovered(),
+                                    contains_pointer: response.contains_pointer(),
+                                    clicked: response.clicked(),
+                                    pointer_button_down_on: response.is_pointer_button_down_on(),
+                                    interact_pointer_pos: response.interact_pointer_pos(),
+                                });
+                            }
 
                             // Handle clicks
                             if checkbox_clicked {
@@ -9439,9 +9452,9 @@ mod tests {
             ))
         );
         assert_eq!(style.inner_margin, super::Spacing::SM);
-        assert_eq!(style.item_spacing_y, 0.0);
+        assert_eq!(style.item_spacing_y, 4.0);
         assert_eq!(style.row_height, 46.0);
-        assert_eq!(style.row_corner_radius, 8.0);
+        assert_eq!(style.row_corner_radius, 6.0);
         assert_eq!(
             style.selected_fill,
             eframe::egui::Color32::from_rgba_unmultiplied(86, 156, 214, 30)
@@ -9461,7 +9474,7 @@ mod tests {
 
     #[test]
     fn provider_sidebar_card_inset_separates_adjacent_hover_cards() {
-        assert_eq!(provider_sidebar_card_inset(), egui::vec2(4.0, 1.0));
+        assert_eq!(provider_sidebar_card_inset(), egui::vec2(4.0, 2.0));
     }
 
     #[test]

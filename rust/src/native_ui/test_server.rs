@@ -75,6 +75,10 @@ pub enum TestInput {
     SavePreferencesScreenshot {
         path: String,
     },
+    MovePointer {
+        x: f32,
+        y: f32,
+    },
     Click {
         x: f32,
         y: f32,
@@ -124,6 +128,7 @@ pub fn create_queue() -> TestInputQueue {
 /// {"type":"save_state","path":"C:\\Users\\mac\\Desktop\\codexbar-state.json"}
 /// {"type":"save_screenshot","path":"C:\\Users\\mac\\Desktop\\codexbar-probe.png"}
 /// {"type":"save_preferences_screenshot","path":"C:\\Users\\mac\\Desktop\\codexbar-preferences.png"}
+/// {"type":"move_pointer","x":100,"y":200}
 /// {"type":"click","x":100,"y":200}
 /// {"type":"double_click","x":100,"y":200}
 /// {"type":"right_click","x":100,"y":200}
@@ -253,6 +258,10 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
         }),
         "submit_cookie" => Some(TestInput::SubmitCookie),
         "save_state" => Some(TestInput::SaveState { path: input.path? }),
+        "move_pointer" => Some(TestInput::MovePointer {
+            x: input.x?,
+            y: input.y?,
+        }),
         "double_click" => Some(TestInput::DoubleClick {
             x: input.x?,
             y: input.y?,
@@ -286,6 +295,14 @@ mod tests {
         assert!(matches!(
             parse_test_input(r#"{"type":"click","x":220,"y":34}"#),
             Some(TestInput::Click { x, y }) if (x - 220.0).abs() < f32::EPSILON && (y - 34.0).abs() < f32::EPSILON
+        ));
+    }
+
+    #[test]
+    fn parses_move_pointer_with_coordinates() {
+        assert!(matches!(
+            parse_test_input(r#"{"type":"move_pointer","x":220,"y":34}"#),
+            Some(TestInput::MovePointer { x, y }) if (x - 220.0).abs() < f32::EPSILON && (y - 34.0).abs() < f32::EPSILON
         ));
     }
 

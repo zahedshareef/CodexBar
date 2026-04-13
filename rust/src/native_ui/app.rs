@@ -2284,6 +2284,11 @@ impl eframe::App for CodexBarApp {
                     super::test_server::TestInput::SavePreferencesScreenshot { path } => {
                         self.request_test_preferences_screenshot(PathBuf::from(path), _ctx);
                     }
+                    super::test_server::TestInput::MovePointer { x, y } => {
+                        let pos = egui::pos2(x, y);
+                        self.queue_test_pointer_batches([vec![egui::Event::PointerMoved(pos)]]);
+                        tracing::debug!("Injected test pointer move to ({}, {})", x, y);
+                    }
                     super::test_server::TestInput::Click { x, y } => {
                         let pos = egui::pos2(x, y);
                         self.queue_test_click(_ctx, pos, egui::PointerButton::Primary);
