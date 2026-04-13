@@ -280,7 +280,7 @@ pub struct TrayManager {
     tray_icon: TrayIcon,
     /// Provider menu items for updating with status prefixes
     provider_menu_items: RefCell<HashMap<ProviderId, CheckMenuItem>>,
-    /// Native tray rows that open provider detail directly.
+    /// Read-only native tray status rows showing provider usage at a glance.
     provider_open_items: RefCell<HashMap<ProviderId, MenuItem>>,
     /// Last rendered provider row labels so menu rebuilds can restore live state.
     provider_open_labels: RefCell<HashMap<ProviderId, String>>,
@@ -309,15 +309,15 @@ impl TrayManager {
     fn build_menu(lang: Language, settings: &Settings) -> anyhow::Result<SingleTrayMenuBundle> {
         let menu = Menu::new();
 
-        // Top-level provider status rows (tray-first: quick glance at each provider)
+        // Top-level provider status rows (read-only; quick glance at each provider)
         let mut provider_open_items = HashMap::new();
         let mut provider_open_labels = HashMap::new();
         for provider_id in settings.get_enabled_provider_ids() {
             let label = Self::default_provider_open_label(provider_id);
             let item = MenuItem::with_id(
-                format!("popout_provider_{}", provider_id.cli_name()),
+                format!("status_{}", provider_id.cli_name()),
                 &label,
-                true,
+                false, // non-clickable status row
                 None,
             );
             menu.append(&item)?;
@@ -420,6 +420,7 @@ impl TrayManager {
             .with_menu(Box::new(menu))
             .with_tooltip(locale::get_text(lang, locale::LocaleKey::TrayLoading))
             .with_icon(icon)
+            .with_menu_on_left_click(true)
             .build()?;
 
         Ok(Self {
@@ -951,6 +952,9 @@ fn tray_action_from_event_id(id_str: &str) -> Option<TrayMenuAction> {
         Some(TrayMenuAction::Settings)
     } else if id_str == "updates" {
         Some(TrayMenuAction::CheckForUpdates)
+    } else if id_str.starts_with("status_") {
+        // Read-only status rows in the single-tray menu — no action.
+        None
     } else if let Some(provider_name) = id_str.strip_prefix("popout_provider_") {
         Some(TrayMenuAction::PopOutProvider(provider_name.to_string()))
     } else if let Some(provider_name) = id_str.strip_prefix("refresh_provider_") {
@@ -1140,6 +1144,7 @@ impl MultiTrayManager {
             .with_menu(Box::new(menu))
             .with_tooltip(&tooltip)
             .with_icon(icon)
+            .with_menu_on_left_click(true)
             .build()?;
 
         self.provider_menu_detail_items
@@ -2398,10 +2403,19 @@ mod tests {
 
     #[test]
     fn test_tray_action_from_event_id_maps_provider_open() {
+        // Per-provider tray menus still use popout_provider_ for explicit popout items
         assert_eq!(
             tray_action_from_event_id("popout_provider_codex"),
             Some(TrayMenuAction::PopOutProvider("codex".to_string()))
         );
+    }
+
+    #[test]
+    fn test_tray_action_status_rows_are_inert() {
+        // Single-tray status rows must not trigger any action
+        assert_eq!(tray_action_from_event_id("status_claude"), None);
+        assert_eq!(tray_action_from_event_id("status_codex"), None);
+        assert_eq!(tray_action_from_event_id("status_cursor"), None);
     }
 
     #[test]
