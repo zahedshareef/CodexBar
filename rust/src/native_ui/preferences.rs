@@ -496,6 +496,10 @@ fn provider_detail_max_content_width() -> f32 {
     580.0
 }
 
+fn provider_sidebar_reveal_animation() -> egui::style::ScrollAnimation {
+    egui::style::ScrollAnimation::none()
+}
+
 fn ensure_selected_provider(
     shared_state: &Arc<Mutex<PreferencesSharedState>>,
     fallback: ProviderId,
@@ -3348,7 +3352,10 @@ fn render_providers_tab_layout(
                                 if let Ok(mut st) = shared_state.lock()
                                     && st.scroll_to_selected
                                 {
-                                    response.scroll_to_me(Some(egui::Align::Center));
+                                    response.scroll_to_me_animation(
+                                        None,
+                                        provider_sidebar_reveal_animation(),
+                                    );
                                     st.scroll_to_selected = false;
                                 }
                                 ui.painter().rect_filled(
@@ -9183,12 +9190,13 @@ mod tests {
         provider_detail_chrome, provider_detail_display_text, provider_detail_identity_rows,
         provider_detail_max_content_width, provider_detail_source_display,
         provider_detail_status_value, provider_detail_subtitle, provider_detail_text_chrome,
-        provider_sidebar_card_inset, provider_sidebar_display_lines, provider_sidebar_subtitle,
-        providers_surface_palette, render_about_tab, render_advanced_tab, render_display_tab,
-        render_general_tab, set_merge_tray_icons, set_per_provider_tray_icons,
-        set_provider_enabled, set_selected_provider, settings_nav_chrome,
-        settings_position_near_main_window, should_show_token_accounts_section,
-        shows_shared_provider_settings, vertexai_credentials_path, zai_region_label,
+        provider_sidebar_card_inset, provider_sidebar_display_lines,
+        provider_sidebar_reveal_animation, provider_sidebar_subtitle, providers_surface_palette,
+        render_about_tab, render_advanced_tab, render_display_tab, render_general_tab,
+        set_merge_tray_icons, set_per_provider_tray_icons, set_provider_enabled,
+        set_selected_provider, settings_nav_chrome, settings_position_near_main_window,
+        should_show_token_accounts_section, shows_shared_provider_settings,
+        vertexai_credentials_path, zai_region_label,
     };
     use crate::browser::detection::BrowserType;
     use crate::core::{ProviderAccountData, ProviderId, WidgetProviderEntry};
@@ -9596,6 +9604,15 @@ mod tests {
     #[test]
     fn provider_detail_max_content_width_matches_roomier_mac_like_layout() {
         assert_eq!(provider_detail_max_content_width(), 580.0);
+    }
+
+    #[test]
+    fn provider_sidebar_reveal_animation_is_instant() {
+        let animation = provider_sidebar_reveal_animation();
+
+        assert!(animation.points_per_second.is_infinite());
+        assert_eq!(animation.duration.min, 0.0);
+        assert_eq!(animation.duration.max, 0.0);
     }
 
     #[test]
