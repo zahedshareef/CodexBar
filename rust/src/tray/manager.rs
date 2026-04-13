@@ -11,7 +11,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use tray_icon::{
-    Icon, TrayIcon, TrayIconBuilder,
+    Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent,
     menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
 };
 
@@ -420,7 +420,7 @@ impl TrayManager {
             .with_menu(Box::new(menu))
             .with_tooltip(locale::get_text(lang, locale::LocaleKey::TrayLoading))
             .with_icon(icon)
-            .with_menu_on_left_click(true)
+            .with_menu_on_left_click(false)
             .build()?;
 
         Ok(Self {
@@ -938,6 +938,12 @@ pub enum TrayMenuAction {
     Settings,
     CheckForUpdates,
     ToggleProvider(String),
+    /// Left-click on tray icon: open the egui popup anchored near the tray area.
+    /// Coordinates are physical pixels.
+    TrayLeftClick {
+        tray_x: i32,
+        tray_y: i32,
+    },
     Quit,
 }
 
@@ -1144,7 +1150,7 @@ impl MultiTrayManager {
             .with_menu(Box::new(menu))
             .with_tooltip(&tooltip)
             .with_icon(icon)
-            .with_menu_on_left_click(true)
+            .with_menu_on_left_click(false)
             .build()?;
 
         self.provider_menu_detail_items
@@ -1463,6 +1469,25 @@ impl UnifiedTrayManager {
     /// Check for menu events (delegates to TrayManager's static method)
     pub fn check_events() -> Option<TrayMenuAction> {
         TrayManager::check_events()
+    }
+
+    /// Check for tray icon click events (separate from menu events).
+    /// Returns a `TrayLeftClick` action when the user left-clicks the tray icon.
+    pub fn check_tray_click_events() -> Option<TrayMenuAction> {
+        while let Ok(event) = TrayIconEvent::receiver().try_recv() {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                rect,
+                ..
+            } = event
+            {
+                let tray_x = rect.position.x as i32 + rect.size.width as i32 / 2;
+                let tray_y = rect.position.y as i32;
+                return Some(TrayMenuAction::TrayLeftClick { tray_x, tray_y });
+            }
+        }
+        None
     }
 
     /// Show loading animation

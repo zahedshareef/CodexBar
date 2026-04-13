@@ -247,7 +247,7 @@ fn build_native_options() -> eframe::NativeOptions {
         .with_inner_size([360.0, 500.0])
         .with_min_inner_size([320.0, 240.0])
         .with_clamp_size_to_monitor_size(true)
-        .with_visible(true)
+        .with_visible(false)
         .with_resizable(true)
         .with_decorations(true)
         .with_transparent(false)
@@ -1226,6 +1226,9 @@ pub struct CodexBarApp {
     was_refreshing: bool, // Track previous frame's refresh state
     pending_main_window_layout: bool,
     anchor_main_window_to_pointer: bool,
+    /// When set, the next layout_main_window call will anchor the popup
+    /// to this physical-pixel position (typically the tray icon location).
+    tray_anchor_pos: Option<(i32, i32)>,
     notification_manager: Arc<Mutex<NotificationManager>>,
     #[cfg(debug_assertions)]
     test_input_queue: super::test_server::TestInputQueue,
@@ -1399,10 +1402,14 @@ impl CodexBarApp {
             let repaint_ctx = cc.egui_ctx.clone();
             std::thread::spawn(move || {
                 loop {
-                    if let Some(action) = UnifiedTrayManager::check_events() {
+                    let action = UnifiedTrayManager::check_events()
+                        .or_else(UnifiedTrayManager::check_tray_click_events);
+                    if let Some(action) = action {
                         if matches!(
                             action,
-                            TrayMenuAction::PopOut | TrayMenuAction::PopOutProvider(_)
+                            TrayMenuAction::PopOut
+                                | TrayMenuAction::PopOutProvider(_)
+                                | TrayMenuAction::TrayLeftClick { .. }
                         ) {
                             // Egui viewport commands alone can be ignored while minimized.
                             // Force a native restore first so the update loop wakes up.
@@ -1472,25 +1479,11 @@ impl CodexBarApp {
             q
         };
 
-        #[cfg(debug_assertions)]
-        {
-            // Keep debug/dev builds visible on startup so guest-side automation has
-            // a real viewport to drive instead of a tray-hidden process.
-            append_launch_log("CodexBarApp::new debug startup visibility commands queued");
-            restore_main_window();
-            cc.egui_ctx
-                .send_viewport_cmd(egui::ViewportCommand::Minimized(false));
-            cc.egui_ctx
-                .send_viewport_cmd(egui::ViewportCommand::Visible(true));
-            cc.egui_ctx.request_repaint();
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            append_launch_log("CodexBarApp::new release startup hidden to tray");
-            cc.egui_ctx
-                .send_viewport_cmd(egui::ViewportCommand::Visible(false));
-        }
+        // Tray-first: window starts hidden in both debug and release.
+        // Automation/test flows use the test server's OpenWindow command to show it.
+        append_launch_log("CodexBarApp::new startup hidden to tray");
+        cc.egui_ctx
+            .send_viewport_cmd(egui::ViewportCommand::Visible(false));
 
         append_launch_log("CodexBarApp::new completed");
 
@@ -1503,8 +1496,9 @@ impl CodexBarApp {
             shortcut_manager,
             icon_cache: ProviderIconCache::new(),
             was_refreshing: false,
-            pending_main_window_layout: true,
+            pending_main_window_layout: false,
             anchor_main_window_to_pointer: false,
+            tray_anchor_pos: None,
             notification_manager: Arc::new(Mutex::new(NotificationManager::new())),
             #[cfg(debug_assertions)]
             test_input_queue,
@@ -1817,22 +1811,35 @@ impl CodexBarApp {
         let target_size = egui::vec2(360.0_f32.min(max_w), target_height.min(max_h));
         ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(target_size));
 
-        let anchor = if anchor_to_pointer {
-            ctx.input(|i| i.pointer.latest_pos())
-        } else {
-            None
-        }
-        .unwrap_or_else(|| outer_rect.center());
+        // Tray-anchored positioning: convert physical tray icon coords to logical
+        let tray_anchor = self.tray_anchor_pos.take().map(|(px, py)| {
+            let ppp = ctx.pixels_per_point().max(0.1);
+            egui::pos2(px as f32 / ppp, py as f32 / ppp)
+        });
 
-        // For tray/shortcut opens, keep the popup on the left side and vertically centered
-        // so it doesn't appear pinned to the taskbar area.
-        let (target_x, target_y) = if anchor_to_pointer {
+        let (target_x, target_y) = if let Some(tray_pos) = tray_anchor {
+            // Anchor the popup near the tray icon.  Prefer above (bottom
+            // taskbar) or below (top taskbar) based on available space.
+            let space_above = tray_pos.y - work_area.min.y - margin;
+            let space_below = work_area.max.y - tray_pos.y - margin;
+            let x = tray_pos.x - target_size.x * 0.5;
+            let y = if space_above >= target_size.y + gap || space_above > space_below {
+                tray_pos.y - target_size.y - gap
+            } else {
+                tray_pos.y + gap
+            };
+            (x, y)
+        } else if anchor_to_pointer {
+            // For keyboard-shortcut opens, keep the popup on the left side
+            // and vertically centered so it doesn't appear pinned to the
+            // taskbar area.
             let center_x = work_area.min.x + work_area.width() * 0.22;
             (
                 center_x - target_size.x * 0.5,
                 work_area.min.y + (work_area.height() - target_size.y) * 0.5,
             )
         } else {
+            let anchor = outer_rect.center();
             let space_above = anchor.y - work_area.min.y - margin;
             let space_below = work_area.max.y - anchor.y - margin;
             let x = anchor.x - target_size.x * 0.5;
@@ -2611,6 +2618,15 @@ impl eframe::App for CodexBarApp {
             for action in tray_actions {
                 match action {
                     TrayMenuAction::Quit => self.quit_application(),
+                    TrayMenuAction::TrayLeftClick { tray_x, tray_y } => {
+                        if let Ok(mut state) = self.state.lock() {
+                            state.selected_tab = SelectedTab::Summary;
+                        }
+                        self.tray_anchor_pos = Some((tray_x, tray_y));
+                        self.pending_main_window_layout = true;
+                        self.anchor_main_window_to_pointer = false;
+                        self.layout_main_window(ctx, false);
+                    }
                     TrayMenuAction::PopOut => {
                         if let Ok(mut state) = self.state.lock() {
                             state.selected_tab = SelectedTab::Summary;
