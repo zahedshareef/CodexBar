@@ -91,6 +91,9 @@ pub enum TestInput {
         x: f32,
         y: f32,
     },
+    /// Simulate a tray left-click, exercising the same popup path as a real
+    /// tray icon click instead of the `OpenWindow` shortcut.
+    SimulateTrayLeftClick,
 }
 
 /// Thread-safe queue of pending test inputs.
@@ -132,6 +135,7 @@ pub fn create_queue() -> TestInputQueue {
 /// {"type":"click","x":100,"y":200}
 /// {"type":"double_click","x":100,"y":200}
 /// {"type":"right_click","x":100,"y":200}
+/// {"type":"simulate_tray_left_click"}
 /// ```
 pub fn start_server(queue: TestInputQueue, repaint_ctx: egui::Context) {
     std::thread::spawn(move || {
@@ -274,6 +278,7 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
             x: input.x?,
             y: input.y?,
         }),
+        "simulate_tray_left_click" => Some(TestInput::SimulateTrayLeftClick),
         _ => None,
     }
 }
@@ -466,6 +471,14 @@ mod tests {
         assert!(matches!(
             parse_test_input(r#"{"type":"submit_cookie"}"#),
             Some(TestInput::SubmitCookie)
+        ));
+    }
+
+    #[test]
+    fn parses_simulate_tray_left_click() {
+        assert!(matches!(
+            parse_test_input(r#"{"type":"simulate_tray_left_click"}"#),
+            Some(TestInput::SimulateTrayLeftClick)
         ));
     }
 }

@@ -1484,10 +1484,31 @@ impl UnifiedTrayManager {
             {
                 let tray_x = rect.position.x as i32 + rect.size.width as i32 / 2;
                 let tray_y = rect.position.y as i32;
+                tracing::info!(
+                    "tray left-click detected: tray_x={}, tray_y={}, rect=({},{} {}x{})",
+                    tray_x,
+                    tray_y,
+                    rect.position.x,
+                    rect.position.y,
+                    rect.size.width,
+                    rect.size.height,
+                );
                 return Some(TrayMenuAction::TrayLeftClick { tray_x, tray_y });
             }
         }
         None
+    }
+
+    /// Returns the screen rect of the first tray icon (for positioning the popup).
+    pub fn rect(&self) -> Option<tray_icon::Rect> {
+        match self {
+            UnifiedTrayManager::Single(tm) => tm.tray_icon.rect(),
+            UnifiedTrayManager::PerProvider(multi) => multi
+                .provider_icons
+                .values()
+                .next()
+                .and_then(|icon| icon.rect()),
+        }
     }
 
     /// Show loading animation

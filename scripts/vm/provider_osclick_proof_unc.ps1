@@ -545,7 +545,7 @@ if (-not $portReady) {
 }
 
 $commands = @(
-  '{"type":"open_window"}'
+  '{"type":"simulate_tray_left_click"}'
 )
 
 function Send-TestCommand {

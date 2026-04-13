@@ -114,6 +114,7 @@ fn restore_main_window() {
         if let Some(hwnd) = find_main_window()
             && !hwnd.is_invalid()
         {
+            tracing::debug!("restore_main_window: found hwnd {:?}", hwnd);
             if IsIconic(hwnd).as_bool() {
                 let _ = ShowWindow(hwnd, SW_RESTORE);
             } else {
@@ -150,6 +151,10 @@ fn restore_main_window() {
             );
             let _ = BringWindowToTop(hwnd);
             let _ = SetForegroundWindow(hwnd);
+        } else {
+            tracing::warn!(
+                "restore_main_window: find_main_window returned None — popup may appear behind other windows"
+            );
         }
     }
 }
@@ -1586,6 +1591,46 @@ impl CodexBarApp {
         self.anchor_main_window_to_pointer = true;
     }
 
+    /// Exercises the same code-path as a real tray left-click: restore → position
+    /// near tray → focus.  Unlike `open_main_window_for_testing` this uses the
+    /// `TrayLeftClick` handler so proof scripts can verify the hybrid popup flow.
+    #[cfg(debug_assertions)]
+    fn simulate_tray_left_click(&mut self, ctx: &egui::Context) {
+        // Resolve the tray icon rect for realistic anchor coordinates.
+        let (tray_x, tray_y) = self
+            .tray_manager
+            .as_ref()
+            .and_then(|tm| tm.rect())
+            .map(|r| {
+                (
+                    r.position.x as i32 + r.size.width as i32 / 2,
+                    r.position.y as i32,
+                )
+            })
+            .unwrap_or((0, 0));
+
+        tracing::info!(
+            "simulate_tray_left_click: tray_x={}, tray_y={}",
+            tray_x,
+            tray_y
+        );
+
+        // Mirror the real tray-click polling-thread path: restore window first
+        // so that SetForegroundWindow succeeds while we still own input focus.
+        restore_main_window();
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+
+        // Then run the same handler that update() uses for TrayLeftClick.
+        if let Ok(mut state) = self.state.lock() {
+            state.selected_tab = SelectedTab::Summary;
+        }
+        self.tray_anchor_pos = Some((tray_x, tray_y));
+        self.pending_main_window_layout = true;
+        self.anchor_main_window_to_pointer = false;
+        self.layout_main_window(ctx, false);
+    }
+
     #[cfg(debug_assertions)]
     fn request_test_screenshot(&mut self, path: PathBuf, ctx: &egui::Context) {
         tracing::debug!("Scheduling test screenshot for {}", path.display());
@@ -2339,6 +2384,9 @@ impl eframe::App for CodexBarApp {
                         self.queue_test_click(_ctx, pos, egui::PointerButton::Secondary);
                         tracing::debug!("Injected staged test right-click at ({}, {})", x, y);
                     }
+                    super::test_server::TestInput::SimulateTrayLeftClick => {
+                        self.simulate_tray_left_click(_ctx);
+                    }
                 }
             }
         }
@@ -2619,6 +2667,11 @@ impl eframe::App for CodexBarApp {
                 match action {
                     TrayMenuAction::Quit => self.quit_application(),
                     TrayMenuAction::TrayLeftClick { tray_x, tray_y } => {
+                        tracing::info!(
+                            "TrayLeftClick action received: tray_x={}, tray_y={}",
+                            tray_x,
+                            tray_y
+                        );
                         if let Ok(mut state) = self.state.lock() {
                             state.selected_tab = SelectedTab::Summary;
                         }
