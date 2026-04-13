@@ -423,6 +423,11 @@ impl TrayManager {
             .with_menu_on_left_click(false)
             .build()?;
 
+        // Belt-and-suspenders: the builder attr propagates during CreateWindowExW,
+        // but explicitly re-send the message to guarantee the hidden tray window's
+        // TrayUserData.menu_on_left_click is false before any events arrive.
+        tray_icon.set_show_menu_on_left_click(false);
+
         Ok(Self {
             tray_icon,
             provider_menu_items: RefCell::new(provider_menu_items),
@@ -779,6 +784,8 @@ impl TrayManager {
             self.provider_open_items.replace(provider_open_items);
             self.provider_open_labels.replace(provider_open_labels);
             self.tray_icon.set_menu(Some(Box::new(menu)));
+            // set_menu() does not propagate menu_on_left_click; re-assert it
+            self.tray_icon.set_show_menu_on_left_click(false);
         }
 
         // Relocalize the tooltip based on the current state (not reset to loading)
@@ -1153,6 +1160,8 @@ impl MultiTrayManager {
             .with_menu_on_left_click(false)
             .build()?;
 
+        tray_icon.set_show_menu_on_left_click(false);
+
         self.provider_menu_detail_items
             .borrow_mut()
             .insert(provider_id, detail_item);
@@ -1345,6 +1354,7 @@ impl MultiTrayManager {
                     .borrow_mut()
                     .insert(*provider_id, detail_item);
                 tray_icon.set_menu(Some(Box::new(menu)));
+                tray_icon.set_show_menu_on_left_click(false);
             }
 
             // Relocalize the tooltip based on the preserved state (not reset to loading)
