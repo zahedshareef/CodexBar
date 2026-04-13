@@ -41,6 +41,18 @@ fn main() {
             commands::get_cached_providers,
             commands::get_update_state,
             commands::check_for_updates,
+            commands::download_update,
+            commands::apply_update,
+            commands::dismiss_update,
+            commands::open_release_page,
+            commands::get_api_keys,
+            commands::get_api_key_providers,
+            commands::set_api_key,
+            commands::remove_api_key,
+            commands::get_manual_cookies,
+            commands::set_manual_cookie,
+            commands::remove_manual_cookie,
+            commands::get_app_info,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

@@ -306,6 +306,22 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
             id: "check_for_updates",
             description: "Trigger an update check against the configured channel.",
         },
+        BridgeCommandDescriptor {
+            id: "download_update",
+            description: "Download an available update in the background with progress events.",
+        },
+        BridgeCommandDescriptor {
+            id: "apply_update",
+            description: "Launch the downloaded installer and exit the application.",
+        },
+        BridgeCommandDescriptor {
+            id: "dismiss_update",
+            description: "Dismiss the current update notification and reset to idle.",
+        },
+        BridgeCommandDescriptor {
+            id: "open_release_page",
+            description: "Open the release page for the available update in the default browser.",
+        },
     ]
 }
 
@@ -657,13 +673,151 @@ pub fn get_cached_providers(
         .unwrap_or_default()
 }
 
+// ── Credential store commands ─────────────────────────────────────────
+
+/// Bridge-friendly API key info (secrets masked).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyInfoBridge {
+    pub provider_id: String,
+    pub provider: String,
+    pub masked_key: String,
+    pub saved_at: String,
+    pub label: Option<String>,
+}
+
+/// Bridge-friendly saved cookie info.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CookieInfoBridge {
+    pub provider_id: String,
+    pub provider: String,
+    pub saved_at: String,
+}
+
+/// Bridge-friendly provider config info for the API keys tab.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyProviderInfoBridge {
+    pub id: String,
+    pub display_name: String,
+    pub env_var: Option<String>,
+    pub help: Option<String>,
+    pub dashboard_url: Option<String>,
+}
+
+/// App metadata for the About tab.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppInfoBridge {
+    pub name: String,
+    pub version: String,
+    pub build_number: String,
+    pub update_channel: String,
+    pub tagline: String,
+}
+
+#[tauri::command]
+pub fn get_api_keys() -> Vec<ApiKeyInfoBridge> {
+    let keys = ApiKeys::load();
+    keys.get_all_for_display()
+        .into_iter()
+        .map(|info| ApiKeyInfoBridge {
+            provider_id: info.provider_id,
+            provider: info.provider,
+            masked_key: info.masked_key,
+            saved_at: info.saved_at,
+            label: info.label,
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn get_api_key_providers() -> Vec<ApiKeyProviderInfoBridge> {
+    codexbar::settings::get_api_key_providers()
+        .into_iter()
+        .map(|p| ApiKeyProviderInfoBridge {
+            id: p.id.cli_name().to_string(),
+            display_name: p.name.to_string(),
+            env_var: p.api_key_env_var.map(|s| s.to_string()),
+            help: p.api_key_help.map(|s| s.to_string()),
+            dashboard_url: p.dashboard_url.map(|s| s.to_string()),
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn set_api_key(
+    provider_id: String,
+    api_key: String,
+    label: Option<String>,
+) -> Result<Vec<ApiKeyInfoBridge>, String> {
+    let mut keys = ApiKeys::load();
+    keys.set(&provider_id, &api_key, label.as_deref());
+    keys.save().map_err(|e| e.to_string())?;
+    Ok(get_api_keys())
+}
+
+#[tauri::command]
+pub fn remove_api_key(provider_id: String) -> Result<Vec<ApiKeyInfoBridge>, String> {
+    let mut keys = ApiKeys::load();
+    keys.remove(&provider_id);
+    keys.save().map_err(|e| e.to_string())?;
+    Ok(get_api_keys())
+}
+
+#[tauri::command]
+pub fn get_manual_cookies() -> Vec<CookieInfoBridge> {
+    let cookies = ManualCookies::load();
+    cookies
+        .get_all_for_display()
+        .into_iter()
+        .map(|info| CookieInfoBridge {
+            provider_id: info.provider_id,
+            provider: info.provider,
+            saved_at: info.saved_at,
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn set_manual_cookie(
+    provider_id: String,
+    cookie_header: String,
+) -> Result<Vec<CookieInfoBridge>, String> {
+    let mut cookies = ManualCookies::load();
+    cookies.set(&provider_id, &cookie_header);
+    cookies.save().map_err(|e| e.to_string())?;
+    Ok(get_manual_cookies())
+}
+
+#[tauri::command]
+pub fn remove_manual_cookie(provider_id: String) -> Result<Vec<CookieInfoBridge>, String> {
+    let mut cookies = ManualCookies::load();
+    cookies.remove(&provider_id);
+    cookies.save().map_err(|e| e.to_string())?;
+    Ok(get_manual_cookies())
+}
+
+#[tauri::command]
+pub fn get_app_info() -> AppInfoBridge {
+    let settings = Settings::load();
+    AppInfoBridge {
+        name: "CodexBar".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        build_number: option_env!("BUILD_NUMBER").unwrap_or("dev").to_string(),
+        update_channel: update_channel_label(settings.update_channel).to_string(),
+        tagline: "May your tokens never run out—keep agent limits in view.".to_string(),
+    }
+}
+
 // ── Updater commands ─────────────────────────────────────────────────
 
 #[tauri::command]
 pub fn get_update_state(state: tauri::State<'_, Mutex<AppState>>) -> UpdateStatePayload {
     state
         .lock()
-        .map(|guard| guard.update_state.to_payload())
+        .map(|guard| guard.update_payload())
         .unwrap_or_else(|_| UpdateState::default().to_payload())
 }
 
@@ -672,15 +826,25 @@ pub async fn check_for_updates(
     app: tauri::AppHandle,
     state: tauri::State<'_, Mutex<AppState>>,
 ) -> Result<UpdateStatePayload, String> {
-    // Guard: skip if already checking.
+    // Guard: skip if already checking or downloading.
     {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
-        if guard.update_state == UpdateState::Checking {
-            return Ok(guard.update_state.to_payload());
+        match guard.update_state {
+            UpdateState::Checking | UpdateState::Downloading(_) => {
+                return Ok(guard.update_payload());
+            }
+            _ => {}
         }
         guard.update_state = UpdateState::Checking;
+        guard.update_info = None;
+        guard.installer_path = None;
     }
-    events::emit_update_state_changed(&app, &UpdateState::Checking);
+
+    let checking_payload = {
+        let guard = state.lock().map_err(|e| e.to_string())?;
+        guard.update_payload()
+    };
+    events::emit_update_state_changed(&app, &checking_payload);
 
     let settings = Settings::load();
 
@@ -690,19 +854,178 @@ pub async fn check_for_updates(
     )
     .await;
 
-    let new_state = match result {
-        Ok(Some(info)) => UpdateState::Available(info.version),
-        Ok(None) => UpdateState::Idle,
-        Err(_) => UpdateState::Error("Update check timed out".to_string()),
+    let (new_state, new_info) = match result {
+        Ok(Some(info)) => (UpdateState::Available(info.version.clone()), Some(info)),
+        Ok(None) => (UpdateState::Idle, None),
+        Err(_) => (
+            UpdateState::Error("Update check timed out".to_string()),
+            None,
+        ),
     };
 
-    let payload = new_state.to_payload();
-    events::emit_update_state_changed(&app, &new_state);
-
-    {
+    let payload = {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.update_state = new_state;
-    }
+        guard.update_info = new_info;
+        guard.update_payload()
+    };
+    events::emit_update_state_changed(&app, &payload);
 
     Ok(payload)
+}
+
+#[tauri::command]
+pub async fn download_update(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<AppState>>,
+) -> Result<UpdateStatePayload, String> {
+    // Validate current state and extract info.
+    let info = {
+        let guard = state.lock().map_err(|e| e.to_string())?;
+        match &guard.update_state {
+            UpdateState::Available(_) | UpdateState::Error(_) => {}
+            UpdateState::Downloading(_) => return Ok(guard.update_payload()),
+            _ => return Err("No update available to download".to_string()),
+        }
+        guard
+            .update_info
+            .clone()
+            .ok_or("No update information available")?
+    };
+
+    if !info.supports_auto_download() {
+        return Err(
+            "This update does not support automatic download. Open the release page instead."
+                .to_string(),
+        );
+    }
+
+    // Set initial downloading state.
+    let initial_payload = {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.update_state = UpdateState::Downloading(0.0);
+        guard.update_payload()
+    };
+    events::emit_update_state_changed(&app, &initial_payload);
+
+    // Spawn background download with progress events.
+    let app_handle = app.clone();
+    tokio::spawn(async move {
+        let (tx, mut rx) = tokio::sync::watch::channel(codexbar::updater::UpdateState::Available);
+
+        let info_for_download = info.clone();
+        let download_handle = tokio::spawn(async move {
+            codexbar::updater::download_update(&info_for_download, tx).await
+        });
+
+        // Progress watcher: emit events as download progresses.
+        let app_for_progress = app_handle.clone();
+        let progress_handle = tokio::spawn(async move {
+            while rx.changed().await.is_ok() {
+                let backend_state = rx.borrow().clone();
+                if let codexbar::updater::UpdateState::Downloading(progress) = backend_state {
+                    let st = app_for_progress.state::<Mutex<AppState>>();
+                    let payload = {
+                        let mut guard = st.lock().unwrap();
+                        guard.update_state = UpdateState::Downloading(progress);
+                        guard.update_payload()
+                    };
+                    events::emit_update_state_changed(&app_for_progress, &payload);
+                }
+            }
+        });
+
+        // Wait for download to complete.
+        let final_payload = match download_handle.await {
+            Ok(Ok(path)) => {
+                let st = app_handle.state::<Mutex<AppState>>();
+                let mut guard = st.lock().unwrap();
+                guard.update_state = UpdateState::Ready;
+                guard.installer_path = Some(path);
+                guard.update_payload()
+            }
+            Ok(Err(e)) => {
+                let st = app_handle.state::<Mutex<AppState>>();
+                let mut guard = st.lock().unwrap();
+                guard.update_state = UpdateState::Error(e);
+                guard.update_payload()
+            }
+            Err(join_err) => {
+                let st = app_handle.state::<Mutex<AppState>>();
+                let mut guard = st.lock().unwrap();
+                guard.update_state =
+                    UpdateState::Error(format!("Download task failed: {join_err}"));
+                guard.update_payload()
+            }
+        };
+        events::emit_update_state_changed(&app_handle, &final_payload);
+        progress_handle.abort();
+    });
+
+    Ok(initial_payload)
+}
+
+#[tauri::command]
+pub fn apply_update(state: tauri::State<'_, Mutex<AppState>>) -> Result<(), String> {
+    let path = {
+        let guard = state.lock().map_err(|e| e.to_string())?;
+        guard
+            .installer_path
+            .clone()
+            .ok_or("No downloaded update available to apply")?
+    };
+    // Spawns installer and exits the process.
+    codexbar::updater::apply_update(&path)
+}
+
+#[tauri::command]
+pub fn dismiss_update(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<AppState>>,
+) -> Result<UpdateStatePayload, String> {
+    let payload = {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.update_state = UpdateState::Idle;
+        guard.update_info = None;
+        guard.installer_path = None;
+        guard.update_payload()
+    };
+    events::emit_update_state_changed(&app, &payload);
+    Ok(payload)
+}
+
+#[tauri::command]
+pub fn open_release_page(state: tauri::State<'_, Mutex<AppState>>) -> Result<(), String> {
+    let url = {
+        let guard = state.lock().map_err(|e| e.to_string())?;
+        guard
+            .update_info
+            .as_ref()
+            .map(|info| info.release_url.clone())
+            .ok_or("No update information available")?
+    };
+    open_url_in_browser(&url)
+}
+
+fn open_url_in_browser(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/c", "start", "", url])
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {e}"))?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let opener = if cfg!(target_os = "macos") {
+            "open"
+        } else {
+            "xdg-open"
+        };
+        std::process::Command::new(opener)
+            .arg(url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {e}"))?;
+    }
+    Ok(())
 }
