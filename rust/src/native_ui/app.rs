@@ -253,8 +253,8 @@ fn build_native_options() -> eframe::NativeOptions {
         .with_min_inner_size([320.0, 240.0])
         .with_clamp_size_to_monitor_size(true)
         .with_visible(false)
-        .with_resizable(true)
-        .with_decorations(true)
+        .with_resizable(false)
+        .with_decorations(false)
         .with_transparent(false)
         .with_taskbar(false)
         .with_always_on_top()
@@ -1234,6 +1234,8 @@ pub struct CodexBarApp {
     /// When set, the next layout_main_window call will anchor the popup
     /// to this physical-pixel position (typically the tray icon location).
     tray_anchor_pos: Option<(i32, i32)>,
+    /// Whether the window is in popout mode (decorated/resizable) vs tray panel mode (borderless/fixed).
+    is_popout_mode: bool,
     notification_manager: Arc<Mutex<NotificationManager>>,
     #[cfg(debug_assertions)]
     test_input_queue: super::test_server::TestInputQueue,
@@ -1506,6 +1508,7 @@ impl CodexBarApp {
             pending_main_window_layout: false,
             anchor_main_window_to_pointer: false,
             tray_anchor_pos: None,
+            is_popout_mode: false,
             notification_manager: Arc::new(Mutex::new(NotificationManager::new())),
             #[cfg(debug_assertions)]
             test_input_queue,
@@ -1585,6 +1588,7 @@ impl CodexBarApp {
     #[cfg(debug_assertions)]
     fn open_main_window_for_testing(&mut self, ctx: &egui::Context) {
         tracing::debug!("Opening main window via test server");
+        self.is_popout_mode = true;
         restore_main_window();
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -1624,6 +1628,7 @@ impl CodexBarApp {
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
 
         // Then run the same handler that update() uses for TrayLeftClick.
+        self.is_popout_mode = false;
         if let Ok(mut state) = self.state.lock() {
             state.selected_tab = SelectedTab::Summary;
         }
@@ -1912,6 +1917,10 @@ impl CodexBarApp {
         } else {
             target_y.clamp(min_y, max_y)
         };
+
+        // Apply window chrome based on mode: borderless panel vs decorated popout
+        ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(self.is_popout_mode));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Resizable(self.is_popout_mode));
 
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(x, y)));
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -2445,6 +2454,7 @@ impl eframe::App for CodexBarApp {
         }
         if shortcut_triggered {
             tracing::info!("Keyboard shortcut triggered - focusing window");
+            self.is_popout_mode = false;
             if let Ok(mut state) = self.state.lock() {
                 state.selected_tab = SelectedTab::Summary;
             }
@@ -2689,6 +2699,7 @@ impl eframe::App for CodexBarApp {
                             tray_x,
                             tray_y
                         );
+                        self.is_popout_mode = false;
                         if let Ok(mut state) = self.state.lock() {
                             state.selected_tab = SelectedTab::Summary;
                         }
@@ -2698,6 +2709,7 @@ impl eframe::App for CodexBarApp {
                         self.layout_main_window(ctx, false);
                     }
                     TrayMenuAction::PopOut => {
+                        self.is_popout_mode = true;
                         if let Ok(mut state) = self.state.lock() {
                             state.selected_tab = SelectedTab::Summary;
                         }
@@ -2706,6 +2718,7 @@ impl eframe::App for CodexBarApp {
                         self.layout_main_window(ctx, true);
                     }
                     TrayMenuAction::PopOutProvider(provider_name) => {
+                        self.is_popout_mode = true;
                         if let Some(provider_id) = ProviderId::from_cli_name(&provider_name) {
                             if let Ok(mut state) = self.state.lock() {
                                 state.selected_tab = SelectedTab::Provider(provider_id);
