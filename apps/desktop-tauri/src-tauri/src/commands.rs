@@ -1,0 +1,708 @@
+use std::collections::HashSet;
+use std::sync::Mutex;
+
+use codexbar::core::{FetchContext, Provider, ProviderFetchResult, ProviderId, RateWindow};
+use codexbar::providers::*;
+use codexbar::settings::{ApiKeys, Language, ManualCookies, Settings, TrayIconMode, UpdateChannel};
+use serde::{Deserialize, Serialize};
+use tauri::Manager;
+
+use crate::events;
+use crate::state::{AppState, UpdateState, UpdateStatePayload};
+use crate::surface::{SurfaceMode, WindowProperties};
+
+// ── Bridge snapshot types ────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RateWindowSnapshot {
+    pub used_percent: f64,
+    pub remaining_percent: f64,
+    pub window_minutes: Option<u32>,
+    pub resets_at: Option<String>,
+    pub reset_description: Option<String>,
+    pub is_exhausted: bool,
+}
+
+impl RateWindowSnapshot {
+    fn from_rate_window(rw: &RateWindow) -> Self {
+        Self {
+            used_percent: rw.used_percent,
+            remaining_percent: rw.remaining_percent(),
+            window_minutes: rw.window_minutes,
+            resets_at: rw.resets_at.map(|dt| dt.to_rfc3339()),
+            reset_description: rw.reset_description.clone(),
+            is_exhausted: rw.is_exhausted(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CostSnapshotBridge {
+    pub used: f64,
+    pub limit: Option<f64>,
+    pub remaining: Option<f64>,
+    pub currency_code: String,
+    pub period: String,
+    pub resets_at: Option<String>,
+    pub formatted_used: String,
+    pub formatted_limit: Option<String>,
+}
+
+/// A frontend-friendly snapshot of one provider's usage data.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUsageSnapshot {
+    pub provider_id: String,
+    pub display_name: String,
+    pub primary: RateWindowSnapshot,
+    pub secondary: Option<RateWindowSnapshot>,
+    pub model_specific: Option<RateWindowSnapshot>,
+    pub tertiary: Option<RateWindowSnapshot>,
+    pub cost: Option<CostSnapshotBridge>,
+    pub plan_name: Option<String>,
+    pub account_email: Option<String>,
+    pub source_label: String,
+    pub updated_at: String,
+    pub error: Option<String>,
+}
+
+impl ProviderUsageSnapshot {
+    fn from_fetch_result(id: ProviderId, result: &ProviderFetchResult) -> Self {
+        let usage = &result.usage;
+        Self {
+            provider_id: id.cli_name().to_string(),
+            display_name: id.display_name().to_string(),
+            primary: RateWindowSnapshot::from_rate_window(&usage.primary),
+            secondary: usage
+                .secondary
+                .as_ref()
+                .map(RateWindowSnapshot::from_rate_window),
+            model_specific: usage
+                .model_specific
+                .as_ref()
+                .map(RateWindowSnapshot::from_rate_window),
+            tertiary: usage
+                .tertiary
+                .as_ref()
+                .map(RateWindowSnapshot::from_rate_window),
+            cost: result.cost.as_ref().map(|c| CostSnapshotBridge {
+                used: c.used,
+                limit: c.limit,
+                remaining: c.remaining(),
+                currency_code: c.currency_code.clone(),
+                period: c.period.clone(),
+                resets_at: c.resets_at.map(|dt| dt.to_rfc3339()),
+                formatted_used: c.format_used(),
+                formatted_limit: c.format_limit(),
+            }),
+            plan_name: usage.login_method.clone(),
+            account_email: usage.account_email.clone(),
+            source_label: result.source_label.clone(),
+            updated_at: usage.updated_at.to_rfc3339(),
+            error: None,
+        }
+    }
+
+    fn from_error(id: ProviderId, error: String) -> Self {
+        Self {
+            provider_id: id.cli_name().to_string(),
+            display_name: id.display_name().to_string(),
+            primary: RateWindowSnapshot {
+                used_percent: 0.0,
+                remaining_percent: 100.0,
+                window_minutes: None,
+                resets_at: None,
+                reset_description: None,
+                is_exhausted: false,
+            },
+            secondary: None,
+            model_specific: None,
+            tertiary: None,
+            cost: None,
+            plan_name: None,
+            account_email: None,
+            source_label: String::new(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            error: Some(error),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BootstrapState {
+    contract_version: &'static str,
+    surface_modes: Vec<SurfaceModeDescriptor>,
+    commands: Vec<BridgeCommandDescriptor>,
+    events: Vec<BridgeEventDescriptor>,
+    providers: Vec<ProviderCatalogEntry>,
+    settings: SettingsSnapshot,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceModeDescriptor {
+    id: &'static str,
+    label: &'static str,
+    description: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeCommandDescriptor {
+    id: &'static str,
+    description: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BridgeEventDescriptor {
+    id: &'static str,
+    description: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderCatalogEntry {
+    id: String,
+    display_name: String,
+    cookie_domain: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsSnapshot {
+    enabled_providers: Vec<String>,
+    refresh_interval_secs: u64,
+    start_at_login: bool,
+    show_notifications: bool,
+    tray_icon_mode: &'static str,
+    show_as_used: bool,
+    surprise_animations: bool,
+    enable_animations: bool,
+    reset_time_relative: bool,
+    menu_bar_display_mode: String,
+    hide_personal_info: bool,
+    update_channel: &'static str,
+    global_shortcut: String,
+    ui_language: &'static str,
+}
+
+#[tauri::command]
+pub fn get_bootstrap_state() -> BootstrapState {
+    BootstrapState {
+        contract_version: "v0",
+        surface_modes: surface_modes(),
+        commands: bridge_commands(),
+        events: bridge_events(),
+        providers: provider_catalog(),
+        settings: SettingsSnapshot::from(Settings::load()),
+    }
+}
+
+#[tauri::command]
+pub fn get_provider_catalog() -> Vec<ProviderCatalogEntry> {
+    provider_catalog()
+}
+
+#[tauri::command]
+pub fn get_settings_snapshot() -> SettingsSnapshot {
+    SettingsSnapshot::from(Settings::load())
+}
+
+impl From<Settings> for SettingsSnapshot {
+    fn from(settings: Settings) -> Self {
+        let mut enabled_providers = settings.enabled_providers.into_iter().collect::<Vec<_>>();
+        enabled_providers.sort();
+
+        Self {
+            enabled_providers,
+            refresh_interval_secs: settings.refresh_interval_secs,
+            start_at_login: settings.start_at_login,
+            show_notifications: settings.show_notifications,
+            tray_icon_mode: tray_icon_mode_label(settings.tray_icon_mode),
+            show_as_used: settings.show_as_used,
+            surprise_animations: settings.surprise_animations,
+            enable_animations: settings.enable_animations,
+            reset_time_relative: settings.reset_time_relative,
+            menu_bar_display_mode: settings.menu_bar_display_mode,
+            hide_personal_info: settings.hide_personal_info,
+            update_channel: update_channel_label(settings.update_channel),
+            global_shortcut: settings.global_shortcut,
+            ui_language: language_label(settings.ui_language),
+        }
+    }
+}
+
+fn provider_catalog() -> Vec<ProviderCatalogEntry> {
+    ProviderId::all()
+        .iter()
+        .map(|provider| ProviderCatalogEntry {
+            id: provider.cli_name().to_string(),
+            display_name: provider.display_name().to_string(),
+            cookie_domain: provider.cookie_domain().map(ToString::to_string),
+        })
+        .collect()
+}
+
+fn surface_modes() -> Vec<SurfaceModeDescriptor> {
+    vec![
+        SurfaceModeDescriptor {
+            id: "hidden",
+            label: "Hidden",
+            description: "No window is visible; the tray icon remains active.",
+        },
+        SurfaceModeDescriptor {
+            id: "trayPanel",
+            label: "Tray panel",
+            description: "Borderless anchored panel opened from a tray left click.",
+        },
+        SurfaceModeDescriptor {
+            id: "popOut",
+            label: "Pop out",
+            description: "Decorated window for a richer, persistent provider view.",
+        },
+        SurfaceModeDescriptor {
+            id: "settings",
+            label: "Settings",
+            description: "Dedicated settings surface for provider and shell configuration.",
+        },
+    ]
+}
+
+fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
+    vec![
+        BridgeCommandDescriptor {
+            id: "get_bootstrap_state",
+            description: "Load the shell contract, provider catalog, and persisted settings snapshot.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_provider_catalog",
+            description: "List providers available to the desktop shell from the shared Rust engine.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_settings_snapshot",
+            description: "Read persisted settings from the existing Rust settings file format.",
+        },
+        BridgeCommandDescriptor {
+            id: "refresh_providers",
+            description: "Async refresh of provider usage snapshots with per-provider event updates.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_cached_providers",
+            description: "Return the most recent provider usage snapshots from the in-memory cache.",
+        },
+        BridgeCommandDescriptor {
+            id: "update_settings",
+            description: "Planned settings mutation entrypoint backed by the Rust settings facade.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_update_state",
+            description: "Get the current app-update lifecycle state.",
+        },
+        BridgeCommandDescriptor {
+            id: "check_for_updates",
+            description: "Trigger an update check against the configured channel.",
+        },
+    ]
+}
+
+fn bridge_events() -> Vec<BridgeEventDescriptor> {
+    vec![
+        BridgeEventDescriptor {
+            id: "provider-updated",
+            description: "Emitted as provider usage snapshots refresh in the shared backend.",
+        },
+        BridgeEventDescriptor {
+            id: "refresh-started",
+            description: "Emitted when a provider refresh cycle begins.",
+        },
+        BridgeEventDescriptor {
+            id: "refresh-complete",
+            description: "Emitted when a provider refresh cycle completes.",
+        },
+        BridgeEventDescriptor {
+            id: "update-state-changed",
+            description: "Emitted when updater state changes in the backend.",
+        },
+        BridgeEventDescriptor {
+            id: "login-phase-changed",
+            description: "Emitted when a provider login flow advances between phases.",
+        },
+    ]
+}
+
+fn tray_icon_mode_label(mode: TrayIconMode) -> &'static str {
+    match mode {
+        TrayIconMode::Single => "single",
+        TrayIconMode::PerProvider => "perProvider",
+    }
+}
+
+fn update_channel_label(channel: UpdateChannel) -> &'static str {
+    match channel {
+        UpdateChannel::Stable => "stable",
+        UpdateChannel::Beta => "beta",
+    }
+}
+
+fn language_label(language: Language) -> &'static str {
+    match language {
+        Language::English => "english",
+        Language::Chinese => "chinese",
+    }
+}
+
+// ── Settings mutation ─────────────────────────────────────────────────
+
+/// Partial settings update — every field is optional so the frontend can
+/// send only what changed.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SettingsUpdate {
+    pub enabled_providers: Option<Vec<String>>,
+    pub refresh_interval_secs: Option<u64>,
+    pub start_at_login: Option<bool>,
+    pub show_notifications: Option<bool>,
+    pub tray_icon_mode: Option<String>,
+    pub show_as_used: Option<bool>,
+    pub surprise_animations: Option<bool>,
+    pub enable_animations: Option<bool>,
+    pub reset_time_relative: Option<bool>,
+    pub menu_bar_display_mode: Option<String>,
+    pub hide_personal_info: Option<bool>,
+    pub update_channel: Option<String>,
+    pub global_shortcut: Option<String>,
+    pub ui_language: Option<String>,
+}
+
+fn parse_tray_icon_mode(s: &str) -> Option<TrayIconMode> {
+    match s {
+        "single" => Some(TrayIconMode::Single),
+        "perProvider" => Some(TrayIconMode::PerProvider),
+        _ => None,
+    }
+}
+
+fn parse_update_channel(s: &str) -> Option<UpdateChannel> {
+    match s {
+        "stable" => Some(UpdateChannel::Stable),
+        "beta" => Some(UpdateChannel::Beta),
+        _ => None,
+    }
+}
+
+fn parse_language(s: &str) -> Option<Language> {
+    match s {
+        "english" => Some(Language::English),
+        "chinese" => Some(Language::Chinese),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+pub fn update_settings(patch: SettingsUpdate) -> Result<SettingsSnapshot, String> {
+    let mut settings = Settings::load();
+
+    if let Some(providers) = patch.enabled_providers {
+        settings.enabled_providers = providers.into_iter().collect::<HashSet<_>>();
+    }
+    if let Some(v) = patch.refresh_interval_secs {
+        settings.refresh_interval_secs = v;
+    }
+    if let Some(v) = patch.start_at_login {
+        settings.start_at_login = v;
+    }
+    if let Some(v) = patch.show_notifications {
+        settings.show_notifications = v;
+    }
+    if let Some(ref s) = patch.tray_icon_mode {
+        if let Some(mode) = parse_tray_icon_mode(s) {
+            settings.tray_icon_mode = mode;
+        }
+    }
+    if let Some(v) = patch.show_as_used {
+        settings.show_as_used = v;
+    }
+    if let Some(v) = patch.surprise_animations {
+        settings.surprise_animations = v;
+    }
+    if let Some(v) = patch.enable_animations {
+        settings.enable_animations = v;
+    }
+    if let Some(v) = patch.reset_time_relative {
+        settings.reset_time_relative = v;
+    }
+    if let Some(v) = patch.menu_bar_display_mode {
+        settings.menu_bar_display_mode = v;
+    }
+    if let Some(v) = patch.hide_personal_info {
+        settings.hide_personal_info = v;
+    }
+    if let Some(ref s) = patch.update_channel {
+        if let Some(ch) = parse_update_channel(s) {
+            settings.update_channel = ch;
+        }
+    }
+    if let Some(v) = patch.global_shortcut {
+        settings.global_shortcut = v;
+    }
+    if let Some(ref s) = patch.ui_language {
+        if let Some(lang) = parse_language(s) {
+            settings.ui_language = lang;
+        }
+    }
+
+    settings.save().map_err(|e| e.to_string())?;
+
+    Ok(SettingsSnapshot::from(settings))
+}
+
+// ── Surface-mode commands ────────────────────────────────────────────
+
+#[tauri::command]
+pub fn set_surface_mode(
+    mode: String,
+    window: tauri::WebviewWindow,
+    state: tauri::State<'_, Mutex<AppState>>,
+) -> Result<String, String> {
+    let target =
+        SurfaceMode::parse(&mode).ok_or_else(|| format!("unknown surface mode: {mode}"))?;
+
+    let mut guard = state.lock().map_err(|e| e.to_string())?;
+
+    match guard.surface_machine.transition(target) {
+        Some(t) => {
+            crate::shell::apply_window_properties(&window, &t.properties)?;
+            crate::events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
+            Ok(t.to.as_str().to_string())
+        }
+        None => Ok(guard.surface_machine.current().as_str().to_string()),
+    }
+}
+
+#[tauri::command]
+pub fn get_current_surface_mode(state: tauri::State<'_, Mutex<AppState>>) -> String {
+    state
+        .lock()
+        .unwrap()
+        .surface_machine
+        .current()
+        .as_str()
+        .to_string()
+}
+
+/// Apply the window properties dictated by a surface transition.
+///
+/// Delegates to `shell::apply_window_properties` — kept here as a local alias
+/// for use by the frontend-facing `set_surface_mode` command.
+#[allow(dead_code)]
+fn apply_window_properties(
+    window: &tauri::WebviewWindow,
+    props: &WindowProperties,
+) -> Result<(), String> {
+    crate::shell::apply_window_properties(window, props)
+}
+
+// ── Provider refresh commands ────────────────────────────────────────
+
+/// Instantiate the concrete provider for a given ID.
+fn create_provider(id: ProviderId) -> Box<dyn Provider> {
+    match id {
+        ProviderId::Claude => Box::new(ClaudeProvider::new()),
+        ProviderId::Codex => Box::new(CodexProvider::new()),
+        ProviderId::Cursor => Box::new(CursorProvider::new()),
+        ProviderId::Gemini => Box::new(GeminiProvider::new()),
+        ProviderId::Copilot => Box::new(CopilotProvider::new()),
+        ProviderId::Antigravity => Box::new(AntigravityProvider::new()),
+        ProviderId::Factory => Box::new(FactoryProvider::new()),
+        ProviderId::Zai => Box::new(ZaiProvider::new()),
+        ProviderId::Kiro => Box::new(KiroProvider::new()),
+        ProviderId::VertexAI => Box::new(VertexAIProvider::new()),
+        ProviderId::Augment => Box::new(AugmentProvider::new()),
+        ProviderId::MiniMax => Box::new(MiniMaxProvider::new()),
+        ProviderId::OpenCode => Box::new(OpenCodeProvider::new()),
+        ProviderId::Kimi => Box::new(KimiProvider::new()),
+        ProviderId::KimiK2 => Box::new(KimiK2Provider::new()),
+        ProviderId::Amp => Box::new(AmpProvider::new()),
+        ProviderId::Warp => Box::new(WarpProvider::new()),
+        ProviderId::Ollama => Box::new(OllamaProvider::new()),
+        ProviderId::OpenRouter => Box::new(OpenRouterProvider::new()),
+        ProviderId::Synthetic => Box::new(SyntheticProvider::new()),
+        ProviderId::JetBrains => Box::new(JetBrainsProvider::new()),
+        ProviderId::Alibaba => Box::new(AlibabaProvider::new()),
+        ProviderId::NanoGPT => Box::new(NanoGPTProvider::new()),
+        ProviderId::Infini => Box::new(InfiniProvider::default()),
+    }
+}
+
+/// Build a `FetchContext` for a provider using persisted cookies/keys.
+fn build_fetch_context(
+    id: ProviderId,
+    cookies: &ManualCookies,
+    api_keys: &ApiKeys,
+) -> FetchContext {
+    let manual_cookie = cookies.get(id.cli_name()).map(|s| s.to_string());
+
+    // Try browser cookie extraction as fallback when no manual cookie is set.
+    // On non-Windows this is a harmless no-op that returns an error.
+    let cookie_header = manual_cookie.or_else(|| {
+        id.cookie_domain().and_then(|domain| {
+            codexbar::browser::cookies::get_cookie_header(domain)
+                .ok()
+                .filter(|h| !h.is_empty())
+        })
+    });
+
+    let api_key = api_keys.get(id.cli_name()).map(|s| s.to_string());
+
+    FetchContext {
+        manual_cookie_header: cookie_header,
+        api_key,
+        ..FetchContext::default()
+    }
+}
+
+const PROVIDER_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Core refresh logic, usable from both the Tauri command and tray menu actions.
+pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), String> {
+    let state = app.state::<Mutex<AppState>>();
+
+    {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        if guard.is_refreshing {
+            return Ok(());
+        }
+        guard.is_refreshing = true;
+        guard.provider_cache.clear();
+    }
+
+    events::emit_refresh_started(app);
+
+    // Load settings and credential stores once, outside the hot loop.
+    let settings = Settings::load();
+    let enabled_ids = settings.get_enabled_provider_ids();
+    let manual_cookies = ManualCookies::load();
+    let api_keys = ApiKeys::load();
+
+    // Spawn one task per enabled provider.
+    let mut handles = Vec::with_capacity(enabled_ids.len());
+
+    for id in &enabled_ids {
+        let id = *id;
+        let app_handle = app.clone();
+        let ctx = build_fetch_context(id, &manual_cookies, &api_keys);
+
+        handles.push(tokio::spawn(async move {
+            let provider = create_provider(id);
+
+            let snapshot = match tokio::time::timeout(
+                PROVIDER_FETCH_TIMEOUT,
+                provider.fetch_usage(&ctx),
+            )
+            .await
+            {
+                Ok(Ok(result)) => ProviderUsageSnapshot::from_fetch_result(id, &result),
+                Ok(Err(e)) => ProviderUsageSnapshot::from_error(id, e.to_string()),
+                Err(_) => ProviderUsageSnapshot::from_error(id, "Timeout".to_string()),
+            };
+
+            // Emit per-provider update event.
+            events::emit_provider_updated(&app_handle, &snapshot);
+
+            // Append to the cache.
+            let st = app_handle.state::<Mutex<AppState>>();
+            if let Ok(mut guard) = st.lock() {
+                guard.provider_cache.push(snapshot);
+            }
+        }));
+    }
+
+    // Await all tasks.
+    for handle in handles {
+        let _ = handle.await;
+    }
+
+    // Finalise.
+    let error_count = {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.is_refreshing = false;
+        guard
+            .provider_cache
+            .iter()
+            .filter(|s| s.error.is_some())
+            .count()
+    };
+
+    events::emit_refresh_complete(app, enabled_ids.len(), error_count);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn refresh_providers(app: tauri::AppHandle) -> Result<(), String> {
+    do_refresh_providers(&app).await
+}
+
+#[tauri::command]
+pub fn get_cached_providers(
+    state: tauri::State<'_, Mutex<AppState>>,
+) -> Vec<ProviderUsageSnapshot> {
+    state
+        .lock()
+        .map(|guard| guard.provider_cache.clone())
+        .unwrap_or_default()
+}
+
+// ── Updater commands ─────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn get_update_state(state: tauri::State<'_, Mutex<AppState>>) -> UpdateStatePayload {
+    state
+        .lock()
+        .map(|guard| guard.update_state.to_payload())
+        .unwrap_or_else(|_| UpdateState::default().to_payload())
+}
+
+#[tauri::command]
+pub async fn check_for_updates(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<AppState>>,
+) -> Result<UpdateStatePayload, String> {
+    // Guard: skip if already checking.
+    {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        if guard.update_state == UpdateState::Checking {
+            return Ok(guard.update_state.to_payload());
+        }
+        guard.update_state = UpdateState::Checking;
+    }
+    events::emit_update_state_changed(&app, &UpdateState::Checking);
+
+    let settings = Settings::load();
+
+    let result = tokio::time::timeout(
+        std::time::Duration::from_secs(15),
+        codexbar::updater::check_for_updates_with_channel(settings.update_channel),
+    )
+    .await;
+
+    let new_state = match result {
+        Ok(Some(info)) => UpdateState::Available(info.version),
+        Ok(None) => UpdateState::Idle,
+        Err(_) => UpdateState::Error("Update check timed out".to_string()),
+    };
+
+    let payload = new_state.to_payload();
+    events::emit_update_state_changed(&app, &new_state);
+
+    {
+        let mut guard = state.lock().map_err(|e| e.to_string())?;
+        guard.update_state = new_state;
+    }
+
+    Ok(payload)
+}

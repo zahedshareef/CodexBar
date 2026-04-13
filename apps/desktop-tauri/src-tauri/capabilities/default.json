@@ -1,0 +1,10 @@
+{
+  "identifier": "default",
+  "description": "Default permissions for the CodexBar desktop scaffold.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister"
+  ]
+}
