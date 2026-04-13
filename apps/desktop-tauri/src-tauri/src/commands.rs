@@ -419,8 +419,22 @@ fn parse_language(s: &str) -> Option<Language> {
 }
 
 #[tauri::command]
-pub fn update_settings(patch: SettingsUpdate) -> Result<SettingsSnapshot, String> {
+pub fn update_settings(
+    app: tauri::AppHandle,
+    patch: SettingsUpdate,
+) -> Result<SettingsSnapshot, String> {
     let mut settings = Settings::load();
+
+    // If the shortcut is changing, validate and re-register before persisting.
+    if let Some(ref new_shortcut) = patch.global_shortcut {
+        if *new_shortcut != settings.global_shortcut {
+            crate::shortcut_bridge::reregister_shortcut(
+                &app,
+                &settings.global_shortcut,
+                new_shortcut,
+            )?;
+        }
+    }
 
     if let Some(providers) = patch.enabled_providers {
         settings.enabled_providers = providers.into_iter().collect::<HashSet<_>>();

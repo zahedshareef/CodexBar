@@ -10,7 +10,10 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 use crate::shell;
 
 /// Parse a settings shortcut string (e.g. `"Ctrl+Shift+U"`) into a Tauri `Shortcut`.
-fn parse_shortcut(s: &str) -> Option<Shortcut> {
+///
+/// Public so that callers (e.g. the settings command) can validate a shortcut
+/// string before persisting it.
+pub fn parse_shortcut(s: &str) -> Option<Shortcut> {
     let parts: Vec<&str> = s.split('+').map(|p| p.trim()).collect();
     if parts.is_empty() {
         return None;
@@ -125,6 +128,34 @@ pub fn register(app: &AppHandle) {
     }
 }
 
+/// Live-swap the global shortcut: unregister `old` and register `new`.
+///
+/// Called from `update_settings` when the user changes the shortcut in the
+/// Settings UI. Returns `Err` with a user-facing message when the new
+/// shortcut string cannot be parsed or registration fails. On error the old
+/// shortcut is left registered (best-effort).
+pub fn reregister_shortcut(app: &AppHandle, old: &str, new: &str) -> Result<(), String> {
+    let new_shortcut = parse_shortcut(new).ok_or_else(|| {
+        format!("Invalid shortcut \"{new}\". Use a combination like Ctrl+Shift+U.")
+    })?;
+
+    // Unregister the previous shortcut (ignore errors — it may not be registered).
+    if let Some(old_shortcut) = parse_shortcut(old) {
+        let _ = app.global_shortcut().unregister(old_shortcut);
+    }
+
+    app.global_shortcut().register(new_shortcut).map_err(|e| {
+        // Best-effort: try to restore the old shortcut.
+        if let Some(old_shortcut) = parse_shortcut(old) {
+            let _ = app.global_shortcut().register(old_shortcut);
+        }
+        format!("Failed to register shortcut \"{new}\": {e}")
+    })?;
+
+    tracing::info!("Re-registered global shortcut: {old} → {new}");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,5 +197,75 @@ mod tests {
         let s = parse_shortcut("Ctrl+5").unwrap();
         assert_eq!(s.key, Code::Digit5);
         assert!(s.mods.contains(Modifiers::CONTROL));
+    }
+
+    #[test]
+    fn parse_super_key() {
+        let s = parse_shortcut("Super+A").unwrap();
+        assert_eq!(s.key, Code::KeyA);
+        assert!(s.mods.contains(Modifiers::SUPER));
+    }
+
+    #[test]
+    fn parse_win_alias() {
+        let s = parse_shortcut("Win+Z").unwrap();
+        assert_eq!(s.key, Code::KeyZ);
+        assert!(s.mods.contains(Modifiers::SUPER));
+    }
+
+    #[test]
+    fn parse_meta_alias() {
+        let s = parse_shortcut("Meta+F12").unwrap();
+        assert_eq!(s.key, Code::F12);
+        assert!(s.mods.contains(Modifiers::SUPER));
+    }
+
+    #[test]
+    fn parse_special_keys() {
+        assert_eq!(parse_shortcut("Ctrl+Space").unwrap().key, Code::Space);
+        assert_eq!(parse_shortcut("Alt+Enter").unwrap().key, Code::Enter);
+        assert_eq!(parse_shortcut("Ctrl+Tab").unwrap().key, Code::Tab);
+        assert_eq!(parse_shortcut("Ctrl+Escape").unwrap().key, Code::Escape);
+    }
+
+    #[test]
+    fn parse_return_alias() {
+        assert_eq!(parse_shortcut("Ctrl+Return").unwrap().key, Code::Enter);
+    }
+
+    #[test]
+    fn parse_esc_alias() {
+        assert_eq!(parse_shortcut("Ctrl+Esc").unwrap().key, Code::Escape);
+    }
+
+    #[test]
+    fn parse_control_alias() {
+        let s = parse_shortcut("Control+Shift+B").unwrap();
+        assert!(s.mods.contains(Modifiers::CONTROL));
+        assert!(s.mods.contains(Modifiers::SHIFT));
+        assert_eq!(s.key, Code::KeyB);
+    }
+
+    #[test]
+    fn parse_all_function_keys() {
+        for i in 1..=12u8 {
+            let input = format!("F{i}");
+            let s = parse_shortcut(&input);
+            assert!(s.is_some(), "F{i} should parse");
+        }
+    }
+
+    #[test]
+    fn parse_no_key_returns_none() {
+        // Only modifiers, no actual key
+        assert!(parse_shortcut("Ctrl+Shift").is_none());
+    }
+
+    #[test]
+    fn parse_whitespace_tolerant() {
+        let s = parse_shortcut("Ctrl + Shift + U").unwrap();
+        assert_eq!(s.key, Code::KeyU);
+        assert!(s.mods.contains(Modifiers::CONTROL));
+        assert!(s.mods.contains(Modifiers::SHIFT));
     }
 }
