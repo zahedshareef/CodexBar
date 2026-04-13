@@ -254,12 +254,20 @@ sleep 2
 captures="$(capture_host_batch)"
 wait "$guest_pid" || true
 
+validate_state_json_menu() {
+  local json_path="$1"
+  if [[ ! -s "$json_path" ]]; then
+    echo "PROOF REJECTED: state JSON is empty or missing: $json_path" >&2
+    return 1
+  fi
+}
+
 if [[ "$capture_mode" == "menu" ]]; then
   state_json="${proof_dir}/${proof_name}-state-${date_stamp}.json"
   menu_png="${proof_dir}/${proof_name}-menu-full-${date_stamp}.png"
   fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-state.json" "$state_json"
   fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-menu-full.png" "$menu_png"
-  validate_state_json "$state_json"
+  validate_state_json_menu "$state_json"
   validate_image_brightness "$menu_png" "menu capture" "$min_capture_mean"
   echo "state_json=$state_json"
   echo "menu_full=$menu_png"

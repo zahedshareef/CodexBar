@@ -1421,9 +1421,11 @@ impl CodexBarApp {
                             restore_main_window();
                             repaint_ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                             repaint_ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                        } else if matches!(action, TrayMenuAction::Settings) {
-                            // Show main window so update() runs (needed to spawn the
-                            // settings child viewport), but don't steal focus.
+                        } else if matches!(
+                            action,
+                            TrayMenuAction::Settings | TrayMenuAction::TrayRightClick
+                        ) {
+                            // Show main window so update() runs, but don't steal focus.
                             show_main_window_no_focus();
                             repaint_ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                         }
@@ -2666,6 +2668,21 @@ impl eframe::App for CodexBarApp {
             for action in tray_actions {
                 match action {
                     TrayMenuAction::Quit => self.quit_application(),
+                    TrayMenuAction::TrayRightClick => {
+                        // Show the native context menu at the cursor position.
+                        // This blocks (modal TrackPopupMenu) until the menu is
+                        // dismissed; the resulting MenuEvent is picked up by the
+                        // polling thread and forwarded as a normal TrayMenuAction
+                        // in the next frame.
+                        #[cfg(target_os = "windows")]
+                        if let Some(ref tray_manager) = self.tray_manager {
+                            if let Some(hwnd) = find_main_window() {
+                                tray_manager.show_context_menu(hwnd.0 as isize);
+                            }
+                        }
+                        // Return to hidden state after the menu closes.
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                    }
                     TrayMenuAction::TrayLeftClick { tray_x, tray_y } => {
                         tracing::info!(
                             "TrayLeftClick action received: tray_x={}, tray_y={}",

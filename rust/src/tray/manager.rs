@@ -12,7 +12,7 @@ use std::collections::{HashMap, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
 use tray_icon::{
     Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent,
-    menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
+    menu::{CheckMenuItem, ContextMenu, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
 };
 
 use super::icon::{LoadingPattern, UsageLevel};
@@ -278,6 +278,9 @@ fn debug_provider_tooltip_text(
 /// System tray manager
 pub struct TrayManager {
     tray_icon: TrayIcon,
+    /// Native right-click menu (not attached to the tray icon).
+    /// Kept separate so tray-icon never auto-shows it on left-click.
+    context_menu: RefCell<Menu>,
     /// Provider menu items for updating with status prefixes
     provider_menu_items: RefCell<HashMap<ProviderId, CheckMenuItem>>,
     /// Read-only native tray status rows showing provider usage at a glance.
@@ -417,19 +420,13 @@ impl TrayManager {
 
         let lang = Settings::load().ui_language;
         let tray_icon = TrayIconBuilder::new()
-            .with_menu(Box::new(menu))
             .with_tooltip(locale::get_text(lang, locale::LocaleKey::TrayLoading))
             .with_icon(icon)
-            .with_menu_on_left_click(false)
             .build()?;
-
-        // Belt-and-suspenders: the builder attr propagates during CreateWindowExW,
-        // but explicitly re-send the message to guarantee the hidden tray window's
-        // TrayUserData.menu_on_left_click is false before any events arrive.
-        tray_icon.set_show_menu_on_left_click(false);
 
         Ok(Self {
             tray_icon,
+            context_menu: RefCell::new(menu),
             provider_menu_items: RefCell::new(provider_menu_items),
             provider_open_items: RefCell::new(provider_open_items),
             provider_open_labels: RefCell::new(provider_open_labels),
@@ -765,6 +762,19 @@ impl TrayManager {
         None
     }
 
+    /// Show the right-click context menu at the current cursor position.
+    ///
+    /// # Safety
+    /// `hwnd` must be a valid window handle on the calling thread.
+    #[cfg(target_os = "windows")]
+    pub fn show_context_menu(&self, hwnd: isize) {
+        unsafe {
+            self.context_menu
+                .borrow()
+                .show_context_menu_for_hwnd(hwnd, None)
+        };
+    }
+
     /// Refresh the tray menu and tooltip with the current language
     /// This is called when the user changes the language setting
     pub fn refresh_language(&self) {
@@ -783,9 +793,7 @@ impl TrayManager {
             self.provider_menu_items.replace(provider_menu_items);
             self.provider_open_items.replace(provider_open_items);
             self.provider_open_labels.replace(provider_open_labels);
-            self.tray_icon.set_menu(Some(Box::new(menu)));
-            // set_menu() does not propagate menu_on_left_click; re-assert it
-            self.tray_icon.set_show_menu_on_left_click(false);
+            *self.context_menu.borrow_mut() = menu;
         }
 
         // Relocalize the tooltip based on the current state (not reset to loading)
@@ -951,6 +959,8 @@ pub enum TrayMenuAction {
         tray_x: i32,
         tray_y: i32,
     },
+    /// Right-click on tray icon: show the native context menu.
+    TrayRightClick,
     Quit,
 }
 
@@ -1007,6 +1017,8 @@ pub enum ProviderTooltipState {
 pub struct MultiTrayManager {
     /// Map of provider ID to their individual tray icon
     provider_icons: HashMap<ProviderId, TrayIcon>,
+    /// Right-click menus kept separate from tray icons to prevent left-click showing a menu.
+    provider_menus: RefCell<HashMap<ProviderId, Menu>>,
     provider_signatures: RefCell<HashMap<ProviderId, u64>>,
     /// Current tooltip states for language relocalization (per provider)
     tooltip_states: RefCell<HashMap<ProviderId, ProviderTooltipState>>,
@@ -1021,6 +1033,7 @@ impl MultiTrayManager {
     pub fn new() -> anyhow::Result<Self> {
         Ok(Self {
             provider_icons: HashMap::new(),
+            provider_menus: RefCell::new(HashMap::new()),
             provider_signatures: RefCell::new(HashMap::new()),
             tooltip_states: RefCell::new(HashMap::new()),
             provider_menu_detail_items: RefCell::new(HashMap::new()),
@@ -1117,6 +1130,9 @@ impl MultiTrayManager {
         // Remove icons for providers that are no longer enabled
         let enabled_set: std::collections::HashSet<_> = enabled_providers.iter().collect();
         self.provider_icons.retain(|id, _| enabled_set.contains(id));
+        self.provider_menus
+            .borrow_mut()
+            .retain(|id, _| enabled_set.contains(id));
         self.provider_signatures
             .borrow_mut()
             .retain(|id, _| enabled_set.contains(id));
@@ -1154,14 +1170,11 @@ impl MultiTrayManager {
         let tooltip = provider_loading_tooltip(provider_id, lang);
 
         let tray_icon = TrayIconBuilder::new()
-            .with_menu(Box::new(menu))
             .with_tooltip(&tooltip)
             .with_icon(icon)
-            .with_menu_on_left_click(false)
             .build()?;
 
-        tray_icon.set_show_menu_on_left_click(false);
-
+        self.provider_menus.borrow_mut().insert(provider_id, menu);
         self.provider_menu_detail_items
             .borrow_mut()
             .insert(provider_id, detail_item);
@@ -1328,13 +1341,32 @@ impl MultiTrayManager {
         self.provider_icons.contains_key(&provider_id)
     }
 
+    /// Show the right-click context menu for the provider whose tray icon
+    /// has the given `icon_id`, at the current cursor position.
+    ///
+    /// # Safety
+    /// `hwnd` must be a valid window handle on the calling thread.
+    #[cfg(target_os = "windows")]
+    pub fn show_context_menu(&self, hwnd: isize, icon_id: &str) {
+        let provider_id = self
+            .provider_icons
+            .iter()
+            .find(|(_, ti)| ti.id().0 == icon_id)
+            .map(|(pid, _)| *pid);
+        if let Some(pid) = provider_id {
+            if let Some(menu) = self.provider_menus.borrow().get(&pid) {
+                unsafe { menu.show_context_menu_for_hwnd(hwnd, None) };
+            }
+        }
+    }
+
     /// Refresh all provider tray icons with the current language
     /// This rebuilds menus and updates tooltips for all provider icons
     pub fn refresh_language(&self) {
         let lang = Settings::load().ui_language;
 
         // Rebuild menus for all provider icons
-        for (provider_id, tray_icon) in &self.provider_icons {
+        for (provider_id, _tray_icon) in &self.provider_icons {
             let detail_label = self
                 .provider_menu_detail_labels
                 .borrow()
@@ -1353,13 +1385,12 @@ impl MultiTrayManager {
                 self.provider_menu_detail_items
                     .borrow_mut()
                     .insert(*provider_id, detail_item);
-                tray_icon.set_menu(Some(Box::new(menu)));
-                tray_icon.set_show_menu_on_left_click(false);
+                self.provider_menus.borrow_mut().insert(*provider_id, menu);
             }
 
             // Relocalize the tooltip based on the preserved state (not reset to loading)
             let tooltip = self.relocalize_provider_tooltip(*provider_id, lang);
-            let _ = tray_icon.set_tooltip(Some(&tooltip));
+            let _ = _tray_icon.set_tooltip(Some(&tooltip));
             self.set_provider_menu_detail(
                 *provider_id,
                 Self::menu_detail_from_tooltip(*provider_id, tooltip),
@@ -1482,31 +1513,64 @@ impl UnifiedTrayManager {
     }
 
     /// Check for tray icon click events (separate from menu events).
-    /// Returns a `TrayLeftClick` action when the user left-clicks the tray icon.
+    /// Returns a `TrayLeftClick` when the user left-clicks the tray icon,
+    /// or `TrayRightClick` when the user right-clicks (so the app can show
+    /// the context menu manually — no menu is attached to the tray icon).
     pub fn check_tray_click_events() -> Option<TrayMenuAction> {
         while let Ok(event) = TrayIconEvent::receiver().try_recv() {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                rect,
-                ..
-            } = event
-            {
-                let tray_x = rect.position.x as i32 + rect.size.width as i32 / 2;
-                let tray_y = rect.position.y as i32;
-                tracing::info!(
-                    "tray left-click detected: tray_x={}, tray_y={}, rect=({},{} {}x{})",
-                    tray_x,
-                    tray_y,
-                    rect.position.x,
-                    rect.position.y,
-                    rect.size.width,
-                    rect.size.height,
-                );
-                return Some(TrayMenuAction::TrayLeftClick { tray_x, tray_y });
+            match event {
+                TrayIconEvent::Click {
+                    button: MouseButton::Left,
+                    button_state: MouseButtonState::Up,
+                    rect,
+                    ..
+                } => {
+                    let tray_x = rect.position.x as i32 + rect.size.width as i32 / 2;
+                    let tray_y = rect.position.y as i32;
+                    tracing::info!(
+                        "tray left-click detected: tray_x={}, tray_y={}, rect=({},{} {}x{})",
+                        tray_x,
+                        tray_y,
+                        rect.position.x,
+                        rect.position.y,
+                        rect.size.width,
+                        rect.size.height,
+                    );
+                    return Some(TrayMenuAction::TrayLeftClick { tray_x, tray_y });
+                }
+                TrayIconEvent::Click {
+                    button: MouseButton::Right,
+                    button_state: MouseButtonState::Up,
+                    ..
+                } => {
+                    tracing::info!("tray right-click detected — requesting context menu");
+                    return Some(TrayMenuAction::TrayRightClick);
+                }
+                _ => {}
             }
         }
         None
+    }
+
+    /// Show the right-click context menu at the current cursor position.
+    ///
+    /// # Safety
+    /// `hwnd` must be a valid window handle on the calling thread.
+    #[cfg(target_os = "windows")]
+    pub fn show_context_menu(&self, hwnd: isize) {
+        match self {
+            UnifiedTrayManager::Single(tm) => tm.show_context_menu(hwnd),
+            UnifiedTrayManager::PerProvider(multi) => {
+                // In per-provider mode, show the first provider's menu.
+                // (The right-click event doesn't reliably carry enough info
+                // to identify which icon was clicked in all edge cases.)
+                if let Some((&pid, _)) = multi.provider_icons.iter().next() {
+                    if let Some(menu) = multi.provider_menus.borrow().get(&pid) {
+                        unsafe { menu.show_context_menu_for_hwnd(hwnd, None) };
+                    }
+                }
+            }
+        }
     }
 
     /// Returns the screen rect of the first tray icon (for positioning the popup).
