@@ -309,32 +309,21 @@ impl TrayManager {
     fn build_menu(lang: Language, settings: &Settings) -> anyhow::Result<SingleTrayMenuBundle> {
         let menu = Menu::new();
 
-        let open_item = MenuItem::with_id(
-            "open",
-            locale::get_text(lang, locale::LocaleKey::TrayOpenCodexBar),
-            true,
-            None,
-        );
-        menu.append(&open_item)?;
-
-        menu.append(&PredefinedMenuItem::separator())?;
-
-        let open_details_submenu = Submenu::new("Open Provider", true);
+        // Top-level provider status rows (tray-first: quick glance at each provider)
         let mut provider_open_items = HashMap::new();
         let mut provider_open_labels = HashMap::new();
         for provider_id in settings.get_enabled_provider_ids() {
             let label = Self::default_provider_open_label(provider_id);
             let item = MenuItem::with_id(
-                format!("open_provider_{}", provider_id.cli_name()),
+                format!("popout_provider_{}", provider_id.cli_name()),
                 &label,
                 true,
                 None,
             );
-            open_details_submenu.append(&item)?;
+            menu.append(&item)?;
             provider_open_labels.insert(provider_id, label);
             provider_open_items.insert(provider_id, item);
         }
-        menu.append(&open_details_submenu)?;
 
         menu.append(&PredefinedMenuItem::separator())?;
 
@@ -345,6 +334,14 @@ impl TrayManager {
             None,
         );
         menu.append(&refresh_item)?;
+
+        let popout_item = MenuItem::with_id(
+            "popout",
+            locale::get_text(lang, locale::LocaleKey::TrayPopOutDashboard),
+            true,
+            None,
+        );
+        menu.append(&popout_item)?;
 
         menu.append(&PredefinedMenuItem::separator())?;
 
@@ -933,8 +930,8 @@ impl TrayManager {
 /// Tray menu actions
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TrayMenuAction {
-    Open,
-    OpenProvider(String),
+    PopOut,
+    PopOutProvider(String),
     Refresh,
     RefreshProvider(String),
     Settings,
@@ -946,16 +943,16 @@ pub enum TrayMenuAction {
 fn tray_action_from_event_id(id_str: &str) -> Option<TrayMenuAction> {
     if id_str == "quit" {
         Some(TrayMenuAction::Quit)
-    } else if id_str == "open" {
-        Some(TrayMenuAction::Open)
+    } else if id_str == "popout" {
+        Some(TrayMenuAction::PopOut)
     } else if id_str == "refresh" {
         Some(TrayMenuAction::Refresh)
     } else if id_str == "settings" {
         Some(TrayMenuAction::Settings)
     } else if id_str == "updates" {
         Some(TrayMenuAction::CheckForUpdates)
-    } else if let Some(provider_name) = id_str.strip_prefix("open_provider_") {
-        Some(TrayMenuAction::OpenProvider(provider_name.to_string()))
+    } else if let Some(provider_name) = id_str.strip_prefix("popout_provider_") {
+        Some(TrayMenuAction::PopOutProvider(provider_name.to_string()))
     } else if let Some(provider_name) = id_str.strip_prefix("refresh_provider_") {
         Some(TrayMenuAction::RefreshProvider(provider_name.to_string()))
     } else {
@@ -1059,8 +1056,8 @@ impl MultiTrayManager {
         menu.append(&PredefinedMenuItem::separator())?;
 
         let open_item = MenuItem::with_id(
-            format!("open_provider_{}", provider_id.cli_name()),
-            locale::get_text(lang, locale::LocaleKey::TrayProviderOpen),
+            format!("popout_provider_{}", provider_id.cli_name()),
+            locale::get_text(lang, locale::LocaleKey::TrayProviderPopOut),
             true,
             None,
         );
@@ -2402,8 +2399,8 @@ mod tests {
     #[test]
     fn test_tray_action_from_event_id_maps_provider_open() {
         assert_eq!(
-            tray_action_from_event_id("open_provider_codex"),
-            Some(TrayMenuAction::OpenProvider("codex".to_string()))
+            tray_action_from_event_id("popout_provider_codex"),
+            Some(TrayMenuAction::PopOutProvider("codex".to_string()))
         );
     }
 

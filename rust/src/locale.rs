@@ -304,6 +304,7 @@ pub enum LocaleKey {
 
     // Tray - Single icon mode
     TrayOpenCodexBar,
+    TrayPopOutDashboard,
     TrayRefreshAll,
     TrayProviders,
     TraySettings,
@@ -319,9 +320,12 @@ pub enum LocaleKey {
     TrayStatusPartial,
     TrayWeeklyExhausted,
     TrayCreditsRemaining,
+    TrayStatusRowLoading,
+    TrayStatusRowError,
+    TrayCreditsRow,
 
     // Tray - Per-provider mode
-    TrayProviderOpen,
+    TrayProviderPopOut,
     TrayProviderRefresh,
     TrayProviderSettings,
     TrayProviderQuit,
@@ -679,7 +683,8 @@ impl LocaleKey {
             LocaleKey::SectionCost => "Cost",
 
             // Tray - Single icon mode
-            LocaleKey::TrayOpenCodexBar => "Open CodexBar",
+            LocaleKey::TrayOpenCodexBar => "Pop Out Dashboard",
+            LocaleKey::TrayPopOutDashboard => "Pop Out Dashboard",
             LocaleKey::TrayRefreshAll => "Refresh All",
             LocaleKey::TrayProviders => "Providers",
             LocaleKey::TraySettings => "Settings...",
@@ -695,6 +700,9 @@ impl LocaleKey {
             LocaleKey::TrayStatusPartial => " (Partial outage)",
             LocaleKey::TrayWeeklyExhausted => "Weekly quota exhausted",
             LocaleKey::TrayCreditsRemaining => "Credits remaining {}%",
+            LocaleKey::TrayStatusRowLoading => "Loading...",
+            LocaleKey::TrayStatusRowError => "Error",
+            LocaleKey::TrayCreditsRow => "Credits {}%",
 
             // Main popup - Usage/reset labels
             LocaleKey::ResetInProgress => "Resetting...",
@@ -714,7 +722,7 @@ impl LocaleKey {
             LocaleKey::UpdateDownloadingMessage => "Downloading {} ({:.0}%)",
 
             // Tray - Per-provider mode
-            LocaleKey::TrayProviderOpen => "Open CodexBar",
+            LocaleKey::TrayProviderPopOut => "Pop Out Dashboard",
             LocaleKey::TrayProviderRefresh => "Refresh",
             LocaleKey::TrayProviderSettings => "Settings...",
             LocaleKey::TrayProviderQuit => "Quit",
@@ -1093,7 +1101,8 @@ impl LocaleKey {
             LocaleKey::SectionCost => "费用",
 
             // Tray - Single icon mode
-            LocaleKey::TrayOpenCodexBar => "打开 CodexBar",
+            LocaleKey::TrayOpenCodexBar => "弹出仪表盘",
+            LocaleKey::TrayPopOutDashboard => "弹出仪表盘",
             LocaleKey::TrayRefreshAll => "刷新全部",
             LocaleKey::TrayProviders => "服务商",
             LocaleKey::TraySettings => "设置...",
@@ -1109,6 +1118,9 @@ impl LocaleKey {
             LocaleKey::TrayStatusPartial => "（部分中断）",
             LocaleKey::TrayWeeklyExhausted => "周额度已用尽",
             LocaleKey::TrayCreditsRemaining => "剩余额度 {}%",
+            LocaleKey::TrayStatusRowLoading => "加载中...",
+            LocaleKey::TrayStatusRowError => "错误",
+            LocaleKey::TrayCreditsRow => "额度 {}%",
 
             // Main popup - Usage/reset labels
             LocaleKey::ResetInProgress => "正在重置...",
@@ -1128,7 +1140,7 @@ impl LocaleKey {
             LocaleKey::UpdateDownloadingMessage => "正在下载 {} ({:.0}%)",
 
             // Tray - Per-provider mode
-            LocaleKey::TrayProviderOpen => "打开 CodexBar",
+            LocaleKey::TrayProviderPopOut => "弹出仪表盘",
             LocaleKey::TrayProviderRefresh => "刷新",
             LocaleKey::TrayProviderSettings => "设置...",
             LocaleKey::TrayProviderQuit => "退出",

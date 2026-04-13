@@ -1402,9 +1402,7 @@ impl CodexBarApp {
                     if let Some(action) = UnifiedTrayManager::check_events() {
                         if matches!(
                             action,
-                            TrayMenuAction::Open
-                                | TrayMenuAction::OpenProvider(_)
-                                | TrayMenuAction::Refresh
+                            TrayMenuAction::PopOut | TrayMenuAction::PopOutProvider(_)
                         ) {
                             // Egui viewport commands alone can be ignored while minimized.
                             // Force a native restore first so the update loop wakes up.
@@ -2613,7 +2611,7 @@ impl eframe::App for CodexBarApp {
             for action in tray_actions {
                 match action {
                     TrayMenuAction::Quit => self.quit_application(),
-                    TrayMenuAction::Open => {
+                    TrayMenuAction::PopOut => {
                         if let Ok(mut state) = self.state.lock() {
                             state.selected_tab = SelectedTab::Summary;
                         }
@@ -2621,7 +2619,7 @@ impl eframe::App for CodexBarApp {
                         self.anchor_main_window_to_pointer = true;
                         self.layout_main_window(ctx, true);
                     }
-                    TrayMenuAction::OpenProvider(provider_name) => {
+                    TrayMenuAction::PopOutProvider(provider_name) => {
                         if let Some(provider_id) = ProviderId::from_cli_name(&provider_name) {
                             if let Ok(mut state) = self.state.lock() {
                                 state.selected_tab = SelectedTab::Provider(provider_id);
