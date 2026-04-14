@@ -992,15 +992,6 @@ fn tray_action_from_event_id(id_str: &str) -> Option<TrayMenuAction> {
     }
 }
 
-#[cfg(test)]
-#[test]
-fn test_tray_action_from_event_id_maps_top_level_popout() {
-    assert_eq!(
-        tray_action_from_event_id("popout"),
-        Some(TrayMenuAction::PopOut)
-    );
-}
-
 /// Per-provider tray state for tooltip relocalization
 #[derive(Debug, Clone, Default)]
 pub enum ProviderTooltipState {

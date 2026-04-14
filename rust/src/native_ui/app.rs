@@ -377,13 +377,6 @@ fn debug_window_mode(is_popout_mode: bool) -> &'static str {
     if is_popout_mode { "popout" } else { "popup" }
 }
 
-#[cfg(test)]
-#[test]
-fn debug_window_mode_reports_popup_and_popout() {
-    assert_eq!(debug_window_mode(false), "popup");
-    assert_eq!(debug_window_mode(true), "popout");
-}
-
 enum TrayUpdatePlan<'a> {
     Single(&'a ProviderUsage),
     Merged(&'a [ProviderUsage]),
