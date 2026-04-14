@@ -372,6 +372,18 @@ fn string_json(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('\"', "\\\""))
 }
 
+#[cfg(debug_assertions)]
+fn debug_window_mode(is_popout_mode: bool) -> &'static str {
+    if is_popout_mode { "popout" } else { "popup" }
+}
+
+#[cfg(test)]
+#[test]
+fn debug_window_mode_reports_popup_and_popout() {
+    assert_eq!(debug_window_mode(false), "popup");
+    assert_eq!(debug_window_mode(true), "popout");
+}
+
 enum TrayUpdatePlan<'a> {
     Single(&'a ProviderUsage),
     Merged(&'a [ProviderUsage]),
@@ -522,6 +534,7 @@ fn write_debug_state_with_targets_file(
     preferences_viewport_outer_rect: Option<Rect>,
     preferences_settings: &super::preferences::PreferencesDebugSettingsSnapshot,
     tray_state_json: &str,
+    is_popout_mode: bool,
     api_key_status: &Option<super::preferences::PreferencesDebugStatusMessage>,
     cookie_status: &Option<super::preferences::PreferencesDebugStatusMessage>,
     pointer_snapshot: DebugPointerSnapshot,
@@ -602,7 +615,7 @@ fn write_debug_state_with_targets_file(
     );
 
     let payload = format!(
-        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"menu_bar_display_mode\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"switcher_shows_icons\":{},\"menu_bar_shows_highest_usage\":{},\"menu_bar_shows_percent\":{},\"show_all_token_accounts_in_menu\":{},\"tray_icon_mode\":{},\"selected_provider\":{},\"tray_state\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
+        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"menu_bar_display_mode\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"switcher_shows_icons\":{},\"menu_bar_shows_highest_usage\":{},\"menu_bar_shows_percent\":{},\"show_all_token_accounts_in_menu\":{},\"tray_icon_mode\":{},\"window_mode\":{},\"selected_provider\":{},\"tray_state\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
         selected_tab.replace('\\', "\\\\").replace('\"', "\\\""),
         preferences_open,
         preferences_tab,
@@ -621,6 +634,7 @@ fn write_debug_state_with_targets_file(
         preferences_settings.menu_bar_shows_percent,
         preferences_settings.show_all_token_accounts_in_menu,
         string_json(&preferences_settings.tray_icon_mode),
+        string_json(debug_window_mode(is_popout_mode)),
         preferences_settings
             .selected_provider
             .as_ref()
@@ -3539,6 +3553,7 @@ impl eframe::App for CodexBarApp {
                     preferences_viewport_outer_rect,
                     &preferences_settings,
                     &tray_state_json,
+                    self.is_popout_mode,
                     &api_key_status,
                     &cookie_status,
                     if self.latched_debug_tab_targets.is_empty() {
@@ -4282,7 +4297,7 @@ mod tests {
     use super::{
         PerProviderTrayRuntimeState, ProviderData, TrayRuntimeState, TrayUpdatePlan, append_font,
         build_test_click_event_batches, choose_tray_runtime_state, choose_tray_update_plan,
-        launch_block_reason, main_window_summary_height, prepend_font,
+        debug_window_mode, launch_block_reason, main_window_summary_height, prepend_font,
         remote_session_error_message, should_auto_refresh, should_recreate_tray_manager,
         should_show_provider, ssh_session_error_message, startup_last_refresh, startup_popout_mode,
     };
@@ -4387,6 +4402,12 @@ mod tests {
     fn trayless_startup_uses_popout_mode_only_without_forced_visible() {
         assert!(startup_popout_mode(false, false));
         assert!(!startup_popout_mode(false, true));
+    }
+
+    #[test]
+    fn debug_window_mode_reports_popup_and_popout() {
+        assert_eq!(debug_window_mode(false), "popup");
+        assert_eq!(debug_window_mode(true), "popout");
     }
 
     #[test]
