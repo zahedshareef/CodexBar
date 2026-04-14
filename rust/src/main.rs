@@ -1,35 +1,10 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-//! CodexBar - Windows/WSL system tray app for monitoring AI provider usage limits
-//!
-//! This is a Rust port of the macOS CodexBar application, providing:
-//! - System tray icon with usage status (default when double-clicking)
-//! - CLI for querying usage from terminal (`codexbar usage`)
-//! - Support for multiple AI providers (Claude, Codex, Gemini, etc.)
-//! - Native WSL support for Linux environments on Windows
-
-mod browser;
-mod cli;
-mod core;
-mod cost_scanner;
-mod host;
-mod locale;
-mod logging;
-mod login;
-mod native_ui;
-mod notifications;
-mod providers;
-mod settings;
-mod shortcuts;
-mod single_instance;
-mod sound;
-mod status;
-mod tray;
-mod updater;
-mod wsl;
-
 use clap::Parser;
-use cli::{Cli, Commands, exit_codes};
+use codexbar::{
+    cli::{self, Cli, Commands, exit_codes},
+    logging, native_ui, single_instance, wsl,
+};
 
 /// Redact sensitive CLI arguments (tokens, keys, cookies) from log output
 fn redact_sensitive_args(args: &[String]) -> Vec<String> {

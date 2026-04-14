@@ -9,6 +9,9 @@ repository = "https://github.com/Finesssee/Win-CodexBar"
 keywords = ["ai", "usage", "monitoring", "claude", "codex"]
 categories = ["command-line-utilities"]
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 # Async runtime
 tokio = { version = "1", features = ["full"] }
