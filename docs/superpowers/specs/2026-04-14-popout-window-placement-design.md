@@ -20,6 +20,9 @@ The desired behavior is:
 ## Scope
 
 - Change only the default placement behavior for tray-triggered popouts.
+- Apply that behavior to both tray detach actions:
+  - `TrayMenuAction::PopOut`
+  - `TrayMenuAction::PopOutProvider(...)`
 - Keep popup placement behavior unchanged.
 - Keep popout chrome behavior unchanged:
   - decorated
@@ -70,7 +73,7 @@ Use **Option 1**.
 
 ### Placement rules
 
-1. `Pop Out Dashboard` should prefer the tray icon rect when it is available.
+1. Both tray detach actions (`Pop Out Dashboard` and provider-specific popout actions) should prefer the tray icon rect when it is available.
 2. The detached window should open near the tray area, biased to the bottom-right above the taskbar.
 3. When popout is triggered from the tray menu, the app must resolve the tray rect at that moment and feed it into placement. The generic left-side pointer-anchor path must not be used for tray-triggered popouts.
 4. The detached window should remain clamped to the work area of the monitor that contains the application window, not blindly to the primary monitor work area.
@@ -86,7 +89,7 @@ Use **Option 1**.
 ## Implementation outline
 
 - Split popout placement from the generic `anchor_to_pointer` behavior.
-- Route `TrayMenuAction::PopOut` through a popout placement path that:
+- Route both tray detach actions through a popout placement path that:
   - resolves and captures the tray anchor when available
   - computes a tray-adjacent bottom-right placement
   - falls back to bottom-right work-area placement on the window's current monitor if no tray anchor exists
@@ -105,5 +108,6 @@ Use **Option 1**.
 - Add or adjust focused tests only if placement logic is extracted into testable helpers.
 - Re-validate in the Windows VM:
   1. popup still opens near the tray
-  2. popout opens as a normal window
-  3. popout lands near the tray area instead of the left side of the monitor
+  2. `Pop Out Dashboard` opens as a normal window near the tray area
+  3. provider-specific popout opens as a normal window near the tray area
+  4. no popout path falls back to the old left-side placement
