@@ -175,7 +175,7 @@ pub async fn run(args: UsageArgs) -> anyhow::Result<()> {
         args.format
     };
 
-    let source_mode = SourceMode::from_str(&args.source).unwrap_or(SourceMode::Auto);
+    let source_mode = SourceMode::parse(&args.source).unwrap_or(SourceMode::Auto);
     let providers = ProviderSelection::from_arg(args.provider.as_deref())?;
     let use_color = !args.no_color && is_terminal();
     let fetch_status = args.status;

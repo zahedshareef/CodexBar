@@ -217,8 +217,7 @@ pub enum SourceMode {
 }
 
 impl SourceMode {
-    /// Parse from string
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "auto" => Some(SourceMode::Auto),
             "oauth" => Some(SourceMode::OAuth),
@@ -499,12 +498,12 @@ mod tests {
 
     #[test]
     fn test_source_mode_from_str() {
-        assert_eq!(SourceMode::from_str("auto"), Some(SourceMode::Auto));
-        assert_eq!(SourceMode::from_str("oauth"), Some(SourceMode::OAuth));
-        assert_eq!(SourceMode::from_str("web"), Some(SourceMode::Web));
-        assert_eq!(SourceMode::from_str("cli"), Some(SourceMode::Cli));
-        assert_eq!(SourceMode::from_str("AUTO"), Some(SourceMode::Auto));
-        assert_eq!(SourceMode::from_str("invalid"), None);
+        assert_eq!(SourceMode::parse("auto"), Some(SourceMode::Auto));
+        assert_eq!(SourceMode::parse("oauth"), Some(SourceMode::OAuth));
+        assert_eq!(SourceMode::parse("web"), Some(SourceMode::Web));
+        assert_eq!(SourceMode::parse("cli"), Some(SourceMode::Cli));
+        assert_eq!(SourceMode::parse("AUTO"), Some(SourceMode::Auto));
+        assert_eq!(SourceMode::parse("invalid"), None);
     }
 
     #[test]
