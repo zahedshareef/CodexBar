@@ -72,8 +72,10 @@ Use **Option 1**.
 
 1. `Pop Out Dashboard` should prefer the tray icon rect when it is available.
 2. The detached window should open near the tray area, biased to the bottom-right above the taskbar.
-3. The detached window should remain clamped to the current monitor work area.
-4. If the tray rect is unavailable, popout should fall back to a sane bottom-right work-area position instead of the current left-side pointer-anchor position.
+3. When popout is triggered from the tray menu, the app must resolve the tray rect at that moment and feed it into placement. The generic left-side pointer-anchor path must not be used for tray-triggered popouts.
+4. The detached window should remain clamped to the work area of the monitor that contains the application window, not blindly to the primary monitor work area.
+5. If the tray rect is unavailable, popout should fall back to a sane bottom-right work-area position on that same monitor instead of the current left-side pointer-anchor position.
+6. Tray anchoring should still adapt to non-bottom taskbar placements; the "bottom-right above the taskbar" behavior is the normal bottom-taskbar preference, not a hard-coded assumption.
 
 ### Behavioral boundaries
 
@@ -85,14 +87,16 @@ Use **Option 1**.
 
 - Split popout placement from the generic `anchor_to_pointer` behavior.
 - Route `TrayMenuAction::PopOut` through a popout placement path that:
-  - captures the tray anchor when available
+  - resolves and captures the tray anchor when available
   - computes a tray-adjacent bottom-right placement
-  - falls back to bottom-right work-area placement if no tray anchor exists
+  - falls back to bottom-right work-area placement on the window's current monitor if no tray anchor exists
+  - uses the monitor containing the current application window as the source of truth for work-area bounds on Windows
 - Keep the existing viewport chrome commands for popout mode.
 
 ## Error handling
 
 - If tray coordinates are unavailable, use fallback placement instead of failing open.
+- If monitor-aware work-area lookup fails, fall back to the existing broad work-area logic rather than blocking the window from opening.
 - If the requested placement would be off-screen, clamp to the work area as today.
 
 ## Testing
