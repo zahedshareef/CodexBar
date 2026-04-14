@@ -9,6 +9,7 @@ use serde::Deserialize;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 use std::process::Command;
+use std::sync::OnceLock;
 
 use crate::core::{
     FetchContext, Provider, ProviderError, ProviderFetchResult, ProviderId, ProviderMetadata,
@@ -65,9 +66,11 @@ impl AntigravityProvider {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
-        // Parse command line for CSRF token and port
-        let csrf_regex = Regex::new(r"--csrf_token\s+([a-f0-9-]+)").unwrap();
-        let port_regex = Regex::new(r"--extension_server_port\s+(\d+)").unwrap();
+        // Parse command line for CSRF token and port — compiled once
+        static CSRF_RE: OnceLock<Regex> = OnceLock::new();
+        static PORT_RE: OnceLock<Regex> = OnceLock::new();
+        let csrf_regex = CSRF_RE.get_or_init(|| Regex::new(r"--csrf_token\s+([a-f0-9-]+)").expect("valid regex"));
+        let port_regex = PORT_RE.get_or_init(|| Regex::new(r"--extension_server_port\s+(\d+)").expect("valid regex"));
 
         for line in stdout.lines() {
             if line.contains("language_server_windows") && line.contains("--csrf_token") {
