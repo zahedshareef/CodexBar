@@ -35,6 +35,7 @@ docs/*-analysis.md
 
 # Rust build artifacts
 rust/target/
+target/
 
 # Claude temp files
 tmpclaude-*
@@ -46,12 +47,15 @@ tmpclaude-*
 .vscode/
 *.swp
 *.swo
+node_modules/
 dist/
 nul
 
 # Local scripts and env files
 .env
 .env.*
+/docs/
+/scripts/
 /docs/ui-parity-workflow.md
 /scripts/crop_vm_preferences_proof.sh
 /scripts/fetch_vm_preferences_proof.sh
