@@ -84,3 +84,6 @@ session1-*.txt
 # Throwaway launch scripts
 launch-cb-nossh.cmd
 launch-cb.cmd
+
+# Local git worktrees
+.worktrees/
