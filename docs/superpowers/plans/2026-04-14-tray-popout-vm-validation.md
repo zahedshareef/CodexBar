@@ -234,6 +234,11 @@ After startup, use the new debug command to trigger the same path as `TrayMenuAc
 Send-TestCommand -Line '{"type":"simulate_tray_popout"}'
 Start-Sleep -Milliseconds 1200
 Send-TestCommand -Line ('{"type":"save_state","path":"' + ($statePath -replace '\\', '\\\\') + '"}')
+$nircmd = Ensure-NirCmd
+Invoke-InteractiveCommandTask `
+  -TaskName $captureTask `
+  -Execute $nircmd `
+  -Arguments ('savescreenshot "' + $interactiveDesktopShot + '"')
 ```
 
 Fetch and preserve:
@@ -250,7 +255,8 @@ Mirror the existing `menu` special-case branch with a `popout` branch so the com
 if [[ "$capture_mode" == "popout" ]]; then
   state_json="${proof_dir}/${proof_name}-state-${date_stamp}.json"
   popout_png="${proof_dir}/${proof_name}-interactive-full-${date_stamp}.png"
-  # fetch_guest_file ...
+  fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-state.json" "$state_json"
+  fetch_guest_file "C:\\Users\\mac\\Desktop\\${proof_name}-interactive-full.png" "$popout_png"
   echo "state_json=$state_json"
   echo "popout_full=$popout_png"
   exit 0
@@ -284,7 +290,7 @@ git commit -m "feat: add VM popout proof mode"
 
 **Files:**
 - Check: `scripts/run_vm_provider_proof.sh`
-- Check: `/tmp/win-codexbar-settings/*`
+- Check: `$HOME/.cache/win-codexbar-proof/*`
 - Modify if needed: `rust/src/native_ui/app.rs`
 - Modify if needed: `rust/src/tray/manager.rs`
 - Test if needed: `rust/src/native_ui/app.rs`
@@ -308,7 +314,7 @@ Run:
 
 ```bash
 cd /home/fsos/Developer/Win-CodexBar
-CODEXBAR_PROOF_CAPTURE_MODE=menu bash scripts/run_vm_provider_proof.sh codex 20260414 tray-popup-v1
+CODEXBAR_PROOF_SHELL=egui CODEXBAR_PROOF_CAPTURE_MODE=menu bash scripts/run_vm_provider_proof.sh codex 20260414 tray-popup-v1
 ```
 
 Inspect the emitted `state_json=` and `menu_full=` artifacts.
@@ -324,7 +330,7 @@ Run:
 
 ```bash
 cd /home/fsos/Developer/Win-CodexBar
-CODEXBAR_PROOF_CAPTURE_MODE=popout bash scripts/run_vm_provider_proof.sh codex 20260414 tray-popout-v1
+CODEXBAR_PROOF_SHELL=egui CODEXBAR_PROOF_CAPTURE_MODE=popout bash scripts/run_vm_provider_proof.sh codex 20260414 tray-popout-v1
 ```
 
 Inspect the emitted `state_json=` and `popout_full=` artifacts.
@@ -342,7 +348,8 @@ Manual checklist:
 1. Open the Windows VM interactively.
 2. Right-click the Win-CodexBar tray icon.
 3. Confirm the native context menu contains `Pop Out Dashboard`.
-4. Capture a fresh screenshot from the VM/host and save it under `/tmp/win-codexbar-settings/`.
+4. Run `mkdir -p "$HOME/.cache/win-codexbar-proof"` locally if needed.
+5. Capture a fresh screenshot from the VM/host and save it under `$HOME/.cache/win-codexbar-proof/`.
 
 - [ ] **Step 5: If any check fails, patch only the failing behavior**
 
@@ -372,8 +379,8 @@ Expected: PASS
 Use the same proof names with incremented suffixes:
 
 ```bash
-CODEXBAR_PROOF_CAPTURE_MODE=menu bash scripts/run_vm_provider_proof.sh codex 20260414 tray-popup-v2
-CODEXBAR_PROOF_CAPTURE_MODE=popout bash scripts/run_vm_provider_proof.sh codex 20260414 tray-popout-v2
+CODEXBAR_PROOF_SHELL=egui CODEXBAR_PROOF_CAPTURE_MODE=menu bash scripts/run_vm_provider_proof.sh codex 20260414 tray-popup-v2
+CODEXBAR_PROOF_SHELL=egui CODEXBAR_PROOF_CAPTURE_MODE=popout bash scripts/run_vm_provider_proof.sh codex 20260414 tray-popout-v2
 ```
 
 - [ ] **Step 8: Commit the product fix if code changed**
