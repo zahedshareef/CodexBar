@@ -6,7 +6,7 @@ mod app;
 mod charts;
 mod preferences;
 mod provider_icons;
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, test))]
 pub(crate) mod test_server;
 mod theme;
 

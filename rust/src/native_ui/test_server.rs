@@ -10,6 +10,7 @@ use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 
 /// A synthetic input event to inject into the egui loop.
+#[derive(Debug, PartialEq)]
 pub enum TestInput {
     OpenWindow,
     SelectTab {
@@ -94,6 +95,9 @@ pub enum TestInput {
     /// Simulate a tray left-click, exercising the same popup path as a real
     /// tray icon click instead of the `OpenWindow` shortcut.
     SimulateTrayLeftClick,
+    /// Simulate a tray popout action, exercising the same path as
+    /// `TrayMenuAction::PopOut`.
+    SimulateTrayPopOut,
 }
 
 /// Thread-safe queue of pending test inputs.
@@ -136,6 +140,7 @@ pub fn create_queue() -> TestInputQueue {
 /// {"type":"double_click","x":100,"y":200}
 /// {"type":"right_click","x":100,"y":200}
 /// {"type":"simulate_tray_left_click"}
+/// {"type":"simulate_tray_popout"}
 /// ```
 pub fn start_server(queue: TestInputQueue, repaint_ctx: egui::Context) {
     std::thread::spawn(move || {
@@ -279,6 +284,7 @@ fn parse_test_input(json: &str) -> Option<TestInput> {
             y: input.y?,
         }),
         "simulate_tray_left_click" => Some(TestInput::SimulateTrayLeftClick),
+        "simulate_tray_popout" => Some(TestInput::SimulateTrayPopOut),
         _ => None,
     }
 }
@@ -480,5 +486,13 @@ mod tests {
             parse_test_input(r#"{"type":"simulate_tray_left_click"}"#),
             Some(TestInput::SimulateTrayLeftClick)
         ));
+    }
+
+    #[test]
+    fn parses_simulate_tray_popout() {
+        assert_eq!(
+            parse_test_input(r#"{"type":"simulate_tray_popout"}"#),
+            Some(TestInput::SimulateTrayPopOut)
+        );
     }
 }

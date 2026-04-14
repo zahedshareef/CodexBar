@@ -1633,6 +1633,16 @@ impl CodexBarApp {
         self.anchor_main_window_to_pointer = true;
     }
 
+    fn activate_popout_mode(&mut self, ctx: &egui::Context) {
+        self.is_popout_mode = true;
+        if let Ok(mut state) = self.state.lock() {
+            state.selected_tab = SelectedTab::Summary;
+        }
+        self.pending_main_window_layout = true;
+        self.anchor_main_window_to_pointer = true;
+        self.layout_main_window(ctx, true);
+    }
+
     /// Exercises the same code-path as a real tray left-click: restore → position
     /// near tray → focus.  Unlike `open_main_window_for_testing` this uses the
     /// `TrayLeftClick` handler so proof scripts can verify the hybrid popup flow.
@@ -2434,6 +2444,9 @@ impl eframe::App for CodexBarApp {
                     super::test_server::TestInput::SimulateTrayLeftClick => {
                         self.simulate_tray_left_click(_ctx);
                     }
+                    super::test_server::TestInput::SimulateTrayPopOut => {
+                        self.activate_popout_mode(_ctx);
+                    }
                 }
             }
         }
@@ -2744,15 +2757,7 @@ impl eframe::App for CodexBarApp {
                         self.anchor_main_window_to_pointer = false;
                         self.layout_main_window(ctx, false);
                     }
-                    TrayMenuAction::PopOut => {
-                        self.is_popout_mode = true;
-                        if let Ok(mut state) = self.state.lock() {
-                            state.selected_tab = SelectedTab::Summary;
-                        }
-                        self.pending_main_window_layout = true;
-                        self.anchor_main_window_to_pointer = true;
-                        self.layout_main_window(ctx, true);
-                    }
+                    TrayMenuAction::PopOut => self.activate_popout_mode(ctx),
                     TrayMenuAction::PopOutProvider(provider_name) => {
                         self.is_popout_mode = true;
                         if let Some(provider_id) = ProviderId::from_cli_name(&provider_name) {
