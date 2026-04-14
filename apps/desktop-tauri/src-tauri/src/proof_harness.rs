@@ -111,55 +111,73 @@ pub fn is_proof_mode(app: &AppHandle) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{LazyLock, Mutex};
 
-    // SAFETY: These tests manipulate env vars for the current process only.
-    // They are not run in parallel with other env-dependent tests.
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    fn with_proof_mode_env(value: Option<&str>, test: impl FnOnce()) {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let prev = std::env::var("CODEXBAR_PROOF_MODE").ok();
+
+        match value {
+            Some(value) => unsafe { std::env::set_var("CODEXBAR_PROOF_MODE", value) },
+            None => unsafe { std::env::remove_var("CODEXBAR_PROOF_MODE") },
+        }
+
+        test();
+
+        match prev {
+            Some(prev) => unsafe { std::env::set_var("CODEXBAR_PROOF_MODE", prev) },
+            None => unsafe { std::env::remove_var("CODEXBAR_PROOF_MODE") },
+        }
+    }
 
     #[test]
     fn parse_simple_surface() {
-        unsafe { std::env::set_var("CODEXBAR_PROOF_MODE", "trayPanel") };
-        let cfg = ProofConfig::from_env().unwrap();
-        assert_eq!(cfg.target_surface, "trayPanel");
-        assert!(cfg.settings_tab.is_none());
-        assert_eq!(cfg.surface_mode(), SurfaceMode::TrayPanel);
-        unsafe { std::env::remove_var("CODEXBAR_PROOF_MODE") };
+        with_proof_mode_env(Some("trayPanel"), || {
+            let cfg = ProofConfig::from_env().unwrap();
+            assert_eq!(cfg.target_surface, "trayPanel");
+            assert!(cfg.settings_tab.is_none());
+            assert_eq!(cfg.surface_mode(), SurfaceMode::TrayPanel);
+        });
     }
 
     #[test]
     fn parse_settings_with_tab() {
-        unsafe { std::env::set_var("CODEXBAR_PROOF_MODE", "settings:apiKeys") };
-        let cfg = ProofConfig::from_env().unwrap();
-        assert_eq!(cfg.target_surface, "settings");
-        assert_eq!(cfg.settings_tab.as_deref(), Some("apiKeys"));
-        assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
-        unsafe { std::env::remove_var("CODEXBAR_PROOF_MODE") };
+        with_proof_mode_env(Some("settings:apiKeys"), || {
+            let cfg = ProofConfig::from_env().unwrap();
+            assert_eq!(cfg.target_surface, "settings");
+            assert_eq!(cfg.settings_tab.as_deref(), Some("apiKeys"));
+            assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
+        });
     }
 
     #[test]
     fn empty_env_returns_none() {
-        unsafe { std::env::set_var("CODEXBAR_PROOF_MODE", "") };
-        assert!(ProofConfig::from_env().is_none());
-        unsafe { std::env::remove_var("CODEXBAR_PROOF_MODE") };
+        with_proof_mode_env(Some(""), || {
+            assert!(ProofConfig::from_env().is_none());
+        });
     }
 
     #[test]
     fn unset_env_returns_none() {
-        unsafe { std::env::remove_var("CODEXBAR_PROOF_MODE") };
-        assert!(ProofConfig::from_env().is_none());
+        with_proof_mode_env(None, || {
+            assert!(ProofConfig::from_env().is_none());
+        });
     }
 
     #[test]
     fn invalid_surface_returns_none() {
-        unsafe { std::env::set_var("CODEXBAR_PROOF_MODE", "bogus") };
-        assert!(ProofConfig::from_env().is_none());
-        unsafe { std::env::remove_var("CODEXBAR_PROOF_MODE") };
+        with_proof_mode_env(Some("bogus"), || {
+            assert!(ProofConfig::from_env().is_none());
+        });
     }
 
     #[test]
     fn pop_out_surface() {
-        unsafe { std::env::set_var("CODEXBAR_PROOF_MODE", "popOut") };
-        let cfg = ProofConfig::from_env().unwrap();
-        assert_eq!(cfg.surface_mode(), SurfaceMode::PopOut);
-        unsafe { std::env::remove_var("CODEXBAR_PROOF_MODE") };
+        with_proof_mode_env(Some("popOut"), || {
+            let cfg = ProofConfig::from_env().unwrap();
+            assert_eq!(cfg.surface_mode(), SurfaceMode::PopOut);
+        });
     }
 }

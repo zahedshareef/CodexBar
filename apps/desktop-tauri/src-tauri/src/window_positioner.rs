@@ -1,0 +1,256 @@
+// Public positioning API — consumed by the shell and tested here.
+#![allow(dead_code)]
+
+/// A rectangle in physical pixels (monitor work area or icon bounds).
+#[derive(Debug, Clone, Copy)]
+pub struct Rect {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Panel dimensions in logical pixels.
+#[derive(Debug, Clone, Copy)]
+pub struct PanelSize {
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Margin kept between the panel edge and the monitor work-area edge.
+const MARGIN: i32 = 8;
+
+/// Calculate panel position anchored to a tray icon rectangle.
+///
+/// Placement rules:
+/// - Horizontally centered on the icon, clamped to the monitor work area.
+/// - If the icon is in the bottom half of the monitor (bottom taskbar), the
+///   panel opens *above* the icon. Otherwise it opens *below*.
+pub fn calculate_panel_position(
+    icon_rect: &Rect,
+    monitor_rect: &Rect,
+    panel_size: &PanelSize,
+    _scale_factor: f64,
+) -> (i32, i32) {
+    let pw = panel_size.width as i32;
+    let ph = panel_size.height as i32;
+    let mx = monitor_rect.x;
+    let my = monitor_rect.y;
+    let mw = monitor_rect.width as i32;
+    let mh = monitor_rect.height as i32;
+
+    // Horizontal: center on icon, clamp to work area.
+    let icon_cx = icon_rect.x + (icon_rect.width as i32) / 2;
+    let x = (icon_cx - pw / 2)
+        .max(mx + MARGIN)
+        .min(mx + mw - pw - MARGIN);
+
+    // Vertical: above or below the icon depending on taskbar edge.
+    let icon_cy = icon_rect.y + (icon_rect.height as i32) / 2;
+    let monitor_cy = my + mh / 2;
+
+    let y = if icon_cy > monitor_cy {
+        // Bottom taskbar → open above.
+        (icon_rect.y - ph - MARGIN).max(my + MARGIN)
+    } else {
+        // Top taskbar → open below.
+        let below = icon_rect.y + icon_rect.height as i32 + MARGIN;
+        below.min(my + mh - ph - MARGIN)
+    };
+
+    (x, y)
+}
+
+/// Position for shortcut-triggered opening: 22 % from left, vertically centred.
+pub fn calculate_shortcut_position(
+    monitor_rect: &Rect,
+    panel_size: &PanelSize,
+    _scale_factor: f64,
+) -> (i32, i32) {
+    let pw = panel_size.width as i32;
+    let ph = panel_size.height as i32;
+    let mx = monitor_rect.x;
+    let my = monitor_rect.y;
+    let mw = monitor_rect.width as i32;
+    let mh = monitor_rect.height as i32;
+
+    let x = mx + ((mw as f64) * 0.22) as i32;
+    let y = my + (mh - ph) / 2;
+
+    let x = x.max(mx + MARGIN).min(mx + mw - pw - MARGIN);
+    let y = y.max(my + MARGIN).min(my + mh - ph - MARGIN);
+
+    (x, y)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn standard_monitor() -> Rect {
+        Rect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        }
+    }
+
+    fn panel() -> PanelSize {
+        PanelSize {
+            width: 420,
+            height: 560,
+        }
+    }
+
+    // --- tray-anchor tests ---
+
+    #[test]
+    fn bottom_taskbar_panel_opens_above() {
+        let icon = Rect {
+            x: 1800,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (_, y) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        assert!(y < icon.y, "panel should sit above the icon");
+    }
+
+    #[test]
+    fn top_taskbar_panel_opens_below() {
+        let icon = Rect {
+            x: 900,
+            y: 4,
+            width: 24,
+            height: 24,
+        };
+        let (_, y) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        assert!(
+            y >= icon.y + icon.height as i32,
+            "panel should sit below the icon"
+        );
+    }
+
+    #[test]
+    fn horizontal_centre_on_icon() {
+        let icon = Rect {
+            x: 960,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (x, _) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        let icon_cx = icon.x + 12;
+        let panel_cx = x + 210;
+        assert!(
+            (icon_cx - panel_cx).abs() <= 1,
+            "panel should be centred on icon (off by {})",
+            (icon_cx - panel_cx).abs()
+        );
+    }
+
+    #[test]
+    fn clamped_left_edge() {
+        let icon = Rect {
+            x: 0,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (x, _) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        assert!(x >= MARGIN, "panel must not exceed left margin");
+    }
+
+    #[test]
+    fn clamped_right_edge() {
+        let icon = Rect {
+            x: 1900,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (x, _) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        assert!(
+            x + panel().width as i32 + MARGIN <= 1920,
+            "panel must not exceed right margin"
+        );
+    }
+
+    #[test]
+    fn clamped_top_edge() {
+        let icon = Rect {
+            x: 960,
+            y: 4,
+            width: 24,
+            height: 24,
+        };
+        let (_, y) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        assert!(y >= MARGIN, "panel must not exceed top margin");
+    }
+
+    #[test]
+    fn multi_monitor_offset() {
+        let monitor = Rect {
+            x: 1920,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let icon = Rect {
+            x: 3700,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (x, _) = calculate_panel_position(&icon, &monitor, &panel(), 1.0);
+        assert!(x >= monitor.x + MARGIN);
+        assert!(x + panel().width as i32 + MARGIN <= monitor.x + monitor.width as i32);
+    }
+
+    #[test]
+    fn high_dpi_positioning() {
+        let icon = Rect {
+            x: 960,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (x1, y1) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        let (x2, y2) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 2.0);
+        // Pure pixel math — scale factor is forwarded but does not alter the
+        // result because inputs are already in physical pixels.
+        assert_eq!((x1, y1), (x2, y2));
+    }
+
+    // --- shortcut-anchor tests ---
+
+    #[test]
+    fn shortcut_position_22_pct_from_left() {
+        let (x, _) = calculate_shortcut_position(&standard_monitor(), &panel(), 1.0);
+        let expected_x = (1920.0 * 0.22) as i32;
+        assert_eq!(x, expected_x);
+    }
+
+    #[test]
+    fn shortcut_position_vertically_centred() {
+        let (_, y) = calculate_shortcut_position(&standard_monitor(), &panel(), 1.0);
+        let expected_y = (1080 - 560) / 2;
+        assert_eq!(y, expected_y);
+    }
+
+    #[test]
+    fn shortcut_clamped_small_monitor() {
+        let monitor = Rect {
+            x: 0,
+            y: 0,
+            width: 500,
+            height: 600,
+        };
+        let (x, y) = calculate_shortcut_position(&monitor, &panel(), 1.0);
+        assert!(x >= MARGIN);
+        assert!(x + panel().width as i32 + MARGIN <= monitor.width as i32);
+        assert!(y >= MARGIN);
+        assert!(y + panel().height as i32 + MARGIN <= monitor.height as i32);
+    }
+}
