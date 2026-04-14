@@ -8,7 +8,7 @@ use eframe::egui::{
 use image::ColorType;
 #[cfg(debug_assertions)]
 use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -372,6 +372,11 @@ fn string_json(value: &str) -> String {
     format!("\"{}\"", value.replace('\\', "\\\\").replace('\"', "\\\""))
 }
 
+#[cfg(debug_assertions)]
+fn debug_window_mode(is_popout_mode: bool) -> &'static str {
+    if is_popout_mode { "popout" } else { "popup" }
+}
+
 enum TrayUpdatePlan<'a> {
     Single(&'a ProviderUsage),
     Merged(&'a [ProviderUsage]),
@@ -522,6 +527,7 @@ fn write_debug_state_with_targets_file(
     preferences_viewport_outer_rect: Option<Rect>,
     preferences_settings: &super::preferences::PreferencesDebugSettingsSnapshot,
     tray_state_json: &str,
+    is_popout_mode: bool,
     api_key_status: &Option<super::preferences::PreferencesDebugStatusMessage>,
     cookie_status: &Option<super::preferences::PreferencesDebugStatusMessage>,
     pointer_snapshot: DebugPointerSnapshot,
@@ -602,7 +608,7 @@ fn write_debug_state_with_targets_file(
     );
 
     let payload = format!(
-        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"menu_bar_display_mode\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"switcher_shows_icons\":{},\"menu_bar_shows_highest_usage\":{},\"menu_bar_shows_percent\":{},\"show_all_token_accounts_in_menu\":{},\"tray_icon_mode\":{},\"selected_provider\":{},\"tray_state\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
+        "{{\"selected_tab\":\"{}\",\"preferences_open\":{},\"preferences_tab\":\"{}\",\"viewport_outer_rect\":{},\"preferences_viewport_outer_rect\":{},\"enabled_providers\":{},\"refresh_interval_secs\":{},\"menu_bar_display_mode\":{},\"reset_time_relative\":{},\"surprise_animations\":{},\"show_as_used\":{},\"show_credits_extra_usage\":{},\"merge_tray_icons\":{},\"switcher_shows_icons\":{},\"menu_bar_shows_highest_usage\":{},\"menu_bar_shows_percent\":{},\"show_all_token_accounts_in_menu\":{},\"tray_icon_mode\":{},\"window_mode\":{},\"selected_provider\":{},\"tray_state\":{},\"api_key_status\":{},\"cookie_status\":{},\"pointer\":{},\"tab_targets\":[{}],\"preferences_tab_targets\":[{}]}}\n",
         selected_tab.replace('\\', "\\\\").replace('\"', "\\\""),
         preferences_open,
         preferences_tab,
@@ -621,6 +627,7 @@ fn write_debug_state_with_targets_file(
         preferences_settings.menu_bar_shows_percent,
         preferences_settings.show_all_token_accounts_in_menu,
         string_json(&preferences_settings.tray_icon_mode),
+        string_json(debug_window_mode(is_popout_mode)),
         preferences_settings
             .selected_provider
             .as_ref()
@@ -1626,6 +1633,16 @@ impl CodexBarApp {
         self.anchor_main_window_to_pointer = true;
     }
 
+    fn activate_popout_mode(&mut self, ctx: &egui::Context) {
+        self.is_popout_mode = true;
+        if let Ok(mut state) = self.state.lock() {
+            state.selected_tab = SelectedTab::Summary;
+        }
+        self.pending_main_window_layout = true;
+        self.anchor_main_window_to_pointer = true;
+        self.layout_main_window(ctx, true);
+    }
+
     /// Exercises the same code-path as a real tray left-click: restore → position
     /// near tray → focus.  Unlike `open_main_window_for_testing` this uses the
     /// `TrayLeftClick` handler so proof scripts can verify the hybrid popup flow.
@@ -1686,11 +1703,83 @@ impl CodexBarApp {
     }
 
     #[cfg(debug_assertions)]
-    fn request_test_state_dump(&mut self, path: PathBuf, ctx: &egui::Context) {
-        tracing::debug!("Scheduling test state dump for {}", path.display());
-        self.open_main_window_for_testing(ctx);
-        self.pending_test_state_dump_path = Some(path);
-        self.pending_test_state_dump_delay_frames = 1;
+    fn request_test_state_dump(&mut self, path: PathBuf, _ctx: &egui::Context) {
+        tracing::debug!(
+            "Writing test state dump synchronously to {}",
+            path.display()
+        );
+        // Write immediately from raw_input_hook rather than deferring to update().
+        // The deferred mechanism is unreliable: egui's stale-repaint-request guard
+        // can prevent update() from being called again after a busy repaint burst,
+        // and changing window mode/decoration in open_main_window_for_testing can
+        // break the repaint cycle.  We have enough cached state (last_debug_*) to
+        // produce an accurate snapshot right now without waiting for another frame.
+        self.write_test_state_now(&path);
+    }
+
+    fn write_test_state_now(&mut self, path: &Path) {
+        let selected_tab = if let Ok(state) = self.state.lock() {
+            state.selected_tab
+        } else {
+            SelectedTab::Summary
+        };
+        let (
+            preferences_tab_targets,
+            preferences_viewport_outer_rect,
+            preferences_settings,
+            api_key_status,
+            cookie_status,
+        ) = self.preferences_window.debug_snapshot();
+        let preferences_tab_targets = preferences_tab_targets
+            .into_iter()
+            .map(|target| DebugTabTarget {
+                name: target.name,
+                rect: target.rect,
+                hovered: target.hovered,
+                contains_pointer: target.contains_pointer,
+                clicked: target.clicked,
+                pointer_button_down_on: target.pointer_button_down_on,
+                interact_pointer_pos: target.interact_pointer_pos,
+            })
+            .collect::<Vec<_>>();
+        let tray_state_json = self
+            .tray_manager
+            .as_ref()
+            .and_then(|tray| serde_json::to_string(&tray.debug_snapshot()).ok())
+            .unwrap_or_else(|| "null".to_string());
+        if let Err(error) = write_debug_state_with_targets_file(
+            path,
+            &selected_tab,
+            self.preferences_window.is_open,
+            &self.preferences_window.active_tab,
+            if self.latched_debug_tab_targets.is_empty() {
+                &self.last_debug_tab_targets
+            } else {
+                &self.latched_debug_tab_targets
+            },
+            self.latched_debug_viewport_outer_rect
+                .or(self.last_debug_viewport_outer_rect),
+            &preferences_tab_targets,
+            preferences_viewport_outer_rect,
+            &preferences_settings,
+            &tray_state_json,
+            self.is_popout_mode,
+            &api_key_status,
+            &cookie_status,
+            if self.latched_debug_tab_targets.is_empty() {
+                self.last_debug_pointer_snapshot
+            } else {
+                self.latched_debug_pointer_snapshot
+            },
+        ) {
+            tracing::warn!(
+                "Failed to write test state dump to {}: {}",
+                path.display(),
+                error
+            );
+        } else {
+            tracing::info!("Wrote test state dump to {}", path.display());
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -1947,9 +2036,16 @@ impl CodexBarApp {
             target_y.clamp(min_y, max_y)
         };
 
-        // Apply window chrome based on mode: borderless panel vs decorated popout
+        // Apply window chrome based on mode: borderless panel vs decorated popout.
+        // Popouts should behave like normal windows instead of inheriting the
+        // tray popup's always-on-top behavior.
         ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(self.is_popout_mode));
         ctx.send_viewport_cmd(egui::ViewportCommand::Resizable(self.is_popout_mode));
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(if self.is_popout_mode {
+            egui::WindowLevel::Normal
+        } else {
+            egui::WindowLevel::AlwaysOnTop
+        }));
 
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(x, y)));
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -2427,6 +2523,9 @@ impl eframe::App for CodexBarApp {
                     super::test_server::TestInput::SimulateTrayLeftClick => {
                         self.simulate_tray_left_click(_ctx);
                     }
+                    super::test_server::TestInput::SimulateTrayPopOut => {
+                        self.activate_popout_mode(_ctx);
+                    }
                 }
             }
         }
@@ -2737,15 +2836,7 @@ impl eframe::App for CodexBarApp {
                         self.anchor_main_window_to_pointer = false;
                         self.layout_main_window(ctx, false);
                     }
-                    TrayMenuAction::PopOut => {
-                        self.is_popout_mode = true;
-                        if let Ok(mut state) = self.state.lock() {
-                            state.selected_tab = SelectedTab::Summary;
-                        }
-                        self.pending_main_window_layout = true;
-                        self.anchor_main_window_to_pointer = true;
-                        self.layout_main_window(ctx, true);
-                    }
+                    TrayMenuAction::PopOut => self.activate_popout_mode(ctx),
                     TrayMenuAction::PopOutProvider(provider_name) => {
                         self.is_popout_mode = true;
                         if let Some(provider_id) = ProviderId::from_cli_name(&provider_name) {
@@ -3493,68 +3584,13 @@ impl eframe::App for CodexBarApp {
         }
 
         #[cfg(debug_assertions)]
-        if let Some(path) = self.pending_test_state_dump_path.clone() {
+        if let Some(path) = self.pending_test_state_dump_path.take() {
             if self.pending_test_state_dump_delay_frames > 0 {
                 self.pending_test_state_dump_delay_frames -= 1;
+                self.pending_test_state_dump_path = Some(path);
                 ctx.request_repaint();
             } else {
-                self.pending_test_state_dump_path = None;
-                let (
-                    preferences_tab_targets,
-                    preferences_viewport_outer_rect,
-                    preferences_settings,
-                    api_key_status,
-                    cookie_status,
-                ) = self.preferences_window.debug_snapshot();
-                let preferences_tab_targets = preferences_tab_targets
-                    .into_iter()
-                    .map(|target| DebugTabTarget {
-                        name: target.name,
-                        rect: target.rect,
-                        hovered: target.hovered,
-                        contains_pointer: target.contains_pointer,
-                        clicked: target.clicked,
-                        pointer_button_down_on: target.pointer_button_down_on,
-                        interact_pointer_pos: target.interact_pointer_pos,
-                    })
-                    .collect::<Vec<_>>();
-                let tray_state_json = self
-                    .tray_manager
-                    .as_ref()
-                    .and_then(|tray| serde_json::to_string(&tray.debug_snapshot()).ok())
-                    .unwrap_or_else(|| "null".to_string());
-                if let Err(error) = write_debug_state_with_targets_file(
-                    &path,
-                    &selected_tab,
-                    self.preferences_window.is_open,
-                    &self.preferences_window.active_tab,
-                    if self.latched_debug_tab_targets.is_empty() {
-                        &self.last_debug_tab_targets
-                    } else {
-                        &self.latched_debug_tab_targets
-                    },
-                    self.latched_debug_viewport_outer_rect
-                        .or(self.last_debug_viewport_outer_rect),
-                    &preferences_tab_targets,
-                    preferences_viewport_outer_rect,
-                    &preferences_settings,
-                    &tray_state_json,
-                    &api_key_status,
-                    &cookie_status,
-                    if self.latched_debug_tab_targets.is_empty() {
-                        self.last_debug_pointer_snapshot
-                    } else {
-                        self.latched_debug_pointer_snapshot
-                    },
-                ) {
-                    tracing::warn!(
-                        "Failed to write test state dump to {}: {}",
-                        path.display(),
-                        error
-                    );
-                } else {
-                    tracing::info!("Wrote test state dump to {}", path.display());
-                }
+                self.write_test_state_now(&path);
             }
         }
 
@@ -4282,7 +4318,7 @@ mod tests {
     use super::{
         PerProviderTrayRuntimeState, ProviderData, TrayRuntimeState, TrayUpdatePlan, append_font,
         build_test_click_event_batches, choose_tray_runtime_state, choose_tray_update_plan,
-        launch_block_reason, main_window_summary_height, prepend_font,
+        debug_window_mode, launch_block_reason, main_window_summary_height, prepend_font,
         remote_session_error_message, should_auto_refresh, should_recreate_tray_manager,
         should_show_provider, ssh_session_error_message, startup_last_refresh, startup_popout_mode,
     };
@@ -4387,6 +4423,12 @@ mod tests {
     fn trayless_startup_uses_popout_mode_only_without_forced_visible() {
         assert!(startup_popout_mode(false, false));
         assert!(!startup_popout_mode(false, true));
+    }
+
+    #[test]
+    fn debug_window_mode_reports_popup_and_popout() {
+        assert_eq!(debug_window_mode(false), "popup");
+        assert_eq!(debug_window_mode(true), "popout");
     }
 
     #[test]

@@ -2535,6 +2535,14 @@ mod tests {
     }
 
     #[test]
+    fn test_tray_action_from_event_id_maps_top_level_popout() {
+        assert_eq!(
+            tray_action_from_event_id("popout"),
+            Some(TrayMenuAction::PopOut)
+        );
+    }
+
+    #[test]
     fn test_tray_action_status_rows_are_inert() {
         // Single-tray status rows must not trigger any action
         assert_eq!(tray_action_from_event_id("status_claude"), None);
