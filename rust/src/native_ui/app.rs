@@ -248,11 +248,15 @@ fn show_remote_session_error_dialog() {
 }
 
 fn build_native_options() -> eframe::NativeOptions {
+    let force_start_visible = std::env::var_os("CODEXBAR_START_VISIBLE").is_some();
     let viewport = egui::ViewportBuilder::default()
         .with_inner_size([360.0, 500.0])
         .with_min_inner_size([320.0, 240.0])
         .with_clamp_size_to_monitor_size(true)
-        .with_visible(false)
+        .with_visible(force_start_visible)
+        // Forced-visible startup is for automation/proof flows. Keep the native
+        // popup chrome consistent with normal tray-open behavior unless we later
+        // detect that the tray is unavailable and explicitly switch to popout.
         .with_resizable(false)
         .with_decorations(false)
         .with_transparent(false)
@@ -265,6 +269,10 @@ fn build_native_options() -> eframe::NativeOptions {
         persist_window: false, // Don't persist window state
         ..Default::default()
     }
+}
+
+fn startup_popout_mode(force_start_visible: bool, tray_manager_available: bool) -> bool {
+    !tray_manager_available && !force_start_visible
 }
 
 #[cfg(debug_assertions)]
@@ -1480,6 +1488,11 @@ impl CodexBarApp {
             }
         };
 
+        let force_start_visible = std::env::var_os("CODEXBAR_START_VISIBLE").is_some();
+        let tray_manager_available = tray_manager.is_some();
+        let start_visible_without_tray = force_start_visible || !tray_manager_available;
+        let start_in_popout_mode = startup_popout_mode(force_start_visible, tray_manager_available);
+
         // Initialize test input queue and start server (debug builds only)
         #[cfg(debug_assertions)]
         let test_input_queue = {
@@ -1488,11 +1501,27 @@ impl CodexBarApp {
             q
         };
 
-        // Tray-first: window starts hidden in both debug and release.
-        // Automation/test flows use the test server's OpenWindow command to show it.
-        append_launch_log("CodexBarApp::new startup hidden to tray");
-        cc.egui_ctx
-            .send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        if start_visible_without_tray {
+            if force_start_visible {
+                tracing::info!("CODEXBAR_START_VISIBLE is set; opening main window at startup");
+                append_launch_log("CodexBarApp::new forced visible via CODEXBAR_START_VISIBLE");
+            } else {
+                tracing::warn!(
+                    "Tray manager unavailable; opening main window so the app remains reachable"
+                );
+                append_launch_log("CodexBarApp::new tray unavailable; opening main window");
+            }
+            cc.egui_ctx
+                .send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            cc.egui_ctx
+                .send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        } else {
+            // Tray-first: window starts hidden in both debug and release.
+            // Automation/test flows use the test server's OpenWindow command to show it.
+            append_launch_log("CodexBarApp::new startup hidden to tray");
+            cc.egui_ctx
+                .send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
 
         append_launch_log("CodexBarApp::new completed");
 
@@ -1505,10 +1534,10 @@ impl CodexBarApp {
             shortcut_manager,
             icon_cache: ProviderIconCache::new(),
             was_refreshing: false,
-            pending_main_window_layout: false,
+            pending_main_window_layout: start_visible_without_tray,
             anchor_main_window_to_pointer: false,
             tray_anchor_pos: None,
-            is_popout_mode: false,
+            is_popout_mode: start_in_popout_mode,
             notification_manager: Arc::new(Mutex::new(NotificationManager::new())),
             #[cfg(debug_assertions)]
             test_input_queue,
@@ -4255,7 +4284,7 @@ mod tests {
         build_test_click_event_batches, choose_tray_runtime_state, choose_tray_update_plan,
         launch_block_reason, main_window_summary_height, prepend_font,
         remote_session_error_message, should_auto_refresh, should_recreate_tray_manager,
-        should_show_provider, ssh_session_error_message, startup_last_refresh,
+        should_show_provider, ssh_session_error_message, startup_last_refresh, startup_popout_mode,
     };
     use crate::core::ProviderId;
     use crate::settings::{Settings, TrayIconMode};
@@ -4346,6 +4375,18 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn forced_visible_startup_stays_in_popup_mode() {
+        assert!(!startup_popout_mode(true, true));
+        assert!(!startup_popout_mode(true, false));
+    }
+
+    #[test]
+    fn trayless_startup_uses_popout_mode_only_without_forced_visible() {
+        assert!(startup_popout_mode(false, false));
+        assert!(!startup_popout_mode(false, true));
     }
 
     #[test]
