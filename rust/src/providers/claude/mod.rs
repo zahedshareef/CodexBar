@@ -7,6 +7,8 @@ use async_trait::async_trait;
 use regex_lite::Regex;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+#[cfg(windows)]
+use std::process::Command as StdCommand;
 use std::process::Stdio;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
@@ -200,6 +202,27 @@ impl ClaudeProvider {
                 "Authentication error. Run `claude login`.".to_string(),
             ));
         }
+        if lowered.contains("requires git-bash") {
+            return Err(ProviderError::Other(
+                "Claude CLI requires Git Bash on Windows. Install Git for Windows or set \
+                 CLAUDE_CODE_GIT_BASH_PATH to your bash.exe path."
+                    .to_string(),
+            ));
+        }
+        if lowered.contains("running scripts is disabled") {
+            return Err(ProviderError::Other(
+                "Claude CLI could not start because PowerShell script execution is disabled. \
+                 Use claude.cmd or adjust the execution policy."
+                    .to_string(),
+            ));
+        }
+        if lowered.contains("cannot run a document in the middle of a pipeline") {
+            return Err(ProviderError::Other(
+                "Claude CLI resolved to a Unix shell script on Windows. Reinstall Claude Code or \
+                 ensure claude.cmd is first on PATH."
+                    .to_string(),
+            ));
+        }
 
         // Parse the usage output
         self.parse_cli_output(&combined)
@@ -250,6 +273,16 @@ impl ClaudeProvider {
             if all_percents.len() > 2 && opus_percent.is_none() {
                 opus_percent = Some(all_percents[2]);
             }
+        }
+
+        if session_percent.is_none()
+            && weekly_percent.is_none()
+            && opus_percent.is_none()
+            && !clean_lower.contains("out of extra usage")
+        {
+            return Err(ProviderError::Parse(
+                "Claude CLI did not return usage data".to_string(),
+            ));
         }
 
         // Extract identity info
@@ -312,17 +345,64 @@ impl ClaudeProvider {
 
 /// Try to find the claude CLI binary
 fn which_claude() -> Option<std::path::PathBuf> {
-    // Check common locations on Windows
-    let possible_paths = [
-        // In PATH
-        which::which("claude").ok(),
-        // AppData locations
-        dirs::data_local_dir().map(|p| p.join("Programs").join("claude").join("claude.exe")),
-        // npm global install
-        dirs::data_dir().map(|p| p.join("npm").join("claude.cmd")),
-    ];
+    #[cfg(windows)]
+    {
+        let candidates = [
+            dirs::data_local_dir().map(|p| p.join("Programs").join("claude").join("claude.exe")),
+            dirs::data_local_dir().map(|p| p.join("npm").join("claude.cmd")),
+            dirs::home_dir().map(|h| {
+                h.join("AppData")
+                    .join("Roaming")
+                    .join("npm")
+                    .join("claude.cmd")
+            }),
+            find_windows_claude_in_path(),
+        ];
 
-    possible_paths.into_iter().flatten().find(|p| p.exists())
+        return candidates.into_iter().flatten().find(|p| p.exists());
+    }
+
+    #[cfg(not(windows))]
+    {
+        which::which("claude").ok()
+    }
+}
+
+#[cfg(windows)]
+fn find_windows_claude_in_path() -> Option<std::path::PathBuf> {
+    let output = StdCommand::new("where")
+        .arg("claude")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let mut matches: Vec<_> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(std::path::PathBuf::from)
+        .collect();
+
+    matches.sort_by_key(|path| {
+        match path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|ext| ext.to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("cmd") => 0,
+            Some("bat") => 1,
+            Some("exe") => 2,
+            _ => 3,
+        }
+    });
+
+    matches.into_iter().find(|path| path.exists())
 }
 
 /// Detect the version of the claude CLI
@@ -599,6 +679,22 @@ Status   Config   Usage
         assert_eq!(
             result.usage.primary.reset_description.as_deref(),
             Some("resets 12pm (America/Bogota)")
+        );
+    }
+
+    #[test]
+    fn rejects_cli_output_without_usage_markers() {
+        let provider = ClaudeProvider::new();
+        let output = "Claude Code on Windows requires git-bash.";
+
+        let err = provider
+            .parse_cli_output(output)
+            .expect_err("should reject non-usage output");
+
+        assert!(matches!(err, ProviderError::Parse(_)));
+        assert_eq!(
+            err.to_string(),
+            "Parse error: Claude CLI did not return usage data"
         );
     }
 }
