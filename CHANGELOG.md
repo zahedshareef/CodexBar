@@ -28,6 +28,7 @@
 
 ## 0.18.0 — Unreleased
 ### Providers
+- Claude: harden Windows CLI detection, prefer `.cmd` wrappers on PATH, and surface clearer startup errors for Git Bash / PowerShell wrapper failures.
 - OpenCode: add web usage provider with workspace override + Chrome-first cookie import (#188). Thanks @anthnykr!
 - Providers: cache browser cookies on disk (per provider) and show cached source/time in settings.
 - Vertex AI: add provider with quota-based usage from gcloud ADC. Thanks @bahag-chaurasiak!
@@ -43,8 +44,10 @@
 - Codex/Claude/Cursor/Factory/MiniMax: skip cookie imports from browsers without usable cookie stores (profile/cookie DB) to avoid unnecessary Keychain prompts.
 - Claude: fix OAuth “Extra usage” spend/limit units when the API returns minor currency units (#97).
 - Usage formatting: fix currency parsing/formatting on non-US locales (e.g., pt-BR). Thanks @mneves75!
+- Antigravity: compile Windows probe regexes once instead of rebuilding them on each scan.
 
 ### Preferences & UI
+- Windows: open the main window automatically when tray startup is unavailable, and support `CODEXBAR_START_VISIBLE` for proof/automation flows.
 - Preferences: move “Access OpenAI via web” into Providers → Codex.
 - Preferences: add usage source pickers for Codex + Claude with auto fallback.
 - Preferences: add cookie source pickers with contextual helper text for the selected mode.
@@ -65,6 +68,9 @@
 - CLI: respect the reset time display setting.
 
 ### Dev & Tests
+- Windows: switch eframe from `glow` to `wgpu` to avoid legacy OpenGL renderer issues in the VM.
+- Dev: ignore VM proof screenshots and throwaway launcher scripts in git.
+- Browser detection: remove an unused `find_browser_with_cookies` stub.
 - Dev: move Chromium profile discovery into SweetCookieKit (adds Helium net.imput.helium). Thanks @hhushhas!
 - Dev: bump SweetCookieKit to 0.2.0.
 - Dev: migrate stored Keychain items to reduce rebuild prompts.

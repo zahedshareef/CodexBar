@@ -259,14 +259,6 @@ impl BrowserDetector {
 
         profiles
     }
-
-    /// Find the best browser for a specific domain
-    /// Returns the first browser that has cookies for the domain
-    pub fn find_browser_with_cookies(_domain: &str) -> Option<DetectedBrowser> {
-        // For now, just return the first detected browser
-        // TODO: Actually check for cookies
-        Self::detect_all().into_iter().next()
-    }
 }
 
 #[cfg(test)]
