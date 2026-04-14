@@ -72,3 +72,15 @@ nul
 !/scripts/vm/windows_debug_relaunch.ps1
 version.env
 .stfolder-win-codexbar/
+
+# VM proof artifacts (screenshots/captures from Windows VM sessions)
+win11-*.png
+win11-*.ppm
+win11-*.json
+session1-*.png
+session1-*.txt
+*.ppm
+
+# Throwaway launch scripts
+launch-cb-nossh.cmd
+launch-cb.cmd
