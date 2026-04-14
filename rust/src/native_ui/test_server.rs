@@ -178,6 +178,13 @@ pub fn start_server(queue: TestInputQueue, repaint_ctx: egui::Context) {
                         if let Ok(mut q) = queue.lock() {
                             q.push(input);
                         }
+                        // On Windows the egui window may be hidden (WS_VISIBLE cleared)
+                        // after startup.  RedrawWindow(RDW_INTERNALPAINT) does NOT post
+                        // WM_PAINT to hidden windows, so request_repaint() alone cannot
+                        // wake up raw_input_hook / update().  Call ShowWindow directly
+                        // so the OS marks the window visible before we request the repaint.
+                        #[cfg(target_os = "windows")]
+                        show_main_window_for_test();
                         repaint_ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                         repaint_ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
                         repaint_ctx.request_repaint();
@@ -189,6 +196,50 @@ pub fn start_server(queue: TestInputQueue, repaint_ctx: egui::Context) {
             }
         }
     });
+}
+
+/// Show the main CodexBar window using Win32 so the event loop can repaint
+/// even when egui has hidden it via `ViewportCommand::Visible(false)`.
+///
+/// This is a thread-safe direct Win32 call and does not require the UI thread.
+#[cfg(target_os = "windows")]
+fn show_main_window_for_test() {
+    use windows::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GWL_EXSTYLE, GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW,
+        GetWindowThreadProcessId, SW_SHOWNOACTIVATE, ShowWindow, WS_EX_TOOLWINDOW,
+    };
+
+    unsafe extern "system" fn enum_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let pid = lparam.0 as u32;
+        let mut wnd_pid = 0u32;
+        unsafe { GetWindowThreadProcessId(hwnd, Some(&mut wnd_pid)) };
+        if wnd_pid != pid {
+            return true.into();
+        }
+        let ex_style = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32 };
+        if ex_style & WS_EX_TOOLWINDOW.0 != 0 {
+            return true.into();
+        }
+        let text_len = unsafe { GetWindowTextLengthW(hwnd) };
+        if text_len > 0 {
+            let mut buf = vec![0u16; text_len as usize + 1];
+            let copied = unsafe { GetWindowTextW(hwnd, &mut buf) };
+            if copied > 0 {
+                let title = String::from_utf16_lossy(&buf[..copied as usize]);
+                if title == "CodexBar" {
+                    let _ = unsafe { ShowWindow(hwnd, SW_SHOWNOACTIVATE) };
+                    return false.into(); // stop enumeration
+                }
+            }
+        }
+        true.into()
+    }
+
+    let pid = std::process::id();
+    unsafe {
+        let _ = EnumWindows(Some(enum_proc), LPARAM(pid as isize));
+    }
 }
 
 fn parse_test_input(json: &str) -> Option<TestInput> {

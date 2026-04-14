@@ -8,7 +8,7 @@ use eframe::egui::{
 use image::ColorType;
 #[cfg(debug_assertions)]
 use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -1703,11 +1703,83 @@ impl CodexBarApp {
     }
 
     #[cfg(debug_assertions)]
-    fn request_test_state_dump(&mut self, path: PathBuf, ctx: &egui::Context) {
-        tracing::debug!("Scheduling test state dump for {}", path.display());
-        self.open_main_window_for_testing(ctx);
-        self.pending_test_state_dump_path = Some(path);
-        self.pending_test_state_dump_delay_frames = 1;
+    fn request_test_state_dump(&mut self, path: PathBuf, _ctx: &egui::Context) {
+        tracing::debug!(
+            "Writing test state dump synchronously to {}",
+            path.display()
+        );
+        // Write immediately from raw_input_hook rather than deferring to update().
+        // The deferred mechanism is unreliable: egui's stale-repaint-request guard
+        // can prevent update() from being called again after a busy repaint burst,
+        // and changing window mode/decoration in open_main_window_for_testing can
+        // break the repaint cycle.  We have enough cached state (last_debug_*) to
+        // produce an accurate snapshot right now without waiting for another frame.
+        self.write_test_state_now(&path);
+    }
+
+    fn write_test_state_now(&mut self, path: &Path) {
+        let selected_tab = if let Ok(state) = self.state.lock() {
+            state.selected_tab
+        } else {
+            SelectedTab::Summary
+        };
+        let (
+            preferences_tab_targets,
+            preferences_viewport_outer_rect,
+            preferences_settings,
+            api_key_status,
+            cookie_status,
+        ) = self.preferences_window.debug_snapshot();
+        let preferences_tab_targets = preferences_tab_targets
+            .into_iter()
+            .map(|target| DebugTabTarget {
+                name: target.name,
+                rect: target.rect,
+                hovered: target.hovered,
+                contains_pointer: target.contains_pointer,
+                clicked: target.clicked,
+                pointer_button_down_on: target.pointer_button_down_on,
+                interact_pointer_pos: target.interact_pointer_pos,
+            })
+            .collect::<Vec<_>>();
+        let tray_state_json = self
+            .tray_manager
+            .as_ref()
+            .and_then(|tray| serde_json::to_string(&tray.debug_snapshot()).ok())
+            .unwrap_or_else(|| "null".to_string());
+        if let Err(error) = write_debug_state_with_targets_file(
+            path,
+            &selected_tab,
+            self.preferences_window.is_open,
+            &self.preferences_window.active_tab,
+            if self.latched_debug_tab_targets.is_empty() {
+                &self.last_debug_tab_targets
+            } else {
+                &self.latched_debug_tab_targets
+            },
+            self.latched_debug_viewport_outer_rect
+                .or(self.last_debug_viewport_outer_rect),
+            &preferences_tab_targets,
+            preferences_viewport_outer_rect,
+            &preferences_settings,
+            &tray_state_json,
+            self.is_popout_mode,
+            &api_key_status,
+            &cookie_status,
+            if self.latched_debug_tab_targets.is_empty() {
+                self.last_debug_pointer_snapshot
+            } else {
+                self.latched_debug_pointer_snapshot
+            },
+        ) {
+            tracing::warn!(
+                "Failed to write test state dump to {}: {}",
+                path.display(),
+                error
+            );
+        } else {
+            tracing::info!("Wrote test state dump to {}", path.display());
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -1964,9 +2036,16 @@ impl CodexBarApp {
             target_y.clamp(min_y, max_y)
         };
 
-        // Apply window chrome based on mode: borderless panel vs decorated popout
+        // Apply window chrome based on mode: borderless panel vs decorated popout.
+        // Popouts should behave like normal windows instead of inheriting the
+        // tray popup's always-on-top behavior.
         ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(self.is_popout_mode));
         ctx.send_viewport_cmd(egui::ViewportCommand::Resizable(self.is_popout_mode));
+        ctx.send_viewport_cmd(egui::ViewportCommand::WindowLevel(if self.is_popout_mode {
+            egui::WindowLevel::Normal
+        } else {
+            egui::WindowLevel::AlwaysOnTop
+        }));
 
         ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(x, y)));
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
@@ -3505,69 +3584,13 @@ impl eframe::App for CodexBarApp {
         }
 
         #[cfg(debug_assertions)]
-        if let Some(path) = self.pending_test_state_dump_path.clone() {
+        if let Some(path) = self.pending_test_state_dump_path.take() {
             if self.pending_test_state_dump_delay_frames > 0 {
                 self.pending_test_state_dump_delay_frames -= 1;
+                self.pending_test_state_dump_path = Some(path);
                 ctx.request_repaint();
             } else {
-                self.pending_test_state_dump_path = None;
-                let (
-                    preferences_tab_targets,
-                    preferences_viewport_outer_rect,
-                    preferences_settings,
-                    api_key_status,
-                    cookie_status,
-                ) = self.preferences_window.debug_snapshot();
-                let preferences_tab_targets = preferences_tab_targets
-                    .into_iter()
-                    .map(|target| DebugTabTarget {
-                        name: target.name,
-                        rect: target.rect,
-                        hovered: target.hovered,
-                        contains_pointer: target.contains_pointer,
-                        clicked: target.clicked,
-                        pointer_button_down_on: target.pointer_button_down_on,
-                        interact_pointer_pos: target.interact_pointer_pos,
-                    })
-                    .collect::<Vec<_>>();
-                let tray_state_json = self
-                    .tray_manager
-                    .as_ref()
-                    .and_then(|tray| serde_json::to_string(&tray.debug_snapshot()).ok())
-                    .unwrap_or_else(|| "null".to_string());
-                if let Err(error) = write_debug_state_with_targets_file(
-                    &path,
-                    &selected_tab,
-                    self.preferences_window.is_open,
-                    &self.preferences_window.active_tab,
-                    if self.latched_debug_tab_targets.is_empty() {
-                        &self.last_debug_tab_targets
-                    } else {
-                        &self.latched_debug_tab_targets
-                    },
-                    self.latched_debug_viewport_outer_rect
-                        .or(self.last_debug_viewport_outer_rect),
-                    &preferences_tab_targets,
-                    preferences_viewport_outer_rect,
-                    &preferences_settings,
-                    &tray_state_json,
-                    self.is_popout_mode,
-                    &api_key_status,
-                    &cookie_status,
-                    if self.latched_debug_tab_targets.is_empty() {
-                        self.last_debug_pointer_snapshot
-                    } else {
-                        self.latched_debug_pointer_snapshot
-                    },
-                ) {
-                    tracing::warn!(
-                        "Failed to write test state dump to {}: {}",
-                        path.display(),
-                        error
-                    );
-                } else {
-                    tracing::info!("Wrote test state dump to {}", path.display());
-                }
+                self.write_test_state_now(&path);
             }
         }
 
