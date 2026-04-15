@@ -1353,6 +1353,53 @@ fn cjk_font_candidates() -> &'static [(&'static str, &'static str)] {
     ]
 }
 
+/// Whether the popout anchor was derived from the tray icon or a fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AnchorSource {
+    Tray,
+    Fallback,
+}
+
+/// Placement strategy for tray-triggered popouts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PopoutPlacementMode {
+    TrayOrBottomRightFallback,
+}
+
+/// Intermediate result from `prepare_tray_popout_position`.
+#[derive(Debug, Clone, PartialEq)]
+struct PopoutPlacementRequest {
+    anchor_source: AnchorSource,
+    mode: PopoutPlacementMode,
+    /// Physical-pixel tray icon centre, if resolved.
+    tray_anchor: Option<(i32, i32)>,
+}
+
+/// Resolve tray placement state *before* calling `layout_main_window`.
+///
+/// `tray_rect` should come from `tray_manager.rect()`.  When it is present
+/// the returned request uses `AnchorSource::Tray` and includes the tray
+/// centre coordinates.  When it is absent the request falls back to
+/// `AnchorSource::Fallback` so `layout_main_window` can use bottom-right
+/// work-area placement.
+fn prepare_tray_popout_position(tray_rect: Option<tray_icon::Rect>) -> PopoutPlacementRequest {
+    if let Some(r) = tray_rect {
+        let cx = r.position.x as i32 + r.size.width as i32 / 2;
+        let cy = r.position.y as i32;
+        PopoutPlacementRequest {
+            anchor_source: AnchorSource::Tray,
+            mode: PopoutPlacementMode::TrayOrBottomRightFallback,
+            tray_anchor: Some((cx, cy)),
+        }
+    } else {
+        PopoutPlacementRequest {
+            anchor_source: AnchorSource::Fallback,
+            mode: PopoutPlacementMode::TrayOrBottomRightFallback,
+            tray_anchor: None,
+        }
+    }
+}
+
 /// Compute the target position for a popout (detached) window.
 ///
 /// When a tray anchor is available the window is placed right-aligned near
@@ -1360,7 +1407,7 @@ fn cjk_font_candidates() -> &'static [(&'static str, &'static str)] {
 /// falls back to the bottom-right corner of the work area.  The result is
 /// always clamped inside `work_area`.
 ///
-/// Wired into `layout_main_window` / `activate_popout_mode` in a follow-up task.
+/// Wired into `layout_main_window` in a follow-up task (Task 3).
 #[allow(dead_code)]
 fn compute_popout_target(
     tray_anchor: Option<egui::Pos2>,
@@ -1686,9 +1733,20 @@ impl CodexBarApp {
         if let Ok(mut state) = self.state.lock() {
             state.selected_tab = SelectedTab::Summary;
         }
+        self.prepare_tray_popout_position();
+        self.layout_main_window(ctx, false);
+    }
+
+    /// Resolve the tray icon rect and set placement state for a tray-triggered
+    /// popout.  Must be called before `layout_main_window`.
+    fn prepare_tray_popout_position(&mut self) {
+        let tray_rect = self.tray_manager.as_ref().and_then(|tm| tm.rect());
+        let request = prepare_tray_popout_position(tray_rect);
+        if let Some(anchor) = request.tray_anchor {
+            self.tray_anchor_pos = Some(anchor);
+        }
         self.pending_main_window_layout = true;
-        self.anchor_main_window_to_pointer = true;
-        self.layout_main_window(ctx, true);
+        self.anchor_main_window_to_pointer = false;
     }
 
     /// Exercises the same code-path as a real tray left-click: restore → position
@@ -2891,9 +2949,8 @@ impl eframe::App for CodexBarApp {
                             if let Ok(mut state) = self.state.lock() {
                                 state.selected_tab = SelectedTab::Provider(provider_id);
                             }
-                            self.pending_main_window_layout = true;
-                            self.anchor_main_window_to_pointer = true;
-                            self.layout_main_window(ctx, true);
+                            self.prepare_tray_popout_position();
+                            self.layout_main_window(ctx, false);
                         }
                     }
                     TrayMenuAction::Refresh => {
@@ -4364,12 +4421,13 @@ pub fn run() -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        PerProviderTrayRuntimeState, ProviderData, TrayRuntimeState, TrayUpdatePlan, append_font,
-        build_test_click_event_batches, choose_tray_runtime_state, choose_tray_update_plan,
-        compute_popout_target, debug_window_mode, launch_block_reason, main_window_summary_height,
-        prepend_font, remote_session_error_message, should_auto_refresh,
-        should_recreate_tray_manager, should_show_provider, ssh_session_error_message,
-        startup_last_refresh, startup_popout_mode,
+        AnchorSource, PerProviderTrayRuntimeState, PopoutPlacementMode, ProviderData,
+        TrayRuntimeState, TrayUpdatePlan, append_font, build_test_click_event_batches,
+        choose_tray_runtime_state, choose_tray_update_plan, compute_popout_target,
+        debug_window_mode, launch_block_reason, main_window_summary_height,
+        prepare_tray_popout_position, prepend_font, remote_session_error_message,
+        should_auto_refresh, should_recreate_tray_manager, should_show_provider,
+        ssh_session_error_message, startup_last_refresh, startup_popout_mode,
     };
     use crate::core::ProviderId;
     use crate::settings::{Settings, TrayIconMode};
@@ -4805,5 +4863,46 @@ mod tests {
         let tray_anchor = Some(pos2(1915.0, 1075.0));
         let placement = compute_popout_target(tray_anchor, popout_work_area(), popout_size());
         assert!(placement.x <= 1568.0, "x={} should be clamped", placement.x);
+    }
+
+    // -- tray popout preparation tests ---------------------------------------
+
+    fn tray_rect() -> tray_icon::Rect {
+        tray_icon::Rect {
+            position: tray_icon::dpi::PhysicalPosition {
+                x: 1800.0,
+                y: 1040.0,
+            },
+            size: tray_icon::dpi::PhysicalSize {
+                width: 24,
+                height: 24,
+            },
+        }
+    }
+
+    #[test]
+    fn tray_popout_preparation_prefers_tray_rect_over_pointer_anchor() {
+        let request = prepare_tray_popout_position(Some(tray_rect()));
+        assert_eq!(request.anchor_source, AnchorSource::Tray);
+    }
+
+    #[test]
+    fn tray_popout_provider_uses_same_preparation_path() {
+        let request = prepare_tray_popout_position(Some(tray_rect()));
+        assert_eq!(request.mode, PopoutPlacementMode::TrayOrBottomRightFallback);
+    }
+
+    #[test]
+    fn tray_popout_preparation_falls_back_without_rect() {
+        let request = prepare_tray_popout_position(None);
+        assert_eq!(request.anchor_source, AnchorSource::Fallback);
+        assert!(request.tray_anchor.is_none());
+    }
+
+    #[test]
+    fn tray_popout_preparation_extracts_centre_coords() {
+        let request = prepare_tray_popout_position(Some(tray_rect()));
+        // centre x = 1800 + 24/2 = 1812,  top y = 1040
+        assert_eq!(request.tray_anchor, Some((1812, 1040)));
     }
 }
