@@ -5,6 +5,7 @@ mod shell;
 mod shortcut_bridge;
 mod state;
 mod surface;
+mod surface_target;
 mod tray_bridge;
 mod window_positioner;
 
@@ -89,7 +90,7 @@ fn main() {
                 };
                 let mut guard = st.lock().unwrap();
                 if guard.surface_machine.current() == SurfaceMode::TrayPanel {
-                    if let Some(t) = guard.surface_machine.transition(SurfaceMode::Hidden) {
+                    if let Some(t) = guard.transition_surface(SurfaceMode::Hidden, None) {
                         let _ = window.hide();
                         events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
                     }
@@ -104,7 +105,7 @@ fn main() {
                 let cur = guard.surface_machine.current();
                 if cur == SurfaceMode::PopOut || cur == SurfaceMode::Settings {
                     api.prevent_close();
-                    if let Some(t) = guard.surface_machine.transition(SurfaceMode::Hidden) {
+                    if let Some(t) = guard.transition_surface(SurfaceMode::Hidden, None) {
                         let _ = window.hide();
                         events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
                     }

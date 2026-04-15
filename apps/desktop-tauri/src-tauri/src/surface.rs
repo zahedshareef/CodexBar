@@ -151,11 +151,20 @@ impl SurfaceStateMachine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::AppState;
+    use crate::surface_target::SurfaceTarget;
 
     #[test]
     fn starts_hidden() {
         let sm = SurfaceStateMachine::new();
         assert_eq!(sm.current(), SurfaceMode::Hidden);
+    }
+
+    #[test]
+    fn app_state_starts_hidden_with_summary_target() {
+        let state = AppState::new();
+        assert_eq!(state.surface_machine.current(), SurfaceMode::Hidden);
+        assert_eq!(state.current_target, SurfaceTarget::Summary);
     }
 
     #[test]

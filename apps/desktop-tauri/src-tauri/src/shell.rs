@@ -48,7 +48,7 @@ pub fn apply_window_properties(
 
 /// Perform a surface transition, apply window properties, and emit the event.
 /// Optionally repositions the window at `position` (physical pixels) before showing.
-pub fn transition_surface(app: &AppHandle, target: SurfaceMode, position: Option<(i32, i32)>) {
+pub fn transition_surface(app: &AppHandle, mode: SurfaceMode, position: Option<(i32, i32)>) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
@@ -58,7 +58,7 @@ pub fn transition_surface(app: &AppHandle, target: SurfaceMode, position: Option
 
     let transition = {
         let mut guard = st.lock().unwrap();
-        guard.surface_machine.transition(target)
+        guard.transition_surface(mode, None)
     };
 
     if let Some(t) = transition {

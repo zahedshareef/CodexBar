@@ -1,5 +1,11 @@
 export type SurfaceMode = "hidden" | "trayPanel" | "popOut" | "settings";
 
+export type SurfaceTarget =
+  | { kind: "summary" }
+  | { kind: "dashboard" }
+  | { kind: "provider"; providerId: string }
+  | { kind: "settings"; tab: string };
+
 export interface SurfaceModeDescriptor {
   id: string;
   label: string;

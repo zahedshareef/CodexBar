@@ -8,7 +8,8 @@ use serde::Serialize;
 
 use crate::commands::ProviderUsageSnapshot;
 use crate::proof_harness::ProofConfig;
-use crate::surface::SurfaceStateMachine;
+use crate::surface::{SurfaceMode, SurfaceStateMachine, SurfaceTransition};
+use crate::surface_target::SurfaceTarget;
 
 /// App-update lifecycle tracking.
 #[derive(Debug, Clone, PartialEq)]
@@ -115,6 +116,7 @@ pub struct TrayAnchor {
 /// Access in commands via `state: tauri::State<'_, SharedAppState>`.
 pub struct AppState {
     pub surface_machine: SurfaceStateMachine,
+    pub current_target: SurfaceTarget,
     pub tray_anchor: Option<TrayAnchor>,
     pub provider_cache: Vec<ProviderUsageSnapshot>,
     pub is_refreshing: bool,
@@ -137,6 +139,7 @@ impl AppState {
     pub fn new() -> Self {
         Self {
             surface_machine: SurfaceStateMachine::new(),
+            current_target: SurfaceTarget::Summary,
             tray_anchor: None,
             provider_cache: Vec::new(),
             is_refreshing: false,
@@ -145,6 +148,19 @@ impl AppState {
             installer_path: None,
             proof_config: None,
         }
+    }
+
+    pub fn transition_surface(
+        &mut self,
+        mode: SurfaceMode,
+        target: Option<SurfaceTarget>,
+    ) -> Option<SurfaceTransition> {
+        self.current_target = match mode {
+            SurfaceMode::Hidden => SurfaceTarget::Summary,
+            _ => target.unwrap_or_else(|| SurfaceTarget::default_for_mode(mode)),
+        };
+
+        self.surface_machine.transition(mode)
     }
 
     /// Build an enriched update payload using the stored update info.

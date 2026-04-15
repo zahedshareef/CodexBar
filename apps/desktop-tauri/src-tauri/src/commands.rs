@@ -504,7 +504,7 @@ pub fn set_surface_mode(
 
     let mut guard = state.lock().map_err(|e| e.to_string())?;
 
-    match guard.surface_machine.transition(target) {
+    match guard.transition_surface(target, None) {
         Some(t) => {
             crate::shell::apply_window_properties(&window, &t.properties)?;
             crate::events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
