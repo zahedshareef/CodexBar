@@ -31,15 +31,19 @@ thread_local! {
     static ABOUT_APP_ICON_CACHE: RefCell<Option<TextureHandle>> = const { RefCell::new(None) };
 }
 
+const ABOUT_APP_ICON_BYTES: &[u8] = include_bytes!("../../assets/icons/CodexBar-app-icon.png");
+
+fn decode_about_icon() -> anyhow::Result<image::RgbaImage> {
+    Ok(image::load_from_memory(ABOUT_APP_ICON_BYTES)?.to_rgba8())
+}
+
 fn about_app_icon_texture(ctx: &egui::Context) -> Option<TextureHandle> {
     ABOUT_APP_ICON_CACHE.with(|cache| {
         if let Some(texture) = cache.borrow().clone() {
             return Some(texture);
         }
 
-        let image = image::load_from_memory(include_bytes!("../../icons/about-icon.png"))
-            .ok()?
-            .to_rgba8();
+        let image = decode_about_icon().ok()?;
         let image = sanitize_transparent_pixels(&crop_alpha_bounds(&image));
         let size = [image.width() as usize, image.height() as usize];
         let color_image = egui::ColorImage::from_rgba_unmultiplied(size, image.as_raw());
@@ -9258,10 +9262,10 @@ mod tests {
         PreferencesSharedState, PreferencesTab, PreferencesWindow, about_content,
         active_provider_sidebar_style, alibaba_cookie_source_label, alibaba_region_label,
         amp_cookie_source_label, augment_cookie_source_label, compact_credentials_path,
-        cursor_cookie_source_label, ensure_selected_provider, factory_cookie_source_label,
-        gemini_cli_credentials_path, kimi_cookie_source_label, minimax_cookie_source_label,
-        minimax_region_label, ollama_cookie_source_label, opencode_cookie_source_label,
-        preferences_tab_label, preferences_viewport_outer_padding,
+        cursor_cookie_source_label, decode_about_icon, ensure_selected_provider,
+        factory_cookie_source_label, gemini_cli_credentials_path, kimi_cookie_source_label,
+        minimax_cookie_source_label, minimax_region_label, ollama_cookie_source_label,
+        opencode_cookie_source_label, preferences_tab_label, preferences_viewport_outer_padding,
         preferences_viewport_preferred_size, provider_detail_chrome, provider_detail_display_text,
         provider_detail_identity_rows, provider_detail_max_content_width,
         provider_detail_source_display, provider_detail_status_value, provider_detail_subtitle,
@@ -9439,6 +9443,13 @@ mod tests {
         assert_eq!(about.title, "CodexBar");
         assert!(!about.links.is_empty());
         assert!(!about.update_button_label.is_empty());
+    }
+
+    #[test]
+    fn about_icon_decodes_from_canonical_asset_source() {
+        let image = decode_about_icon().expect("about icon should decode");
+        assert!(image.width() > 0);
+        assert!(image.height() > 0);
     }
 
     fn render_about_tab_for_test() -> String {
