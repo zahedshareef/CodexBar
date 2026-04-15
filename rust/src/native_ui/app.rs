@@ -1430,8 +1430,8 @@ fn tray_action_request(action: TrayMenuAction) -> TrayActionRequest {
     }
 }
 
-fn should_hide_on_close(tray_available: bool) -> bool {
-    tray_available
+fn should_hide_on_close() -> bool {
+    true
 }
 
 /// Placement strategy for tray-triggered popouts.
@@ -2752,9 +2752,7 @@ impl eframe::App for CodexBarApp {
         }
 
         // Intercept window close: hide to tray instead of exiting
-        if should_hide_on_close(self.tray_manager.is_some())
-            && ctx.input(|i| i.viewport().close_requested())
-        {
+        if should_hide_on_close() && ctx.input(|i| i.viewport().close_requested()) {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
@@ -5061,11 +5059,6 @@ mod tests {
 
     #[test]
     fn close_request_hides_to_tray_instead_of_exiting() {
-        assert!(should_hide_on_close(true));
-    }
-
-    #[test]
-    fn close_request_does_not_hide_without_tray() {
-        assert!(!should_hide_on_close(false));
+        assert!(should_hide_on_close());
     }
 }
