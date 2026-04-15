@@ -1403,11 +1403,9 @@ fn prepare_tray_popout_position(tray_rect: Option<tray_icon::Rect>) -> PopoutPla
 /// Compute the target position for a popout (detached) window.
 ///
 /// When a tray anchor is available the window is placed right-aligned near
-/// the tray icon and above the taskbar.  Without a tray anchor the window
-/// falls back to the bottom-right corner of the work area.  The result is
-/// always clamped inside `work_area`.
-///
-/// Wired into `layout_main_window` in a follow-up task (Task 3).
+/// the tray icon, preferring above or below based on available space.
+/// Without a tray anchor the window falls back to the bottom-right corner
+/// of the work area.  The result is always clamped inside `work_area`.
 #[allow(dead_code)]
 fn compute_popout_target(
     tray_anchor: Option<egui::Pos2>,
@@ -1418,9 +1416,16 @@ fn compute_popout_target(
     let gap = 10.0;
 
     let (target_x, target_y) = if let Some(tray_pos) = tray_anchor {
-        // Right-align the window near the tray icon, sitting above it.
+        // Right-align the window near the tray icon.  Prefer above (bottom
+        // taskbar) or below (top taskbar) based on available space.
+        let space_above = tray_pos.y - work_area.min.y - margin;
+        let space_below = work_area.max.y - tray_pos.y - margin;
         let x = tray_pos.x - target_size.x;
-        let y = tray_pos.y - target_size.y - gap;
+        let y = if space_above >= target_size.y + gap || space_above > space_below {
+            tray_pos.y - target_size.y - gap
+        } else {
+            tray_pos.y + gap
+        };
         (x, y)
     } else {
         // Bottom-right fallback when tray position is unknown.
@@ -2384,32 +2389,60 @@ impl CodexBarApp {
 fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
     #[cfg(target_os = "windows")]
     {
-        use windows::Win32::Foundation::RECT as WinRect;
+        use windows::Win32::Foundation::{POINT, RECT as WinRect};
+        use windows::Win32::Graphics::Gdi::{
+            GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint,
+        };
         use windows::Win32::UI::WindowsAndMessaging::{
             SPI_GETWORKAREA, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
         };
 
-        let mut rect = WinRect::default();
-        let ok = unsafe {
-            SystemParametersInfoW(
-                SPI_GETWORKAREA,
-                0,
-                Some((&mut rect as *mut WinRect).cast()),
-                SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
-            )
-            .is_ok()
-        };
+        let pixels_per_point = ctx.pixels_per_point().max(0.1);
 
-        if ok {
-            let pixels_per_point = ctx.pixels_per_point().max(0.1);
+        // Try monitor-aware lookup first: find the monitor that contains the
+        // current window centre and return its work area.
+        let monitor_rect = ctx.input(|i| i.viewport().outer_rect).and_then(|outer| {
+            let centre = outer.center();
+            let pt = POINT {
+                x: (centre.x * pixels_per_point) as i32,
+                y: (centre.y * pixels_per_point) as i32,
+            };
+            let hmon = unsafe { MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST) };
+            if hmon.is_invalid() {
+                return None;
+            }
+            let mut info = MONITORINFO {
+                cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+                ..Default::default()
+            };
+            let ok = unsafe { GetMonitorInfoW(hmon, &mut info).as_bool() };
+            if ok { Some(info.rcWork) } else { None }
+        });
+
+        // Fall back to the primary monitor work area when monitor lookup fails.
+        let rect = monitor_rect.or_else(|| {
+            let mut r = WinRect::default();
+            let ok = unsafe {
+                SystemParametersInfoW(
+                    SPI_GETWORKAREA,
+                    0,
+                    Some((&mut r as *mut WinRect).cast()),
+                    SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
+                )
+                .is_ok()
+            };
+            if ok { Some(r) } else { None }
+        });
+
+        if let Some(r) = rect {
             return Some(Rect::from_min_max(
                 egui::pos2(
-                    rect.left as f32 / pixels_per_point,
-                    rect.top as f32 / pixels_per_point,
+                    r.left as f32 / pixels_per_point,
+                    r.top as f32 / pixels_per_point,
                 ),
                 egui::pos2(
-                    rect.right as f32 / pixels_per_point,
-                    rect.bottom as f32 / pixels_per_point,
+                    r.right as f32 / pixels_per_point,
+                    r.bottom as f32 / pixels_per_point,
                 ),
             ));
         }
@@ -4861,6 +4894,31 @@ mod tests {
         let tray_anchor = Some(pos2(1915.0, 1075.0));
         let placement = compute_popout_target(tray_anchor, popout_work_area(), popout_size());
         assert!(placement.x <= 1568.0, "x={} should be clamped", placement.x);
+    }
+
+    #[test]
+    fn popout_fallback_uses_bottom_right_in_work_area() {
+        // Simulates a secondary monitor whose work area starts at x=1000.
+        let area = egui::Rect::from_min_max(pos2(1000.0, 0.0), pos2(2000.0, 1000.0));
+        let placement = compute_popout_target(None, area, popout_size());
+        assert!(
+            placement.x >= 1600.0,
+            "x={} should be in bottom-right of secondary monitor",
+            placement.x
+        );
+    }
+
+    #[test]
+    fn popout_tray_anchor_supports_top_taskbar_layouts() {
+        // Tray near top edge implies a top-placed taskbar; the window should
+        // open below the anchor, not above it.
+        let tray_anchor = Some(pos2(1800.0, 40.0));
+        let placement = compute_popout_target(tray_anchor, popout_work_area(), popout_size());
+        assert!(
+            placement.y > 40.0,
+            "y={} should be below tray for top-taskbar layout",
+            placement.y
+        );
     }
 
     // -- tray popout preparation tests ---------------------------------------
