@@ -31,8 +31,8 @@ export function updateSettings(
   return invoke<SettingsSnapshot>("update_settings", { patch });
 }
 
-export function setSurfaceMode(mode: string): Promise<string> {
-  return invoke<string>("set_surface_mode", { mode });
+export function setSurfaceMode(mode: string, target?: string): Promise<string> {
+  return invoke<string>("set_surface_mode", { mode, target: target ?? null });
 }
 
 export function getCurrentSurfaceMode(): Promise<string> {

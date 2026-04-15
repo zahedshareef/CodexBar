@@ -33,7 +33,7 @@ fn main() {
             };
             if current == SurfaceMode::Hidden {
                 let position = shell::shortcut_panel_position(app);
-                shell::transition_surface(app, SurfaceMode::TrayPanel, position);
+                shell::transition_surface(app, SurfaceMode::TrayPanel, None, position);
             } else if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_focus();
             }
@@ -89,11 +89,11 @@ fn main() {
                     return;
                 };
                 let mut guard = st.lock().unwrap();
-                if guard.surface_machine.current() == SurfaceMode::TrayPanel {
-                    if let Some(t) = guard.transition_surface(SurfaceMode::Hidden, None) {
-                        let _ = window.hide();
-                        events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
-                    }
+                if guard.surface_machine.current() == SurfaceMode::TrayPanel
+                    && let Some(t) = guard.transition_surface(SurfaceMode::Hidden, None)
+                {
+                    let _ = window.hide();
+                    events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
                 }
             }
             tauri::WindowEvent::CloseRequested { api, .. } => {

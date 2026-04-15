@@ -11,6 +11,7 @@ use crate::events;
 use crate::proof_harness::ProofConfig;
 use crate::state::{AppState, UpdateState, UpdateStatePayload};
 use crate::surface::{SurfaceMode, WindowProperties};
+use crate::surface_target::SurfaceTarget;
 
 // ── Bridge snapshot types ────────────────────────────────────────────
 
@@ -427,14 +428,10 @@ pub fn update_settings(
     let mut settings = Settings::load();
 
     // If the shortcut is changing, validate and re-register before persisting.
-    if let Some(ref new_shortcut) = patch.global_shortcut {
-        if *new_shortcut != settings.global_shortcut {
-            crate::shortcut_bridge::reregister_shortcut(
-                &app,
-                &settings.global_shortcut,
-                new_shortcut,
-            )?;
-        }
+    if let Some(ref new_shortcut) = patch.global_shortcut
+        && *new_shortcut != settings.global_shortcut
+    {
+        crate::shortcut_bridge::reregister_shortcut(&app, &settings.global_shortcut, new_shortcut)?;
     }
 
     if let Some(providers) = patch.enabled_providers {
@@ -449,10 +446,10 @@ pub fn update_settings(
     if let Some(v) = patch.show_notifications {
         settings.show_notifications = v;
     }
-    if let Some(ref s) = patch.tray_icon_mode {
-        if let Some(mode) = parse_tray_icon_mode(s) {
-            settings.tray_icon_mode = mode;
-        }
+    if let Some(ref s) = patch.tray_icon_mode
+        && let Some(mode) = parse_tray_icon_mode(s)
+    {
+        settings.tray_icon_mode = mode;
     }
     if let Some(v) = patch.show_as_used {
         settings.show_as_used = v;
@@ -472,18 +469,18 @@ pub fn update_settings(
     if let Some(v) = patch.hide_personal_info {
         settings.hide_personal_info = v;
     }
-    if let Some(ref s) = patch.update_channel {
-        if let Some(ch) = parse_update_channel(s) {
-            settings.update_channel = ch;
-        }
+    if let Some(ref s) = patch.update_channel
+        && let Some(ch) = parse_update_channel(s)
+    {
+        settings.update_channel = ch;
     }
     if let Some(v) = patch.global_shortcut {
         settings.global_shortcut = v;
     }
-    if let Some(ref s) = patch.ui_language {
-        if let Some(lang) = parse_language(s) {
-            settings.ui_language = lang;
-        }
+    if let Some(ref s) = patch.ui_language
+        && let Some(lang) = parse_language(s)
+    {
+        settings.ui_language = lang;
     }
 
     settings.save().map_err(|e| e.to_string())?;
@@ -496,15 +493,16 @@ pub fn update_settings(
 #[tauri::command]
 pub fn set_surface_mode(
     mode: String,
+    target: Option<String>,
     window: tauri::WebviewWindow,
     state: tauri::State<'_, Mutex<AppState>>,
 ) -> Result<String, String> {
-    let target =
-        SurfaceMode::parse(&mode).ok_or_else(|| format!("unknown surface mode: {mode}"))?;
+    let mode = SurfaceMode::parse(&mode).ok_or_else(|| format!("unknown surface mode: {mode}"))?;
+    let target = parse_surface_target(mode, target.as_deref())?;
 
     let mut guard = state.lock().map_err(|e| e.to_string())?;
 
-    match guard.transition_surface(target, None) {
+    match guard.transition_surface(mode, target) {
         Some(t) => {
             crate::shell::apply_window_properties(&window, &t.properties)?;
             crate::events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
@@ -535,6 +533,36 @@ fn apply_window_properties(
     props: &WindowProperties,
 ) -> Result<(), String> {
     crate::shell::apply_window_properties(window, props)
+}
+
+fn parse_surface_target(
+    mode: SurfaceMode,
+    target: Option<&str>,
+) -> Result<Option<SurfaceTarget>, String> {
+    match target {
+        Some(target) => {
+            let target = SurfaceTarget::parse(target)
+                .ok_or_else(|| format!("unknown surface target: {target}"))?;
+            if target.mode() != mode {
+                return Err(format!(
+                    "surface target '{}' is not valid for mode '{}'",
+                    target_label(&target),
+                    mode.as_str()
+                ));
+            }
+            Ok(Some(target))
+        }
+        None => Ok(None),
+    }
+}
+
+fn target_label(target: &SurfaceTarget) -> String {
+    match target {
+        SurfaceTarget::Summary => "summary".into(),
+        SurfaceTarget::Dashboard => "dashboard".into(),
+        SurfaceTarget::Provider { provider_id } => format!("provider:{provider_id}"),
+        SurfaceTarget::Settings { tab } => format!("settings:{tab}"),
+    }
 }
 
 // ── Provider refresh commands ────────────────────────────────────────
@@ -1050,4 +1078,31 @@ fn open_url_in_browser(url: &str) -> Result<(), String> {
 #[tauri::command]
 pub fn get_proof_config(state: tauri::State<'_, Mutex<AppState>>) -> Option<ProofConfig> {
     state.lock().ok().and_then(|g| g.proof_config.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_surface_target;
+    use crate::surface::SurfaceMode;
+    use crate::surface_target::SurfaceTarget;
+
+    #[test]
+    fn parse_surface_target_accepts_matching_target() {
+        let target = parse_surface_target(SurfaceMode::Settings, Some("settings:apiKeys")).unwrap();
+
+        assert_eq!(
+            target,
+            Some(SurfaceTarget::Settings {
+                tab: "apiKeys".into()
+            })
+        );
+    }
+
+    #[test]
+    fn parse_surface_target_rejects_mismatched_target() {
+        let error =
+            parse_surface_target(SurfaceMode::TrayPanel, Some("settings:apiKeys")).unwrap_err();
+
+        assert!(error.contains("not valid for mode 'trayPanel'"));
+    }
 }

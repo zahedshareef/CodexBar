@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager, WebviewWindow};
 use crate::events;
 use crate::state::AppState;
 use crate::surface::{SurfaceMode, WindowProperties};
+use crate::surface_target::SurfaceTarget;
 use crate::window_positioner::{self, PanelSize, Rect};
 
 /// Apply the window properties dictated by a surface mode.
@@ -48,7 +49,12 @@ pub fn apply_window_properties(
 
 /// Perform a surface transition, apply window properties, and emit the event.
 /// Optionally repositions the window at `position` (physical pixels) before showing.
-pub fn transition_surface(app: &AppHandle, mode: SurfaceMode, position: Option<(i32, i32)>) {
+pub fn transition_surface(
+    app: &AppHandle,
+    mode: SurfaceMode,
+    target: Option<SurfaceTarget>,
+    position: Option<(i32, i32)>,
+) {
     let Some(window) = app.get_webview_window("main") else {
         return;
     };
@@ -58,7 +64,7 @@ pub fn transition_surface(app: &AppHandle, mode: SurfaceMode, position: Option<(
 
     let transition = {
         let mut guard = st.lock().unwrap();
-        guard.transition_surface(mode, None)
+        guard.transition_surface(mode, target)
     };
 
     if let Some(t) = transition {
@@ -79,9 +85,9 @@ pub fn toggle_tray_panel(app: &AppHandle, position: Option<(i32, i32)>) {
     };
 
     if current == SurfaceMode::TrayPanel {
-        transition_surface(app, SurfaceMode::Hidden, None);
+        transition_surface(app, SurfaceMode::Hidden, None, None);
     } else {
-        transition_surface(app, SurfaceMode::TrayPanel, position);
+        transition_surface(app, SurfaceMode::TrayPanel, None, position);
     }
 }
 

@@ -12,20 +12,15 @@ use crate::surface::{SurfaceMode, SurfaceStateMachine, SurfaceTransition};
 use crate::surface_target::SurfaceTarget;
 
 /// App-update lifecycle tracking.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub enum UpdateState {
+    #[default]
     Idle,
     Checking,
     Available(String),
     Downloading(f32),
     Ready,
     Error(String),
-}
-
-impl Default for UpdateState {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 /// Serializable update-state payload for the frontend bridge.
@@ -155,12 +150,16 @@ impl AppState {
         mode: SurfaceMode,
         target: Option<SurfaceTarget>,
     ) -> Option<SurfaceTransition> {
+        let transition = self.surface_machine.transition(mode)?;
         self.current_target = match mode {
             SurfaceMode::Hidden => SurfaceTarget::Summary,
-            _ => target.unwrap_or_else(|| SurfaceTarget::default_for_mode(mode)),
+            _ => match target {
+                Some(target) if target.mode() == mode => target,
+                _ => SurfaceTarget::default_for_mode(mode),
+            },
         };
 
-        self.surface_machine.transition(mode)
+        Some(transition)
     }
 
     /// Build an enriched update payload using the stored update info.
@@ -180,3 +179,70 @@ impl AppState {
 
 /// The type registered as Tauri managed state.
 pub type SharedAppState = Mutex<AppState>;
+
+#[cfg(test)]
+mod tests {
+    use super::AppState;
+    use crate::surface::SurfaceMode;
+    use crate::surface_target::SurfaceTarget;
+
+    #[test]
+    fn transition_applies_explicit_target_on_mode_change() {
+        let mut state = AppState::new();
+
+        let transition = state.transition_surface(
+            SurfaceMode::Settings,
+            Some(SurfaceTarget::Settings {
+                tab: "apiKeys".into(),
+            }),
+        );
+
+        assert!(transition.is_some());
+        assert_eq!(
+            state.current_target,
+            SurfaceTarget::Settings {
+                tab: "apiKeys".into()
+            }
+        );
+    }
+
+    #[test]
+    fn noop_transition_keeps_existing_target() {
+        let mut state = AppState::new();
+        state.transition_surface(
+            SurfaceMode::Settings,
+            Some(SurfaceTarget::Settings {
+                tab: "apiKeys".into(),
+            }),
+        );
+
+        let transition = state.transition_surface(
+            SurfaceMode::Settings,
+            Some(SurfaceTarget::Settings {
+                tab: "cookies".into(),
+            }),
+        );
+
+        assert!(transition.is_none());
+        assert_eq!(
+            state.current_target,
+            SurfaceTarget::Settings {
+                tab: "apiKeys".into()
+            }
+        );
+    }
+
+    #[test]
+    fn incompatible_target_falls_back_to_mode_default() {
+        let mut state = AppState::new();
+
+        state.transition_surface(
+            SurfaceMode::PopOut,
+            Some(SurfaceTarget::Settings {
+                tab: "general".into(),
+            }),
+        );
+
+        assert_eq!(state.current_target, SurfaceTarget::Dashboard);
+    }
+}

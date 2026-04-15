@@ -22,6 +22,7 @@ use tauri::{AppHandle, Manager};
 use crate::shell;
 use crate::state::AppState;
 use crate::surface::SurfaceMode;
+use crate::surface_target::SurfaceTarget;
 
 /// Proof configuration parsed from `CODEXBAR_PROOF_MODE`.
 #[derive(Debug, Clone, Serialize)]
@@ -65,6 +66,19 @@ impl ProofConfig {
     pub fn surface_mode(&self) -> SurfaceMode {
         SurfaceMode::parse(&self.target_surface).unwrap_or(SurfaceMode::TrayPanel)
     }
+
+    /// Resolve the proof-mode target contract for the requested surface.
+    pub fn surface_target(&self) -> SurfaceTarget {
+        match self.surface_mode() {
+            SurfaceMode::Settings => SurfaceTarget::Settings {
+                tab: self
+                    .settings_tab
+                    .clone()
+                    .unwrap_or_else(|| "general".to_string()),
+            },
+            mode => SurfaceTarget::default_for_mode(mode),
+        }
+    }
 }
 
 /// Immediately transition to the proof-mode target surface.
@@ -77,7 +91,8 @@ pub fn activate(app: &AppHandle) {
     };
 
     let Some(config) = config else { return };
-    let target = config.surface_mode();
+    let mode = config.surface_mode();
+    let target = config.surface_target();
 
     tracing::info!(
         "proof-harness: activating surface={} tab={:?}",
@@ -86,7 +101,7 @@ pub fn activate(app: &AppHandle) {
     );
 
     let position = proof_window_position(app);
-    shell::transition_surface(app, target, position);
+    shell::transition_surface(app, mode, Some(target), position);
 }
 
 /// Calculate a predictable, centered-ish window position for proof captures.
@@ -149,6 +164,12 @@ mod tests {
             assert_eq!(cfg.target_surface, "settings");
             assert_eq!(cfg.settings_tab.as_deref(), Some("apiKeys"));
             assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
+            assert_eq!(
+                cfg.surface_target(),
+                SurfaceTarget::Settings {
+                    tab: "apiKeys".into()
+                }
+            );
         });
     }
 
@@ -178,6 +199,20 @@ mod tests {
         with_proof_mode_env(Some("popOut"), || {
             let cfg = ProofConfig::from_env().unwrap();
             assert_eq!(cfg.surface_mode(), SurfaceMode::PopOut);
+            assert_eq!(cfg.surface_target(), SurfaceTarget::Dashboard);
+        });
+    }
+
+    #[test]
+    fn settings_without_tab_uses_general_target() {
+        with_proof_mode_env(Some("settings"), || {
+            let cfg = ProofConfig::from_env().unwrap();
+            assert_eq!(
+                cfg.surface_target(),
+                SurfaceTarget::Settings {
+                    tab: "general".into()
+                }
+            );
         });
     }
 }

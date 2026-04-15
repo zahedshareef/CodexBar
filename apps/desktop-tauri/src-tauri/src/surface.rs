@@ -1,19 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 /// The four surfaces the desktop shell can present.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum SurfaceMode {
+    #[default]
     Hidden,
     TrayPanel,
     PopOut,
     Settings,
-}
-
-impl Default for SurfaceMode {
-    fn default() -> Self {
-        Self::Hidden
-    }
 }
 
 impl SurfaceMode {

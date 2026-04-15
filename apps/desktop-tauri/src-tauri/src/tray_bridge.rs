@@ -93,13 +93,13 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
         "show_panel" => {
             let position =
                 shell::tray_panel_position(app).or_else(|| shell::shortcut_panel_position(app));
-            shell::transition_surface(app, SurfaceMode::TrayPanel, position);
+            shell::transition_surface(app, SurfaceMode::TrayPanel, None, position);
         }
         "pop_out" => {
-            shell::transition_surface(app, SurfaceMode::PopOut, None);
+            shell::transition_surface(app, SurfaceMode::PopOut, None, None);
         }
         "settings" => {
-            shell::transition_surface(app, SurfaceMode::Settings, None);
+            shell::transition_surface(app, SurfaceMode::Settings, None, None);
         }
         "refresh" => {
             let handle = app.clone();
