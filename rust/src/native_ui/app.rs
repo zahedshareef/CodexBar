@@ -275,6 +275,13 @@ fn startup_popout_mode(force_start_visible: bool, tray_manager_available: bool) 
     !tray_manager_available && !force_start_visible
 }
 
+fn startup_requires_visible_window(
+    force_start_visible: bool,
+    tray_manager_available: bool,
+) -> bool {
+    force_start_visible || !tray_manager_available
+}
+
 #[cfg(debug_assertions)]
 fn save_color_image_to_png(path: &std::path::Path, image: &egui::ColorImage) -> anyhow::Result<()> {
     if let Some(parent) = path.parent()
@@ -1373,8 +1380,11 @@ struct TrayActionRequest {
     surface: WindowSurface,
     selected_tab: SelectedTab,
     anchor_source: AnchorSource,
+    tray_anchor: Option<(i32, i32)>,
     show_context_menu: bool,
     hide_after_menu: bool,
+    prefers_settings_viewport: bool,
+    main_window_is_not_primary_surface: bool,
 }
 
 fn tray_action_request(action: TrayMenuAction) -> TrayActionRequest {
@@ -1383,22 +1393,31 @@ fn tray_action_request(action: TrayMenuAction) -> TrayActionRequest {
             surface: WindowSurface::Popup,
             selected_tab: SelectedTab::Summary,
             anchor_source: AnchorSource::Tray,
+            tray_anchor: None,
             show_context_menu: false,
             hide_after_menu: false,
+            prefers_settings_viewport: false,
+            main_window_is_not_primary_surface: false,
         },
         TrayMenuAction::TrayRightClick => TrayActionRequest {
             surface: WindowSurface::Hidden,
             selected_tab: SelectedTab::Summary,
             anchor_source: AnchorSource::Tray,
+            tray_anchor: None,
             show_context_menu: true,
             hide_after_menu: true,
+            prefers_settings_viewport: false,
+            main_window_is_not_primary_surface: false,
         },
         TrayMenuAction::PopOut => TrayActionRequest {
             surface: WindowSurface::Popout,
             selected_tab: SelectedTab::Summary,
             anchor_source: AnchorSource::Tray,
+            tray_anchor: None,
             show_context_menu: false,
             hide_after_menu: false,
+            prefers_settings_viewport: false,
+            main_window_is_not_primary_surface: false,
         },
         TrayMenuAction::PopOutProvider(provider_name) => TrayActionRequest {
             surface: WindowSurface::Popout,
@@ -1406,15 +1425,21 @@ fn tray_action_request(action: TrayMenuAction) -> TrayActionRequest {
                 .map(SelectedTab::Provider)
                 .unwrap_or(SelectedTab::Summary),
             anchor_source: AnchorSource::Tray,
+            tray_anchor: None,
             show_context_menu: false,
             hide_after_menu: false,
+            prefers_settings_viewport: false,
+            main_window_is_not_primary_surface: false,
         },
         TrayMenuAction::Settings => TrayActionRequest {
             surface: WindowSurface::Hidden,
             selected_tab: SelectedTab::Summary,
             anchor_source: AnchorSource::Tray,
+            tray_anchor: None,
             show_context_menu: false,
             hide_after_menu: false,
+            prefers_settings_viewport: true,
+            main_window_is_not_primary_surface: true,
         },
         TrayMenuAction::Refresh
         | TrayMenuAction::RefreshProvider(_)
@@ -1424,9 +1449,26 @@ fn tray_action_request(action: TrayMenuAction) -> TrayActionRequest {
             surface: WindowSurface::Unchanged,
             selected_tab: SelectedTab::Summary,
             anchor_source: AnchorSource::Fallback,
+            tray_anchor: None,
             show_context_menu: false,
             hide_after_menu: false,
+            prefers_settings_viewport: false,
+            main_window_is_not_primary_surface: false,
         },
+    }
+}
+
+fn prepare_tray_popout_request(tray_rect: Option<tray_icon::Rect>) -> TrayActionRequest {
+    let placement = prepare_tray_popout_position(tray_rect);
+    TrayActionRequest {
+        surface: WindowSurface::Popout,
+        selected_tab: SelectedTab::Summary,
+        anchor_source: placement.anchor_source,
+        tray_anchor: placement.tray_anchor,
+        show_context_menu: false,
+        hide_after_menu: false,
+        prefers_settings_viewport: false,
+        main_window_is_not_primary_surface: false,
     }
 }
 
@@ -1670,7 +1712,8 @@ impl CodexBarApp {
 
         let force_start_visible = std::env::var_os("CODEXBAR_START_VISIBLE").is_some();
         let tray_manager_available = tray_manager.is_some();
-        let start_visible_without_tray = force_start_visible || !tray_manager_available;
+        let start_visible_without_tray =
+            startup_requires_visible_window(force_start_visible, tray_manager_available);
         let start_in_popout_mode = startup_popout_mode(force_start_visible, tray_manager_available);
 
         // Initialize test input queue and start server (debug builds only)
@@ -1807,23 +1850,68 @@ impl CodexBarApp {
     }
 
     fn activate_popout_mode(&mut self, ctx: &egui::Context) {
-        let request = tray_action_request(TrayMenuAction::PopOut);
-        self.is_popout_mode = matches!(request.surface, WindowSurface::Popout);
-        if let Ok(mut state) = self.state.lock() {
-            state.selected_tab = request.selected_tab;
-        }
-        self.prepare_tray_popout_position();
-        self.layout_main_window(ctx, false);
+        let tray_rect = self.tray_manager.as_ref().and_then(|tm| tm.rect());
+        let request = prepare_tray_popout_request(tray_rect);
+        self.apply_tray_popout_request(ctx, request);
     }
 
     /// Resolve the tray icon rect and set placement state for a tray-triggered
     /// popout.  Must be called before `layout_main_window`.
-    fn prepare_tray_popout_position(&mut self) {
-        let tray_rect = self.tray_manager.as_ref().and_then(|tm| tm.rect());
-        let request = prepare_tray_popout_position(tray_rect);
-        self.tray_anchor_pos = request.tray_anchor;
-        self.pending_main_window_layout = true;
-        self.anchor_main_window_to_pointer = false;
+    fn apply_tray_request(
+        &mut self,
+        ctx: &egui::Context,
+        request: TrayActionRequest,
+        tray_anchor: Option<(i32, i32)>,
+    ) {
+        self.is_popout_mode = matches!(request.surface, WindowSurface::Popout);
+        if let Ok(mut state) = self.state.lock() {
+            state.selected_tab = request.selected_tab;
+        }
+
+        if request.prefers_settings_viewport {
+            self.preferences_window.open();
+        }
+
+        if request.show_context_menu {
+            #[cfg(target_os = "windows")]
+            if let Some(ref tray_manager) = self.tray_manager {
+                if let Some(hwnd) = find_main_window() {
+                    tray_manager.show_context_menu(hwnd.0 as isize);
+                }
+            }
+        }
+
+        match request.surface {
+            WindowSurface::Popup | WindowSurface::Popout => {
+                let resolved_tray_anchor = request.tray_anchor.or(tray_anchor);
+                self.tray_anchor_pos = match request.anchor_source {
+                    AnchorSource::Tray => resolved_tray_anchor,
+                    AnchorSource::Fallback => None,
+                };
+                self.pending_main_window_layout = true;
+                self.anchor_main_window_to_pointer = false;
+                self.layout_main_window(ctx, false);
+            }
+            WindowSurface::Hidden => {
+                self.pending_main_window_layout = false;
+                self.anchor_main_window_to_pointer = false;
+                if request.main_window_is_not_primary_surface {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
+                        -10000.0, -10000.0,
+                    )));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+                }
+            }
+            WindowSurface::Unchanged => {}
+        }
+
+        if request.hide_after_menu {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
+    }
+
+    fn apply_tray_popout_request(&mut self, ctx: &egui::Context, request: TrayActionRequest) {
+        self.apply_tray_request(ctx, request, None);
     }
 
     /// Exercises the same code-path as a real tray left-click: restore → position
@@ -3010,24 +3098,11 @@ impl eframe::App for CodexBarApp {
                 match action {
                     TrayMenuAction::Quit => self.quit_application(),
                     TrayMenuAction::TrayRightClick => {
-                        let request = tray_action_request(TrayMenuAction::TrayRightClick);
-                        // Show the native context menu at the cursor position.
-                        // This blocks (modal TrackPopupMenu) until the menu is
-                        // dismissed; the resulting MenuEvent is picked up by the
-                        // polling thread and forwarded as a normal TrayMenuAction
-                        // in the next frame.
-                        if request.show_context_menu {
-                            #[cfg(target_os = "windows")]
-                            if let Some(ref tray_manager) = self.tray_manager {
-                                if let Some(hwnd) = find_main_window() {
-                                    tray_manager.show_context_menu(hwnd.0 as isize);
-                                }
-                            }
-                        }
-                        // Return to hidden state after the menu closes.
-                        if request.hide_after_menu {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
-                        }
+                        self.apply_tray_request(
+                            ctx,
+                            tray_action_request(TrayMenuAction::TrayRightClick),
+                            None,
+                        );
                     }
                     TrayMenuAction::TrayLeftClick { tray_x, tray_y } => {
                         let request =
@@ -3037,28 +3112,18 @@ impl eframe::App for CodexBarApp {
                             tray_x,
                             tray_y
                         );
-                        self.is_popout_mode = matches!(request.surface, WindowSurface::Popout);
-                        if let Ok(mut state) = self.state.lock() {
-                            state.selected_tab = request.selected_tab;
-                        }
-                        self.tray_anchor_pos = match request.anchor_source {
-                            AnchorSource::Tray => Some((tray_x, tray_y)),
-                            AnchorSource::Fallback => None,
-                        };
-                        self.pending_main_window_layout = true;
-                        self.anchor_main_window_to_pointer = false;
-                        self.layout_main_window(ctx, false);
+                        self.apply_tray_request(ctx, request, Some((tray_x, tray_y)));
                     }
                     TrayMenuAction::PopOut => self.activate_popout_mode(ctx),
                     TrayMenuAction::PopOutProvider(provider_name) => {
-                        self.is_popout_mode = true;
-                        if let Some(provider_id) = ProviderId::from_cli_name(&provider_name) {
-                            if let Ok(mut state) = self.state.lock() {
-                                state.selected_tab = SelectedTab::Provider(provider_id);
-                            }
-                            self.prepare_tray_popout_position();
-                            self.layout_main_window(ctx, false);
-                        }
+                        let placement = prepare_tray_popout_position(
+                            self.tray_manager.as_ref().and_then(|tm| tm.rect()),
+                        );
+                        let mut request =
+                            tray_action_request(TrayMenuAction::PopOutProvider(provider_name));
+                        request.anchor_source = placement.anchor_source;
+                        request.tray_anchor = placement.tray_anchor;
+                        self.apply_tray_popout_request(ctx, request);
                     }
                     TrayMenuAction::Refresh => {
                         if !is_refreshing {
@@ -3078,11 +3143,11 @@ impl eframe::App for CodexBarApp {
                         }
                     }
                     TrayMenuAction::Settings => {
-                        self.preferences_window.open();
-                        // Move main window off-screen so only settings viewport is visible.
-                        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(
-                            -10000.0, -10000.0,
-                        )));
+                        self.apply_tray_request(
+                            ctx,
+                            tray_action_request(TrayMenuAction::Settings),
+                            None,
+                        );
                     }
                     TrayMenuAction::CheckForUpdates => {
                         let effective_settings = self.preferences_window.current_settings();
@@ -4532,9 +4597,10 @@ mod tests {
         TrayRuntimeState, TrayUpdatePlan, WindowSurface, append_font,
         build_test_click_event_batches, choose_tray_runtime_state, choose_tray_update_plan,
         compute_popout_target, debug_window_mode, launch_block_reason, main_window_summary_height,
-        prepare_tray_popout_position, prepend_font, remote_session_error_message,
-        should_auto_refresh, should_hide_on_close, should_recreate_tray_manager,
-        should_show_provider, ssh_session_error_message, startup_last_refresh, startup_popout_mode,
+        prepare_tray_popout_position, prepare_tray_popout_request, prepend_font,
+        remote_session_error_message, should_auto_refresh, should_hide_on_close,
+        should_recreate_tray_manager, should_show_provider, ssh_session_error_message,
+        startup_last_refresh, startup_popout_mode, startup_requires_visible_window,
         tray_action_request,
     };
     use crate::core::ProviderId;
@@ -5037,6 +5103,41 @@ mod tests {
         let request = prepare_tray_popout_position(Some(tray_rect()));
         // centre x = 1800 + 24/2 = 1812,  top y = 1040
         assert_eq!(request.tray_anchor, Some((1812, 1040)));
+    }
+
+    #[test]
+    fn tray_popout_actions_use_tray_originated_positioning() {
+        let request = prepare_tray_popout_request(Some(tray_rect()));
+        assert_eq!(request.anchor_source, AnchorSource::Tray);
+        assert_eq!(request.surface, WindowSurface::Popout);
+        assert_eq!(request.selected_tab, SelectedTab::Summary);
+    }
+
+    #[test]
+    fn provider_popout_requests_selected_provider_detail() {
+        let request = tray_action_request(TrayMenuAction::PopOutProvider("claude".into()));
+        assert_eq!(request.surface, WindowSurface::Popout);
+        assert_eq!(
+            request.selected_tab,
+            SelectedTab::Provider(ProviderId::Claude)
+        );
+    }
+
+    #[test]
+    fn settings_action_keeps_main_window_offscreen_or_hidden() {
+        let request = tray_action_request(TrayMenuAction::Settings);
+        assert!(request.prefers_settings_viewport);
+        assert!(request.main_window_is_not_primary_surface);
+    }
+
+    #[test]
+    fn startup_remains_hidden_when_tray_is_available() {
+        assert!(!startup_requires_visible_window(false, true));
+    }
+
+    #[test]
+    fn startup_force_visible_override_still_opens_the_window() {
+        assert!(startup_requires_visible_window(true, true));
     }
 
     #[test]
