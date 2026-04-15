@@ -4,7 +4,7 @@
 
 Win-CodexBar currently ships a Rust/egui tray app, while the repository also contains a Tauri/React desktop shell in `apps/desktop-tauri`. The next step is not a greenfield rewrite: it is a controlled migration where the Rust app stays shippable while the Tauri shell is brought up to parity for the core tray and window behaviors that define CodexBar on desktop.
 
-The immediate goal of this subproject is to make the Tauri shell capable of the same desktop-surface contract as the current Rust app: startup hidden to tray, tray-opened summary surface, native tray menu, dashboard/provider popout behavior, separate settings/about surfaces, close-to-tray behavior, and stable placement near the tray or in the work area fallback.
+The immediate goal of this subproject is to make the Tauri shell capable of the same desktop-surface contract as the current Rust app: startup hidden to tray, tray-opened summary surface, native tray menu, dashboard/provider popout behavior, settings with a dedicated About entry path, close-to-tray behavior, and stable placement near the tray or in the work area fallback.
 
 ## Scope
 
@@ -20,7 +20,8 @@ The immediate goal of this subproject is to make the Tauri shell capable of the 
   - dashboard popout
   - provider-detail popout
   - close hides to tray
-  - settings/about open as their own surfaces
+  - settings opens as its own shell surface
+  - about remains reachable through a dedicated shell entry path
   - placement is tray-anchored when possible and work-area-clamped otherwise
 - Reuse or extend the existing Tauri proof harness so parity can be verified deterministically.
 
@@ -74,9 +75,18 @@ The Tauri shell already models surface state. This subproject should harden it i
 - tray panel
 - popout/dashboard
 - settings
-- about
+- settings
 
 Every tray/menu/window event should route through that state machine rather than creating independent ad hoc visibility changes.
+
+The current Tauri shell only exposes:
+
+- `Hidden`
+- `TrayPanel`
+- `PopOut`
+- `Settings`
+
+This spec keeps that shell shape unless parity work proves a fifth shell mode is necessary. In particular, **About should remain a tab inside Settings for the first Tauri parity pass**, but the shell must still support a dedicated entry path that opens Settings with the About tab selected.
 
 ### 2. Tray bridge
 
@@ -87,10 +97,20 @@ The tray bridge should be the single entry point for:
 - dashboard popout action
 - provider-detail action
 - settings
-- about
+- about entry path
 - quit
 
 The tray bridge should emit explicit shell transitions instead of embedding UI assumptions in the tray handlers.
+
+To avoid ambiguity around dashboard vs provider-detail behavior, the tray bridge and shell should use a typed target model for visible content. A minimal parity-safe version is:
+
+- `TrayPanel(Summary)`
+- `PopOut(Dashboard)`
+- `PopOut(Provider { provider_id })`
+- `Settings(General)`
+- `Settings(About)`
+
+This does **not** require a new top-level `SurfaceMode` enum for About in phase 1. It does require the shell, bridge payloads, and proof harness to carry a target payload in addition to the coarse surface mode.
 
 ### 3. Window positioner
 
@@ -121,7 +141,7 @@ The React app should expose clear surfaces rather than one monolithic window:
 - dashboard popout
 - provider-detail popout
 - settings
-- about
+- about tab inside settings
 
 Each surface should map to a parity behavior, not just a route.
 
@@ -137,7 +157,9 @@ The existing Tauri proof harness should become the parity gate for this migratio
 ## Data and control flow
 
 1. A tray/menu/shortcut event enters through the Tauri shell.
-2. The shell resolves the requested surface transition through the surface machine.
+2. The shell resolves both:
+   - the next coarse surface mode (`Hidden`, `TrayPanel`, `PopOut`, `Settings`)
+   - the next surface target payload (`summary`, `dashboard`, `provider:<id>`, `settings:<tab>`)
 3. The window positioner computes placement if the next surface is visible.
 4. The shell updates the webview/window state.
 5. React renders the corresponding surface using Rust-backed data fetched through commands/events.
@@ -165,7 +187,7 @@ This keeps shell transitions deterministic and prevents React from becoming the 
 ### Phase 2: settings/about parity
 
 - settings surface behavior
-- about surface behavior
+- about tab entry behavior through the shell
 - tray-first routing while settings/about are open
 
 ### Phase 3: proof-driven readiness
@@ -186,7 +208,40 @@ The Tauri shell should be considered parity-ready for this subproject only when 
 6. close hides to tray
 7. placement stays on the correct work area
 8. settings stays tray-first
-9. about opens on the correct shell path
+9. about opens through the correct settings-tab shell path
+
+## Required proof harness contract
+
+The current Tauri proof harness only supports startup selection via `CODEXBAR_PROOF_MODE`. That is not enough for parity gating. For this subproject, the harness should grow a deterministic control/readback interface that can:
+
+### Drive transitions
+
+- trigger primary tray activation
+- trigger secondary/native menu activation
+- open dashboard popout
+- open provider-detail popout for a specific provider id
+- open settings on a specific tab
+- open About through the settings/about shell path
+- request hide/close behavior checks
+
+### Dump shell state
+
+- current coarse surface mode
+- current target payload (`summary`, `dashboard`, `provider:<id>`, `settings:<tab>`)
+- current window rect
+- resolved tray anchor, if any
+- resolved work-area rect / monitor bounds
+
+### Capture evidence
+
+- screenshot or equivalent proof artifact for visible surfaces
+- native menu evidence for secondary tray activation
+- geometry evidence for placement/work-area checks
+
+For native menu parity specifically, acceptable evidence can be either:
+
+- a visible captured native menu artifact, or
+- a harness/state dump that proves the platform-native menu path was invoked and which menu items were emitted.
 
 ## Relationship to the other workstreams
 
