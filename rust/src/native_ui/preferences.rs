@@ -2873,50 +2873,54 @@ impl PreferencesWindow {
     }
 
     fn show_about_tab(&mut self, ui: &mut egui::Ui) {
+        let about = about_content();
+        let build_date = option_env!("BUILD_DATE").unwrap_or("unknown");
+
         ui.add_space(Spacing::LG);
 
-        // Version row
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new("CodexBar")
-                    .size(FontSize::LG)
-                    .color(Theme::TEXT_PRIMARY)
-                    .strong(),
-            );
-            ui.label(
-                RichText::new(format!("v{}", env!("CARGO_PKG_VERSION")))
-                    .size(FontSize::SM)
-                    .color(Theme::TEXT_MUTED),
-            );
-        });
+        ui.label(
+            RichText::new(about.title)
+                .size(FontSize::LG)
+                .color(Theme::TEXT_PRIMARY)
+                .strong(),
+        );
         ui.add_space(Spacing::XS);
         ui.label(
-            RichText::new("CodexBar 的 Windows 移植版本。在系统托盘中追踪 AI 服务商用量。")
+            RichText::new(about_version_label())
                 .size(FontSize::SM)
                 .color(Theme::TEXT_SECONDARY),
+        );
+        ui.label(
+            RichText::new(about_build_label(build_date))
+                .size(FontSize::XS)
+                .color(Theme::TEXT_MUTED),
+        );
+        ui.label(
+            RichText::new(about.tagline)
+                .size(FontSize::XS)
+                .color(Theme::TEXT_MUTED),
         );
 
         ui.add_space(Spacing::LG);
         setting_divider(ui);
         ui.add_space(Spacing::SM);
 
-        // Links row
-        ui.horizontal(|ui| {
-            if ui.link("GitHub Repository").clicked() {
-                let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
-            }
-            ui.label(RichText::new("·").color(Theme::TEXT_DIM));
-            if ui.link("原始 macOS 版本").clicked() {
-                let _ = open::that("https://github.com/steipete/CodexBar");
+        ui.horizontal_wrapped(|ui| {
+            for (index, link) in about.links.iter().enumerate() {
+                if index > 0 {
+                    ui.label(RichText::new("·").color(Theme::TEXT_DIM));
+                }
+                if ui.link(link.label).clicked() {
+                    let _ = open::that(link.url);
+                }
             }
         });
 
         ui.add_space(Spacing::SM);
 
-        // Check for updates row
         ui.horizontal(|ui| {
-            if simple_action_button(ui, "检查更新") {
-                let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
+            if simple_action_button(ui, about.update_button_label) {
+                let _ = open::that(about.update_button_url);
             }
         });
 
@@ -2924,9 +2928,8 @@ impl PreferencesWindow {
         setting_divider(ui);
         ui.add_space(Spacing::SM);
 
-        // Build info row
         ui.label(
-            RichText::new("基于 Rust + egui 构建")
+            RichText::new(about.footer)
                 .size(FontSize::XS)
                 .color(Theme::TEXT_DIM),
         );
@@ -2992,6 +2995,72 @@ fn settings_position_near_main_window(
     };
 
     egui::pos2(x, y)
+}
+
+#[derive(Clone, Copy)]
+struct AboutLink {
+    label: &'static str,
+    icon: &'static str,
+    url: &'static str,
+    color: Color32,
+}
+
+#[derive(Clone, Copy)]
+struct AboutContent {
+    title: &'static str,
+    tagline: &'static str,
+    links: &'static [AboutLink],
+    footer: &'static str,
+    auto_update_label: &'static str,
+    update_button_label: &'static str,
+    update_button_url: &'static str,
+}
+
+const ABOUT_LINKS: [AboutLink; 4] = [
+    AboutLink {
+        label: "GitHub",
+        icon: "</>",
+        url: "https://github.com/Finesssee/Win-CodexBar",
+        color: Color32::from_rgb(110, 168, 254),
+    },
+    AboutLink {
+        label: "Website",
+        icon: "◉",
+        url: "https://steipete.me",
+        color: Color32::from_rgb(100, 200, 140),
+    },
+    AboutLink {
+        label: "Twitter",
+        icon: "↗",
+        url: "https://twitter.com/steipete",
+        color: Color32::from_rgb(96, 165, 250),
+    },
+    AboutLink {
+        label: "Email",
+        icon: "✉",
+        url: "mailto:peter@steipete.me",
+        color: Color32::from_rgb(244, 114, 182),
+    },
+];
+
+fn about_content() -> AboutContent {
+    AboutContent {
+        title: "CodexBar",
+        tagline: "May your tokens never run out—keep agent limits in view.",
+        links: &ABOUT_LINKS,
+        footer: "© 2026 Peter Steinberger. MIT License.",
+        auto_update_label: "Check for updates automatically",
+        update_button_label: "Check for Updates…",
+        update_button_url: "https://github.com/Finesssee/Win-CodexBar/releases",
+    }
+}
+
+fn about_version_label() -> String {
+    format!("Version {}", env!("CARGO_PKG_VERSION"))
+}
+
+fn about_build_label(build_date: &str) -> String {
+    format!("Built {build_date}")
 }
 
 fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
@@ -8564,6 +8633,7 @@ fn render_notifications_settings(
 
 /// Render About tab for viewport
 fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSharedState>>) {
+    let about = about_content();
     let ui_language = if let Ok(state) = shared_state.lock() {
         state.settings.ui_language
     } else {
@@ -8581,23 +8651,23 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
         let prev_spacing = ui.spacing().item_spacing.y;
         ui.spacing_mut().item_spacing.y = 2.0;
         ui.label(
-            RichText::new("CodexBar")
+            RichText::new(about.title)
                 .size(FontSize::LG + 2.0)
                 .color(Theme::TEXT_PRIMARY)
                 .strong(),
         );
         ui.label(
-            RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION")))
+            RichText::new(about_version_label())
                 .size(FontSize::SM)
                 .color(Theme::TEXT_SECONDARY),
         );
         ui.label(
-            RichText::new(format!("Built {}", build_date))
+            RichText::new(about_build_label(build_date))
                 .size(FontSize::XS)
                 .color(Theme::TEXT_MUTED),
         );
         ui.label(
-            RichText::new("May your tokens never run out—keep agent limits in view.")
+            RichText::new(about.tagline)
                 .size(FontSize::XS)
                 .color(Theme::TEXT_MUTED),
         );
@@ -8605,17 +8675,12 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
 
         ui.add_space(12.0);
 
-        // Links — matching mac VStack(spacing: 10) with per-link icon colors
         ui.spacing_mut().item_spacing.y = 10.0;
         ui.vertical_centered(|ui| {
-            if text_button(ui, "</>  GitHub", Color32::from_rgb(110, 168, 254)) {
-                let _ = open::that("https://github.com/Finesssee/Win-CodexBar");
-            }
-            if text_button(ui, "◉  Website", Color32::from_rgb(100, 200, 140)) {
-                let _ = open::that("https://steipete.me");
-            }
-            if text_button(ui, "↗  Twitter", Color32::from_rgb(96, 165, 250)) {
-                let _ = open::that("https://x.com/NessZerra");
+            for link in about.links {
+                if text_button(ui, &format!("{}  {}", link.icon, link.label), link.color) {
+                    let _ = open::that(link.url);
+                }
             }
         });
         ui.spacing_mut().item_spacing.y = prev_spacing;
@@ -8629,11 +8694,8 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
             true
         };
 
-        if about_checkbox_row(
-            ui,
-            "Check for updates automatically",
-            &mut auto_download_updates,
-        ) && let Ok(mut state) = shared_state.lock()
+        if about_checkbox_row(ui, about.auto_update_label, &mut auto_download_updates)
+            && let Ok(mut state) = shared_state.lock()
         {
             state.settings.auto_download_updates = auto_download_updates;
             state.settings_changed = true;
@@ -8686,13 +8748,13 @@ fn render_about_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesShare
         );
 
         ui.add_space(14.0);
-        if simple_action_button(ui, "Check for Updates...") {
-            let _ = open::that("https://github.com/Finesssee/Win-CodexBar/releases");
+        if simple_action_button(ui, about.update_button_label) {
+            let _ = open::that(about.update_button_url);
         }
 
         ui.add_space(12.0);
         ui.label(
-            RichText::new("NessZerra - Windows Version. MIT License.")
+            RichText::new(about.footer)
                 .size(FontSize::XS)
                 .color(Theme::TEXT_MUTED),
         );
@@ -9193,17 +9255,17 @@ fn primary_button(ui: &mut egui::Ui, text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        PreferencesSharedState, PreferencesTab, PreferencesWindow, active_provider_sidebar_style,
-        alibaba_cookie_source_label, alibaba_region_label, amp_cookie_source_label,
-        augment_cookie_source_label, compact_credentials_path, cursor_cookie_source_label,
-        ensure_selected_provider, factory_cookie_source_label, gemini_cli_credentials_path,
-        kimi_cookie_source_label, minimax_cookie_source_label, minimax_region_label,
-        ollama_cookie_source_label, opencode_cookie_source_label, preferences_tab_label,
-        preferences_viewport_outer_padding, preferences_viewport_preferred_size,
-        provider_detail_chrome, provider_detail_display_text, provider_detail_identity_rows,
-        provider_detail_max_content_width, provider_detail_source_display,
-        provider_detail_status_value, provider_detail_subtitle, provider_detail_text_chrome,
-        provider_sidebar_card_inset, provider_sidebar_display_lines,
+        PreferencesSharedState, PreferencesTab, PreferencesWindow, about_content,
+        active_provider_sidebar_style, alibaba_cookie_source_label, alibaba_region_label,
+        amp_cookie_source_label, augment_cookie_source_label, compact_credentials_path,
+        cursor_cookie_source_label, ensure_selected_provider, factory_cookie_source_label,
+        gemini_cli_credentials_path, kimi_cookie_source_label, minimax_cookie_source_label,
+        minimax_region_label, ollama_cookie_source_label, opencode_cookie_source_label,
+        preferences_tab_label, preferences_viewport_outer_padding,
+        preferences_viewport_preferred_size, provider_detail_chrome, provider_detail_display_text,
+        provider_detail_identity_rows, provider_detail_max_content_width,
+        provider_detail_source_display, provider_detail_status_value, provider_detail_subtitle,
+        provider_detail_text_chrome, provider_sidebar_card_inset, provider_sidebar_display_lines,
         provider_sidebar_reveal_animation, provider_sidebar_subtitle, providers_surface_palette,
         render_about_tab, render_advanced_tab, render_display_tab, render_general_tab,
         set_merge_tray_icons, set_per_provider_tray_icons, set_provider_enabled,
@@ -9371,7 +9433,15 @@ mod tests {
     }
 
     #[test]
-    fn viewport_about_tab_renders_identity_links_and_updates() {
+    fn about_content_model_provides_one_source_of_truth() {
+        let about = about_content();
+
+        assert_eq!(about.title, "CodexBar");
+        assert!(!about.links.is_empty());
+        assert!(!about.update_button_label.is_empty());
+    }
+
+    fn render_about_tab_for_test() -> String {
         let ctx = egui::Context::default();
         let shared_state = PreferencesWindow::default().shared_state.clone();
 
@@ -9380,14 +9450,17 @@ mod tests {
             render_about_tab(ui, &shared_state);
         });
         let full_output = ctx.end_pass();
-        let rendered = format!("{:?}", full_output.shapes);
+        format!("{:?}", full_output.shapes)
+    }
+
+    #[test]
+    fn viewport_about_tab_renders_shared_about_content() {
+        let rendered = render_about_tab_for_test();
+        let about = about_content();
 
         assert!(rendered.contains("CodexBar"));
-        assert!(rendered.contains("Version"));
-        assert!(rendered.contains("May your tokens never run out"));
-        assert!(rendered.contains("Built"));
-        assert!(rendered.contains("GitHub"));
-        assert!(rendered.contains("Twitter"));
+        assert!(rendered.contains(about.links[0].label));
+        assert!(rendered.contains(about.update_button_label));
     }
 
     #[test]
