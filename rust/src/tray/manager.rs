@@ -8,8 +8,12 @@ use image::{ImageBuffer, Rgba, RgbaImage};
 #[cfg(debug_assertions)]
 use serde::Serialize;
 use std::cell::{Cell, RefCell};
+#[cfg(test)]
+use std::collections::VecDeque;
 use std::collections::{HashMap, hash_map::DefaultHasher};
 use std::hash::{Hash, Hasher};
+#[cfg(test)]
+use std::sync::{LazyLock, Mutex};
 use tray_icon::{
     Icon, MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent,
     menu::{CheckMenuItem, ContextMenu, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu},
@@ -1488,6 +1492,54 @@ pub enum UnifiedTrayManager {
     PerProvider(MultiTrayManager),
 }
 
+#[cfg(test)]
+static TEST_TRAY_ICON_EVENTS: LazyLock<Mutex<VecDeque<TrayIconEvent>>> =
+    LazyLock::new(|| Mutex::new(VecDeque::new()));
+#[cfg(test)]
+static TEST_TRAY_ICON_EVENTS_CASE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+fn next_tray_icon_event() -> Option<TrayIconEvent> {
+    #[cfg(test)]
+    {
+        if let Some(event) = TEST_TRAY_ICON_EVENTS
+            .lock()
+            .expect("test tray icon events lock poisoned")
+            .pop_front()
+        {
+            return Some(event);
+        }
+    }
+
+    TrayIconEvent::receiver().try_recv().ok()
+}
+
+#[cfg(test)]
+fn with_test_tray_icon_events<R>(
+    events: impl IntoIterator<Item = TrayIconEvent>,
+    run: impl FnOnce() -> R,
+) -> R {
+    let _case_guard = TEST_TRAY_ICON_EVENTS_CASE_LOCK
+        .lock()
+        .expect("test tray icon event case lock poisoned");
+
+    {
+        let mut queued_events = TEST_TRAY_ICON_EVENTS
+            .lock()
+            .expect("test tray icon events lock poisoned");
+        queued_events.clear();
+        queued_events.extend(events);
+    }
+
+    let result = run();
+
+    TEST_TRAY_ICON_EVENTS
+        .lock()
+        .expect("test tray icon events lock poisoned")
+        .clear();
+
+    result
+}
+
 impl UnifiedTrayManager {
     /// Create a new unified tray manager based on settings
     pub fn new(settings: &Settings) -> anyhow::Result<Self> {
@@ -1521,36 +1573,48 @@ impl UnifiedTrayManager {
     /// or `TrayRightClick` when the user right-clicks (so the app can show
     /// the context menu manually — no menu is attached to the tray icon).
     pub fn check_tray_click_events() -> Option<TrayMenuAction> {
-        while let Ok(event) = TrayIconEvent::receiver().try_recv() {
-            match event {
-                TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    rect,
-                    ..
-                } => {
-                    let tray_x = rect.position.x as i32 + rect.size.width as i32 / 2;
-                    let tray_y = rect.position.y as i32;
-                    tracing::info!(
-                        "tray left-click detected: tray_x={}, tray_y={}, rect=({},{} {}x{})",
-                        tray_x,
-                        tray_y,
-                        rect.position.x,
-                        rect.position.y,
-                        rect.size.width,
-                        rect.size.height,
-                    );
-                    return Some(TrayMenuAction::TrayLeftClick { tray_x, tray_y });
+        while let Some(event) = next_tray_icon_event() {
+            if let TrayIconEvent::Click {
+                button,
+                button_state,
+                rect,
+                ..
+            } = event
+            {
+                if button_state != MouseButtonState::Up {
+                    continue;
                 }
-                TrayIconEvent::Click {
-                    button: MouseButton::Right,
-                    button_state: MouseButtonState::Up,
-                    ..
-                } => {
-                    tracing::info!("tray right-click detected — requesting context menu");
-                    return Some(TrayMenuAction::TrayRightClick);
+
+                let action = match button {
+                    MouseButton::Left => {
+                        let tray_x = rect.position.x as i32 + rect.size.width as i32 / 2;
+                        let tray_y = rect.position.y as i32;
+                        Some(TrayMenuAction::TrayLeftClick { tray_x, tray_y })
+                    }
+                    MouseButton::Right => Some(TrayMenuAction::TrayRightClick),
+                    _ => None,
+                };
+
+                if let Some(action) = action {
+                    match action {
+                        TrayMenuAction::TrayLeftClick { tray_x, tray_y } => {
+                            tracing::info!(
+                                "tray left-click detected: tray_x={}, tray_y={}, rect=({},{} {}x{})",
+                                tray_x,
+                                tray_y,
+                                rect.position.x,
+                                rect.position.y,
+                                rect.size.width,
+                                rect.size.height,
+                            );
+                        }
+                        TrayMenuAction::TrayRightClick => {
+                            tracing::info!("tray right-click detected — requesting context menu");
+                        }
+                        _ => {}
+                    }
+                    return Some(action);
                 }
-                _ => {}
             }
         }
         None
@@ -2439,6 +2503,33 @@ fn hsv_to_rgb(h: f64, s: f64, v: f64) -> (u8, u8, u8) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tray_icon::TrayIconId;
+
+    fn tray_click_rect() -> tray_icon::Rect {
+        tray_icon::Rect {
+            position: tray_icon::dpi::PhysicalPosition {
+                x: 1800.0,
+                y: 1040.0,
+            },
+            size: tray_icon::dpi::PhysicalSize {
+                width: 24,
+                height: 24,
+            },
+        }
+    }
+
+    fn tray_click_event(button: MouseButton, button_state: MouseButtonState) -> TrayIconEvent {
+        TrayIconEvent::Click {
+            id: TrayIconId::new("test-tray"),
+            position: tray_icon::dpi::PhysicalPosition {
+                x: 1812.0,
+                y: 1040.0,
+            },
+            rect: tray_click_rect(),
+            button,
+            button_state,
+        }
+    }
 
     #[test]
     fn test_create_bar_icon() {
@@ -2564,6 +2655,42 @@ mod tests {
             tray_action_from_event_id("provider_claude"),
             Some(TrayMenuAction::ToggleProvider("claude".to_string()))
         );
+    }
+
+    #[test]
+    fn test_tray_click_mapping_maps_left_click_to_tray_popup_action() {
+        let action = with_test_tray_icon_events(
+            [tray_click_event(MouseButton::Left, MouseButtonState::Up)],
+            UnifiedTrayManager::check_tray_click_events,
+        );
+
+        assert_eq!(
+            action,
+            Some(TrayMenuAction::TrayLeftClick {
+                tray_x: 1812,
+                tray_y: 1040,
+            })
+        );
+    }
+
+    #[test]
+    fn test_tray_click_mapping_maps_right_click_to_context_menu_action() {
+        let action = with_test_tray_icon_events(
+            [tray_click_event(MouseButton::Right, MouseButtonState::Up)],
+            UnifiedTrayManager::check_tray_click_events,
+        );
+
+        assert_eq!(action, Some(TrayMenuAction::TrayRightClick));
+    }
+
+    #[test]
+    fn test_tray_click_mapping_ignores_non_release_events() {
+        let action = with_test_tray_icon_events(
+            [tray_click_event(MouseButton::Left, MouseButtonState::Down)],
+            UnifiedTrayManager::check_tray_click_events,
+        );
+
+        assert_eq!(action, None);
     }
 
     #[test]
