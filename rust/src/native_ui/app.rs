@@ -1402,11 +1402,10 @@ fn prepare_tray_popout_position(tray_rect: Option<tray_icon::Rect>) -> PopoutPla
 
 /// Compute the target position for a popout (detached) window.
 ///
-/// When a tray anchor is available the window is placed right-aligned near
-/// the tray icon, preferring above or below based on available space.
+/// When a tray anchor is available the window is centre-aligned horizontally
+/// near the tray icon, preferring above or below based on available space.
 /// Without a tray anchor the window falls back to the bottom-right corner
 /// of the work area.  The result is always clamped inside `work_area`.
-#[allow(dead_code)]
 fn compute_popout_target(
     tray_anchor: Option<egui::Pos2>,
     work_area: Rect,
@@ -1416,11 +1415,11 @@ fn compute_popout_target(
     let gap = 10.0;
 
     let (target_x, target_y) = if let Some(tray_pos) = tray_anchor {
-        // Right-align the window near the tray icon.  Prefer above (bottom
+        // Centre-align the window near the tray icon.  Prefer above (bottom
         // taskbar) or below (top taskbar) based on available space.
         let space_above = tray_pos.y - work_area.min.y - margin;
         let space_below = work_area.max.y - tray_pos.y - margin;
-        let x = tray_pos.x - target_size.x;
+        let x = tray_pos.x - target_size.x * 0.5;
         let y = if space_above >= target_size.y + gap || space_above > space_below {
             tray_pos.y - target_size.y - gap
         } else {
@@ -2096,18 +2095,10 @@ impl CodexBarApp {
             egui::pos2(px as f32 / ppp, py as f32 / ppp)
         });
 
-        let (target_x, target_y) = if let Some(tray_pos) = tray_anchor {
-            // Anchor the popup near the tray icon.  Prefer above (bottom
-            // taskbar) or below (top taskbar) based on available space.
-            let space_above = tray_pos.y - work_area.min.y - margin;
-            let space_below = work_area.max.y - tray_pos.y - margin;
-            let x = tray_pos.x - target_size.x * 0.5;
-            let y = if space_above >= target_size.y + gap || space_above > space_below {
-                tray_pos.y - target_size.y - gap
-            } else {
-                tray_pos.y + gap
-            };
-            (x, y)
+        let (target_x, target_y) = if tray_anchor.is_some() || self.is_popout_mode {
+            // Tray-anchored and popout placements share a single algorithm.
+            let p = compute_popout_target(tray_anchor, work_area, target_size);
+            (p.x, p.y)
         } else if anchor_to_pointer {
             // For keyboard-shortcut opens, keep the popup on the left side
             // and vertically centered so it doesn't appear pinned to the
