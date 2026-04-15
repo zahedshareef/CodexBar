@@ -1,25 +1,23 @@
 import { useEffect, useState } from "react";
-import { checkForUpdates, getBootstrapState, getProofConfig } from "./lib/tauri";
+import { checkForUpdates, getBootstrapState } from "./lib/tauri";
 import { useSurfaceMode } from "./hooks/useSurfaceMode";
 import Settings from "./surfaces/Settings";
 import TrayPanel from "./surfaces/TrayPanel";
 import PopOutPanel from "./surfaces/PopOutPanel";
-import type { BootstrapState, ProofConfig, SurfaceMode } from "./types/bridge";
+import type { BootstrapState, SurfaceMode } from "./types/bridge";
 
 export default function App() {
   const mode = useSurfaceMode();
   const [state, setState] = useState<BootstrapState | null>(null);
-  const [proofConfig, setProofConfig] = useState<ProofConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([getBootstrapState(), getProofConfig()])
-      .then(([bootstrap, proof]) => {
+    getBootstrapState()
+      .then((bootstrap) => {
         if (!cancelled) {
           setState(bootstrap);
-          setProofConfig(proof);
         }
       })
       .catch((cause: unknown) => {
@@ -58,17 +56,15 @@ export default function App() {
     );
   }
 
-  return <SurfaceRouter mode={mode} state={state} proofConfig={proofConfig} />;
+  return <SurfaceRouter mode={mode} state={state} />;
 }
 
 function SurfaceRouter({
   mode,
   state,
-  proofConfig,
 }: {
   mode: SurfaceMode;
   state: BootstrapState;
-  proofConfig: ProofConfig | null;
 }) {
   switch (mode) {
     case "hidden":
@@ -78,20 +74,20 @@ function SurfaceRouter({
     case "popOut":
       return <PopOutPanel state={state} />;
     case "settings":
-      return <SettingsLayout state={state} initialTab={proofConfig?.settingsTab ?? undefined} />;
+      return <SettingsLayout state={state} />;
     default:
       return <TrayPanel state={state} />;
   }
 }
 
-function SettingsLayout({ state, initialTab }: { state: BootstrapState; initialTab?: string }) {
+function SettingsLayout({ state }: { state: BootstrapState }) {
   return (
     <main className="shell">
       <header className="hero">
         <p className="eyebrow">Settings</p>
         <h1>Preferences</h1>
       </header>
-      <Settings state={state} initialTab={initialTab} />
+      <Settings state={state} />
     </main>
   );
 }

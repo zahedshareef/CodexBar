@@ -170,5 +170,4 @@ export interface AppInfoBridge {
 
 export interface ProofConfig {
   targetSurface: SurfaceMode;
-  settingsTab: string | null;
 }
