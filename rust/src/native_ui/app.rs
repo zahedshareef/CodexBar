@@ -1472,6 +1472,20 @@ fn prepare_tray_popout_request(tray_rect: Option<tray_icon::Rect>) -> TrayAction
     }
 }
 
+fn resolve_tray_request_state(
+    current_popout_mode: bool,
+    current_selected_tab: SelectedTab,
+    request: &TrayActionRequest,
+) -> (bool, SelectedTab) {
+    match request.surface {
+        WindowSurface::Popup => (false, request.selected_tab),
+        WindowSurface::Popout => (true, request.selected_tab),
+        WindowSurface::Hidden | WindowSurface::Unchanged => {
+            (current_popout_mode, current_selected_tab)
+        }
+    }
+}
+
 fn should_hide_on_close() -> bool {
     true
 }
@@ -1863,9 +1877,11 @@ impl CodexBarApp {
         request: TrayActionRequest,
         tray_anchor: Option<(i32, i32)>,
     ) {
-        self.is_popout_mode = matches!(request.surface, WindowSurface::Popout);
         if let Ok(mut state) = self.state.lock() {
-            state.selected_tab = request.selected_tab;
+            let (next_popout_mode, next_selected_tab) =
+                resolve_tray_request_state(self.is_popout_mode, state.selected_tab, &request);
+            self.is_popout_mode = next_popout_mode;
+            state.selected_tab = next_selected_tab;
         }
 
         if request.prefers_settings_viewport {
@@ -4598,10 +4614,10 @@ mod tests {
         build_test_click_event_batches, choose_tray_runtime_state, choose_tray_update_plan,
         compute_popout_target, debug_window_mode, launch_block_reason, main_window_summary_height,
         prepare_tray_popout_position, prepare_tray_popout_request, prepend_font,
-        remote_session_error_message, should_auto_refresh, should_hide_on_close,
-        should_recreate_tray_manager, should_show_provider, ssh_session_error_message,
-        startup_last_refresh, startup_popout_mode, startup_requires_visible_window,
-        tray_action_request,
+        remote_session_error_message, resolve_tray_request_state, should_auto_refresh,
+        should_hide_on_close, should_recreate_tray_manager, should_show_provider,
+        ssh_session_error_message, startup_last_refresh, startup_popout_mode,
+        startup_requires_visible_window, tray_action_request,
     };
     use crate::core::ProviderId;
     use crate::settings::{Settings, TrayIconMode};
@@ -5156,6 +5172,45 @@ mod tests {
         let request = tray_action_request(TrayMenuAction::TrayRightClick);
         assert!(request.show_context_menu);
         assert!(request.hide_after_menu);
+    }
+
+    #[test]
+    fn hidden_tray_actions_preserve_popout_mode_and_selected_tab() {
+        let initial_tab = SelectedTab::Provider(ProviderId::Claude);
+
+        let settings_request = tray_action_request(TrayMenuAction::Settings);
+        assert_eq!(
+            resolve_tray_request_state(true, initial_tab, &settings_request),
+            (true, initial_tab)
+        );
+
+        let right_click_request = tray_action_request(TrayMenuAction::TrayRightClick);
+        assert_eq!(
+            resolve_tray_request_state(false, initial_tab, &right_click_request),
+            (false, initial_tab)
+        );
+    }
+
+    #[test]
+    fn visible_tray_actions_retarget_surface_and_tab() {
+        let popup_request = tray_action_request(TrayMenuAction::TrayLeftClick {
+            tray_x: 1180,
+            tray_y: 740,
+        });
+        assert_eq!(
+            resolve_tray_request_state(
+                true,
+                SelectedTab::Provider(ProviderId::Claude),
+                &popup_request
+            ),
+            (false, SelectedTab::Summary)
+        );
+
+        let popout_request = tray_action_request(TrayMenuAction::PopOutProvider("codex".into()));
+        assert_eq!(
+            resolve_tray_request_state(false, SelectedTab::Summary, &popout_request),
+            (true, SelectedTab::Provider(ProviderId::Codex))
+        );
     }
 
     #[test]
