@@ -1353,6 +1353,54 @@ fn cjk_font_candidates() -> &'static [(&'static str, &'static str)] {
     ]
 }
 
+/// Compute the target position for a popout (detached) window.
+///
+/// When a tray anchor is available the window is placed right-aligned near
+/// the tray icon and above the taskbar.  Without a tray anchor the window
+/// falls back to the bottom-right corner of the work area.  The result is
+/// always clamped inside `work_area`.
+///
+/// Wired into `layout_main_window` / `activate_popout_mode` in a follow-up task.
+#[allow(dead_code)]
+fn compute_popout_target(
+    tray_anchor: Option<egui::Pos2>,
+    work_area: Rect,
+    target_size: egui::Vec2,
+) -> egui::Pos2 {
+    let margin = 12.0;
+    let gap = 10.0;
+
+    let (target_x, target_y) = if let Some(tray_pos) = tray_anchor {
+        // Right-align the window near the tray icon, sitting above it.
+        let x = tray_pos.x - target_size.x;
+        let y = tray_pos.y - target_size.y - gap;
+        (x, y)
+    } else {
+        // Bottom-right fallback when tray position is unknown.
+        let x = work_area.max.x - target_size.x - margin;
+        let y = work_area.max.y - target_size.y - margin;
+        (x, y)
+    };
+
+    // Clamp to work area.
+    let min_x = work_area.min.x + margin;
+    let min_y = work_area.min.y + margin;
+    let max_x = (work_area.max.x - target_size.x - margin).max(min_x);
+    let max_y = (work_area.max.y - target_size.y - margin).max(min_y);
+    let x = if max_x <= min_x {
+        min_x
+    } else {
+        target_x.clamp(min_x, max_x)
+    };
+    let y = if max_y <= min_y {
+        min_y
+    } else {
+        target_y.clamp(min_y, max_y)
+    };
+
+    egui::pos2(x, y)
+}
+
 impl CodexBarApp {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Load Windows symbol + CJK fallback fonts so Chinese UI text renders correctly.
@@ -4318,9 +4366,10 @@ mod tests {
     use super::{
         PerProviderTrayRuntimeState, ProviderData, TrayRuntimeState, TrayUpdatePlan, append_font,
         build_test_click_event_batches, choose_tray_runtime_state, choose_tray_update_plan,
-        debug_window_mode, launch_block_reason, main_window_summary_height, prepend_font,
-        remote_session_error_message, should_auto_refresh, should_recreate_tray_manager,
-        should_show_provider, ssh_session_error_message, startup_last_refresh, startup_popout_mode,
+        compute_popout_target, debug_window_mode, launch_block_reason, main_window_summary_height,
+        prepend_font, remote_session_error_message, should_auto_refresh,
+        should_recreate_tray_manager, should_show_provider, ssh_session_error_message,
+        startup_last_refresh, startup_popout_mode,
     };
     use crate::core::ProviderId;
     use crate::settings::{Settings, TrayIconMode};
@@ -4709,5 +4758,52 @@ mod tests {
             TrayIconMode::Single,
             &settings
         ));
+    }
+
+    // -- popout placement helpers for tests ----------------------------------
+
+    /// Simulated 1920×1080 monitor with a 40 px bottom taskbar.
+    fn popout_work_area() -> egui::Rect {
+        egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1920.0, 1040.0))
+    }
+
+    /// Typical popout target size.
+    fn popout_size() -> egui::Vec2 {
+        egui::vec2(340.0, 400.0)
+    }
+
+    // -- popout placement tests ----------------------------------------------
+
+    #[test]
+    fn popout_prefers_tray_anchor_when_available() {
+        let tray_anchor = Some(pos2(1180.0, 740.0));
+        let placement = compute_popout_target(tray_anchor, popout_work_area(), popout_size());
+        assert!(
+            placement.x > 700.0,
+            "x={} should be right-biased",
+            placement.x
+        );
+        assert!(
+            placement.y > 300.0,
+            "y={} should be in lower half",
+            placement.y
+        );
+    }
+
+    #[test]
+    fn popout_fallback_avoids_left_side_pointer_anchor() {
+        let placement = compute_popout_target(None, popout_work_area(), popout_size());
+        assert!(
+            placement.x > 700.0,
+            "x={} should avoid left side",
+            placement.x
+        );
+    }
+
+    #[test]
+    fn popout_tray_anchor_stays_clamped_inside_work_area() {
+        let tray_anchor = Some(pos2(1915.0, 1075.0));
+        let placement = compute_popout_target(tray_anchor, popout_work_area(), popout_size());
+        assert!(placement.x <= 1568.0, "x={} should be clamped", placement.x);
     }
 }
