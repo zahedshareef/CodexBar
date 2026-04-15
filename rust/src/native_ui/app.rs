@@ -1742,9 +1742,7 @@ impl CodexBarApp {
     fn prepare_tray_popout_position(&mut self) {
         let tray_rect = self.tray_manager.as_ref().and_then(|tm| tm.rect());
         let request = prepare_tray_popout_position(tray_rect);
-        if let Some(anchor) = request.tray_anchor {
-            self.tray_anchor_pos = Some(anchor);
-        }
+        self.tray_anchor_pos = request.tray_anchor;
         self.pending_main_window_layout = true;
         self.anchor_main_window_to_pointer = false;
     }
