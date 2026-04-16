@@ -1,11 +1,12 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Build and run CodexBar for Windows.
+    Build and run the CodexBar Tauri desktop shell for Windows.
 
 .DESCRIPTION
     Checks that build prerequisites are installed (Rust, MinGW-w64),
-    installs them if missing, then builds and launches CodexBar.
+    installs them if missing, then builds the Tauri frontend and launches
+    the desktop shell.
 
 .PARAMETER Release
     Build in release mode (optimised). Default is debug.
@@ -14,7 +15,7 @@
     Skip the build step and run the last built binary.
 
 .PARAMETER Verbose
-    Pass -v to CodexBar for debug logging.
+    Enable debug logging via RUST_LOG for the Tauri desktop shell.
 
 .EXAMPLE
     .\dev.ps1                  # debug build + run
@@ -33,7 +34,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = $PSScriptRoot
-$RustDir = Join-Path $RepoRoot "rust"
+$TauriFrontendDir = Join-Path $RepoRoot "apps\desktop-tauri"
+$TauriManifestPath = Join-Path $TauriFrontendDir "src-tauri\Cargo.toml"
+$TargetDir = Join-Path $RepoRoot "target"
+$DesktopBinaryName = "codexbar-desktop-tauri.exe"
 
 function Get-RustHostTriple {
     if (-not (Get-Command rustc -ErrorAction SilentlyContinue)) {
@@ -47,6 +51,28 @@ function Get-RustHostTriple {
     }
 
     return ($hostLine -replace '^host:\s*', '').Trim()
+}
+
+function Get-DesktopBinaryCandidates {
+    param(
+        [string]$Profile,
+        [string]$ConfiguredTarget
+    )
+
+    $candidates = @(
+        (Join-Path $TargetDir "$Profile\$DesktopBinaryName")
+    )
+
+    if ($ConfiguredTarget) {
+        $candidates += Join-Path $TargetDir "$ConfiguredTarget\$Profile\$DesktopBinaryName"
+    }
+
+    $candidates += @(
+        (Join-Path $TargetDir "x86_64-pc-windows-msvc\$Profile\$DesktopBinaryName"),
+        (Join-Path $TargetDir "x86_64-pc-windows-gnu\$Profile\$DesktopBinaryName")
+    )
+
+    return $candidates | Select-Object -Unique
 }
 
 # ── Ensure known tool paths are in current session PATH ─────────────────────
@@ -94,22 +120,32 @@ if (-not $hasCargo -or ($needsDlltool -and -not $hasDlltool)) {
     }
 }
 
+if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+    Write-Host "ERROR: npm (Node.js) not found." -ForegroundColor Red
+    Write-Host "Install Node.js to build apps/desktop-tauri before running this script." -ForegroundColor Yellow
+    exit 1
+}
+
 # ── Build ────────────────────────────────────────────────────────────────────
 
 if (-not $SkipBuild) {
-    Push-Location $RustDir
+    Push-Location $TauriFrontendDir
     try {
-        if ($Release) {
-            Write-Host "Building CodexBar (release)..." -ForegroundColor Cyan
-            cargo build --bin codexbar --release
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        } else {
-            Write-Host "Building CodexBar (debug)..." -ForegroundColor Cyan
-            cargo build --bin codexbar
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        }
+        Write-Host "Building desktop frontend..." -ForegroundColor Cyan
+        npm run build
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     } finally {
         Pop-Location
+    }
+
+    if ($Release) {
+        Write-Host "Building CodexBar Desktop (release)..." -ForegroundColor Cyan
+        cargo build --manifest-path $TauriManifestPath --bin codexbar-desktop-tauri --release
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } else {
+        Write-Host "Building CodexBar Desktop (debug)..." -ForegroundColor Cyan
+        cargo build --manifest-path $TauriManifestPath --bin codexbar-desktop-tauri
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
 }
 
@@ -117,7 +153,7 @@ if (-not $SkipBuild) {
 
 # Binary may be under target/<profile> or target/<triple>/<profile>
 $profile = if ($Release) { "release" } else { "debug" }
-$cargoConfigPath = Join-Path $RustDir ".cargo\config.toml"
+$cargoConfigPath = Join-Path $RepoRoot ".cargo\config.toml"
 $configuredTarget = $null
 
 if ($env:CARGO_BUILD_TARGET) {
@@ -129,18 +165,7 @@ if ($env:CARGO_BUILD_TARGET) {
     }
 }
 
-$candidates = @(
-    (Join-Path $RustDir "target\$profile\codexbar.exe")
-)
-
-if ($configuredTarget) {
-    $candidates += Join-Path $RustDir "target\$configuredTarget\$profile\codexbar.exe"
-}
-
-$candidates += @(
-    (Join-Path $RustDir "target\x86_64-pc-windows-msvc\$profile\codexbar.exe"),
-    (Join-Path $RustDir "target\x86_64-pc-windows-gnu\$profile\codexbar.exe")
-) | Select-Object -Unique
+$candidates = Get-DesktopBinaryCandidates -Profile $profile -ConfiguredTarget $configuredTarget
 
 $binary = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 
@@ -151,11 +176,13 @@ if (-not $binary) {
     exit 1
 }
 
-$args_ = @("menubar")
 if ($Verbose) {
-    $args_ = @("-v") + $args_
+    if (-not $env:RUST_LOG) {
+        $env:RUST_LOG = "debug"
+    }
+    Write-Host "Verbose logging enabled via RUST_LOG=$env:RUST_LOG" -ForegroundColor Cyan
 }
 
 Write-Host ""
-Write-Host "Starting CodexBar..." -ForegroundColor Green
-& $binary @args_
+Write-Host "Starting CodexBar Desktop..." -ForegroundColor Green
+& $binary

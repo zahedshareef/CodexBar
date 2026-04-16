@@ -4,13 +4,13 @@
 
 A Windows (and WSL) port of [CodexBar](https://github.com/steipete/CodexBar) — the tiny menu bar app that keeps your AI provider usage limits visible.
 
-> **This is the official Windows port.** The original CodexBar started as a macOS Swift app by [Peter Steinberger](https://github.com/steipete). This port is built with Rust + egui for native Windows and WSL support.
+> **This is the official Windows port.** The original CodexBar started as a macOS Swift app by [Peter Steinberger](https://github.com/steipete). This branch uses a Tauri desktop shell on top of the shared Rust backend.
 
 ## Features
 
 - **16 AI Providers**: Codex, Claude, Cursor, Gemini, Copilot, Antigravity, Windsurf, Zai, Kiro, Vertex AI, Augment, MiniMax, OpenCode, Kimi, Kimi K2, Infini
 - **System Tray Icon**: Dynamic two-bar meter showing session + weekly usage
-- **Native Windows UI**: Built with egui - no web runtime required
+- **Desktop Shell**: Tauri + React UI backed by the shared Rust core
 - **Browser Cookie Extraction**: Automatic extraction from Chrome, Edge, Brave, Firefox (DPAPI encrypted)
 - **CLI Commands**: `codexbar usage` and `codexbar cost` for scripting
 - **Preferences Window**: Enable/disable providers, set refresh intervals, manage cookies
@@ -31,7 +31,7 @@ A Windows (and WSL) port of [CodexBar](https://github.com/steipete/CodexBar) —
 ### Quick Start — Windows
 
 ```powershell
-# Clone and run — prerequisites are installed automatically
+# Clone and run — Rust/MinGW prerequisites are installed automatically; install Node.js first
 git clone https://github.com/Finesssee/Win-CodexBar.git
 cd Win-CodexBar
 .\dev.ps1
@@ -39,8 +39,9 @@ cd Win-CodexBar
 
 This will:
 1. Check for Rust and MinGW-w64, install them if missing
-2. Build CodexBar in debug mode
-3. Launch the system tray app
+2. Build the Tauri frontend (`apps/desktop-tauri`)
+3. Build the Tauri desktop shell in debug mode
+4. Launch the desktop app
 
 Other options:
 ```powershell
@@ -51,7 +52,7 @@ Other options:
 
 ### Quick Start — WSL (Ubuntu)
 
-CodexBar runs natively inside WSL. The CLI works out of the box; the GUI
+CodexBar runs natively inside WSL. The CLI works out of the box; the desktop shell
 requires [WSLg](https://github.com/microsoft/wslg) (Windows 11, build 22000+).
 
 ```bash
@@ -63,8 +64,9 @@ cd Win-CodexBar
 
 This will:
 1. Detect your WSL environment
-2. Build CodexBar as a native Linux binary
-3. Launch the GUI (WSLg) or CLI (no display server detected)
+2. Build the Tauri frontend (`apps/desktop-tauri`)
+3. Build CodexBar Desktop as a native Linux binary
+4. Launch the desktop shell (WSLg) or CLI (no display server detected)
 
 CLI-only mode (no display server needed):
 ```bash
@@ -80,7 +82,7 @@ When running inside WSL, CodexBar:
   Chromium cookies encrypted with DPAPI cannot be decrypted from WSL automatically.
   Use manual cookies (Settings → Cookies) or CLI-based provider authentication instead.
 - **Provider CLIs**: Works with `codex`, `claude`, `gemini` etc. installed inside WSL natively.
-- **GUI**: Requires WSLg (Windows 11) or an X server. Falls back to CLI mode automatically.
+- **Desktop shell**: Requires WSLg (Windows 11) or an X server. Falls back to CLI mode automatically.
 - **Notifications**: Uses `notify-send` in WSL. Falls back to logging if unavailable.
 
 #### WSL Authentication Tips
@@ -102,7 +104,7 @@ Download the latest release from [GitHub Releases](https://github.com/Finesssee/
 
 ### Manual Build
 
-Prerequisites: Rust 1.70+ with `x86_64-pc-windows-gnu` target, MinGW-w64.
+Prerequisites: Rust 1.70+ with `x86_64-pc-windows-gnu` target, MinGW-w64, and Node.js/npm.
 Install them automatically with:
 
 ```powershell
@@ -111,16 +113,19 @@ Install them automatically with:
 
 Then build:
 ```powershell
-cd rust
-cargo build --release
-# Binary at: target/release/codexbar.exe
+cd apps/desktop-tauri
+npm run build
+cd ../..
+cargo build --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml --release
+# Binary at: target/release/codexbar-desktop-tauri.exe
 ```
 
 ## Usage
 
-### GUI (System Tray)
+### Desktop shell
 ```powershell
-codexbar menubar
+cargo run
+# or: cargo run -p codexbar-desktop-tauri
 ```
 
 ### CLI
@@ -158,7 +163,7 @@ codexbar cost -p claude
 
 ## First Run
 
-1. Run `codexbar menubar` to start the app
+1. Run `.\dev.ps1`, `./dev.sh`, or `cargo run` from the repo root to start the desktop shell
 2. Click **Settings** in the menu
 3. In **General**, choose your preferred UI language
 4. In **Providers**, enable the providers you use and check their auth state
@@ -190,7 +195,7 @@ If automatic extraction fails, you can add cookies manually:
 
 | Feature | macOS | Windows | WSL |
 |---------|-------|---------|-----|
-| UI Framework | SwiftUI | egui (Rust) | egui (via WSLg) |
+| UI Framework | SwiftUI | Tauri + React (Rust backend) | Tauri + React (via WSLg) |
 | System Tray | NSStatusItem | tray-icon crate | tray-icon (WSLg) |
 | Cookie Decryption | Keychain | DPAPI | Manual cookies |
 | Widget | WidgetKit | Not available | Not available |

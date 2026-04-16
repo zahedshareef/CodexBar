@@ -4,13 +4,13 @@
 
 [CodexBar](https://github.com/steipete/CodexBar) 的 Windows（以及 WSL）移植版 —— 一个小巧的菜单栏应用，让你随时掌握各个 AI 服务商的用量额度。
 
-> **这是一个非官方移植版。** 原版 CodexBar 是由 [Peter Steinberger](https://github.com/steipete) 开发的 macOS Swift 应用。本项目使用 Rust + egui 构建，提供原生 Windows 与 WSL 支持。
+> **这是官方 Windows 移植版。** 原版 CodexBar 是由 [Peter Steinberger](https://github.com/steipete) 开发的 macOS Swift 应用。本分支使用 Tauri 桌面壳层，并复用共享的 Rust 后端。
 
 ## 功能特性
 
 - **16 个 AI 服务商**：Codex、Claude、Cursor、Gemini、Copilot、Antigravity、Windsurf、Zai、Kiro、Vertex AI、Augment、MiniMax、OpenCode、Kimi、Kimi K2、Infini
 - **系统托盘图标**：动态双条进度显示会话与周用量
-- **原生 Windows UI**：基于 egui 构建，无需 Web 运行时
+- **桌面壳层**：Tauri + React UI，底层复用共享 Rust 核心
 - **浏览器 Cookie 提取**：自动从 Chrome、Edge、Brave、Firefox 提取（DPAPI 加密）
 - **CLI 命令**：支持 `codexbar usage` 与 `codexbar cost`，方便脚本化
 - **设置窗口**：可启用/禁用服务商、设置刷新间隔、管理 Cookies
@@ -31,7 +31,7 @@
 ### 快速开始 — Windows
 
 ```powershell
-# 克隆并运行 —— 缺失依赖会自动安装
+# 克隆并运行 —— Rust/MinGW 依赖可自动安装，但请先安装 Node.js
 git clone https://github.com/Finesssee/Win-CodexBar.git
 cd Win-CodexBar
 .\dev.ps1
@@ -39,8 +39,9 @@ cd Win-CodexBar
 
 它会执行以下操作：
 1. 检查 Rust 和 MinGW-w64，缺失时自动安装
-2. 以 debug 模式构建 CodexBar
-3. 启动系统托盘应用
+2. 构建 Tauri 前端（`apps/desktop-tauri`）
+3. 以 debug 模式构建 Tauri 桌面壳层
+4. 启动桌面应用
 
 其他选项：
 ```powershell
@@ -51,7 +52,7 @@ cd Win-CodexBar
 
 ### 快速开始 — WSL（Ubuntu）
 
-CodexBar 可在 WSL 中原生运行。CLI 开箱即用；GUI 需要 [WSLg](https://github.com/microsoft/wslg)（Windows 11，22000+）。
+CodexBar 可在 WSL 中原生运行。CLI 开箱即用；桌面壳层需要 [WSLg](https://github.com/microsoft/wslg)（Windows 11，22000+）。
 
 ```bash
 # 克隆并构建
@@ -62,8 +63,9 @@ cd Win-CodexBar
 
 它会执行以下操作：
 1. 检测当前 WSL 环境
-2. 将 CodexBar 构建为原生 Linux 二进制
-3. 启动 GUI（WSLg）或 CLI（未检测到显示服务时）
+2. 构建 Tauri 前端（`apps/desktop-tauri`）
+3. 将 CodexBar Desktop 构建为原生 Linux 二进制
+4. 启动桌面壳层（WSLg）或 CLI（未检测到显示服务时）
 
 仅 CLI 模式（无需显示服务）：
 ```bash
@@ -79,7 +81,7 @@ cd Win-CodexBar
   由于 Chromium Cookies 使用 DPAPI 加密，WSL 中无法自动解密。
   请改用手动 Cookies（设置 → Cookies）或基于 CLI 的服务商认证。
 - **服务商 CLI**：支持在 WSL 内原生安装并使用 `codex`、`claude`、`gemini` 等命令。
-- **GUI**：需要 WSLg（Windows 11）或 X server。若不可用，会自动回退到 CLI 模式。
+- **桌面壳层**：需要 WSLg（Windows 11）或 X server。若不可用，会自动回退到 CLI 模式。
 - **通知**：在 WSL 中使用 `notify-send`，若不可用则退回日志输出。
 
 #### WSL 认证建议
@@ -98,7 +100,7 @@ cd Win-CodexBar
 
 ### 手动构建
 
-前置要求：Rust 1.70+、`x86_64-pc-windows-gnu` target、MinGW-w64。
+前置要求：Rust 1.70+、`x86_64-pc-windows-gnu` target、MinGW-w64，以及 Node.js/npm。
 可通过以下命令自动安装：
 
 ```powershell
@@ -107,16 +109,19 @@ cd Win-CodexBar
 
 然后构建：
 ```powershell
-cd rust
-cargo build --release
-# 二进制路径：target/release/codexbar.exe
+cd apps/desktop-tauri
+npm run build
+cd ../..
+cargo build --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml --release
+# 二进制路径：target/release/codexbar-desktop-tauri.exe
 ```
 
 ## 使用方式
 
-### GUI（系统托盘）
+### 桌面壳层
 ```powershell
-codexbar menubar
+cargo run
+# 或：cargo run -p codexbar-desktop-tauri
 ```
 
 ### CLI
@@ -154,7 +159,7 @@ codexbar cost -p claude
 
 ## 首次运行
 
-1. 运行 `codexbar menubar` 启动应用
+1. 在仓库根目录运行 `.\dev.ps1`、`./dev.sh` 或 `cargo run` 启动桌面壳层
 2. 在菜单中点击 **Settings**
 3. 前往 **Providers** 标签页，启用你使用的服务商
 4. 确保你已登录相应服务商 CLI（例如 `codex`、`claude`、`gemini`）
@@ -184,7 +189,7 @@ Win-CodexBar 可自动从以下浏览器提取 Cookies：
 
 | 功能 | macOS | Windows | WSL |
 |------|-------|---------|-----|
-| UI 框架 | SwiftUI | egui（Rust） | egui（通过 WSLg） |
+| UI 框架 | SwiftUI | Tauri + React（Rust 后端） | Tauri + React（通过 WSLg） |
 | 系统托盘 | NSStatusItem | tray-icon crate | tray-icon（WSLg） |
 | Cookie 解密 | Keychain | DPAPI | 手动 Cookies |
 | Widget | WidgetKit | 不支持 | 不支持 |
@@ -208,4 +213,4 @@ MIT —— 与原版 CodexBar 保持一致
 
 ---
 
-*这是一个非官方 Windows 移植版。如需官方 macOS 版本，请访问 [steipete/CodexBar](https://github.com/steipete/CodexBar)。*
+*如需原版 macOS 版本，请访问 [steipete/CodexBar](https://github.com/steipete/CodexBar)。*
