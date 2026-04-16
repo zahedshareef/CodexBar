@@ -280,6 +280,12 @@ export interface CookieInfoBridge {
   savedAt: string;
 }
 
+export interface DetectedBrowserBridge {
+  browserType: string;
+  displayName: string;
+  profileCount: number;
+}
+
 export interface AppInfoBridge {
   name: string;
   version: string;

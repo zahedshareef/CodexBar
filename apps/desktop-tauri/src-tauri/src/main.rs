@@ -75,6 +75,8 @@ fn main() {
             commands::get_manual_cookies,
             commands::set_manual_cookie,
             commands::remove_manual_cookie,
+            commands::list_detected_browsers,
+            commands::import_browser_cookies,
             commands::get_app_info,
             commands::get_provider_chart_data,
         ])

@@ -3,8 +3,9 @@
 use std::sync::Mutex;
 
 use crate::commands::ProviderCatalogEntry;
+use codexbar::settings::Settings;
 use tauri::image::Image;
-use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use tauri::menu::{CheckMenuItemBuilder, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager};
 
@@ -122,7 +123,8 @@ fn build_native_tray_menu(
     providers: &[ProviderCatalogEntry],
     status_labels: &[(String, String)],
 ) -> tauri::Result<Menu<tauri::Wry>> {
-    let spec = build_tray_menu(providers, status_labels);
+    let enabled = Settings::load().enabled_providers;
+    let spec = build_tray_menu(providers, status_labels, &enabled);
     let entries = spec
         .iter()
         .map(|entry| build_native_menu_entry(app, entry))
@@ -174,6 +176,8 @@ enum MenuAction {
     Transition(shell::ShellTransitionRequest),
     Refresh,
     CheckForUpdates,
+    /// Toggle the enabled/disabled state of the provider with the given CLI name.
+    ToggleProvider(String),
     Quit,
 }
 
@@ -187,6 +191,10 @@ fn resolve_menu_action(id: &str) -> Option<MenuAction> {
         "refresh" => Some(MenuAction::Refresh),
         "check_for_updates" => Some(MenuAction::CheckForUpdates),
         "quit" => Some(MenuAction::Quit),
+        _ if id.starts_with("toggle_provider:") => {
+            let provider_id = id["toggle_provider:".len()..].to_string();
+            Some(MenuAction::ToggleProvider(provider_id))
+        }
         _ => resolve_menu_target(id).map(MenuAction::Transition),
     }
 }
@@ -307,6 +315,43 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
                 let _ = crate::commands::check_for_updates(handle.clone(), state).await;
             });
         }
+        Some(MenuAction::ToggleProvider(provider_id)) => {
+            let mut settings = Settings::load();
+            if settings.enabled_providers.contains(&provider_id) {
+                settings.enabled_providers.remove(&provider_id);
+            } else {
+                settings.enabled_providers.insert(provider_id);
+            }
+            let _ = settings.save();
+
+            // Rebuild menu immediately so the checkmark reflects the new state.
+            let catalog = crate::commands::get_provider_catalog();
+            let status_labels = if let Some(st) = app.try_state::<Mutex<AppState>>() {
+                let guard = st.lock().unwrap();
+                guard
+                    .provider_cache
+                    .iter()
+                    .filter(|s| s.error.is_none())
+                    .map(|s| {
+                        let label = s
+                            .tray_status_label
+                            .clone()
+                            .unwrap_or_else(|| format!("{:.0}%", s.primary.used_percent));
+                        (
+                            s.provider_id.clone(),
+                            format!("{} {}", s.display_name, label),
+                        )
+                    })
+                    .collect()
+            } else {
+                vec![]
+            };
+            if let Ok(menu) = build_native_tray_menu(app, &catalog, &status_labels)
+                && let Some(tray) = app.tray_by_id("codexbar-main")
+            {
+                let _ = tray.set_menu(Some(menu));
+            }
+        }
         Some(MenuAction::Quit) => {
             app.exit(0);
         }
@@ -422,6 +467,7 @@ fn menu_contains(menu: &[TrayMenuEntry], id: &str) -> bool {
 
 enum NativeMenuEntry {
     Item(MenuItem<tauri::Wry>),
+    CheckItem(tauri::menu::CheckMenuItem<tauri::Wry>),
     Submenu(Submenu<tauri::Wry>),
     Separator(PredefinedMenuItem<tauri::Wry>),
 }
@@ -430,6 +476,7 @@ impl NativeMenuEntry {
     fn as_item(&self) -> &dyn IsMenuItem<tauri::Wry> {
         match self {
             Self::Item(item) => item,
+            Self::CheckItem(item) => item,
             Self::Submenu(item) => item,
             Self::Separator(item) => item,
         }
@@ -495,9 +542,15 @@ mod tests {
 
     #[test]
     fn tray_menu_includes_about_and_provider_entries() {
-        let menu = build_tray_menu(&sample_provider_catalog(), &[]);
+        let menu = build_tray_menu(
+            &sample_provider_catalog(),
+            &[],
+            &["codex".to_string(), "claude".to_string()]
+                .into_iter()
+                .collect(),
+        );
         assert!(menu_contains(&menu, "about"));
-        assert!(menu_contains(&menu, "provider:codex"));
+        assert!(menu_contains(&menu, "toggle_provider:codex"));
         assert!(menu_contains(&menu, "quit"));
     }
 
