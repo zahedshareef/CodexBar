@@ -309,27 +309,57 @@ fn reclamp_preserved_visible_position(
     )
 }
 
+fn monitor_for_preserved_visible_position(
+    monitors: &[(Rect, f64)],
+    current_top_left: (i32, i32),
+    current_size: Option<(u32, u32)>,
+) -> Option<(Rect, f64)> {
+    if let Some((rect, scale_factor)) = monitors
+        .iter()
+        .find(|(rect, _)| point_in_rect(rect, current_top_left.0, current_top_left.1))
+    {
+        return Some((*rect, *scale_factor));
+    }
+
+    if let Some((width, height)) = current_size {
+        let center_x = current_top_left.0 + width as i32 / 2;
+        let center_y = current_top_left.1 + height as i32 / 2;
+        if let Some((rect, scale_factor)) = monitors
+            .iter()
+            .find(|(rect, _)| point_in_rect(rect, center_x, center_y))
+        {
+            return Some((*rect, *scale_factor));
+        }
+    }
+
+    None
+}
+
 fn current_monitor_work_area(
     window: &WebviewWindow,
     current_top_left: (i32, i32),
 ) -> Option<(Rect, f64)> {
+    let current_size = window
+        .outer_size()
+        .ok()
+        .map(|size| (size.width, size.height));
+
+    if let Ok(monitors) = window.available_monitors() {
+        let monitor_work_areas = monitors
+            .iter()
+            .map(|monitor| (monitor_work_area_rect(monitor), monitor.scale_factor()))
+            .collect::<Vec<_>>();
+        if let Some(monitor) = monitor_for_preserved_visible_position(
+            &monitor_work_areas,
+            current_top_left,
+            current_size,
+        ) {
+            return Some(monitor);
+        }
+    }
+
     if let Ok(Some(monitor)) = window.current_monitor() {
         return Some((monitor_work_area_rect(&monitor), monitor.scale_factor()));
-    }
-
-    let monitors = window.available_monitors().ok()?;
-    if let Some(monitor) =
-        monitor_containing_point(&monitors, current_top_left.0, current_top_left.1)
-    {
-        return Some((monitor_work_area_rect(monitor), monitor.scale_factor()));
-    }
-
-    if let Ok(size) = window.outer_size() {
-        let center_x = current_top_left.0 + size.width as i32 / 2;
-        let center_y = current_top_left.1 + size.height as i32 / 2;
-        if let Some(monitor) = monitor_containing_point(&monitors, center_x, center_y) {
-            return Some((monitor_work_area_rect(monitor), monitor.scale_factor()));
-        }
     }
 
     let monitor = window.primary_monitor().ok()??;
@@ -593,8 +623,21 @@ fn monitor_containing_point(
     monitors.iter().find(|monitor| {
         let pos = monitor.position();
         let size = monitor.size();
-        x >= pos.x && x < pos.x + size.width as i32 && y >= pos.y && y < pos.y + size.height as i32
+        point_in_rect(
+            &Rect {
+                x: pos.x,
+                y: pos.y,
+                width: size.width,
+                height: size.height,
+            },
+            x,
+            y,
+        )
     })
+}
+
+fn point_in_rect(rect: &Rect, x: i32, y: i32) -> bool {
+    x >= rect.x && x < rect.x + rect.width as i32 && y >= rect.y && y < rect.y + rect.height as i32
 }
 
 fn current_tray_anchor(app: &AppHandle) -> Option<crate::state::TrayAnchor> {
@@ -931,6 +974,37 @@ mod tests {
         );
 
         assert_eq!(reclamped, (1392, 472));
+    }
+
+    #[test]
+    fn preserved_visible_monitor_prefers_top_left_for_straddling_window() {
+        let monitors = vec![
+            (
+                Rect {
+                    x: 0,
+                    y: 0,
+                    width: 1920,
+                    height: 1080,
+                },
+                1.0,
+            ),
+            (
+                Rect {
+                    x: 1920,
+                    y: 0,
+                    width: 1920,
+                    height: 1080,
+                },
+                1.25,
+            ),
+        ];
+
+        let selected =
+            monitor_for_preserved_visible_position(&monitors, (1800, 120), Some((600, 700)))
+                .expect("straddling window should resolve from its preserved top-left");
+
+        assert_eq!(selected.0.x, 0);
+        assert_eq!(selected.1, 1.0);
     }
 
     #[test]
