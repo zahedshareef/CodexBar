@@ -62,31 +62,23 @@ pub fn calculate_panel_position(
     scale_factor: f64,
 ) -> (i32, i32) {
     let (pw, ph) = physical_panel_size(panel_size, scale_factor);
-    let mx = monitor_rect.x;
     let my = monitor_rect.y;
-    let mw = monitor_rect.width as i32;
     let mh = monitor_rect.height as i32;
 
-    // Horizontal: center on icon, clamp to work area.
     let icon_cx = icon_rect.x + (icon_rect.width as i32) / 2;
-    let x = (icon_cx - pw / 2)
-        .max(mx + MARGIN)
-        .min(mx + mw - pw - MARGIN);
-
-    // Vertical: above or below the icon depending on taskbar edge.
     let icon_cy = icon_rect.y + (icon_rect.height as i32) / 2;
     let monitor_cy = my + mh / 2;
 
-    let y = if icon_cy > monitor_cy {
+    let target_x = icon_cx - pw / 2;
+    let target_y = if icon_cy > monitor_cy {
         // Bottom taskbar → open above.
-        (icon_rect.y - ph - MARGIN).max(my + MARGIN)
+        icon_rect.y - ph - MARGIN
     } else {
         // Top taskbar → open below.
-        let below = icon_rect.y + icon_rect.height as i32 + MARGIN;
-        below.min(my + mh - ph - MARGIN)
+        icon_rect.y + icon_rect.height as i32 + MARGIN
     };
 
-    (x, y)
+    clamp_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
 }
 
 /// Position for shortcut-triggered opening: 22 % from left, vertically centred.
@@ -271,6 +263,24 @@ mod tests {
         };
         let (_, y) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 1.0);
         assert!(y >= MARGIN, "panel must not exceed top margin");
+    }
+
+    #[test]
+    fn top_taskbar_work_area_clamps_open_below_to_min_y() {
+        let work_area = Rect {
+            x: 0,
+            y: 40,
+            width: 1920,
+            height: 1040,
+        };
+        let icon = Rect {
+            x: 960,
+            y: 4,
+            width: 24,
+            height: 24,
+        };
+        let (_, y) = calculate_panel_position(&icon, &work_area, &panel(), 1.0);
+        assert_eq!(y, work_area.y + MARGIN);
     }
 
     #[test]
