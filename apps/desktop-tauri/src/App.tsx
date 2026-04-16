@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { checkForUpdates, getBootstrapState } from "./lib/tauri";
-import { useSurfaceMode } from "./hooks/useSurfaceMode";
+import { useSurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
 import Settings from "./surfaces/Settings";
 import TrayPanel from "./surfaces/TrayPanel";
 import PopOutPanel from "./surfaces/PopOutPanel";
-import type { BootstrapState, SurfaceMode } from "./types/bridge";
+import type { BootstrapState } from "./types/bridge";
+import type { SurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
 
 export default function App() {
-  const mode = useSurfaceMode();
+  const surface = useSurfaceSnapshot();
   const [state, setState] = useState<BootstrapState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,23 +57,28 @@ export default function App() {
     );
   }
 
-  return <SurfaceRouter mode={mode} state={state} />;
+  return <SurfaceRouter surface={surface} state={state} />;
 }
 
 function SurfaceRouter({
-  mode,
+  surface,
   state,
 }: {
-  mode: SurfaceMode;
+  surface: SurfaceSnapshot;
   state: BootstrapState;
 }) {
-  switch (mode) {
+  switch (surface.mode) {
     case "hidden":
       return null;
     case "trayPanel":
       return <TrayPanel state={state} />;
-    case "popOut":
-      return <PopOutPanel state={state} />;
+    case "popOut": {
+      const providerId =
+        surface.target.kind === "provider"
+          ? surface.target.providerId
+          : undefined;
+      return <PopOutPanel state={state} providerId={providerId} />;
+    }
     case "settings":
       return <SettingsLayout state={state} />;
     default:

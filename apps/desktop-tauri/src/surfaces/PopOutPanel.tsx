@@ -4,7 +4,6 @@ import type {
   ProviderUsageSnapshot,
 } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
-import { useSurfaceTarget } from "../hooks/useSurfaceMode";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
@@ -23,15 +22,28 @@ function sortProviders(
   });
 }
 
-export default function PopOutPanel({ state }: { state: BootstrapState }) {
+export default function PopOutPanel({
+  state,
+  providerId,
+}: {
+  state: BootstrapState;
+  providerId?: string;
+}) {
   const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
-  const shellTarget = useSurfaceTarget("popOut");
   const [selectedId, setSelectedId] = useState<string | null>(
-    shellTarget?.kind === "provider" ? shellTarget.providerId : null,
+    providerId ?? null,
   );
+
+  useEffect(() => {
+    // Keep selectedId in sync with the shell target passed down from App routing.
+    setSelectedId((current) => {
+      const next = providerId ?? null;
+      return current === next ? current : next;
+    });
+  }, [providerId]);
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
 
@@ -68,21 +80,6 @@ export default function PopOutPanel({ state }: { state: BootstrapState }) {
     setSelectedId(null);
     void setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
-
-  useEffect(() => {
-    if (!shellTarget) {
-      return;
-    }
-
-    if (shellTarget.kind === "provider") {
-      setSelectedId((current) =>
-        current === shellTarget.providerId ? current : shellTarget.providerId,
-      );
-      return;
-    }
-
-    setSelectedId(null);
-  }, [shellTarget]);
 
   // Loading
   if (isRefreshing && sorted.length === 0) {
