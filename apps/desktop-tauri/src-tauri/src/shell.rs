@@ -18,6 +18,12 @@ pub struct ShellTransitionRequest {
     pub position: Option<(i32, i32)>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SurfaceSnapshot {
+    mode: SurfaceMode,
+    target: SurfaceTarget,
+}
+
 enum TransitionResolution {
     ModeChange {
         transition: SurfaceTransition,
@@ -121,16 +127,17 @@ pub fn hide_to_tray(app: &AppHandle) -> Result<SurfaceMode, String> {
     let st = app
         .try_state::<Mutex<AppState>>()
         .ok_or_else(|| "app state unavailable".to_string())?;
-    let (transition, current_target) = {
+    let (transition, previous, current_target) = {
         let mut guard = st.lock().unwrap();
+        let previous = current_surface_snapshot(&guard);
         let transition =
             guard.transition_surface(SurfaceMode::Hidden, Some(SurfaceTarget::Summary));
         guard.current_target = SurfaceTarget::Summary;
-        (transition, guard.current_target.clone())
+        (transition, previous, guard.current_target.clone())
     };
 
     if let Some(transition) = transition {
-        apply_transition(app, &window, &transition, current_target, None)
+        apply_transition(app, &window, &transition, &previous, current_target, None)
     } else {
         let _ = window.hide();
         Ok(SurfaceMode::Hidden)
@@ -155,15 +162,22 @@ fn apply_transition_request(
         .try_state::<Mutex<AppState>>()
         .ok_or_else(|| "app state unavailable".to_string())?;
 
-    let resolution = {
+    let (previous, resolution) = {
         let mut guard = st.lock().unwrap();
-        resolve_transition_request(&mut guard, &request, force_same_mode_apply)
+        let previous = current_surface_snapshot(&guard);
+        let resolution = resolve_transition_request(&mut guard, &request, force_same_mode_apply);
+        (previous, resolution)
     };
 
     match resolution {
-        TransitionResolution::ModeChange { transition, target } => {
-            apply_transition(app, &window, &transition, target, request.position)
-        }
+        TransitionResolution::ModeChange { transition, target } => apply_transition(
+            app,
+            &window,
+            &transition,
+            &previous,
+            target,
+            request.position,
+        ),
         TransitionResolution::SameModeRetarget { mode, target } => {
             apply_same_mode_target_update(app, &window, mode, target, request.position)
         }
@@ -173,7 +187,14 @@ fn apply_transition_request(
                 to: mode,
                 properties: mode.window_properties(),
             };
-            apply_transition(app, &window, &transition, target, request.position)
+            apply_transition(
+                app,
+                &window,
+                &transition,
+                &previous,
+                target,
+                request.position,
+            )
         }
         TransitionResolution::Noop { mode } => Ok(mode),
     }
@@ -204,6 +225,32 @@ fn resolve_transition_request(
     }
 }
 
+fn current_surface_snapshot(state: &AppState) -> SurfaceSnapshot {
+    SurfaceSnapshot {
+        mode: state.surface_machine.current(),
+        target: state.current_target.clone(),
+    }
+}
+
+fn restore_surface_snapshot(state: &mut AppState, snapshot: &SurfaceSnapshot) {
+    let _ = state.transition_surface(snapshot.mode, Some(snapshot.target.clone()));
+}
+
+fn recovery_snapshot_for_failed_transition(
+    transition: &SurfaceTransition,
+    previous: &SurfaceSnapshot,
+    requested_target: &SurfaceTarget,
+) -> SurfaceSnapshot {
+    if previous.mode == SurfaceMode::Hidden {
+        SurfaceSnapshot {
+            mode: transition.to,
+            target: requested_target.clone(),
+        }
+    } else {
+        previous.clone()
+    }
+}
+
 fn apply_same_mode_target_update(
     app: &AppHandle,
     window: &WebviewWindow,
@@ -224,6 +271,7 @@ fn apply_transition(
     app: &AppHandle,
     window: &WebviewWindow,
     transition: &SurfaceTransition,
+    previous: &SurfaceSnapshot,
     current_target: SurfaceTarget,
     position: Option<(i32, i32)>,
 ) -> Result<SurfaceMode, String> {
@@ -231,23 +279,37 @@ fn apply_transition(
         let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
     }
 
-    let apply_result = apply_window_properties(window, &transition.properties);
-    if apply_result.is_err() {
-        let _ = window.show();
-        let _ = window.set_focus();
-    }
-
-    events::emit_surface_mode_changed(app, transition.from, transition.to, current_target);
-    match apply_result {
-        Ok(()) => Ok(transition.to),
+    match apply_window_properties(window, &transition.properties) {
+        Ok(()) => {
+            events::emit_surface_mode_changed(app, transition.from, transition.to, current_target);
+            Ok(transition.to)
+        }
         Err(err) => {
+            let recovery =
+                recovery_snapshot_for_failed_transition(transition, previous, &current_target);
+            let st = app
+                .try_state::<Mutex<AppState>>()
+                .ok_or_else(|| "app state unavailable".to_string())?;
+            {
+                let mut guard = st.lock().unwrap();
+                restore_surface_snapshot(&mut guard, &recovery);
+            }
+            let _ = window.show();
+            let _ = window.set_focus();
+            events::emit_surface_mode_changed(
+                app,
+                transition.from,
+                recovery.mode,
+                recovery.target.clone(),
+            );
             tracing::warn!(
-                "shell: recovered from window-property failure during {:?} -> {:?}: {}",
+                "shell: recovered from window-property failure during {:?} -> {:?} by restoring {:?}: {}",
                 transition.from,
                 transition.to,
+                recovery.mode,
                 err
             );
-            Ok(transition.to)
+            Ok(recovery.mode)
         }
     }
 }
@@ -466,5 +528,72 @@ mod tests {
             }
             _ => panic!("expected same-mode reopen update"),
         }
+    }
+
+    #[test]
+    fn failed_hide_transition_recovers_previous_visible_surface() {
+        let previous = SurfaceSnapshot {
+            mode: SurfaceMode::PopOut,
+            target: SurfaceTarget::Provider {
+                provider_id: "codex".into(),
+            },
+        };
+        let transition = SurfaceTransition {
+            from: SurfaceMode::PopOut,
+            to: SurfaceMode::Hidden,
+            properties: SurfaceMode::Hidden.window_properties(),
+        };
+
+        let recovery = recovery_snapshot_for_failed_transition(
+            &transition,
+            &previous,
+            &SurfaceTarget::Summary,
+        );
+
+        assert_eq!(recovery, previous);
+    }
+
+    #[test]
+    fn failed_show_transition_from_hidden_keeps_requested_visible_surface() {
+        let previous = SurfaceSnapshot {
+            mode: SurfaceMode::Hidden,
+            target: SurfaceTarget::Summary,
+        };
+        let transition = SurfaceTransition {
+            from: SurfaceMode::Hidden,
+            to: SurfaceMode::TrayPanel,
+            properties: SurfaceMode::TrayPanel.window_properties(),
+        };
+
+        let recovery = recovery_snapshot_for_failed_transition(
+            &transition,
+            &previous,
+            &SurfaceTarget::Summary,
+        );
+
+        assert_eq!(
+            recovery,
+            SurfaceSnapshot {
+                mode: SurfaceMode::TrayPanel,
+                target: SurfaceTarget::Summary,
+            }
+        );
+    }
+
+    #[test]
+    fn restore_surface_snapshot_reverts_mode_and_target() {
+        let previous = SurfaceSnapshot {
+            mode: SurfaceMode::Settings,
+            target: SurfaceTarget::Settings {
+                tab: "about".into(),
+            },
+        };
+        let mut state = AppState::new();
+        state.transition_surface(SurfaceMode::Hidden, Some(SurfaceTarget::Summary));
+
+        restore_surface_snapshot(&mut state, &previous);
+
+        assert_eq!(state.surface_machine.current(), SurfaceMode::Settings);
+        assert_eq!(state.current_target, previous.target);
     }
 }

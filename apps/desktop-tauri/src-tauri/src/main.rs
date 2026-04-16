@@ -16,6 +16,13 @@ use surface::SurfaceMode;
 use surface_target::SurfaceTarget;
 use tauri::Manager;
 
+fn should_hide_close_request(mode: SurfaceMode) -> bool {
+    matches!(
+        mode,
+        SurfaceMode::TrayPanel | SurfaceMode::PopOut | SurfaceMode::Settings
+    )
+}
+
 fn main() {
     let proof_config = proof_harness::ProofConfig::from_env();
     let is_proof_mode = proof_config.is_some();
@@ -91,13 +98,13 @@ fn main() {
                 }
             }
             tauri::WindowEvent::CloseRequested { api, .. } => {
-                // Close in PopOut / Settings → hide instead of quitting.
+                // Close visible shell surfaces → hide instead of quitting.
                 let Some(st) = window.try_state::<Mutex<AppState>>() else {
                     return;
                 };
                 let guard = st.lock().unwrap();
                 let cur = guard.surface_machine.current();
-                if cur == SurfaceMode::PopOut || cur == SurfaceMode::Settings {
+                if should_hide_close_request(cur) {
                     api.prevent_close();
                     drop(guard);
                     let _ = shell::hide_to_tray(window.app_handle());
@@ -107,4 +114,21 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("failed to run CodexBar desktop shell");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn close_request_hides_tray_first_surfaces() {
+        assert!(should_hide_close_request(SurfaceMode::TrayPanel));
+        assert!(should_hide_close_request(SurfaceMode::PopOut));
+        assert!(should_hide_close_request(SurfaceMode::Settings));
+    }
+
+    #[test]
+    fn close_request_leaves_hidden_surface_alone() {
+        assert!(!should_hide_close_request(SurfaceMode::Hidden));
+    }
 }
