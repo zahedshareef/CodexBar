@@ -49,6 +49,26 @@ fn clamp_to_work_area(
     (target_x.clamp(min_x, max_x), target_y.clamp(min_y, max_y))
 }
 
+fn calculate_anchored_position(
+    icon_rect: &Rect,
+    monitor_rect: &Rect,
+    panel_size: &PanelSize,
+    scale_factor: f64,
+    anchor_y: i32,
+    open_above: bool,
+) -> (i32, i32) {
+    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
+    let anchor_x = icon_rect.x + (icon_rect.width as i32) / 2;
+    let target_x = anchor_x - pw / 2;
+    let target_y = if open_above {
+        anchor_y - ph - GAP
+    } else {
+        anchor_y + GAP
+    };
+
+    clamp_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
+}
+
 pub fn clamp_position_to_work_area(
     target_x: i32,
     target_y: i32,
@@ -71,24 +91,27 @@ pub fn calculate_panel_position(
     panel_size: &PanelSize,
     scale_factor: f64,
 ) -> (i32, i32) {
-    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
     let my = monitor_rect.y;
     let mh = monitor_rect.height as i32;
 
-    let icon_cx = icon_rect.x + (icon_rect.width as i32) / 2;
     let icon_cy = icon_rect.y + (icon_rect.height as i32) / 2;
     let monitor_cy = my + mh / 2;
 
-    let target_x = icon_cx - pw / 2;
-    let target_y = if icon_cy > monitor_cy {
-        // Bottom taskbar → open above.
-        icon_rect.y - ph - MARGIN
+    let open_above = icon_cy > monitor_cy;
+    let anchor_y = if open_above {
+        icon_rect.y
     } else {
-        // Top taskbar → open below.
-        icon_rect.y + icon_rect.height as i32 + MARGIN
+        icon_rect.y + icon_rect.height as i32
     };
 
-    clamp_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
+    calculate_anchored_position(
+        icon_rect,
+        monitor_rect,
+        panel_size,
+        scale_factor,
+        anchor_y,
+        open_above,
+    )
 }
 
 /// Position for shortcut-triggered opening: 22 % from left, vertically centred.
@@ -133,17 +156,17 @@ pub fn calculate_popout_position(
     let mh = monitor_rect.height as i32;
 
     let (target_x, target_y) = if let Some(icon_rect) = icon_rect {
-        let anchor_x = icon_rect.x + (icon_rect.width as i32) / 2;
-        let anchor_y = icon_rect.y;
-        let x = anchor_x - pw / 2;
-        let space_above = anchor_y - my - MARGIN;
-        let space_below = my + mh - anchor_y - MARGIN;
-        let y = if space_above >= ph + GAP || space_above > space_below {
-            anchor_y - ph - GAP
-        } else {
-            anchor_y + GAP
-        };
-        (x, y)
+        let space_above = icon_rect.y - my - MARGIN;
+        let space_below = my + mh - icon_rect.y - MARGIN;
+        let open_above = space_above >= ph + GAP || space_above > space_below;
+        calculate_anchored_position(
+            icon_rect,
+            monitor_rect,
+            panel_size,
+            scale_factor,
+            icon_rect.y,
+            open_above,
+        )
     } else {
         (mx + mw - pw - MARGIN, my + mh - ph - MARGIN)
     };
@@ -367,7 +390,7 @@ mod tests {
     // --- visible-surface popout tests ---
 
     #[test]
-    fn popout_falls_back_to_bottom_right_when_no_tray_anchor() {
+    fn anchored_popout_keeps_no_anchor_bottom_right_fallback() {
         let work_area = Rect {
             x: 0,
             y: 0,
@@ -376,6 +399,22 @@ mod tests {
         };
         let target = calculate_popout_position(None, &work_area, &panel(), 1.0);
         assert_eq!(target, (1492, 512));
+    }
+
+    #[test]
+    fn anchored_popout_uses_same_tray_anchor_x_as_panel_positioning() {
+        let icon = Rect {
+            x: 1800,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+
+        let (panel_x, _) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        let (popout_x, _) =
+            calculate_popout_position(Some(&icon), &standard_monitor(), &panel(), 1.0);
+
+        assert_eq!(popout_x, panel_x);
     }
 
     #[test]
