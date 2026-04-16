@@ -556,34 +556,41 @@ impl Settings {
         Ok(())
     }
 
+    fn start_at_login_command(exe_path: &std::path::Path) -> String {
+        format!("\"{}\"", exe_path.display())
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn apply_start_at_login_registry(enabled: bool) -> anyhow::Result<()> {
+        use winreg::RegKey;
+        use winreg::enums::*;
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let run_key = hkcu.open_subkey_with_flags(
+            r"Software\Microsoft\Windows\CurrentVersion\Run",
+            KEY_READ | KEY_WRITE,
+        )?;
+
+        if enabled {
+            let exe_path = std::env::current_exe()?;
+            let command = Self::start_at_login_command(&exe_path);
+            run_key.set_value("CodexBar", &command)?;
+        } else {
+            let _ = run_key.delete_value("CodexBar");
+        }
+
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    pub fn apply_start_at_login_registry(_enabled: bool) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     /// Set start at login (updates Windows registry)
     pub fn set_start_at_login(&mut self, enabled: bool) -> anyhow::Result<()> {
         self.start_at_login = enabled;
-
-        #[cfg(target_os = "windows")]
-        {
-            use winreg::RegKey;
-            use winreg::enums::*;
-
-            let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-            let run_key = hkcu.open_subkey_with_flags(
-                r"Software\Microsoft\Windows\CurrentVersion\Run",
-                KEY_READ | KEY_WRITE,
-            )?;
-
-            if enabled {
-                // Get the current executable path
-                let exe_path = std::env::current_exe()?;
-                let exe_str = exe_path.to_string_lossy();
-                // Add --minimized flag when starting at login
-                let cmd = format!("\"{}\" menubar", exe_str);
-                run_key.set_value("CodexBar", &cmd)?;
-            } else {
-                // Remove the registry entry (ignore if it doesn't exist)
-                let _ = run_key.delete_value("CodexBar");
-            }
-        }
-
+        Self::apply_start_at_login_registry(enabled)?;
         Ok(())
     }
 
@@ -1126,6 +1133,18 @@ mod tests {
         // Remove it
         cookies.remove("claude");
         assert_eq!(cookies.get("claude"), None);
+    }
+
+    #[test]
+    fn test_start_at_login_command_uses_only_the_executable_path() {
+        let path =
+            std::path::PathBuf::from(r"C:\Program Files\CodexBar\codexbar-desktop-tauri.exe");
+        let command = Settings::start_at_login_command(&path);
+        assert_eq!(
+            command,
+            "\"C:\\Program Files\\CodexBar\\codexbar-desktop-tauri.exe\""
+        );
+        assert!(!command.contains("menubar"));
     }
 
     #[test]
