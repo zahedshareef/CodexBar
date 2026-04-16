@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# Build and run CodexBar on Linux / WSL.
+# Build and run the CodexBar Tauri desktop shell on Linux / WSL.
 #
 # Usage:
 #   ./dev.sh                 # debug build + run
 #   ./dev.sh --release       # optimised build
 #   ./dev.sh --skip-build    # run last build
-#   ./dev.sh --verbose       # debug build + run with verbose logging
-#   ./dev.sh --cli           # run CLI usage command instead of menubar
+#   ./dev.sh --verbose       # enable debug logging when launching desktop shell
+#   ./dev.sh --cli           # run backend CLI instead of the desktop shell
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 RUST_DIR="$REPO_ROOT/rust"
+TAURI_APP_DIR="$REPO_ROOT/apps/desktop-tauri"
+TAURI_MANIFEST="$TAURI_APP_DIR/src-tauri/Cargo.toml"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 
@@ -33,7 +35,7 @@ for arg in "$@"; do
             echo "  --release      Optimised build"
             echo "  --skip-build   Run last build without rebuilding"
             echo "  --verbose      Enable debug logging"
-            echo "  --cli          Run CLI usage command instead of menubar GUI"
+            echo "  --cli          Run backend CLI usage command instead of the desktop shell"
             exit 0
             ;;
         *)
@@ -55,7 +57,7 @@ fi
 # ── Detect native Linux target ────────────────────────────────────────────────
 
 NATIVE_TARGET="$(rustc -vV | awk '/^host:/ { print $2 }')"
-TARGET_FLAG="--target $NATIVE_TARGET"
+TARGET_FLAG=(--target "$NATIVE_TARGET")
 
 # ── WSL detection ─────────────────────────────────────────────────────────────
 
@@ -67,7 +69,7 @@ if grep -qi microsoft /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]
     if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
         echo ""
         echo "No display server detected."
-        echo "GUI mode requires WSLg (Windows 11) or an X server."
+        echo "Desktop mode requires WSLg (Windows 11) or an X server."
         echo "Use --cli to run CLI commands instead."
         echo ""
         if [ "$CLI_MODE" -eq 0 ]; then
@@ -79,20 +81,65 @@ if grep -qi microsoft /proc/version 2>/dev/null || [ -n "${WSL_DISTRO_NAME:-}" ]
     fi
 fi
 
+if [ "$CLI_MODE" -eq 0 ] && ! command -v npm &>/dev/null; then
+    echo "ERROR: npm (Node.js) not found."
+    echo "Install Node.js to build apps/desktop-tauri before running desktop mode."
+    exit 1
+fi
+
+find_binary() {
+    local binary_name="$1"
+    local profile="$2"
+    shift 2 || true
+
+    local candidates=(
+        "$REPO_ROOT/target/$profile/$binary_name"
+    )
+
+    if [ -n "${CARGO_BUILD_TARGET:-}" ]; then
+        candidates+=("$REPO_ROOT/target/$CARGO_BUILD_TARGET/$profile/$binary_name")
+    fi
+
+    if [ -n "$NATIVE_TARGET" ]; then
+        candidates+=("$REPO_ROOT/target/$NATIVE_TARGET/$profile/$binary_name")
+    fi
+
+    local candidate
+    for candidate in "${candidates[@]}"; do
+        if [ -f "$candidate" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 # ── Build ─────────────────────────────────────────────────────────────────────
 
 if [ "$SKIP_BUILD" -eq 0 ]; then
-    cd "$RUST_DIR"
-
-    if [ "$RELEASE" -eq 1 ]; then
-        echo "Building CodexBar (release, target=$NATIVE_TARGET)..."
-        cargo build --bin codexbar --release $TARGET_FLAG
+    if [ "$CLI_MODE" -eq 1 ]; then
+        if [ "$RELEASE" -eq 1 ]; then
+            echo "Building CodexBar CLI (release, target=$NATIVE_TARGET)..."
+            cargo build --manifest-path "$RUST_DIR/Cargo.toml" --bin codexbar --release "${TARGET_FLAG[@]}"
+        else
+            echo "Building CodexBar CLI (debug, target=$NATIVE_TARGET)..."
+            cargo build --manifest-path "$RUST_DIR/Cargo.toml" --bin codexbar "${TARGET_FLAG[@]}"
+        fi
     else
-        echo "Building CodexBar (debug, target=$NATIVE_TARGET)..."
-        cargo build --bin codexbar $TARGET_FLAG
-    fi
+        cd "$TAURI_APP_DIR"
+        echo "Building desktop frontend..."
+        npm run build
+        cd "$REPO_ROOT"
 
-    cd "$REPO_ROOT"
+        if [ "$RELEASE" -eq 1 ]; then
+            echo "Building CodexBar Desktop (release, target=$NATIVE_TARGET)..."
+            cargo build --manifest-path "$TAURI_MANIFEST" --bin codexbar-desktop-tauri --release "${TARGET_FLAG[@]}"
+        else
+            echo "Building CodexBar Desktop (debug, target=$NATIVE_TARGET)..."
+            cargo build --manifest-path "$TAURI_MANIFEST" --bin codexbar-desktop-tauri "${TARGET_FLAG[@]}"
+        fi
+    fi
 fi
 
 # ── Locate binary ─────────────────────────────────────────────────────────────
@@ -100,9 +147,14 @@ fi
 PROFILE="debug"
 [ "$RELEASE" -eq 1 ] && PROFILE="release"
 
-BINARY="$RUST_DIR/target/$NATIVE_TARGET/$PROFILE/codexbar"
-if [ ! -f "$BINARY" ]; then
-    echo "ERROR: Binary not found at $BINARY"
+if [ "$CLI_MODE" -eq 1 ]; then
+    BINARY_NAME="codexbar"
+else
+    BINARY_NAME="codexbar-desktop-tauri"
+fi
+
+if ! BINARY="$(find_binary "$BINARY_NAME" "$PROFILE")"; then
+    echo "ERROR: Binary not found for $BINARY_NAME ($PROFILE)"
     echo "Run without --skip-build to build first."
     exit 1
 fi
@@ -112,14 +164,22 @@ fi
 echo ""
 if [ "$CLI_MODE" -eq 1 ]; then
     echo "Running: codexbar usage -p all"
-    ARGS="usage -p all"
+    RUN_ARGS=(usage -p all)
 else
-    echo "Running: codexbar menubar"
-    ARGS="menubar"
+    echo "Running: CodexBar Desktop"
 fi
 
 if [ "$VERBOSE" -eq 1 ]; then
-    "$BINARY" -v $ARGS
+    if [ "$CLI_MODE" -eq 1 ]; then
+        RUN_ARGS=(-v "${RUN_ARGS[@]}")
+    else
+        export RUST_LOG="${RUST_LOG:-debug}"
+        echo "Verbose logging enabled via RUST_LOG=$RUST_LOG"
+    fi
+fi
+
+if [ "$CLI_MODE" -eq 1 ]; then
+    "$BINARY" "${RUN_ARGS[@]}"
 else
-    "$BINARY" $ARGS
+    "$BINARY"
 fi

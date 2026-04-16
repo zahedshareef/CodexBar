@@ -3,5 +3,5 @@ members = [
     "rust",
     "apps/desktop-tauri/src-tauri",
 ]
-default-members = ["rust"]
+default-members = ["apps/desktop-tauri/src-tauri"]
 resolver = "3"

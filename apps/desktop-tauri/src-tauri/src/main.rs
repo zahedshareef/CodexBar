@@ -25,6 +25,8 @@ fn should_hide_close_request(mode: SurfaceMode) -> bool {
 }
 
 fn main() {
+    codexbar::logging::init(false, false).expect("failed to initialize logging");
+
     let proof_config = proof_harness::ProofConfig::from_env();
     let is_proof_mode = proof_config.is_some();
 
