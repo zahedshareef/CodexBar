@@ -248,6 +248,13 @@ impl NotificationManager {
     fn show_toast(&self, title: &str, body: &str) {
         use std::os::windows::process::CommandExt;
         use std::process::Command;
+        use std::sync::Once;
+
+        // Register our AUMID (App User Model ID) exactly once per process so that
+        // CreateToastNotifier("CodexBar") finds a valid registration rather than
+        // silently returning a null notifier.
+        static AUMID_INIT: Once = Once::new();
+        AUMID_INIT.call_once(ensure_aumid_registered);
 
         // Escape for XML content to prevent injection
         fn xml_escape(s: &str) -> String {
@@ -261,35 +268,44 @@ impl NotificationManager {
         let safe_title = xml_escape(title);
         let safe_body = xml_escape(body);
 
-        // Use single-quoted here-string (@'...'@) to prevent PowerShell variable expansion
+        // Uses ToastGeneric (Win 10+) and wraps in try/catch so PowerShell exits
+        // with code 1 on failure rather than swallowing the error silently.
+        // Single-quoted here-string (@'...'@) prevents variable expansion of the
+        // XML content by PowerShell.
         let script = format!(
-            r#"
-            [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-            [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
-
-            $template = @'
-            <toast>
-                <visual>
-                    <binding template="ToastText02">
-                        <text id="1">{}</text>
-                        <text id="2">{}</text>
-                    </binding>
-                </visual>
-            </toast>
+            r#"try {{
+    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+    [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+    $template = @'
+<toast><visual><binding template="ToastGeneric"><text>{}</text><text>{}</text></binding></visual></toast>
 '@
-
-            $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-            $xml.LoadXml($template)
-            $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-            [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("CodexBar").Show($toast)
-            "#,
+    $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+    $xml.LoadXml($template)
+    $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("CodexBar")
+    if ($null -eq $notifier) {{ throw "CreateToastNotifier returned null" }}
+    $notifier.Show($toast)
+}} catch {{
+    [System.Console]::Error.WriteLine("CodexBar toast failed: $_")
+    exit 1
+}}"#,
             safe_title, safe_body
         );
 
-        let _ = Command::new("powershell")
-            .args(["-ExecutionPolicy", "Bypass", "-Command", &script])
+        match Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                &script,
+            ])
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
-            .spawn();
+            .spawn()
+        {
+            Ok(_) => tracing::debug!("Toast notification dispatched: {}", title),
+            Err(e) => tracing::warn!("Failed to dispatch toast notification '{}': {}", title, e),
+        }
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -318,6 +334,28 @@ impl NotificationManager {
 impl Default for NotificationManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Register the CodexBar App User Model ID (AUMID) in the Windows registry so that
+/// `CreateToastNotifier("CodexBar")` resolves to a valid notifier instead of returning
+/// null.  Must be called at least once before the first toast.  Safe to call multiple
+/// times (idempotent registry write).
+#[cfg(target_os = "windows")]
+fn ensure_aumid_registered() {
+    use winreg::RegKey;
+    use winreg::enums::*;
+
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    // HKCU\SOFTWARE\Classes\AppUserModelId\<AUMID> is the documented path for
+    // registering Win32 desktop app AUMIDs without a COM server or Start Menu shortcut.
+    let result = hkcu
+        .create_subkey(r"SOFTWARE\Classes\AppUserModelId\CodexBar")
+        .and_then(|(key, _)| key.set_value("DisplayName", &"CodexBar"));
+
+    match result {
+        Ok(()) => tracing::debug!("CodexBar AUMID registered for Windows toast notifications"),
+        Err(e) => tracing::warn!("Failed to register CodexBar AUMID: {}", e),
     }
 }
 
