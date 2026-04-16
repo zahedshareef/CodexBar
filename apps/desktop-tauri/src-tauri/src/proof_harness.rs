@@ -22,6 +22,7 @@ use tauri::{AppHandle, Manager};
 use crate::shell;
 use crate::state::AppState;
 use crate::surface::SurfaceMode;
+use crate::surface_target::SurfaceTarget;
 /// Proof configuration parsed from `CODEXBAR_PROOF_MODE`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,6 +65,19 @@ impl ProofConfig {
     pub fn surface_mode(&self) -> SurfaceMode {
         SurfaceMode::parse(&self.target_surface).unwrap_or(SurfaceMode::TrayPanel)
     }
+
+    pub fn surface_target(&self) -> SurfaceTarget {
+        match self.surface_mode() {
+            SurfaceMode::Hidden | SurfaceMode::TrayPanel => SurfaceTarget::Summary,
+            SurfaceMode::PopOut => SurfaceTarget::Dashboard,
+            SurfaceMode::Settings => SurfaceTarget::Settings {
+                tab: self
+                    .settings_tab
+                    .clone()
+                    .unwrap_or_else(|| "general".into()),
+            },
+        }
+    }
 }
 
 /// Immediately transition to the proof-mode target surface.
@@ -84,7 +98,7 @@ pub fn activate(app: &AppHandle) {
     );
 
     let position = proof_window_position(app);
-    shell::transition_surface(app, target, None, position);
+    let _ = shell::transition_to_target(app, target, config.surface_target(), position);
 }
 
 /// Calculate a predictable, centered-ish window position for proof captures.
@@ -147,6 +161,12 @@ mod tests {
             assert_eq!(cfg.target_surface, "settings");
             assert_eq!(cfg.settings_tab.as_deref(), Some("apiKeys"));
             assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
+            assert_eq!(
+                cfg.surface_target(),
+                SurfaceTarget::Settings {
+                    tab: "apiKeys".into()
+                }
+            );
         });
     }
 
@@ -176,6 +196,7 @@ mod tests {
         with_proof_mode_env(Some("popOut"), || {
             let cfg = ProofConfig::from_env().unwrap();
             assert_eq!(cfg.surface_mode(), SurfaceMode::PopOut);
+            assert_eq!(cfg.surface_target(), SurfaceTarget::Dashboard);
         });
     }
 }

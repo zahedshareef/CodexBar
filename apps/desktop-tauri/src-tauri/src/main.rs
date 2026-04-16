@@ -34,10 +34,10 @@ fn main() {
             };
             if current == SurfaceMode::Hidden {
                 let position = shell::shortcut_panel_position(app);
-                shell::transition_surface(
+                let _ = shell::transition_to_target(
                     app,
                     SurfaceMode::TrayPanel,
-                    Some(SurfaceTarget::Summary),
+                    SurfaceTarget::Summary,
                     position,
                 );
             } else if let Some(window) = app.get_webview_window("main") {
@@ -94,12 +94,8 @@ fn main() {
                 let Some(st) = window.try_state::<Mutex<AppState>>() else {
                     return;
                 };
-                let mut guard = st.lock().unwrap();
-                if guard.surface_machine.current() == SurfaceMode::TrayPanel
-                    && let Some(t) = guard.transition_surface(SurfaceMode::Hidden, None)
-                {
-                    let _ = window.hide();
-                    events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
+                if st.lock().unwrap().surface_machine.current() == SurfaceMode::TrayPanel {
+                    let _ = shell::hide_to_tray(window.app_handle());
                 }
             }
             tauri::WindowEvent::CloseRequested { api, .. } => {
@@ -107,14 +103,12 @@ fn main() {
                 let Some(st) = window.try_state::<Mutex<AppState>>() else {
                     return;
                 };
-                let mut guard = st.lock().unwrap();
+                let guard = st.lock().unwrap();
                 let cur = guard.surface_machine.current();
                 if cur == SurfaceMode::PopOut || cur == SurfaceMode::Settings {
                     api.prevent_close();
-                    if let Some(t) = guard.transition_surface(SurfaceMode::Hidden, None) {
-                        let _ = window.hide();
-                        events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
-                    }
+                    drop(guard);
+                    let _ = shell::hide_to_tray(window.app_handle());
                 }
             }
             _ => {}

@@ -7,6 +7,7 @@ use tauri::{AppHandle, Emitter};
 use crate::commands::ProviderUsageSnapshot;
 use crate::state::UpdateStatePayload;
 use crate::surface::SurfaceMode;
+use crate::surface_target::SurfaceTarget;
 
 // ── Event name constants ─────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ pub const LOGIN_PHASE_CHANGED: &str = "login-phase-changed";
 pub struct SurfaceModePayload {
     pub mode: &'static str,
     pub previous: &'static str,
+    pub target: SurfaceTarget,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -35,12 +37,18 @@ pub struct RefreshCompletePayload {
 
 // ── Emit helpers ─────────────────────────────────────────────────────
 
-pub fn emit_surface_mode_changed(app: &AppHandle, from: SurfaceMode, to: SurfaceMode) {
+pub fn emit_surface_mode_changed(
+    app: &AppHandle,
+    from: SurfaceMode,
+    to: SurfaceMode,
+    target: SurfaceTarget,
+) {
     let _ = app.emit(
         SURFACE_MODE_CHANGED,
         SurfaceModePayload {
             mode: to.as_str(),
             previous: from.as_str(),
+            target,
         },
     );
 }

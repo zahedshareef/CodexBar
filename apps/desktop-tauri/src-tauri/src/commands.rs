@@ -10,7 +10,7 @@ use tauri::Manager;
 use crate::events;
 use crate::proof_harness::ProofConfig;
 use crate::state::{AppState, UpdateState, UpdateStatePayload};
-use crate::surface::{SurfaceMode, WindowProperties};
+use crate::surface::SurfaceMode;
 use crate::surface_target::SurfaceTarget;
 
 // ── Bridge snapshot types ────────────────────────────────────────────
@@ -168,9 +168,9 @@ pub struct BridgeEventDescriptor {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderCatalogEntry {
-    id: String,
-    display_name: String,
-    cookie_domain: Option<String>,
+    pub(crate) id: String,
+    pub(crate) display_name: String,
+    pub(crate) cookie_domain: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -495,21 +495,13 @@ pub fn set_surface_mode(
     mode: String,
     target: Option<SurfaceTarget>,
     window: tauri::WebviewWindow,
-    state: tauri::State<'_, Mutex<AppState>>,
 ) -> Result<String, String> {
     let mode = SurfaceMode::parse(&mode).ok_or_else(|| format!("unknown surface mode: {mode}"))?;
     let target = validate_surface_target(mode, target)?;
+    let target = target.unwrap_or_else(|| SurfaceTarget::default_for_mode(mode));
 
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
-
-    match guard.transition_surface(mode, target) {
-        Some(t) => {
-            crate::shell::apply_window_properties(&window, &t.properties)?;
-            crate::events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
-            Ok(t.to.as_str().to_string())
-        }
-        None => Ok(guard.surface_machine.current().as_str().to_string()),
-    }
+    crate::shell::transition_to_target(window.app_handle(), mode, target, None)
+        .map(|mode| mode.as_str().to_string())
 }
 
 #[tauri::command]
@@ -521,18 +513,6 @@ pub fn get_current_surface_mode(state: tauri::State<'_, Mutex<AppState>>) -> Str
         .current()
         .as_str()
         .to_string()
-}
-
-/// Apply the window properties dictated by a surface transition.
-///
-/// Delegates to `shell::apply_window_properties` — kept here as a local alias
-/// for use by the frontend-facing `set_surface_mode` command.
-#[allow(dead_code)]
-fn apply_window_properties(
-    window: &tauri::WebviewWindow,
-    props: &WindowProperties,
-) -> Result<(), String> {
-    crate::shell::apply_window_properties(window, props)
 }
 
 fn validate_surface_target(

@@ -7,9 +7,16 @@ use tauri::{AppHandle, Manager, WebviewWindow};
 
 use crate::events;
 use crate::state::AppState;
-use crate::surface::{SurfaceMode, WindowProperties};
+use crate::surface::{SurfaceMode, SurfaceTransition, WindowProperties};
 use crate::surface_target::SurfaceTarget;
 use crate::window_positioner::{self, PanelSize, Rect};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShellTransitionRequest {
+    pub mode: SurfaceMode,
+    pub target: SurfaceTarget,
+    pub position: Option<(i32, i32)>,
+}
 
 /// Apply the window properties dictated by a surface mode.
 pub fn apply_window_properties(
@@ -47,34 +54,122 @@ pub fn apply_window_properties(
     Ok(())
 }
 
+pub fn transition_to_target(
+    app: &AppHandle,
+    mode: SurfaceMode,
+    target: SurfaceTarget,
+    position: Option<(i32, i32)>,
+) -> Result<SurfaceMode, String> {
+    apply_transition_request(
+        app,
+        ShellTransitionRequest {
+            mode,
+            target,
+            position,
+        },
+    )
+}
+
+pub fn hide_to_tray(app: &AppHandle) -> Result<SurfaceMode, String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window unavailable".to_string())?;
+    let st = app
+        .try_state::<Mutex<AppState>>()
+        .ok_or_else(|| "app state unavailable".to_string())?;
+    let (transition, current_target) = {
+        let mut guard = st.lock().unwrap();
+        let transition =
+            guard.transition_surface(SurfaceMode::Hidden, Some(SurfaceTarget::Summary));
+        guard.current_target = SurfaceTarget::Summary;
+        (transition, guard.current_target.clone())
+    };
+
+    if let Some(transition) = transition {
+        apply_transition(app, &window, &transition, current_target, None)
+    } else {
+        let _ = window.hide();
+        Ok(SurfaceMode::Hidden)
+    }
+}
+
+#[allow(dead_code)]
+pub fn hide_to_tray_state(state: &mut AppState) {
+    let _ = state.transition_surface(SurfaceMode::Hidden, Some(SurfaceTarget::Summary));
+    state.current_target = SurfaceTarget::Summary;
+}
+
+fn apply_transition_request(
+    app: &AppHandle,
+    request: ShellTransitionRequest,
+) -> Result<SurfaceMode, String> {
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window unavailable".to_string())?;
+    let st = app
+        .try_state::<Mutex<AppState>>()
+        .ok_or_else(|| "app state unavailable".to_string())?;
+
+    let (transition, current_mode, current_target) = {
+        let mut guard = st.lock().unwrap();
+        let transition = guard.transition_surface(request.mode, Some(request.target.clone()));
+        (
+            transition,
+            guard.surface_machine.current(),
+            guard.current_target.clone(),
+        )
+    };
+
+    let Some(transition) = transition else {
+        return Ok(current_mode);
+    };
+
+    apply_transition(app, &window, &transition, current_target, request.position)
+}
+
+fn apply_transition(
+    app: &AppHandle,
+    window: &WebviewWindow,
+    transition: &SurfaceTransition,
+    current_target: SurfaceTarget,
+    position: Option<(i32, i32)>,
+) -> Result<SurfaceMode, String> {
+    if let Some((x, y)) = position {
+        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+
+    let apply_result = apply_window_properties(window, &transition.properties);
+    if apply_result.is_err() {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+
+    events::emit_surface_mode_changed(app, transition.from, transition.to, current_target);
+    match apply_result {
+        Ok(()) => Ok(transition.to),
+        Err(err) => {
+            tracing::warn!(
+                "shell: recovered from window-property failure during {:?} -> {:?}: {}",
+                transition.from,
+                transition.to,
+                err
+            );
+            Ok(transition.to)
+        }
+    }
+}
+
 /// Perform a surface transition, apply window properties, and emit the event.
 /// Optionally repositions the window at `position` (physical pixels) before showing.
+#[allow(dead_code)]
 pub fn transition_surface(
     app: &AppHandle,
     mode: SurfaceMode,
     target: Option<SurfaceTarget>,
     position: Option<(i32, i32)>,
 ) {
-    let Some(window) = app.get_webview_window("main") else {
-        return;
-    };
-    let Some(st) = app.try_state::<Mutex<AppState>>() else {
-        return;
-    };
-
-    let transition = {
-        let mut guard = st.lock().unwrap();
-        guard.transition_surface(mode, target)
-    };
-
-    if let Some(t) = transition {
-        // Position before showing so the window doesn't flash at the old location.
-        if let Some((x, y)) = position {
-            let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
-        }
-        let _ = apply_window_properties(&window, &t.properties);
-        events::emit_surface_mode_changed(app, t.from, t.to);
-    }
+    let target = target.unwrap_or_else(|| SurfaceTarget::default_for_mode(mode));
+    let _ = transition_to_target(app, mode, target, position);
 }
 
 /// Toggle the tray panel: hide if currently showing, show at `position` otherwise.
@@ -85,12 +180,12 @@ pub fn toggle_tray_panel(app: &AppHandle, position: Option<(i32, i32)>) {
     };
 
     if current == SurfaceMode::TrayPanel {
-        transition_surface(app, SurfaceMode::Hidden, None, None);
+        let _ = hide_to_tray(app);
     } else {
-        transition_surface(
+        let _ = transition_to_target(
             app,
             SurfaceMode::TrayPanel,
-            Some(SurfaceTarget::Summary),
+            SurfaceTarget::Summary,
             position,
         );
     }
@@ -170,4 +265,22 @@ pub fn shortcut_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
         &tray_panel_size(),
         scale,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hide_to_tray_resets_hidden_target_to_summary() {
+        let mut state = AppState::new();
+        state.current_target = SurfaceTarget::Settings {
+            tab: "about".into(),
+        };
+
+        hide_to_tray_state(&mut state);
+
+        assert_eq!(state.surface_machine.current(), SurfaceMode::Hidden);
+        assert_eq!(state.current_target, SurfaceTarget::Summary);
+    }
 }
