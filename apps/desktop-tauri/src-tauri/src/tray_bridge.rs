@@ -173,11 +173,31 @@ enum MenuAction {
     Quit,
 }
 
+enum MenuTransitionDispatch {
+    Transition(shell::ShellTransitionRequest),
+    Reopen(shell::ShellTransitionRequest),
+}
+
 fn resolve_menu_action(id: &str) -> Option<MenuAction> {
     match id {
         "refresh" => Some(MenuAction::Refresh),
         "quit" => Some(MenuAction::Quit),
         _ => resolve_menu_target(id).map(MenuAction::Transition),
+    }
+}
+
+fn resolve_menu_transition_dispatch(
+    id: &str,
+    request: shell::ShellTransitionRequest,
+) -> MenuTransitionDispatch {
+    if id == "show_panel" {
+        MenuTransitionDispatch::Reopen(shell::ShellTransitionRequest {
+            mode: request.mode,
+            target: request.target,
+            position: None,
+        })
+    } else {
+        MenuTransitionDispatch::Transition(request)
     }
 }
 
@@ -245,19 +265,28 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 /// Route a native menu-item click to the corresponding shell action.
 fn handle_menu_event(app: &AppHandle, id: &str) {
     match resolve_menu_action(id) {
-        Some(MenuAction::Transition(mut request)) => {
-            if id == "show_panel" {
-                request.position =
-                    shell::tray_panel_position(app).or_else(|| shell::shortcut_panel_position(app));
-                let _ =
-                    shell::reopen_to_target(app, request.mode, request.target, request.position);
-            } else {
-                let _ = shell::transition_to_target(
-                    app,
-                    request.mode,
-                    request.target,
-                    request.position,
-                );
+        Some(MenuAction::Transition(request)) => {
+            match resolve_menu_transition_dispatch(id, request) {
+                // Pass None so default_surface_position resolves the full chain:
+                // tray_panel_position → inferred_tray_panel_position → shortcut_panel_position.
+                // This mirrors the CODEXBAR_START_VISIBLE path and ensures the panel
+                // opens near the taskbar tray corner even without a prior anchor click.
+                MenuTransitionDispatch::Reopen(request) => {
+                    let _ = shell::reopen_to_target(
+                        app,
+                        request.mode,
+                        request.target,
+                        request.position,
+                    );
+                }
+                MenuTransitionDispatch::Transition(request) => {
+                    let _ = shell::transition_to_target(
+                        app,
+                        request.mode,
+                        request.target,
+                        request.position,
+                    );
+                }
             }
         }
         Some(MenuAction::Refresh) => {
@@ -384,6 +413,59 @@ mod tests {
                 provider_id: "codex".into()
             }
         );
+    }
+
+    #[test]
+    fn show_panel_menu_reopens_with_default_position_chain() {
+        let dispatch = resolve_menu_transition_dispatch(
+            "show_panel",
+            shell::ShellTransitionRequest {
+                mode: SurfaceMode::TrayPanel,
+                target: SurfaceTarget::Summary,
+                position: Some((320, 240)),
+            },
+        );
+
+        match dispatch {
+            MenuTransitionDispatch::Reopen(request) => {
+                assert_eq!(request.mode, SurfaceMode::TrayPanel);
+                assert_eq!(request.target, SurfaceTarget::Summary);
+                assert_eq!(request.position, None);
+            }
+            MenuTransitionDispatch::Transition(_) => {
+                panic!("show_panel should reopen via default tray positioning")
+            }
+        }
+    }
+
+    #[test]
+    fn non_show_panel_menu_keeps_explicit_position() {
+        let dispatch = resolve_menu_transition_dispatch(
+            "settings",
+            shell::ShellTransitionRequest {
+                mode: SurfaceMode::Settings,
+                target: SurfaceTarget::Settings {
+                    tab: "general".into(),
+                },
+                position: Some((320, 240)),
+            },
+        );
+
+        match dispatch {
+            MenuTransitionDispatch::Transition(request) => {
+                assert_eq!(request.mode, SurfaceMode::Settings);
+                assert_eq!(
+                    request.target,
+                    SurfaceTarget::Settings {
+                        tab: "general".into()
+                    }
+                );
+                assert_eq!(request.position, Some((320, 240)));
+            }
+            MenuTransitionDispatch::Reopen(_) => {
+                panic!("non-show-panel actions should use direct transitions")
+            }
+        }
     }
 
     #[test]
