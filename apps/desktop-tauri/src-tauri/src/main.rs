@@ -7,6 +7,7 @@ mod state;
 mod surface;
 mod surface_target;
 mod tray_bridge;
+mod tray_menu;
 mod window_positioner;
 
 use std::sync::Mutex;

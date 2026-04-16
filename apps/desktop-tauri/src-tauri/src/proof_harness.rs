@@ -26,7 +26,8 @@ use crate::events;
 use crate::shell;
 use crate::state::AppState;
 use crate::surface::SurfaceMode;
-use crate::surface_target::SurfaceTarget;
+use crate::surface_target::{SurfaceTarget, is_supported_provider_id, is_supported_settings_tab};
+use crate::tray_menu;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -87,8 +88,13 @@ impl ProofConfig {
             (raw, None)
         };
 
-        if SurfaceMode::parse(surface_str).is_none() {
+        let Some(surface_mode) = SurfaceMode::parse(surface_str) else {
             tracing::warn!("CODEXBAR_PROOF_MODE: unknown surface '{surface_str}', ignoring");
+            return None;
+        };
+
+        if !proof_payload_is_supported(surface_mode, payload.as_deref()) {
+            tracing::warn!("CODEXBAR_PROOF_MODE: unsupported target '{raw}', ignoring");
             return None;
         }
 
@@ -146,7 +152,7 @@ impl ProofCommand {
             "hide-surface" => Some(Self::HideSurface),
             _ => {
                 if let Some(provider_id) = raw.strip_prefix("open-provider:")
-                    && !provider_id.is_empty()
+                    && is_supported_provider_id(provider_id)
                 {
                     return Some(Self::OpenProvider {
                         provider_id: provider_id.to_string(),
@@ -154,7 +160,7 @@ impl ProofCommand {
                 }
 
                 if let Some(tab) = raw.strip_prefix("open-settings:")
-                    && !tab.is_empty()
+                    && is_supported_settings_tab(tab)
                 {
                     return Some(Self::OpenSettings {
                         tab: tab.to_string(),
@@ -327,23 +333,28 @@ fn set_menu_snapshot(menu_path: Option<String>, menu_items: Vec<String>) {
 
 fn native_menu_items() -> Vec<String> {
     let providers = get_provider_catalog();
-    let mut items = vec![
-        "Show Panel".to_string(),
-        "Pop Out Dashboard".to_string(),
-        "Settings".to_string(),
-        "About".to_string(),
-    ];
+    tray_menu::proof_menu_items(&tray_menu::build_tray_menu(&providers))
+}
 
-    if !providers.is_empty() {
-        items.extend(
-            providers
-                .into_iter()
-                .map(|provider| format!("Providers/Open {}", provider.display_name)),
-        );
+fn proof_payload_is_supported(surface_mode: SurfaceMode, payload: Option<&str>) -> bool {
+    match (surface_mode, payload) {
+        (SurfaceMode::Hidden | SurfaceMode::TrayPanel, None) => true,
+        (SurfaceMode::Hidden | SurfaceMode::TrayPanel, Some(_)) => false,
+        (SurfaceMode::Settings, None) => true,
+        (SurfaceMode::Settings, Some(tab)) => is_supported_settings_tab(tab),
+        (SurfaceMode::PopOut, None) => true,
+        (SurfaceMode::PopOut, Some(raw_target)) => {
+            let Some(target) = SurfaceTarget::parse(raw_target) else {
+                return false;
+            };
+
+            match target {
+                SurfaceTarget::Dashboard => true,
+                SurfaceTarget::Provider { provider_id } => is_supported_provider_id(&provider_id),
+                _ => false,
+            }
+        }
     }
-
-    items.extend(["Refresh All".into(), "Quit CodexBar".into()]);
-    items
 }
 
 fn window_rect(window: &WebviewWindow) -> Option<ProofRect> {
@@ -514,11 +525,35 @@ mod tests {
     }
 
     #[test]
+    fn invalid_settings_tab_returns_none() {
+        with_proof_mode_env(Some("settings:security"), || {
+            assert!(ProofConfig::from_env().is_none());
+        });
+    }
+
+    #[test]
+    fn invalid_provider_target_returns_none() {
+        with_proof_mode_env(Some("popOut:provider:not-a-provider"), || {
+            assert!(ProofConfig::from_env().is_none());
+        });
+    }
+
+    #[test]
     fn pop_out_surface() {
         with_proof_mode_env(Some("popOut"), || {
             let cfg = ProofConfig::from_env().unwrap();
             assert_eq!(cfg.surface_mode(), SurfaceMode::PopOut);
             assert_eq!(cfg.surface_target(), SurfaceTarget::Dashboard);
         });
+    }
+
+    #[test]
+    fn parse_proof_command_rejects_unknown_provider() {
+        assert!(ProofCommand::parse("open-provider:not-a-provider").is_none());
+    }
+
+    #[test]
+    fn parse_proof_command_rejects_unknown_settings_tab() {
+        assert!(ProofCommand::parse("open-settings:security").is_none());
     }
 }

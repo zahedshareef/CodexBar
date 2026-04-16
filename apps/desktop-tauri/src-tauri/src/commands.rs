@@ -11,7 +11,7 @@ use crate::events;
 use crate::proof_harness::{self, ProofCommand, ProofStatePayload};
 use crate::state::{AppState, UpdateState, UpdateStatePayload};
 use crate::surface::SurfaceMode;
-use crate::surface_target::SurfaceTarget;
+use crate::surface_target::{SurfaceTarget, is_supported_provider_id, is_supported_settings_tab};
 
 // ── Bridge snapshot types ────────────────────────────────────────────
 
@@ -622,6 +622,16 @@ fn validate_surface_target(
         ));
     }
 
+    match &target {
+        SurfaceTarget::Provider { provider_id } if !is_supported_provider_id(provider_id) => {
+            return Err(format!("unsupported provider target: {provider_id}"));
+        }
+        SurfaceTarget::Settings { tab } if !is_supported_settings_tab(tab) => {
+            return Err(format!("unsupported settings target: {tab}"));
+        }
+        _ => {}
+    }
+
     Ok(target)
 }
 
@@ -1185,6 +1195,32 @@ mod tests {
             validate_surface_target(SurfaceMode::Hidden, SurfaceTarget::Summary).unwrap_err();
 
         assert!(error.contains("only supports visible surfaces"));
+    }
+
+    #[test]
+    fn validate_surface_target_rejects_unknown_provider() {
+        let error = validate_surface_target(
+            SurfaceMode::PopOut,
+            SurfaceTarget::Provider {
+                provider_id: "not-a-provider".into(),
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("unsupported provider target"));
+    }
+
+    #[test]
+    fn validate_surface_target_rejects_unknown_settings_tab() {
+        let error = validate_surface_target(
+            SurfaceMode::Settings,
+            SurfaceTarget::Settings {
+                tab: "security".into(),
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("unsupported settings target"));
     }
 
     #[test]

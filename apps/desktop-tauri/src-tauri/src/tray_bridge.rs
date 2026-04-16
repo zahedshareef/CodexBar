@@ -12,6 +12,7 @@ use crate::shell;
 use crate::state::{AppState, TrayAnchor};
 use crate::surface::SurfaceMode;
 use crate::surface_target::SurfaceTarget;
+use crate::tray_menu::{TrayMenuEntry, build_tray_menu};
 
 #[derive(Debug, Clone, Copy)]
 struct MonitorScaleInfo {
@@ -112,75 +113,6 @@ fn resolve_tray_anchor(
             })
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct TrayMenuEntry {
-    id: Option<String>,
-    label: String,
-    children: Vec<Self>,
-    is_separator: bool,
-}
-
-impl TrayMenuEntry {
-    fn item(id: impl Into<String>, label: impl Into<String>) -> Self {
-        Self {
-            id: Some(id.into()),
-            label: label.into(),
-            children: Vec::new(),
-            is_separator: false,
-        }
-    }
-
-    fn submenu(label: impl Into<String>, children: Vec<Self>) -> Self {
-        Self {
-            id: None,
-            label: label.into(),
-            children,
-            is_separator: false,
-        }
-    }
-
-    fn separator() -> Self {
-        Self {
-            id: None,
-            label: String::new(),
-            children: Vec::new(),
-            is_separator: true,
-        }
-    }
-}
-
-/// Build the native context menu shown on tray right-click.
-fn build_tray_menu(providers: &[ProviderCatalogEntry]) -> Vec<TrayMenuEntry> {
-    let mut menu = vec![
-        TrayMenuEntry::item("show_panel", "Show Panel"),
-        TrayMenuEntry::item("pop_out", "Pop Out Dashboard"),
-        TrayMenuEntry::item("settings", "Settings"),
-        TrayMenuEntry::item("about", "About"),
-        TrayMenuEntry::separator(),
-    ];
-    if !providers.is_empty() {
-        menu.push(TrayMenuEntry::submenu(
-            "Providers",
-            providers
-                .iter()
-                .map(|provider| {
-                    TrayMenuEntry::item(
-                        format!("provider:{}", provider.id),
-                        format!("Open {}", provider.display_name),
-                    )
-                })
-                .collect(),
-        ));
-        menu.push(TrayMenuEntry::separator());
-    }
-    menu.extend([
-        TrayMenuEntry::item("refresh", "Refresh All"),
-        TrayMenuEntry::separator(),
-        TrayMenuEntry::item("quit", "Quit CodexBar"),
-    ]);
-    menu
 }
 
 fn build_native_tray_menu(

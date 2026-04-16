@@ -1,6 +1,18 @@
 use serde::{Deserialize, Serialize};
 
+use codexbar::core::ProviderId;
+
 use crate::surface::SurfaceMode;
+
+const SETTINGS_TAB_IDS: &[&str] = &[
+    "general",
+    "providers",
+    "display",
+    "apiKeys",
+    "cookies",
+    "advanced",
+    "about",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -64,9 +76,19 @@ impl SurfaceTarget {
     }
 }
 
+pub fn is_supported_provider_id(provider_id: &str) -> bool {
+    ProviderId::all()
+        .iter()
+        .any(|provider| provider.cli_name() == provider_id)
+}
+
+pub fn is_supported_settings_tab(tab: &str) -> bool {
+    SETTINGS_TAB_IDS.contains(&tab)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::SurfaceTarget;
+    use super::{SurfaceTarget, is_supported_provider_id, is_supported_settings_tab};
     use serde_json::json;
 
     #[test]
@@ -138,5 +160,18 @@ mod tests {
             .mode(),
             crate::surface::SurfaceMode::Settings
         );
+    }
+
+    #[test]
+    fn supported_provider_ids_match_catalog() {
+        assert!(is_supported_provider_id("codex"));
+        assert!(!is_supported_provider_id("not-a-provider"));
+    }
+
+    #[test]
+    fn supported_settings_tabs_match_shell_tabs() {
+        assert!(is_supported_settings_tab("apiKeys"));
+        assert!(is_supported_settings_tab("about"));
+        assert!(!is_supported_settings_tab("security"));
     }
 }
