@@ -586,6 +586,13 @@ fn tray_panel_size() -> PanelSize {
     surface_panel_size(SurfaceMode::TrayPanel)
 }
 
+#[derive(Clone, Copy)]
+struct MonitorPlacement {
+    bounds: Rect,
+    work_area: Rect,
+    scale_factor: f64,
+}
+
 fn monitor_work_area_rect(monitor: &tauri::Monitor) -> Rect {
     let work_area = monitor.work_area();
     Rect {
@@ -596,6 +603,35 @@ fn monitor_work_area_rect(monitor: &tauri::Monitor) -> Rect {
     }
 }
 
+fn monitor_placement(monitor: &tauri::Monitor) -> MonitorPlacement {
+    let position = monitor.position();
+    let size = monitor.size();
+
+    MonitorPlacement {
+        bounds: Rect {
+            x: position.x,
+            y: position.y,
+            width: size.width,
+            height: size.height,
+        },
+        work_area: monitor_work_area_rect(monitor),
+        scale_factor: monitor.scale_factor(),
+    }
+}
+
+fn popout_position(
+    anchor_rect: Option<&Rect>,
+    monitor: &MonitorPlacement,
+    panel_size: &PanelSize,
+) -> (i32, i32) {
+    window_positioner::calculate_popout_position(
+        anchor_rect,
+        &monitor.work_area,
+        panel_size,
+        monitor.scale_factor,
+    )
+}
+
 fn tray_anchor_rect(anchor: crate::state::TrayAnchor) -> Rect {
     Rect {
         x: anchor.x,
@@ -603,6 +639,27 @@ fn tray_anchor_rect(anchor: crate::state::TrayAnchor) -> Rect {
         width: anchor.width,
         height: anchor.height,
     }
+}
+
+fn monitor_placement_for_anchor(
+    monitors: &[MonitorPlacement],
+    anchor: crate::state::TrayAnchor,
+) -> Option<MonitorPlacement> {
+    let anchor_cx = anchor.x + anchor.width as i32 / 2;
+    let anchor_cy = anchor.y + anchor.height as i32 / 2;
+
+    monitor_placement_containing_point(monitors, anchor_cx, anchor_cy)
+}
+
+fn monitor_placement_containing_point(
+    monitors: &[MonitorPlacement],
+    x: i32,
+    y: i32,
+) -> Option<MonitorPlacement> {
+    monitors
+        .iter()
+        .find(|monitor| point_in_rect(&monitor.bounds, x, y))
+        .copied()
 }
 
 fn monitor_for_anchor(
@@ -647,49 +704,73 @@ fn current_tray_anchor(app: &AppHandle) -> Option<crate::state::TrayAnchor> {
 
 fn visible_surface_position_for_mode(app: &AppHandle, mode: SurfaceMode) -> Option<(i32, i32)> {
     let window = app.get_webview_window("main")?;
-    let monitors = window.available_monitors().ok()?;
+    let monitor_placements = window
+        .available_monitors()
+        .ok()
+        .map(|monitors| monitors.iter().map(monitor_placement).collect::<Vec<_>>());
+    let current_monitor = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| monitor_placement(&monitor));
+    let current_window_bounds = match (window.outer_position(), window.outer_size()) {
+        (Ok(position), Ok(size)) => Some(((position.x, position.y), (size.width, size.height))),
+        _ => None,
+    };
+    let primary_monitor = window
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| monitor_placement(&monitor));
+
+    visible_surface_position_for_mode_with_fallbacks(
+        mode,
+        monitor_placements.as_deref(),
+        current_tray_anchor(app),
+        current_monitor,
+        current_window_bounds,
+        primary_monitor,
+    )
+}
+
+fn visible_surface_position_for_mode_with_fallbacks(
+    mode: SurfaceMode,
+    monitor_placements: Option<&[MonitorPlacement]>,
+    tray_anchor: Option<crate::state::TrayAnchor>,
+    current_monitor: Option<MonitorPlacement>,
+    current_window_bounds: Option<((i32, i32), (u32, u32))>,
+    primary_monitor: Option<MonitorPlacement>,
+) -> Option<(i32, i32)> {
     let panel_size = surface_panel_size(mode);
 
-    if let Some(anchor) = current_tray_anchor(app)
-        && let Some(monitor) = monitor_for_anchor(&monitors, anchor)
+    if let Some(anchor) = tray_anchor
+        && let Some(monitors) = monitor_placements
+        && let Some(monitor) = monitor_placement_for_anchor(monitors, anchor)
     {
-        return Some(window_positioner::calculate_popout_position(
+        return Some(popout_position(
             Some(&tray_anchor_rect(anchor)),
-            &monitor_work_area_rect(monitor),
+            &monitor,
             &panel_size,
-            monitor.scale_factor(),
         ));
     }
 
-    if let Ok(Some(monitor)) = window.current_monitor() {
-        return Some(window_positioner::calculate_popout_position(
-            None,
-            &monitor_work_area_rect(&monitor),
-            &panel_size,
-            monitor.scale_factor(),
-        ));
+    if let Some(monitor) = current_monitor {
+        return Some(popout_position(None, &monitor, &panel_size));
     }
 
-    if let (Ok(position), Ok(size)) = (window.outer_position(), window.outer_size()) {
-        let center_x = position.x + size.width as i32 / 2;
-        let center_y = position.y + size.height as i32 / 2;
-        if let Some(monitor) = monitor_containing_point(&monitors, center_x, center_y) {
-            return Some(window_positioner::calculate_popout_position(
-                None,
-                &monitor_work_area_rect(monitor),
-                &panel_size,
-                monitor.scale_factor(),
-            ));
-        }
+    if let Some(monitors) = monitor_placements
+        && let Some((current_top_left, current_size)) = current_window_bounds
+        && let Some(monitor) = monitor_placement_containing_point(
+            monitors,
+            current_top_left.0 + current_size.0 as i32 / 2,
+            current_top_left.1 + current_size.1 as i32 / 2,
+        )
+    {
+        return Some(popout_position(None, &monitor, &panel_size));
     }
 
-    let monitor = window.primary_monitor().ok()??;
-    Some(window_positioner::calculate_popout_position(
-        None,
-        &monitor_work_area_rect(&monitor),
-        &panel_size,
-        monitor.scale_factor(),
-    ))
+    let monitor = primary_monitor?;
+    Some(popout_position(None, &monitor, &panel_size))
 }
 
 pub fn default_surface_position(app: &AppHandle, mode: SurfaceMode) -> Option<(i32, i32)> {
@@ -1005,6 +1086,124 @@ mod tests {
 
         assert_eq!(selected.0.x, 0);
         assert_eq!(selected.1, 1.0);
+    }
+
+    #[test]
+    fn visible_surface_position_falls_back_to_current_monitor_without_available_monitors() {
+        let current_monitor = MonitorPlacement {
+            bounds: Rect {
+                x: 1920,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            work_area: Rect {
+                x: 1920,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            scale_factor: 1.25,
+        };
+        let primary_monitor = MonitorPlacement {
+            bounds: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            work_area: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            scale_factor: 1.0,
+        };
+        let anchor = crate::state::TrayAnchor {
+            x: 10,
+            y: 10,
+            width: 16,
+            height: 16,
+        };
+
+        let position = visible_surface_position_for_mode_with_fallbacks(
+            SurfaceMode::PopOut,
+            None,
+            Some(anchor),
+            Some(current_monitor),
+            Some(((2000, 120), (600, 700))),
+            Some(primary_monitor),
+        );
+
+        assert_eq!(
+            position,
+            Some(window_positioner::calculate_popout_position(
+                None,
+                &current_monitor.work_area,
+                &surface_panel_size(SurfaceMode::PopOut),
+                current_monitor.scale_factor,
+            ))
+        );
+    }
+
+    #[test]
+    fn visible_surface_position_anchor_lookup_uses_monitor_bounds() {
+        let anchor_monitor = MonitorPlacement {
+            bounds: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            work_area: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1040,
+            },
+            scale_factor: 1.0,
+        };
+        let current_monitor = MonitorPlacement {
+            bounds: Rect {
+                x: 1920,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            work_area: Rect {
+                x: 1920,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            scale_factor: 1.25,
+        };
+        let anchor = crate::state::TrayAnchor {
+            x: 1800,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+
+        let position = visible_surface_position_for_mode_with_fallbacks(
+            SurfaceMode::PopOut,
+            Some(&[anchor_monitor, current_monitor]),
+            Some(anchor),
+            Some(current_monitor),
+            None,
+            None,
+        );
+
+        assert_eq!(
+            position,
+            Some(window_positioner::calculate_popout_position(
+                Some(&tray_anchor_rect(anchor)),
+                &anchor_monitor.work_area,
+                &surface_panel_size(SurfaceMode::PopOut),
+                anchor_monitor.scale_factor,
+            ))
+        );
     }
 
     #[test]
