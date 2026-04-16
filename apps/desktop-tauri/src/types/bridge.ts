@@ -6,6 +6,11 @@ export type SurfaceTarget =
   | { kind: "provider"; providerId: string }
   | { kind: "settings"; tab: string };
 
+export interface CurrentSurfaceState {
+  mode: SurfaceMode;
+  target: SurfaceTarget;
+}
+
 export interface SurfaceModeDescriptor {
   id: string;
   label: string;

@@ -150,16 +150,17 @@ impl AppState {
         mode: SurfaceMode,
         target: Option<SurfaceTarget>,
     ) -> Option<SurfaceTransition> {
-        let transition = self.surface_machine.transition(mode)?;
-        self.current_target = match mode {
+        let next_target = match mode {
             SurfaceMode::Hidden => SurfaceTarget::Summary,
             _ => match target {
                 Some(target) if target.mode() == mode => target,
                 _ => SurfaceTarget::default_for_mode(mode),
             },
         };
+        let transition = self.surface_machine.transition(mode);
+        self.current_target = next_target;
 
-        Some(transition)
+        transition
     }
 
     /// Build an enriched update payload using the stored update info.
@@ -229,7 +230,7 @@ mod tests {
     }
 
     #[test]
-    fn noop_transition_keeps_existing_target() {
+    fn same_mode_settings_retarget_updates_target() {
         let mut state = AppState::new();
         state.transition_surface(
             SurfaceMode::Settings,
@@ -241,7 +242,7 @@ mod tests {
         let transition = state.transition_surface(
             SurfaceMode::Settings,
             Some(SurfaceTarget::Settings {
-                tab: "cookies".into(),
+                tab: "about".into(),
             }),
         );
 
@@ -249,7 +250,28 @@ mod tests {
         assert_eq!(
             state.current_target,
             SurfaceTarget::Settings {
-                tab: "apiKeys".into()
+                tab: "about".into()
+            }
+        );
+    }
+
+    #[test]
+    fn same_mode_provider_retarget_updates_target() {
+        let mut state = AppState::new();
+        state.transition_surface(SurfaceMode::PopOut, Some(SurfaceTarget::Dashboard));
+
+        let transition = state.transition_surface(
+            SurfaceMode::PopOut,
+            Some(SurfaceTarget::Provider {
+                provider_id: "claude".into(),
+            }),
+        );
+
+        assert!(transition.is_none());
+        assert_eq!(
+            state.current_target,
+            SurfaceTarget::Provider {
+                provider_id: "claude".into()
             }
         );
     }

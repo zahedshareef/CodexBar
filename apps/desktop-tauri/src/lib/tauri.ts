@@ -4,6 +4,7 @@ import type {
   ApiKeyProviderInfoBridge,
   AppInfoBridge,
   BootstrapState,
+  CurrentSurfaceState,
   CookieInfoBridge,
   ProofConfig,
   ProviderCatalogEntry,
@@ -42,6 +43,10 @@ export function setSurfaceMode(
 
 export function getCurrentSurfaceMode(): Promise<SurfaceMode> {
   return invoke<SurfaceMode>("get_current_surface_mode");
+}
+
+export function getCurrentSurfaceState(): Promise<CurrentSurfaceState> {
+  return invoke<CurrentSurfaceState>("get_current_surface_state");
 }
 
 export function refreshProviders(): Promise<void> {

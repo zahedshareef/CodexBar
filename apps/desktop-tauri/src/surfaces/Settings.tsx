@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import type {
   ApiKeyInfoBridge,
   ApiKeyProviderInfoBridge,
@@ -17,6 +17,7 @@ import {
   getManualCookies,
   removeApiKey,
   removeManualCookie,
+  setSurfaceMode,
   setApiKey,
   setManualCookie,
 } from "../lib/tauri";
@@ -182,6 +183,10 @@ export default function Settings({ state, initialTab }: { state: BootstrapState;
     initialTab && isSettingsTab(initialTab) ? initialTab : "general";
   const [activeTab, setActiveTab] = useState<SettingsTab>(resolvedInitial);
 
+  useLayoutEffect(() => {
+    setActiveTab(resolvedInitial);
+  }, [resolvedInitial]);
+
   const set = (patch: SettingsUpdate) => void update(patch);
 
   return (
@@ -194,7 +199,10 @@ export default function Settings({ state, initialTab }: { state: BootstrapState;
             role="tab"
             aria-selected={activeTab === t.id}
             className={`settings-tab ${activeTab === t.id ? "settings-tab--active" : ""}`}
-            onClick={() => setActiveTab(t.id)}
+            onClick={() => {
+              setActiveTab(t.id);
+              void setSurfaceMode("settings", { kind: "settings", tab: t.id });
+            }}
           >
             <span className="settings-tab__icon">{t.icon}</span>
             {t.label}

@@ -167,6 +167,13 @@ pub struct BridgeEventDescriptor {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CurrentSurfaceState {
+    pub mode: String,
+    pub target: SurfaceTarget,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderCatalogEntry {
     pub(crate) id: String,
     pub(crate) display_name: String,
@@ -513,6 +520,15 @@ pub fn get_current_surface_mode(state: tauri::State<'_, Mutex<AppState>>) -> Str
         .current()
         .as_str()
         .to_string()
+}
+
+#[tauri::command]
+pub fn get_current_surface_state(state: tauri::State<'_, Mutex<AppState>>) -> CurrentSurfaceState {
+    let guard = state.lock().unwrap();
+    CurrentSurfaceState {
+        mode: guard.surface_machine.current().as_str().to_string(),
+        target: guard.current_target.clone(),
+    }
 }
 
 fn validate_surface_target(

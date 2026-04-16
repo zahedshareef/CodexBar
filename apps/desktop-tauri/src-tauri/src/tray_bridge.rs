@@ -215,9 +215,11 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
             if id == "show_panel" {
                 request.position =
                     shell::tray_panel_position(app).or_else(|| shell::shortcut_panel_position(app));
+                let _ = shell::reopen_to_target(app, request.mode, request.target, request.position);
+            } else {
+                let _ =
+                    shell::transition_to_target(app, request.mode, request.target, request.position);
             }
-            let _ =
-                shell::transition_to_target(app, request.mode, request.target, request.position);
         }
         Some(MenuAction::Refresh) => {
             let handle = app.clone();

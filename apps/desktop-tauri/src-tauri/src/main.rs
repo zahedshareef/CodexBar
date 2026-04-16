@@ -27,22 +27,13 @@ fn main() {
         .manage(Mutex::new(initial_state))
         .plugin(shortcut_bridge::plugin())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // Second launch → show/focus the existing surface.
-            let current = {
-                let st = app.state::<Mutex<AppState>>();
-                st.lock().unwrap().surface_machine.current()
-            };
-            if current == SurfaceMode::Hidden {
-                let position = shell::shortcut_panel_position(app);
-                let _ = shell::transition_to_target(
-                    app,
-                    SurfaceMode::TrayPanel,
-                    SurfaceTarget::Summary,
-                    position,
-                );
-            } else if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
-            }
+            let position = shell::shortcut_panel_position(app);
+            let _ = shell::reopen_to_target(
+                app,
+                SurfaceMode::TrayPanel,
+                SurfaceTarget::Summary,
+                position,
+            );
         }))
         .invoke_handler(tauri::generate_handler![
             commands::get_bootstrap_state,
@@ -51,6 +42,7 @@ fn main() {
             commands::update_settings,
             commands::set_surface_mode,
             commands::get_current_surface_mode,
+            commands::get_current_surface_state,
             commands::refresh_providers,
             commands::get_cached_providers,
             commands::get_update_state,

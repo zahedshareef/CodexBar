@@ -4,10 +4,10 @@ import { useSurfaceMode } from "./hooks/useSurfaceMode";
 import Settings from "./surfaces/Settings";
 import TrayPanel from "./surfaces/TrayPanel";
 import PopOutPanel from "./surfaces/PopOutPanel";
-import type { BootstrapState, ProofConfig, SurfaceMode } from "./types/bridge";
+import type { BootstrapState, ProofConfig, SurfaceMode, SurfaceTarget } from "./types/bridge";
 
 export default function App() {
-  const mode = useSurfaceMode();
+  const surface = useSurfaceMode();
   const [state, setState] = useState<BootstrapState | null>(null);
   const [proofConfig, setProofConfig] = useState<ProofConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,15 +58,24 @@ export default function App() {
     );
   }
 
-  return <SurfaceRouter mode={mode} state={state} proofConfig={proofConfig} />;
+  return (
+    <SurfaceRouter
+      mode={surface.mode}
+      target={surface.target}
+      state={state}
+      proofConfig={proofConfig}
+    />
+  );
 }
 
 function SurfaceRouter({
   mode,
+  target,
   state,
   proofConfig,
 }: {
   mode: SurfaceMode;
+  target: SurfaceTarget;
   state: BootstrapState;
   proofConfig: ProofConfig | null;
 }) {
@@ -74,13 +83,22 @@ function SurfaceRouter({
     case "hidden":
       return null;
     case "trayPanel":
-      return <TrayPanel state={state} />;
+      return <TrayPanel state={state} target={target} />;
     case "popOut":
-      return <PopOutPanel state={state} />;
+      return <PopOutPanel state={state} target={target} />;
     case "settings":
-      return <SettingsLayout state={state} initialTab={proofConfig?.settingsTab ?? undefined} />;
+      return (
+        <SettingsLayout
+          state={state}
+          initialTab={
+            target.kind === "settings"
+              ? target.tab
+              : proofConfig?.settingsTab ?? undefined
+          }
+        />
+      );
     default:
-      return <TrayPanel state={state} />;
+      return <TrayPanel state={state} target={target} />;
   }
 }
 

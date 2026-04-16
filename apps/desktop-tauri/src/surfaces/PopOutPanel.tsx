@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
-import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import type { BootstrapState, ProviderUsageSnapshot, SurfaceTarget } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
@@ -19,12 +19,23 @@ function sortProviders(
   });
 }
 
-export default function PopOutPanel({ state }: { state: BootstrapState }) {
+export default function PopOutPanel({
+  state,
+  target,
+}: {
+  state: BootstrapState;
+  target: SurfaceTarget;
+}) {
   const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const routeSelectedId = target.kind === "provider" ? target.providerId : null;
+
+  useLayoutEffect(() => {
+    setSelectedId(routeSelectedId);
+  }, [routeSelectedId]);
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
 
@@ -46,8 +57,22 @@ export default function PopOutPanel({ state }: { state: BootstrapState }) {
     setSurfaceMode("trayPanel", { kind: "summary" });
   }, []);
 
+  const showDashboard = useCallback(() => {
+    setSelectedId(null);
+    void setSurfaceMode("popOut", { kind: "dashboard" });
+  }, []);
+
   const toggleSelect = useCallback((id: string) => {
-    setSelectedId((prev) => (prev === id ? null : id));
+    setSelectedId((prev) => {
+      const nextId = prev === id ? null : id;
+      void setSurfaceMode(
+        "popOut",
+        nextId
+          ? { kind: "provider", providerId: nextId }
+          : { kind: "dashboard" },
+      );
+      return nextId;
+    });
   }, []);
 
   // Loading
@@ -136,7 +161,7 @@ export default function PopOutPanel({ state }: { state: BootstrapState }) {
               provider={selected}
               hideEmail={settings.hidePersonalInfo}
               resetRelative={settings.resetTimeRelative}
-              onBack={() => setSelectedId(null)}
+              onBack={showDashboard}
             />
           </div>
         )}

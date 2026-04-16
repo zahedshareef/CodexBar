@@ -18,6 +18,24 @@ pub struct ShellTransitionRequest {
     pub position: Option<(i32, i32)>,
 }
 
+enum TransitionResolution {
+    ModeChange {
+        transition: SurfaceTransition,
+        target: SurfaceTarget,
+    },
+    SameModeRetarget {
+        mode: SurfaceMode,
+        target: SurfaceTarget,
+    },
+    SameModeReopen {
+        mode: SurfaceMode,
+        target: SurfaceTarget,
+    },
+    Noop {
+        mode: SurfaceMode,
+    },
+}
+
 /// Apply the window properties dictated by a surface mode.
 pub fn apply_window_properties(
     window: &WebviewWindow,
@@ -60,14 +78,40 @@ pub fn transition_to_target(
     target: SurfaceTarget,
     position: Option<(i32, i32)>,
 ) -> Result<SurfaceMode, String> {
-    apply_transition_request(
+    apply_transition_request_with_strategy(
         app,
         ShellTransitionRequest {
             mode,
             target,
             position,
         },
+        false,
     )
+}
+
+pub fn reopen_to_target(
+    app: &AppHandle,
+    mode: SurfaceMode,
+    target: SurfaceTarget,
+    position: Option<(i32, i32)>,
+) -> Result<SurfaceMode, String> {
+    apply_transition_request_with_strategy(
+        app,
+        ShellTransitionRequest {
+            mode,
+            target,
+            position,
+        },
+        true,
+    )
+}
+
+fn apply_transition_request_with_strategy(
+    app: &AppHandle,
+    request: ShellTransitionRequest,
+    force_same_mode_apply: bool,
+) -> Result<SurfaceMode, String> {
+    apply_transition_request(app, request, force_same_mode_apply)
 }
 
 pub fn hide_to_tray(app: &AppHandle) -> Result<SurfaceMode, String> {
@@ -102,6 +146,7 @@ pub fn hide_to_tray_state(state: &mut AppState) {
 fn apply_transition_request(
     app: &AppHandle,
     request: ShellTransitionRequest,
+    force_same_mode_apply: bool,
 ) -> Result<SurfaceMode, String> {
     let window = app
         .get_webview_window("main")
@@ -110,21 +155,69 @@ fn apply_transition_request(
         .try_state::<Mutex<AppState>>()
         .ok_or_else(|| "app state unavailable".to_string())?;
 
-    let (transition, current_mode, current_target) = {
+    let resolution = {
         let mut guard = st.lock().unwrap();
-        let transition = guard.transition_surface(request.mode, Some(request.target.clone()));
-        (
+        resolve_transition_request(&mut guard, &request, force_same_mode_apply)
+    };
+
+    match resolution {
+        TransitionResolution::ModeChange { transition, target } => {
+            apply_transition(app, &window, &transition, target, request.position)
+        }
+        TransitionResolution::SameModeRetarget { mode, target } => {
+            apply_same_mode_target_update(app, &window, mode, target, request.position)
+        }
+        TransitionResolution::SameModeReopen { mode, target } => {
+            let transition = SurfaceTransition {
+                from: mode,
+                to: mode,
+                properties: mode.window_properties(),
+            };
+            apply_transition(app, &window, &transition, target, request.position)
+        }
+        TransitionResolution::Noop { mode } => Ok(mode),
+    }
+}
+
+fn resolve_transition_request(
+    state: &mut AppState,
+    request: &ShellTransitionRequest,
+    force_same_mode_apply: bool,
+) -> TransitionResolution {
+    let previous_target = state.current_target.clone();
+    match state.transition_surface(request.mode, Some(request.target.clone())) {
+        Some(transition) => TransitionResolution::ModeChange {
             transition,
-            guard.surface_machine.current(),
-            guard.current_target.clone(),
-        )
-    };
+            target: state.current_target.clone(),
+        },
+        None if state.current_target != previous_target => TransitionResolution::SameModeRetarget {
+            mode: state.surface_machine.current(),
+            target: state.current_target.clone(),
+        },
+        None if force_same_mode_apply => TransitionResolution::SameModeReopen {
+            mode: state.surface_machine.current(),
+            target: state.current_target.clone(),
+        },
+        None => TransitionResolution::Noop {
+            mode: state.surface_machine.current(),
+        },
+    }
+}
 
-    let Some(transition) = transition else {
-        return Ok(current_mode);
-    };
-
-    apply_transition(app, &window, &transition, current_target, request.position)
+fn apply_same_mode_target_update(
+    app: &AppHandle,
+    window: &WebviewWindow,
+    mode: SurfaceMode,
+    target: SurfaceTarget,
+    position: Option<(i32, i32)>,
+) -> Result<SurfaceMode, String> {
+    if let Some((x, y)) = position {
+        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+    }
+    let _ = window.show();
+    let _ = window.set_focus();
+    events::emit_surface_mode_changed(app, mode, mode, target);
+    Ok(mode)
 }
 
 fn apply_transition(
@@ -282,5 +375,96 @@ mod tests {
 
         assert_eq!(state.surface_machine.current(), SurfaceMode::Hidden);
         assert_eq!(state.current_target, SurfaceTarget::Summary);
+    }
+
+    #[test]
+    fn same_mode_about_request_resolves_as_retarget() {
+        let mut state = AppState::new();
+        state.transition_surface(
+            SurfaceMode::Settings,
+            Some(SurfaceTarget::Settings {
+                tab: "general".into(),
+            }),
+        );
+
+        let resolution = resolve_transition_request(
+            &mut state,
+            &ShellTransitionRequest {
+                mode: SurfaceMode::Settings,
+                target: SurfaceTarget::Settings {
+                    tab: "about".into(),
+                },
+                position: None,
+            },
+            false,
+        );
+
+        match resolution {
+            TransitionResolution::SameModeRetarget { mode, target } => {
+                assert_eq!(mode, SurfaceMode::Settings);
+                assert_eq!(
+                    target,
+                    SurfaceTarget::Settings {
+                        tab: "about".into()
+                    }
+                );
+            }
+            _ => panic!("expected same-mode retarget"),
+        }
+    }
+
+    #[test]
+    fn same_mode_provider_request_resolves_as_retarget() {
+        let mut state = AppState::new();
+        state.transition_surface(SurfaceMode::PopOut, Some(SurfaceTarget::Dashboard));
+
+        let resolution = resolve_transition_request(
+            &mut state,
+            &ShellTransitionRequest {
+                mode: SurfaceMode::PopOut,
+                target: SurfaceTarget::Provider {
+                    provider_id: "codex".into(),
+                },
+                position: None,
+            },
+            false,
+        );
+
+        match resolution {
+            TransitionResolution::SameModeRetarget { mode, target } => {
+                assert_eq!(mode, SurfaceMode::PopOut);
+                assert_eq!(
+                    target,
+                    SurfaceTarget::Provider {
+                        provider_id: "codex".into()
+                    }
+                );
+            }
+            _ => panic!("expected same-mode retarget"),
+        }
+    }
+
+    #[test]
+    fn same_mode_reopen_request_resolves_as_update() {
+        let mut state = AppState::new();
+        state.transition_surface(SurfaceMode::TrayPanel, Some(SurfaceTarget::Summary));
+
+        let resolution = resolve_transition_request(
+            &mut state,
+            &ShellTransitionRequest {
+                mode: SurfaceMode::TrayPanel,
+                target: SurfaceTarget::Summary,
+                position: Some((10, 20)),
+            },
+            true,
+        );
+
+        match resolution {
+            TransitionResolution::SameModeReopen { mode, target } => {
+                assert_eq!(mode, SurfaceMode::TrayPanel);
+                assert_eq!(target, SurfaceTarget::Summary);
+            }
+            _ => panic!("expected same-mode reopen update"),
+        }
     }
 }
