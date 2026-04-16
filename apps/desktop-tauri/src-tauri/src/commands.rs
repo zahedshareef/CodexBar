@@ -957,13 +957,14 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
             .count()
     };
 
-    // Update tray status items once after the full refresh cycle.
+    // Update tray menu labels, icon, and tooltip once after the full refresh cycle.
     {
         let cached = {
             let guard = state.lock().map_err(|e| e.to_string())?;
             guard.provider_cache.clone()
         };
         crate::tray_bridge::update_tray_status_items(app, &cached);
+        crate::tray_bridge::update_tray_icon_and_tooltip(app, &cached);
     }
 
     events::emit_refresh_complete(app, enabled_ids.len(), error_count);

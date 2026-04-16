@@ -8,6 +8,8 @@ use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager};
 
+use codexbar::tray::render_bar_icon_rgba;
+
 use crate::shell;
 use crate::state::{AppState, TrayAnchor};
 use crate::surface::SurfaceMode;
@@ -338,6 +340,76 @@ pub fn update_tray_status_items(
     {
         let _ = tray.set_menu(Some(menu));
     }
+}
+
+/// Update the tray icon pixels and tooltip text to reflect current provider usage.
+///
+/// Icon shows the highest (worst-case) session usage as a fill bar, plus the
+/// highest weekly usage as a thinner second bar when secondary data is present.
+/// The tooltip lists every provider's current status in a compact multi-line format.
+pub fn update_tray_icon_and_tooltip(
+    app: &AppHandle,
+    snapshots: &[crate::commands::ProviderUsageSnapshot],
+) {
+    let Some(tray) = app.tray_by_id("codexbar-main") else {
+        return;
+    };
+
+    // ── Icon ─────────────────────────────────────────────────────────────
+    let ok_snapshots: Vec<_> = snapshots.iter().filter(|s| s.error.is_none()).collect();
+    let all_error = ok_snapshots.is_empty() && !snapshots.is_empty();
+
+    // Worst-case primary usage across all healthy providers.
+    let session_pct = ok_snapshots
+        .iter()
+        .map(|s| s.primary.used_percent)
+        .fold(0.0_f64, f64::max);
+
+    // Worst-case secondary usage (weekly), if any provider exposes it.
+    let weekly_pct: Option<f64> = {
+        let vals: Vec<f64> = ok_snapshots
+            .iter()
+            .filter_map(|s| s.secondary.as_ref().map(|w| w.used_percent))
+            .collect();
+        if vals.is_empty() {
+            None
+        } else {
+            Some(vals.into_iter().fold(0.0_f64, f64::max))
+        }
+    };
+
+    let (rgba, w, h) = render_bar_icon_rgba(session_pct, weekly_pct, all_error);
+    let icon = Image::new_owned(rgba, w, h);
+    let _ = tray.set_icon(Some(icon));
+
+    // ── Tooltip ───────────────────────────────────────────────────────────
+    let tooltip = build_tooltip(snapshots);
+    let _ = tray.set_tooltip(Some(tooltip));
+}
+
+/// Build a compact multi-line tooltip string from provider snapshots.
+fn build_tooltip(snapshots: &[crate::commands::ProviderUsageSnapshot]) -> String {
+    if snapshots.is_empty() {
+        return "CodexBar Desktop".to_string();
+    }
+
+    let mut lines = Vec::with_capacity(snapshots.len() + 1);
+    for s in snapshots {
+        let status = if let Some(ref err) = s.error {
+            // Truncate long error messages
+            let short: String = err.chars().take(40).collect();
+            format!("{}: error ({})", s.display_name, short)
+        } else {
+            let label = s
+                .tray_status_label
+                .clone()
+                .unwrap_or_else(|| format!("{:.0}%", s.primary.used_percent));
+            format!("{}: {}", s.display_name, label)
+        };
+        lines.push(status);
+    }
+
+    format!("CodexBar\n{}", lines.join("\n"))
 }
 
 #[allow(dead_code)]
