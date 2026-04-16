@@ -569,6 +569,8 @@ mod tests {
     use super::*;
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+    // Serializes tests that read/write the shared PROOF_MENU_SNAPSHOT global.
+    static MENU_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     fn with_proof_mode_env(value: Option<&str>, test: impl FnOnce()) {
         let _guard = ENV_LOCK.lock().unwrap();
@@ -705,6 +707,7 @@ mod tests {
 
     #[test]
     fn about_path_snapshot_persists_only_after_success() {
+        let _guard = MENU_LOCK.lock().unwrap();
         clear_menu_snapshot();
 
         let result = persist_about_path_snapshot(Ok(()));
@@ -717,6 +720,7 @@ mod tests {
 
     #[test]
     fn about_path_snapshot_clears_on_failure() {
+        let _guard = MENU_LOCK.lock().unwrap();
         set_menu_snapshot(Some("tray".into()), vec!["About CodexBar".into()]);
 
         let result = persist_about_path_snapshot(Err("boom".into()));
@@ -729,6 +733,7 @@ mod tests {
 
     #[test]
     fn about_path_snapshot_fails_when_about_item_is_missing() {
+        let _guard = MENU_LOCK.lock().unwrap();
         set_menu_snapshot(Some("tray".into()), vec!["About".into()]);
 
         let result = persist_about_path_snapshot_for_item("missing-about", Ok(()));
