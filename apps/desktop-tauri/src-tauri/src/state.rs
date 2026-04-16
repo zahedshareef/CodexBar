@@ -122,6 +122,8 @@ pub struct AppState {
     pub installer_path: Option<PathBuf>,
     /// Proof-harness configuration (set when `CODEXBAR_PROOF_MODE` is active).
     pub proof_config: Option<ProofConfig>,
+    /// Persistent notification manager — tracks which alerts have fired to prevent spam.
+    pub notification_manager: codexbar::notifications::NotificationManager,
 }
 
 impl Default for AppState {
@@ -155,6 +157,7 @@ impl AppState {
             update_info: None,
             installer_path: None,
             proof_config: None,
+            notification_manager: codexbar::notifications::NotificationManager::new(),
         }
     }
 

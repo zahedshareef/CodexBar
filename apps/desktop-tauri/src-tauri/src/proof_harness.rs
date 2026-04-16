@@ -470,14 +470,16 @@ fn current_proof_state_override() -> Option<ProofStateOverride> {
 
 fn native_menu_snapshot_for_path(menu_path: &str) -> (String, Vec<String>) {
     let providers = get_provider_catalog();
-    let entries = tray_menu::build_tray_menu(&providers, &[]);
+    let enabled = codexbar::settings::Settings::load().enabled_providers;
+    let entries = tray_menu::build_tray_menu(&providers, &[], &enabled);
     let menu_items = tray_menu::proof_menu_items(&entries, menu_path).unwrap_or_default();
     (menu_path.to_string(), menu_items)
 }
 
 fn native_menu_context_for_item(item_id: &str) -> Result<(String, Vec<String>), String> {
     let providers = get_provider_catalog();
-    let entries = tray_menu::build_tray_menu(&providers, &[]);
+    let enabled = codexbar::settings::Settings::load().enabled_providers;
+    let entries = tray_menu::build_tray_menu(&providers, &[], &enabled);
     tray_menu::proof_menu_context_for_item(&entries, item_id)
         .ok_or_else(|| format!("proof menu context missing tray item: {item_id}"))
 }

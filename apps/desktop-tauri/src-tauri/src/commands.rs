@@ -1,10 +1,14 @@
 use std::collections::HashSet;
 use std::sync::Mutex;
 
-use codexbar::core::{FetchContext, OpenAIDashboardCacheStore, Provider, ProviderFetchResult, ProviderId, RateWindow};
+use codexbar::core::{
+    FetchContext, OpenAIDashboardCacheStore, Provider, ProviderFetchResult, ProviderId, RateWindow,
+};
 use codexbar::cost_scanner::get_daily_cost_history;
 use codexbar::providers::*;
-use codexbar::settings::{ApiKeys, Language, ManualCookies, MetricPreference, Settings, TrayIconMode, UpdateChannel};
+use codexbar::settings::{
+    ApiKeys, Language, ManualCookies, MetricPreference, Settings, TrayIconMode, UpdateChannel,
+};
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
@@ -978,19 +982,19 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
         let cli_map = codexbar::core::cli_name_map();
         if let Ok(mut guard) = state.lock() {
             for snapshot in &cached {
-                if snapshot.error.is_none() {
-                    if let Some(&provider) = cli_map.get(snapshot.provider_id.as_str()) {
-                        guard.notification_manager.check_and_notify(
-                            provider,
-                            snapshot.primary.used_percent,
-                            &settings,
-                        );
-                        guard.notification_manager.check_session_transition(
-                            provider,
-                            snapshot.primary.used_percent,
-                            &settings,
-                        );
-                    }
+                if snapshot.error.is_none()
+                    && let Some(&provider) = cli_map.get(snapshot.provider_id.as_str())
+                {
+                    guard.notification_manager.check_and_notify(
+                        provider,
+                        snapshot.primary.used_percent,
+                        &settings,
+                    );
+                    guard.notification_manager.check_session_transition(
+                        provider,
+                        snapshot.primary.used_percent,
+                        &settings,
+                    );
                 }
             }
         }
@@ -1488,7 +1492,10 @@ pub struct ProviderChartData {
 }
 
 #[tauri::command]
-pub fn get_provider_chart_data(provider_id: String, account_email: Option<String>) -> ProviderChartData {
+pub fn get_provider_chart_data(
+    provider_id: String,
+    account_email: Option<String>,
+) -> ProviderChartData {
     // Cost history (available for any provider that has local JSONL cost data)
     let raw_cost = get_daily_cost_history(&provider_id, 30);
     let cost_history: Vec<DailyCostPoint> = raw_cost

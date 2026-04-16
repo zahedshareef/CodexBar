@@ -512,6 +512,16 @@ fn build_native_menu_entry(
         )?));
     }
 
+    // Render as a checkbox item when `checked` is set.
+    if let Some(checked) = entry.checked {
+        return Ok(NativeMenuEntry::CheckItem(
+            CheckMenuItemBuilder::with_id(entry.id.clone().unwrap_or_default(), &entry.label)
+                .enabled(!entry.disabled)
+                .checked(checked)
+                .build(app)?,
+        ));
+    }
+
     Ok(NativeMenuEntry::Item(MenuItem::with_id(
         app,
         entry.id.clone().unwrap_or_default(),

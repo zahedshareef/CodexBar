@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::commands::ProviderCatalogEntry;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -7,6 +9,9 @@ pub(crate) struct TrayMenuEntry {
     pub(crate) children: Vec<Self>,
     pub(crate) is_separator: bool,
     pub(crate) disabled: bool,
+    /// When `Some`, this entry renders as a check/checkbox item.
+    /// `true` = checked (enabled), `false` = unchecked (disabled).
+    pub(crate) checked: Option<bool>,
 }
 
 impl TrayMenuEntry {
@@ -17,6 +22,19 @@ impl TrayMenuEntry {
             children: Vec::new(),
             is_separator: false,
             disabled: false,
+            checked: None,
+        }
+    }
+
+    /// A checkbox menu item. `checked` mirrors the provider's enabled state.
+    fn check_item(id: impl Into<String>, label: impl Into<String>, checked: bool) -> Self {
+        Self {
+            id: Some(id.into()),
+            label: label.into(),
+            children: Vec::new(),
+            is_separator: false,
+            disabled: false,
+            checked: Some(checked),
         }
     }
 
@@ -27,6 +45,7 @@ impl TrayMenuEntry {
             children,
             is_separator: false,
             disabled: false,
+            checked: None,
         }
     }
 
@@ -37,6 +56,7 @@ impl TrayMenuEntry {
             children: Vec::new(),
             is_separator: true,
             disabled: false,
+            checked: None,
         }
     }
 
@@ -47,6 +67,7 @@ impl TrayMenuEntry {
             children: Vec::new(),
             is_separator: false,
             disabled: true,
+            checked: None,
         }
     }
 
@@ -66,6 +87,7 @@ impl TrayMenuEntry {
 pub(crate) fn build_tray_menu(
     providers: &[ProviderCatalogEntry],
     status_labels: &[(String, String)],
+    enabled_providers: &HashSet<String>,
 ) -> Vec<TrayMenuEntry> {
     let mut menu: Vec<TrayMenuEntry> = Vec::new();
 
@@ -88,9 +110,11 @@ pub(crate) fn build_tray_menu(
             providers
                 .iter()
                 .map(|provider| {
-                    TrayMenuEntry::item(
-                        format!("provider:{}", provider.id),
-                        format!("Open {}", provider.display_name),
+                    let is_enabled = enabled_providers.contains(&provider.id);
+                    TrayMenuEntry::check_item(
+                        format!("toggle_provider:{}", provider.id),
+                        &provider.display_name,
+                        is_enabled,
                     )
                 })
                 .collect(),
@@ -205,10 +229,19 @@ mod tests {
         ]
     }
 
+    fn both_enabled() -> HashSet<String> {
+        ["codex".to_string(), "claude".to_string()]
+            .into_iter()
+            .collect()
+    }
+
     #[test]
     fn proof_menu_items_follow_current_context() {
-        let items =
-            proof_menu_items(&build_tray_menu(&sample_provider_catalog(), &[]), "tray").unwrap();
+        let items = proof_menu_items(
+            &build_tray_menu(&sample_provider_catalog(), &[], &both_enabled()),
+            "tray",
+        )
+        .unwrap();
 
         assert_eq!(
             items,
@@ -228,19 +261,21 @@ mod tests {
     #[test]
     fn proof_menu_items_follow_submenu_context() {
         let items = proof_menu_items(
-            &build_tray_menu(&sample_provider_catalog(), &[]),
+            &build_tray_menu(&sample_provider_catalog(), &[], &both_enabled()),
             "tray/providers",
         )
         .unwrap();
 
-        assert_eq!(items, vec!["Open Codex", "Open Claude"]);
+        assert_eq!(items, vec!["Codex", "Claude"]);
     }
 
     #[test]
     fn proof_menu_context_for_leaf_item_returns_parent_menu() {
-        let (menu_path, items) =
-            proof_menu_context_for_item(&build_tray_menu(&sample_provider_catalog(), &[]), "about")
-                .unwrap();
+        let (menu_path, items) = proof_menu_context_for_item(
+            &build_tray_menu(&sample_provider_catalog(), &[], &both_enabled()),
+            "about",
+        )
+        .unwrap();
 
         assert_eq!(menu_path, "tray");
         assert!(items.iter().any(|item| item == "About"));
@@ -248,8 +283,35 @@ mod tests {
 
     #[test]
     fn check_for_updates_item_is_present() {
-        let menu = build_tray_menu(&sample_provider_catalog(), &[]);
+        let menu = build_tray_menu(&sample_provider_catalog(), &[], &both_enabled());
         assert!(menu_contains(&menu, "check_for_updates"));
+    }
+
+    #[test]
+    fn provider_check_items_reflect_enabled_state() {
+        let menu = build_tray_menu(
+            &sample_provider_catalog(),
+            &[],
+            &["claude".to_string()].into_iter().collect(),
+        );
+        let providers_submenu = menu
+            .iter()
+            .find(|e| e.label == "Providers")
+            .expect("providers submenu");
+
+        let claude_item = providers_submenu
+            .children
+            .iter()
+            .find(|e| e.id.as_deref() == Some("toggle_provider:claude"))
+            .expect("claude item");
+        let codex_item = providers_submenu
+            .children
+            .iter()
+            .find(|e| e.id.as_deref() == Some("toggle_provider:codex"))
+            .expect("codex item");
+
+        assert_eq!(claude_item.checked, Some(true), "Claude should be checked");
+        assert_eq!(codex_item.checked, Some(false), "Codex should be unchecked");
     }
 
     #[test]
@@ -258,7 +320,7 @@ mod tests {
             ("claude".to_string(), "Claude 60%".to_string()),
             ("codex".to_string(), "Codex 30%".to_string()),
         ];
-        let menu = build_tray_menu(&sample_provider_catalog(), &labels);
+        let menu = build_tray_menu(&sample_provider_catalog(), &labels, &both_enabled());
         // First two items should be disabled status rows.
         assert_eq!(menu[0].id.as_deref(), Some("status_claude"));
         assert!(menu[0].disabled);
