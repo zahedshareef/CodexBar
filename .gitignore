@@ -54,6 +54,7 @@ nul
 # Local scripts and env files
 .env
 .env.*
+/.local/
 /docs/
 /scripts/
 /docs/ui-parity-workflow.md
