@@ -20,6 +20,7 @@ import {
   removeManualCookie,
   setApiKey,
   setManualCookie,
+  setSurfaceMode,
 } from "../lib/tauri";
 
 // ── tiny reusable controls ──────────────────────────────────────────
@@ -196,6 +197,10 @@ export default function Settings({ state, initialTab }: { state: BootstrapState;
   }, [shellTarget]);
 
   const set = (patch: SettingsUpdate) => void update(patch);
+  const handleTabClick = useCallback((tab: SettingsTab) => {
+    setActiveTab(tab);
+    void setSurfaceMode("settings", { kind: "settings", tab });
+  }, []);
 
   return (
     <div className="settings">
@@ -207,7 +212,7 @@ export default function Settings({ state, initialTab }: { state: BootstrapState;
             role="tab"
             aria-selected={activeTab === t.id}
             className={`settings-tab ${activeTab === t.id ? "settings-tab--active" : ""}`}
-            onClick={() => setActiveTab(t.id)}
+            onClick={() => handleTabClick(t.id)}
           >
             <span className="settings-tab__icon">{t.icon}</span>
             {t.label}

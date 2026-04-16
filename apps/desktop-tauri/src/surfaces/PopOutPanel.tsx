@@ -61,7 +61,19 @@ export default function PopOutPanel({
   }, []);
 
   const toggleSelect = useCallback((id: string) => {
-    setSelectedId((prev) => (prev === id ? null : id));
+    const nextSelectedId = selectedId === id ? null : id;
+    setSelectedId(nextSelectedId);
+    void setSurfaceMode(
+      "popOut",
+      nextSelectedId === null
+        ? { kind: "dashboard" }
+        : { kind: "provider", providerId: id },
+    );
+  }, [selectedId]);
+
+  const handleBack = useCallback(() => {
+    setSelectedId(null);
+    void setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
 
   useEffect(() => {
@@ -165,7 +177,7 @@ export default function PopOutPanel({
               provider={selected}
               hideEmail={settings.hidePersonalInfo}
               resetRelative={settings.resetTimeRelative}
-              onBack={() => setSelectedId(null)}
+              onBack={handleBack}
             />
           </div>
         )}

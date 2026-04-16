@@ -1,30 +1,23 @@
 import { useEffect, useState } from "react";
-import { checkForUpdates, getBootstrapState, getProofConfig } from "./lib/tauri";
+import { checkForUpdates, getBootstrapState } from "./lib/tauri";
 import { useSurfaceSnapshot } from "./hooks/useSurfaceMode";
 import Settings from "./surfaces/Settings";
 import TrayPanel from "./surfaces/TrayPanel";
 import PopOutPanel from "./surfaces/PopOutPanel";
-import type {
-  BootstrapState,
-  ProofConfig,
-  SurfaceMode,
-  SurfaceTarget,
-} from "./types/bridge";
+import type { BootstrapState, SurfaceMode, SurfaceTarget } from "./types/bridge";
 
 export default function App() {
   const surface = useSurfaceSnapshot();
   const [state, setState] = useState<BootstrapState | null>(null);
-  const [proofConfig, setProofConfig] = useState<ProofConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([getBootstrapState(), getProofConfig()])
-      .then(([bootstrap, proof]) => {
+    getBootstrapState()
+      .then((bootstrap) => {
         if (!cancelled) {
           setState(bootstrap);
-          setProofConfig(proof);
         }
       })
       .catch((cause: unknown) => {
@@ -64,12 +57,7 @@ export default function App() {
   }
 
   return (
-    <SurfaceRouter
-      mode={surface.mode}
-      target={surface.target}
-      state={state}
-      proofConfig={proofConfig}
-    />
+    <SurfaceRouter mode={surface.mode} target={surface.target} state={state} />
   );
 }
 
@@ -77,12 +65,10 @@ function SurfaceRouter({
   mode,
   target,
   state,
-  proofConfig,
 }: {
   mode: SurfaceMode;
   target: SurfaceTarget | null;
   state: BootstrapState;
-  proofConfig: ProofConfig | null;
 }) {
   switch (mode) {
     case "hidden":
@@ -95,11 +81,7 @@ function SurfaceRouter({
       return (
         <SettingsLayout
           state={state}
-          initialTab={
-            target?.kind === "settings"
-              ? target.tab
-              : proofConfig?.settingsTab ?? undefined
-          }
+          initialTab={target?.kind === "settings" ? target.tab : undefined}
         />
       );
     default:

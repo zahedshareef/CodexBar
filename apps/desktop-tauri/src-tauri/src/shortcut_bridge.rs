@@ -4,13 +4,10 @@
 //! and registers it through the Tauri global-shortcut plugin. The shortcut
 //! toggles the tray panel via the surface state machine.
 
-use std::sync::Mutex;
-
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 use crate::shell;
-use crate::state::AppState;
 use crate::surface::SurfaceMode;
 use crate::surface_target::SurfaceTarget;
 
@@ -104,22 +101,13 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
-                let current = {
-                    let st = app.state::<Mutex<AppState>>();
-                    st.lock().unwrap().surface_machine.current()
-                };
-
-                if current == SurfaceMode::TrayPanel {
-                    let _ = shell::hide_to_tray(app);
-                } else {
-                    let position = shell::shortcut_panel_position(app);
-                    let _ = shell::transition_to_target(
-                        app,
-                        SurfaceMode::TrayPanel,
-                        SurfaceTarget::Summary,
-                        position,
-                    );
-                }
+                let position = shell::shortcut_panel_position(app);
+                let _ = shell::reopen_to_target(
+                    app,
+                    SurfaceMode::TrayPanel,
+                    SurfaceTarget::Summary,
+                    position,
+                );
             }
         })
         .build()
