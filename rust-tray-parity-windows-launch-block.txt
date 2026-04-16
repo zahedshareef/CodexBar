@@ -1,6 +1,0 @@
-Resolved after restoring the VM llvmpipe runtime.
-
-1. Initial failure: the VM only exposed a GL 1.1 context, so the debug build exited with `Failed to create wgpu adapter, no suitable adapter found`.
-2. Resolution: seeded `opengl32.dll` and `libgallium_wgl.dll` from Mesa 26.0.4 x64 into the active debug output directories and set `GALLIUM_DRIVER=llvmpipe` for the Windows user.
-3. Relaunch result: `C:\Users\mac\Win-CodexBar\target\debug\codexbar.exe menubar` stayed running under the VM.
-4. Fresh proof result: captured `win11-rust-tray-parity-about.png` plus `win11-rust-tray-parity-about-state.json`, so row 9 is no longer blocked.
