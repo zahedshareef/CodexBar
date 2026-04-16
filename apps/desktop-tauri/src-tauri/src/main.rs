@@ -29,6 +29,7 @@ fn main() {
 
     let proof_config = proof_harness::ProofConfig::from_env();
     let is_proof_mode = proof_config.is_some();
+    let force_start_visible = std::env::var_os("CODEXBAR_START_VISIBLE").is_some();
 
     let mut initial_state = AppState::new();
     initial_state.proof_config = proof_config;
@@ -82,6 +83,13 @@ fn main() {
             // In proof mode, immediately show the target surface.
             if is_proof_mode {
                 proof_harness::activate(app.handle());
+            } else if force_start_visible {
+                shell::reopen_to_target(
+                    app.handle(),
+                    SurfaceMode::TrayPanel,
+                    SurfaceTarget::Summary,
+                    None,
+                )?;
             }
 
             Ok(())
