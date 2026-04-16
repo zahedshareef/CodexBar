@@ -265,7 +265,8 @@ pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStateP
             )?;
         }
         ProofCommand::OpenNativeMenu => {
-            set_menu_snapshot(Some("tray".into()), native_menu_items());
+            let (menu_path, menu_items) = native_menu_snapshot_for_path("tray");
+            set_menu_snapshot(Some(menu_path), menu_items);
         }
         ProofCommand::OpenDashboard => {
             shell::transition_to_target(app, SurfaceMode::PopOut, SurfaceTarget::Dashboard, None)?;
@@ -334,7 +335,8 @@ fn transition_about_path(app: &AppHandle) -> Result<(), String> {
 fn persist_about_path_snapshot(result: Result<(), String>) -> Result<(), String> {
     match result {
         Ok(()) => {
-            set_menu_snapshot(Some("tray/about".into()), native_menu_items());
+            let (menu_path, menu_items) = native_menu_context_for_item("about");
+            set_menu_snapshot(Some(menu_path), menu_items);
             Ok(())
         }
         Err(err) => {
@@ -355,9 +357,18 @@ fn menu_snapshot() -> ProofMenuSnapshot {
     PROOF_MENU_SNAPSHOT.lock().unwrap().clone()
 }
 
-fn native_menu_items() -> Vec<String> {
+fn native_menu_snapshot_for_path(menu_path: &str) -> (String, Vec<String>) {
     let providers = get_provider_catalog();
-    tray_menu::proof_menu_items(&tray_menu::build_tray_menu(&providers))
+    let entries = tray_menu::build_tray_menu(&providers);
+    let menu_items = tray_menu::proof_menu_items(&entries, menu_path).unwrap_or_default();
+    (menu_path.to_string(), menu_items)
+}
+
+fn native_menu_context_for_item(item_id: &str) -> (String, Vec<String>) {
+    let providers = get_provider_catalog();
+    let entries = tray_menu::build_tray_menu(&providers);
+    tray_menu::proof_menu_context_for_item(&entries, item_id)
+        .unwrap_or_else(|| ("tray".into(), Vec::new()))
 }
 
 fn proof_payload_is_supported(surface_mode: SurfaceMode, payload: Option<&str>) -> bool {
@@ -589,8 +600,8 @@ mod tests {
 
         assert!(result.is_ok());
         let snapshot = menu_snapshot();
-        assert_eq!(snapshot.menu_path.as_deref(), Some("tray/about"));
-        assert!(!snapshot.menu_items.is_empty());
+        assert_eq!(snapshot.menu_path.as_deref(), Some("tray"));
+        assert!(snapshot.menu_items.iter().any(|item| item == "About"));
     }
 
     #[test]
