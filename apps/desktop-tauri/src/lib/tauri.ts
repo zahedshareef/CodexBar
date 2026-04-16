@@ -6,13 +6,13 @@ import type {
   BootstrapState,
   CurrentSurfaceState,
   CookieInfoBridge,
-  ProofConfig,
   ProviderCatalogEntry,
   ProviderUsageSnapshot,
   SettingsSnapshot,
   SettingsUpdate,
   SurfaceMode,
-  SurfaceTarget,
+  SurfaceTargetForMode,
+  VisibleSurfaceMode,
   UpdateStatePayload,
 } from "../types/bridge";
 
@@ -34,11 +34,11 @@ export function updateSettings(
   return invoke<SettingsSnapshot>("update_settings", { patch });
 }
 
-export function setSurfaceMode(
-  mode: SurfaceMode,
-  target?: SurfaceTarget,
+export function setSurfaceMode<M extends VisibleSurfaceMode>(
+  mode: M,
+  target: SurfaceTargetForMode<M>,
 ): Promise<SurfaceMode> {
-  return invoke<SurfaceMode>("set_surface_mode", { mode, target: target ?? null });
+  return invoke<SurfaceMode>("set_surface_mode", { mode, target });
 }
 
 export function getCurrentSurfaceMode(): Promise<SurfaceMode> {
@@ -129,10 +129,4 @@ export function removeManualCookie(
 
 export function getAppInfo(): Promise<AppInfoBridge> {
   return invoke<AppInfoBridge>("get_app_info");
-}
-
-// ── Proof harness bridge ─────────────────────────────────────────────
-
-export function getProofConfig(): Promise<ProofConfig | null> {
-  return invoke<ProofConfig | null>("get_proof_config");
 }

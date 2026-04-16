@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 use crate::events;
-use crate::proof_harness::ProofConfig;
 use crate::state::{AppState, UpdateState, UpdateStatePayload};
 use crate::surface::SurfaceMode;
 use crate::surface_target::SurfaceTarget;
@@ -309,7 +308,7 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
         },
         BridgeCommandDescriptor {
             id: "set_surface_mode",
-            description: "Switch the shell to a coarse surface mode and optional typed target.",
+            description: "Switch the shell to a visible surface using a required typed target.",
         },
         BridgeCommandDescriptor {
             id: "get_current_surface_mode",
@@ -374,10 +373,6 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
         BridgeCommandDescriptor {
             id: "get_app_info",
             description: "Read app metadata displayed in the shell About surface.",
-        },
-        BridgeCommandDescriptor {
-            id: "get_proof_config",
-            description: "Read proof-harness startup settings when proof mode is enabled.",
         },
     ]
 }
@@ -552,12 +547,11 @@ pub fn update_settings(
 #[tauri::command]
 pub fn set_surface_mode(
     mode: String,
-    target: Option<SurfaceTarget>,
+    target: SurfaceTarget,
     window: tauri::WebviewWindow,
 ) -> Result<String, String> {
     let mode = SurfaceMode::parse(&mode).ok_or_else(|| format!("unknown surface mode: {mode}"))?;
     let target = validate_surface_target(mode, target)?;
-    let target = target.unwrap_or_else(|| SurfaceTarget::default_for_mode(mode));
 
     crate::shell::transition_to_target(window.app_handle(), mode, target, None)
         .map(|mode| mode.as_str().to_string())
@@ -585,21 +579,21 @@ pub fn get_current_surface_state(state: tauri::State<'_, Mutex<AppState>>) -> Cu
 
 fn validate_surface_target(
     mode: SurfaceMode,
-    target: Option<SurfaceTarget>,
-) -> Result<Option<SurfaceTarget>, String> {
-    match target {
-        Some(target) => {
-            if target.mode() != mode {
-                return Err(format!(
-                    "surface target '{}' is not valid for mode '{}'",
-                    target_label(&target),
-                    mode.as_str()
-                ));
-            }
-            Ok(Some(target))
-        }
-        None => Ok(None),
+    target: SurfaceTarget,
+) -> Result<SurfaceTarget, String> {
+    if mode == SurfaceMode::Hidden {
+        return Err("set_surface_mode only supports visible surfaces".into());
     }
+
+    if target.mode() != mode {
+        return Err(format!(
+            "surface target '{}' is not valid for mode '{}'",
+            target_label(&target),
+            mode.as_str()
+        ));
+    }
+
+    Ok(target)
 }
 
 fn target_label(target: &SurfaceTarget) -> String {
@@ -1119,13 +1113,6 @@ fn open_url_in_browser(url: &str) -> Result<(), String> {
     Ok(())
 }
 
-// ── Proof harness commands ───────────────────────────────────────────
-
-#[tauri::command]
-pub fn get_proof_config(state: tauri::State<'_, Mutex<AppState>>) -> Option<ProofConfig> {
-    state.lock().ok().and_then(|g| g.proof_config.clone())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{bridge_commands, bridge_events, validate_surface_target};
@@ -1136,17 +1123,17 @@ mod tests {
     fn validate_surface_target_accepts_matching_target() {
         let target = validate_surface_target(
             SurfaceMode::Settings,
-            Some(SurfaceTarget::Settings {
+            SurfaceTarget::Settings {
                 tab: "apiKeys".into(),
-            }),
+            },
         )
         .unwrap();
 
         assert_eq!(
             target,
-            Some(SurfaceTarget::Settings {
+            SurfaceTarget::Settings {
                 tab: "apiKeys".into()
-            })
+            }
         );
     }
 
@@ -1154,13 +1141,21 @@ mod tests {
     fn validate_surface_target_rejects_mismatched_target() {
         let error = validate_surface_target(
             SurfaceMode::TrayPanel,
-            Some(SurfaceTarget::Settings {
+            SurfaceTarget::Settings {
                 tab: "apiKeys".into(),
-            }),
+            },
         )
         .unwrap_err();
 
         assert!(error.contains("not valid for mode 'trayPanel'"));
+    }
+
+    #[test]
+    fn validate_surface_target_rejects_hidden_mode() {
+        let error =
+            validate_surface_target(SurfaceMode::Hidden, SurfaceTarget::Summary).unwrap_err();
+
+        assert!(error.contains("only supports visible surfaces"));
     }
 
     #[test]
@@ -1174,7 +1169,7 @@ mod tests {
         assert!(ids.contains(&"get_current_surface_mode"));
         assert!(ids.contains(&"get_current_surface_state"));
         assert!(ids.contains(&"get_app_info"));
-        assert!(ids.contains(&"get_proof_config"));
+        assert!(!ids.contains(&"get_proof_config"));
     }
 
     #[test]

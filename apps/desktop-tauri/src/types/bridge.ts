@@ -1,10 +1,23 @@
 export type SurfaceMode = "hidden" | "trayPanel" | "popOut" | "settings";
+export type VisibleSurfaceMode = Exclude<SurfaceMode, "hidden">;
+
+export type TrayPanelSurfaceTarget = { kind: "summary" };
+export type PopOutSurfaceTarget =
+  | { kind: "dashboard" }
+  | { kind: "provider"; providerId: string };
+export type SettingsSurfaceTarget = { kind: "settings"; tab: string };
 
 export type SurfaceTarget =
-  | { kind: "summary" }
-  | { kind: "dashboard" }
-  | { kind: "provider"; providerId: string }
-  | { kind: "settings"; tab: string };
+  | TrayPanelSurfaceTarget
+  | PopOutSurfaceTarget
+  | SettingsSurfaceTarget;
+
+export type SurfaceTargetForMode<M extends VisibleSurfaceMode> =
+  M extends "trayPanel"
+    ? TrayPanelSurfaceTarget
+    : M extends "popOut"
+      ? PopOutSurfaceTarget
+      : SettingsSurfaceTarget;
 
 export interface CurrentSurfaceState {
   mode: SurfaceMode;
@@ -169,11 +182,4 @@ export interface AppInfoBridge {
   buildNumber: string;
   updateChannel: string;
   tagline: string;
-}
-
-// ── Proof harness types ──────────────────────────────────────────────
-
-export interface ProofConfig {
-  targetSurface: SurfaceMode;
-  settingsTab: string | null;
 }
