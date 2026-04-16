@@ -39,11 +39,11 @@ export default function PopOutPanel({ state }: { state: BootstrapState }) {
   );
 
   const openSettings = useCallback(() => {
-    setSurfaceMode("settings");
+    setSurfaceMode("settings", { kind: "settings", tab: "general" });
   }, []);
 
   const goTray = useCallback(() => {
-    setSurfaceMode("trayPanel");
+    setSurfaceMode("trayPanel", { kind: "summary" });
   }, []);
 
   const toggleSelect = useCallback((id: string) => {

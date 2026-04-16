@@ -10,6 +10,8 @@ import type {
   ProviderUsageSnapshot,
   SettingsSnapshot,
   SettingsUpdate,
+  SurfaceMode,
+  SurfaceTarget,
   UpdateStatePayload,
 } from "../types/bridge";
 
@@ -31,12 +33,15 @@ export function updateSettings(
   return invoke<SettingsSnapshot>("update_settings", { patch });
 }
 
-export function setSurfaceMode(mode: string, target?: string): Promise<string> {
-  return invoke<string>("set_surface_mode", { mode, target: target ?? null });
+export function setSurfaceMode(
+  mode: SurfaceMode,
+  target?: SurfaceTarget,
+): Promise<SurfaceMode> {
+  return invoke<SurfaceMode>("set_surface_mode", { mode, target: target ?? null });
 }
 
-export function getCurrentSurfaceMode(): Promise<string> {
-  return invoke<string>("get_current_surface_mode");
+export function getCurrentSurfaceMode(): Promise<SurfaceMode> {
+  return invoke<SurfaceMode>("get_current_surface_mode");
 }
 
 export function refreshProviders(): Promise<void> {

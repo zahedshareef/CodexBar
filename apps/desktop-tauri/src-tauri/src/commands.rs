@@ -493,12 +493,12 @@ pub fn update_settings(
 #[tauri::command]
 pub fn set_surface_mode(
     mode: String,
-    target: Option<String>,
+    target: Option<SurfaceTarget>,
     window: tauri::WebviewWindow,
     state: tauri::State<'_, Mutex<AppState>>,
 ) -> Result<String, String> {
     let mode = SurfaceMode::parse(&mode).ok_or_else(|| format!("unknown surface mode: {mode}"))?;
-    let target = parse_surface_target(mode, target.as_deref())?;
+    let target = validate_surface_target(mode, target)?;
 
     let mut guard = state.lock().map_err(|e| e.to_string())?;
 
@@ -535,14 +535,12 @@ fn apply_window_properties(
     crate::shell::apply_window_properties(window, props)
 }
 
-fn parse_surface_target(
+fn validate_surface_target(
     mode: SurfaceMode,
-    target: Option<&str>,
+    target: Option<SurfaceTarget>,
 ) -> Result<Option<SurfaceTarget>, String> {
     match target {
         Some(target) => {
-            let target = SurfaceTarget::parse(target)
-                .ok_or_else(|| format!("unknown surface target: {target}"))?;
             if target.mode() != mode {
                 return Err(format!(
                     "surface target '{}' is not valid for mode '{}'",
@@ -1082,13 +1080,19 @@ pub fn get_proof_config(state: tauri::State<'_, Mutex<AppState>>) -> Option<Proo
 
 #[cfg(test)]
 mod tests {
-    use super::parse_surface_target;
+    use super::validate_surface_target;
     use crate::surface::SurfaceMode;
     use crate::surface_target::SurfaceTarget;
 
     #[test]
-    fn parse_surface_target_accepts_matching_target() {
-        let target = parse_surface_target(SurfaceMode::Settings, Some("settings:apiKeys")).unwrap();
+    fn validate_surface_target_accepts_matching_target() {
+        let target = validate_surface_target(
+            SurfaceMode::Settings,
+            Some(SurfaceTarget::Settings {
+                tab: "apiKeys".into(),
+            }),
+        )
+        .unwrap();
 
         assert_eq!(
             target,
@@ -1099,9 +1103,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_surface_target_rejects_mismatched_target() {
-        let error =
-            parse_surface_target(SurfaceMode::TrayPanel, Some("settings:apiKeys")).unwrap_err();
+    fn validate_surface_target_rejects_mismatched_target() {
+        let error = validate_surface_target(
+            SurfaceMode::TrayPanel,
+            Some(SurfaceTarget::Settings {
+                tab: "apiKeys".into(),
+            }),
+        )
+        .unwrap_err();
 
         assert!(error.contains("not valid for mode 'trayPanel'"));
     }

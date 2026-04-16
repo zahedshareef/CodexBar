@@ -18,6 +18,7 @@ pub enum SurfaceTarget {
 }
 
 impl SurfaceTarget {
+    #[allow(dead_code)]
     pub fn parse(s: &str) -> Option<Self> {
         match s {
             "summary" => Some(Self::Summary),
@@ -98,6 +99,19 @@ mod tests {
         .unwrap();
 
         assert_eq!(value, json!({ "kind": "provider", "providerId": "codex" }));
+    }
+
+    #[test]
+    fn deserialize_settings_target_from_bridge() {
+        let target: SurfaceTarget =
+            serde_json::from_value(json!({ "kind": "settings", "tab": "general" })).unwrap();
+
+        assert_eq!(
+            target,
+            SurfaceTarget::Settings {
+                tab: "general".into()
+            }
+        );
     }
 
     #[test]

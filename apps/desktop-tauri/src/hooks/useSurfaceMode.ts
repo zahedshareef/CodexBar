@@ -21,7 +21,7 @@ export function useSurfaceMode(): SurfaceMode {
     let cancelled = false;
 
     getCurrentSurfaceMode().then((m) => {
-      if (!cancelled) setMode(m as SurfaceMode);
+      if (!cancelled) setMode(m);
     });
 
     const unlisten = listen<SurfaceModePayload>(

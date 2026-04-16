@@ -37,11 +37,11 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   );
 
   const openSettings = useCallback(() => {
-    setSurfaceMode("settings");
+    setSurfaceMode("settings", { kind: "settings", tab: "general" });
   }, []);
 
   const openPopOut = useCallback(() => {
-    setSurfaceMode("popOut");
+    setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
 
   const handleBack = useCallback(() => {
