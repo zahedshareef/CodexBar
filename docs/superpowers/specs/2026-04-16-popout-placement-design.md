@@ -49,7 +49,7 @@ The Tauri positioning module should remain the source of truth for window placem
 - The shell decides which surface is opening and what context is available
 - The positioner decides where that surface should open
 
-Detached popout placement should route through the same shared tray-anchor helper used by tray-aligned surfaces, with only a thin wrapper for surface-specific size and fallback behavior. This keeps the positioning rules aligned without forcing all surfaces to share the same fallback behavior.
+Detached popout placement should route through the same shared tray-anchor helper used by tray-aligned surfaces, with only a thin wrapper for surface-specific size and fallback behavior. Settings windows should use the same detached-surface placement entry point as other detached popouts, not a separate placement algorithm. This keeps the positioning rules aligned without forcing all surfaces to share the same fallback behavior.
 
 ### 3. Data flow
 
@@ -66,7 +66,7 @@ Detached popout placement should not depend on extra persisted state or ad hoc â
 
 Failure handling should stay deterministic:
 
-- if the tray icon rectangle is missing, use the explicit fallback path
+- if the tray icon rectangle is missing, keep the existing no-anchor fallback branch in the popout positioner instead of introducing a new inferred-tray heuristic for detached surfaces
 - if the scale factor is invalid, normalize it the same way the current positioner already does
 - if the computed position would fall off-screen, clamp it to the monitor work area
 
