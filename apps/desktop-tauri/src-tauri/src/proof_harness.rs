@@ -287,15 +287,7 @@ pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStateP
             )?;
         }
         ProofCommand::OpenAboutPath => {
-            set_menu_snapshot(Some("tray/about".into()), native_menu_items());
-            shell::transition_to_target(
-                app,
-                SurfaceMode::Settings,
-                SurfaceTarget::Settings {
-                    tab: "about".into(),
-                },
-                None,
-            )?;
+            transition_about_path(app)?;
         }
         ProofCommand::HideSurface => {
             shell::hide_to_tray(app)?;
@@ -325,10 +317,42 @@ fn clear_menu_snapshot() {
     set_menu_snapshot(None, Vec::new());
 }
 
+fn transition_about_path(app: &AppHandle) -> Result<(), String> {
+    persist_about_path_snapshot(
+        shell::transition_to_target(
+            app,
+            SurfaceMode::Settings,
+            SurfaceTarget::Settings {
+                tab: "about".into(),
+            },
+            None,
+        )
+        .map(|_| ()),
+    )
+}
+
+fn persist_about_path_snapshot(result: Result<(), String>) -> Result<(), String> {
+    match result {
+        Ok(()) => {
+            set_menu_snapshot(Some("tray/about".into()), native_menu_items());
+            Ok(())
+        }
+        Err(err) => {
+            clear_menu_snapshot();
+            Err(err)
+        }
+    }
+}
+
 fn set_menu_snapshot(menu_path: Option<String>, menu_items: Vec<String>) {
     let mut snapshot = PROOF_MENU_SNAPSHOT.lock().unwrap();
     snapshot.menu_path = menu_path;
     snapshot.menu_items = menu_items;
+}
+
+#[cfg(test)]
+fn menu_snapshot() -> ProofMenuSnapshot {
+    PROOF_MENU_SNAPSHOT.lock().unwrap().clone()
 }
 
 fn native_menu_items() -> Vec<String> {
@@ -555,5 +579,29 @@ mod tests {
     #[test]
     fn parse_proof_command_rejects_unknown_settings_tab() {
         assert!(ProofCommand::parse("open-settings:security").is_none());
+    }
+
+    #[test]
+    fn about_path_snapshot_persists_only_after_success() {
+        clear_menu_snapshot();
+
+        let result = persist_about_path_snapshot(Ok(()));
+
+        assert!(result.is_ok());
+        let snapshot = menu_snapshot();
+        assert_eq!(snapshot.menu_path.as_deref(), Some("tray/about"));
+        assert!(!snapshot.menu_items.is_empty());
+    }
+
+    #[test]
+    fn about_path_snapshot_clears_on_failure() {
+        set_menu_snapshot(Some("tray".into()), vec!["About CodexBar".into()]);
+
+        let result = persist_about_path_snapshot(Err("boom".into()));
+
+        assert_eq!(result.unwrap_err(), "boom");
+        let snapshot = menu_snapshot();
+        assert!(snapshot.menu_path.is_none());
+        assert!(snapshot.menu_items.is_empty());
     }
 }
