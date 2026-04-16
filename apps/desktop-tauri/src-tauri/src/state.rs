@@ -131,6 +131,19 @@ impl Default for AppState {
 }
 
 impl AppState {
+    pub fn resolved_target_for_mode(
+        mode: SurfaceMode,
+        target: Option<SurfaceTarget>,
+    ) -> SurfaceTarget {
+        match mode {
+            SurfaceMode::Hidden => SurfaceTarget::Summary,
+            _ => match target {
+                Some(target) if target.mode() == mode => target,
+                _ => SurfaceTarget::default_for_mode(mode),
+            },
+        }
+    }
+
     pub fn new() -> Self {
         Self {
             surface_machine: SurfaceStateMachine::new(),
@@ -150,13 +163,7 @@ impl AppState {
         mode: SurfaceMode,
         target: Option<SurfaceTarget>,
     ) -> Option<SurfaceTransition> {
-        let next_target = match mode {
-            SurfaceMode::Hidden => SurfaceTarget::Summary,
-            _ => match target {
-                Some(target) if target.mode() == mode => target,
-                _ => SurfaceTarget::default_for_mode(mode),
-            },
-        };
+        let next_target = Self::resolved_target_for_mode(mode, target);
         let transition = self.surface_machine.transition(mode);
         self.current_target = next_target;
 

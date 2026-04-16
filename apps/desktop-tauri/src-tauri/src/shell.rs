@@ -1,7 +1,7 @@
 //! Centralized shell behavior: surface transitions, window positioning,
 //! and helpers shared across tray, shortcut, and single-instance entry points.
 
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 use tauri::{AppHandle, Manager, WebviewWindow};
 
@@ -47,6 +47,8 @@ struct HideToTrayPlan {
     transition: Option<SurfaceTransition>,
     target: SurfaceTarget,
 }
+
+static SHELL_TRANSITION_SERIAL: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 /// Apply the window properties dictated by a surface mode.
 pub fn apply_window_properties(
@@ -137,6 +139,7 @@ pub fn hide_to_tray_if_current<P>(
 where
     P: FnOnce(SurfaceMode) -> bool,
 {
+    let _transition_guard = SHELL_TRANSITION_SERIAL.lock().unwrap();
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window unavailable".to_string())?;
@@ -191,6 +194,7 @@ fn apply_transition_request(
     request: ShellTransitionRequest,
     force_same_mode_apply: bool,
 ) -> Result<SurfaceMode, String> {
+    let _transition_guard = SHELL_TRANSITION_SERIAL.lock().unwrap();
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window unavailable".to_string())?;
@@ -199,9 +203,9 @@ fn apply_transition_request(
         .ok_or_else(|| "app state unavailable".to_string())?;
 
     let (previous, resolution) = {
-        let mut guard = st.lock().unwrap();
+        let guard = st.lock().unwrap();
         let previous = current_surface_snapshot(&guard);
-        let resolution = resolve_transition_request(&mut guard, &request, force_same_mode_apply);
+        let resolution = resolve_transition_request(&guard, &request, force_same_mode_apply);
         (previous, resolution)
     };
 
@@ -237,27 +241,28 @@ fn apply_transition_request(
 }
 
 fn resolve_transition_request(
-    state: &mut AppState,
+    state: &AppState,
     request: &ShellTransitionRequest,
     force_same_mode_apply: bool,
 ) -> TransitionResolution {
-    let previous_target = state.current_target.clone();
-    match state.transition_surface(request.mode, Some(request.target.clone())) {
-        Some(transition) => TransitionResolution::ModeChange {
-            transition,
-            target: state.current_target.clone(),
-        },
-        None if state.current_target != previous_target => TransitionResolution::SameModeRetarget {
-            mode: state.surface_machine.current(),
-            target: state.current_target.clone(),
-        },
-        None if force_same_mode_apply => TransitionResolution::SameModeReopen {
-            mode: state.surface_machine.current(),
-            target: state.current_target.clone(),
-        },
-        None => TransitionResolution::Noop {
-            mode: state.surface_machine.current(),
-        },
+    let mode = state.surface_machine.current();
+    let target = AppState::resolved_target_for_mode(request.mode, Some(request.target.clone()));
+
+    if mode != request.mode {
+        TransitionResolution::ModeChange {
+            transition: SurfaceTransition {
+                from: mode,
+                to: request.mode,
+                properties: request.mode.window_properties(),
+            },
+            target,
+        }
+    } else if state.current_target != target {
+        TransitionResolution::SameModeRetarget { mode, target }
+    } else if force_same_mode_apply {
+        TransitionResolution::SameModeReopen { mode, target }
+    } else {
+        TransitionResolution::Noop { mode }
     }
 }
 
@@ -270,6 +275,36 @@ fn current_surface_snapshot(state: &AppState) -> SurfaceSnapshot {
 
 fn restore_surface_snapshot(state: &mut AppState, snapshot: &SurfaceSnapshot) {
     let _ = state.transition_surface(snapshot.mode, Some(snapshot.target.clone()));
+}
+
+fn commit_surface_snapshot(app: &AppHandle, snapshot: &SurfaceSnapshot) -> Result<(), String> {
+    let st = app
+        .try_state::<Mutex<AppState>>()
+        .ok_or_else(|| "app state unavailable".to_string())?;
+    let mut guard = st.lock().unwrap();
+    restore_surface_snapshot(&mut guard, snapshot);
+    Ok(())
+}
+
+fn hidden_surface_snapshot() -> SurfaceSnapshot {
+    SurfaceSnapshot {
+        mode: SurfaceMode::Hidden,
+        target: SurfaceTarget::Summary,
+    }
+}
+
+fn restore_recovery_visibility<F>(
+    recovery: &SurfaceSnapshot,
+    mut show_and_focus: F,
+) -> Result<(), String>
+where
+    F: FnMut() -> Result<(), String>,
+{
+    if recovery.mode.window_properties().visible {
+        show_and_focus()?;
+    }
+
+    Ok(())
 }
 
 fn recovery_snapshot_for_failed_transition(
@@ -299,6 +334,13 @@ fn apply_same_mode_target_update(
     }
     let _ = window.show();
     let _ = window.set_focus();
+    commit_surface_snapshot(
+        app,
+        &SurfaceSnapshot {
+            mode,
+            target: target.clone(),
+        },
+    )?;
     events::emit_surface_mode_changed(app, mode, mode, target);
     Ok(mode)
 }
@@ -317,21 +359,58 @@ fn apply_transition(
 
     match apply_window_properties(window, &transition.properties) {
         Ok(()) => {
+            commit_surface_snapshot(
+                app,
+                &SurfaceSnapshot {
+                    mode: transition.to,
+                    target: current_target.clone(),
+                },
+            )?;
             events::emit_surface_mode_changed(app, transition.from, transition.to, current_target);
             Ok(transition.to)
         }
         Err(err) => {
             let recovery =
                 recovery_snapshot_for_failed_transition(transition, previous, &current_target);
-            let st = app
-                .try_state::<Mutex<AppState>>()
-                .ok_or_else(|| "app state unavailable".to_string())?;
-            {
-                let mut guard = st.lock().unwrap();
-                restore_surface_snapshot(&mut guard, &recovery);
+            if let Err(recovery_err) = restore_recovery_visibility(&recovery, || {
+                window.show().map_err(|e| e.to_string())?;
+                window.set_focus().map_err(|e| e.to_string())?;
+                Ok(())
+            }) {
+                let hidden = hidden_surface_snapshot();
+                if let Err(hide_err) = window.hide().map_err(|e| e.to_string()) {
+                    tracing::warn!(
+                        "shell: failed to re-establish recovery visibility during {:?} -> {:?} after restoring {:?}: apply error: {}; recovery error: {}; hide error: {}",
+                        transition.from,
+                        transition.to,
+                        recovery.mode,
+                        err,
+                        recovery_err,
+                        hide_err
+                    );
+                    return Err(format!(
+                        "failed to recover shell surface after {:?} -> {:?}: apply error: {}; recovery error: {}; hide error: {}",
+                        transition.from, transition.to, err, recovery_err, hide_err
+                    ));
+                }
+                commit_surface_snapshot(app, &hidden)?;
+                events::emit_surface_mode_changed(
+                    app,
+                    transition.from,
+                    hidden.mode,
+                    hidden.target.clone(),
+                );
+                tracing::warn!(
+                    "shell: failed to re-establish recovery visibility during {:?} -> {:?} after restoring {:?}; forcing hidden surface: apply error: {}; recovery error: {}",
+                    transition.from,
+                    transition.to,
+                    recovery.mode,
+                    err,
+                    recovery_err
+                );
+                return Ok(hidden.mode);
             }
-            let _ = window.show();
-            let _ = window.set_focus();
+            commit_surface_snapshot(app, &recovery)?;
             events::emit_surface_mode_changed(
                 app,
                 transition.from,
@@ -514,7 +593,7 @@ mod tests {
         );
 
         let resolution = resolve_transition_request(
-            &mut state,
+            &state,
             &ShellTransitionRequest {
                 mode: SurfaceMode::Settings,
                 target: SurfaceTarget::Settings {
@@ -545,7 +624,7 @@ mod tests {
         state.transition_surface(SurfaceMode::PopOut, Some(SurfaceTarget::Dashboard));
 
         let resolution = resolve_transition_request(
-            &mut state,
+            &state,
             &ShellTransitionRequest {
                 mode: SurfaceMode::PopOut,
                 target: SurfaceTarget::Provider {
@@ -576,7 +655,7 @@ mod tests {
         state.transition_surface(SurfaceMode::TrayPanel, Some(SurfaceTarget::Summary));
 
         let resolution = resolve_transition_request(
-            &mut state,
+            &state,
             &ShellTransitionRequest {
                 mode: SurfaceMode::TrayPanel,
                 target: SurfaceTarget::Summary,
@@ -659,5 +738,41 @@ mod tests {
 
         assert_eq!(state.surface_machine.current(), SurfaceMode::Settings);
         assert_eq!(state.current_target, previous.target);
+    }
+
+    #[test]
+    fn visible_recovery_propagates_visibility_errors() {
+        let recovery = SurfaceSnapshot {
+            mode: SurfaceMode::TrayPanel,
+            target: SurfaceTarget::Summary,
+        };
+
+        let err = restore_recovery_visibility(&recovery, || Err("show failed".into()))
+            .expect_err("visible recovery should fail when visibility is not restored");
+
+        assert_eq!(err, "show failed");
+    }
+
+    #[test]
+    fn hidden_recovery_does_not_require_visibility_restore() {
+        let recovery = SurfaceSnapshot {
+            mode: SurfaceMode::Hidden,
+            target: SurfaceTarget::Summary,
+        };
+
+        let restored = restore_recovery_visibility(&recovery, || Err("should not run".into()));
+
+        assert!(restored.is_ok());
+    }
+
+    #[test]
+    fn hidden_surface_snapshot_matches_non_visible_shell_state() {
+        assert_eq!(
+            hidden_surface_snapshot(),
+            SurfaceSnapshot {
+                mode: SurfaceMode::Hidden,
+                target: SurfaceTarget::Summary,
+            }
+        );
     }
 }
