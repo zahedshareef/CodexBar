@@ -5,7 +5,7 @@ import type {
   SurfaceMode,
   SurfaceTarget,
 } from "../types/bridge";
-import { getCurrentSurfaceMode, getCurrentSurfaceState } from "../lib/tauri";
+import { getCurrentSurfaceState } from "../lib/tauri";
 
 interface SurfaceModePayload {
   mode: SurfaceMode;
@@ -13,28 +13,36 @@ interface SurfaceModePayload {
   target: SurfaceTarget;
 }
 
-/**
- * Subscribe to the current surface mode.
- *
- * Reads the initial mode from the Rust backend, then keeps in sync via
- * the `surface-mode-changed` Tauri event.
- */
-export function useSurfaceMode(): SurfaceMode {
-  const [mode, setMode] = useState<SurfaceMode>("hidden");
+interface SurfaceSnapshot {
+  mode: SurfaceMode;
+  target: SurfaceTarget | null;
+}
+
+export function useSurfaceSnapshot(): SurfaceSnapshot {
+  const [snapshot, setSnapshot] = useState<SurfaceSnapshot>({
+    mode: "hidden",
+    target: null,
+  });
 
   useEffect(() => {
     let cancelled = false;
 
-    getCurrentSurfaceMode().then((current) => {
+    getCurrentSurfaceState().then((current: CurrentSurfaceState) => {
       if (!cancelled) {
-        setMode(current);
+        setSnapshot({
+          mode: current.mode,
+          target: current.target,
+        });
       }
     });
 
     const unlisten = listen<SurfaceModePayload>(
       "surface-mode-changed",
       (event) => {
-        setMode(event.payload.mode);
+        setSnapshot({
+          mode: event.payload.mode,
+          target: event.payload.target,
+        });
       },
     );
 
@@ -44,7 +52,17 @@ export function useSurfaceMode(): SurfaceMode {
     };
   }, []);
 
-  return mode;
+  return snapshot;
+}
+
+/**
+ * Subscribe to the current surface mode.
+ *
+ * Reads the initial mode from the Rust backend, then keeps in sync via
+ * the `surface-mode-changed` Tauri event.
+ */
+export function useSurfaceMode(): SurfaceMode {
+  return useSurfaceSnapshot().mode;
 }
 
 /**
@@ -54,35 +72,11 @@ export function useSurfaceMode(): SurfaceMode {
  * promoting root routing to full mode+target snapshots.
  */
 export function useSurfaceTarget(mode?: SurfaceMode): SurfaceTarget | null {
-  const [target, setTarget] = useState<SurfaceTarget | null>(null);
+  const snapshot = useSurfaceSnapshot();
 
-  useEffect(() => {
-    let cancelled = false;
+  if (mode !== undefined && snapshot.mode !== mode) {
+    return null;
+  }
 
-    getCurrentSurfaceState().then((current: CurrentSurfaceState) => {
-      if (cancelled) {
-        return;
-      }
-
-      setTarget(mode === undefined || current.mode === mode ? current.target : null);
-    });
-
-    const unlisten = listen<SurfaceModePayload>(
-      "surface-mode-changed",
-      (event) => {
-        setTarget(
-          mode === undefined || event.payload.mode === mode
-            ? event.payload.target
-            : null,
-        );
-      },
-    );
-
-    return () => {
-      cancelled = true;
-      unlisten.then((fn) => fn());
-    };
-  }, [mode]);
-
-  return target;
+  return snapshot.target;
 }

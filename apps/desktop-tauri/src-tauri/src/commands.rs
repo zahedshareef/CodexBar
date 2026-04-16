@@ -202,7 +202,7 @@ pub struct SettingsSnapshot {
 #[tauri::command]
 pub fn get_bootstrap_state() -> BootstrapState {
     BootstrapState {
-        contract_version: "v0",
+        contract_version: "v1",
         surface_modes: surface_modes(),
         commands: bridge_commands(),
         events: bridge_events(),
@@ -305,7 +305,19 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
         },
         BridgeCommandDescriptor {
             id: "update_settings",
-            description: "Planned settings mutation entrypoint backed by the Rust settings facade.",
+            description: "Persist a partial settings update through the shared Rust settings facade.",
+        },
+        BridgeCommandDescriptor {
+            id: "set_surface_mode",
+            description: "Switch the shell to a coarse surface mode and optional typed target.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_current_surface_mode",
+            description: "Read the current coarse shell surface mode.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_current_surface_state",
+            description: "Read the current coarse shell mode together with its typed target.",
         },
         BridgeCommandDescriptor {
             id: "get_update_state",
@@ -331,11 +343,51 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
             id: "open_release_page",
             description: "Open the release page for the available update in the default browser.",
         },
+        BridgeCommandDescriptor {
+            id: "get_api_keys",
+            description: "List stored API keys for configured providers.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_api_key_providers",
+            description: "List providers that support API-key authentication and related help metadata.",
+        },
+        BridgeCommandDescriptor {
+            id: "set_api_key",
+            description: "Store or replace an API key for a provider.",
+        },
+        BridgeCommandDescriptor {
+            id: "remove_api_key",
+            description: "Delete a stored API key for a provider.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_manual_cookies",
+            description: "List manually stored provider cookies.",
+        },
+        BridgeCommandDescriptor {
+            id: "set_manual_cookie",
+            description: "Store or replace a manual provider cookie value.",
+        },
+        BridgeCommandDescriptor {
+            id: "remove_manual_cookie",
+            description: "Delete a stored manual provider cookie.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_app_info",
+            description: "Read app metadata displayed in the shell About surface.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_proof_config",
+            description: "Read proof-harness startup settings when proof mode is enabled.",
+        },
     ]
 }
 
 fn bridge_events() -> Vec<BridgeEventDescriptor> {
     vec![
+        BridgeEventDescriptor {
+            id: "surface-mode-changed",
+            description: "Emitted when the shell changes coarse mode or typed target.",
+        },
         BridgeEventDescriptor {
             id: "provider-updated",
             description: "Emitted as provider usage snapshots refresh in the shared backend.",
@@ -1076,7 +1128,7 @@ pub fn get_proof_config(state: tauri::State<'_, Mutex<AppState>>) -> Option<Proo
 
 #[cfg(test)]
 mod tests {
-    use super::validate_surface_target;
+    use super::{bridge_commands, bridge_events, validate_surface_target};
     use crate::surface::SurfaceMode;
     use crate::surface_target::SurfaceTarget;
 
@@ -1109,5 +1161,29 @@ mod tests {
         .unwrap_err();
 
         assert!(error.contains("not valid for mode 'trayPanel'"));
+    }
+
+    #[test]
+    fn bootstrap_contract_lists_current_surface_commands() {
+        let ids = bridge_commands()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+
+        assert!(ids.contains(&"set_surface_mode"));
+        assert!(ids.contains(&"get_current_surface_mode"));
+        assert!(ids.contains(&"get_current_surface_state"));
+        assert!(ids.contains(&"get_app_info"));
+        assert!(ids.contains(&"get_proof_config"));
+    }
+
+    #[test]
+    fn bootstrap_contract_lists_surface_mode_changed_event() {
+        let ids = bridge_events()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+
+        assert!(ids.contains(&"surface-mode-changed"));
     }
 }

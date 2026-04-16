@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
+import type {
+  BootstrapState,
+  ProviderUsageSnapshot,
+  SurfaceTarget,
+} from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
 import { useSurfaceTarget } from "../hooks/useSurfaceMode";
 import { useProviders } from "../hooks/useProviders";
@@ -22,14 +26,18 @@ function sortProviders(
 
 export default function PopOutPanel({
   state,
+  initialTarget,
 }: {
   state: BootstrapState;
+  initialTarget?: SurfaceTarget | null;
 }) {
   const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialTarget?.kind === "provider" ? initialTarget.providerId : null,
+  );
   const shellTarget = useSurfaceTarget("popOut");
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
