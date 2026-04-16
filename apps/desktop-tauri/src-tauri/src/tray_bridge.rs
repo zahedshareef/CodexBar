@@ -13,6 +13,99 @@ use crate::state::{AppState, TrayAnchor};
 use crate::surface::SurfaceMode;
 use crate::surface_target::SurfaceTarget;
 
+#[derive(Debug, Clone, Copy)]
+struct MonitorScaleInfo {
+    physical_x: i32,
+    physical_y: i32,
+    physical_width: u32,
+    physical_height: u32,
+    logical_x: f64,
+    logical_y: f64,
+    logical_width: f64,
+    logical_height: f64,
+    scale_factor: f64,
+}
+
+impl MonitorScaleInfo {
+    fn from_monitor(monitor: &tauri::Monitor) -> Self {
+        let scale_factor = monitor.scale_factor();
+        let safe_scale = if scale_factor.is_finite() && scale_factor > 0.0 {
+            scale_factor
+        } else {
+            1.0
+        };
+        let position = monitor.position();
+        let size = monitor.size();
+
+        Self {
+            physical_x: position.x,
+            physical_y: position.y,
+            physical_width: size.width,
+            physical_height: size.height,
+            logical_x: position.x as f64 / safe_scale,
+            logical_y: position.y as f64 / safe_scale,
+            logical_width: size.width as f64 / safe_scale,
+            logical_height: size.height as f64 / safe_scale,
+            scale_factor: safe_scale,
+        }
+    }
+}
+
+fn scale_factor_for_logical_rect(
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    monitors: &[MonitorScaleInfo],
+) -> Option<f64> {
+    let center_x = x + width * 0.5;
+    let center_y = y + height * 0.5;
+
+    monitors
+        .iter()
+        .filter(|monitor| {
+            center_x >= monitor.logical_x
+                && center_x < monitor.logical_x + monitor.logical_width
+                && center_y >= monitor.logical_y
+                && center_y < monitor.logical_y + monitor.logical_height
+        })
+        .max_by(|left, right| left.scale_factor.total_cmp(&right.scale_factor))
+        .map(|monitor| monitor.scale_factor)
+}
+
+fn scale_factor_for_physical_point(x: i32, y: i32, monitors: &[MonitorScaleInfo]) -> Option<f64> {
+    monitors
+        .iter()
+        .find(|monitor| {
+            x >= monitor.physical_x
+                && x < monitor.physical_x + monitor.physical_width as i32
+                && y >= monitor.physical_y
+                && y < monitor.physical_y + monitor.physical_height as i32
+        })
+        .map(|monitor| monitor.scale_factor)
+}
+
+fn logical_to_physical_anchor(
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    scale_factor: f64,
+) -> TrayAnchor {
+    let safe_scale = if scale_factor.is_finite() && scale_factor > 0.0 {
+        scale_factor
+    } else {
+        1.0
+    };
+
+    TrayAnchor {
+        x: (x * safe_scale).round() as i32,
+        y: (y * safe_scale).round() as i32,
+        width: ((width * safe_scale).round().max(1.0)) as u32,
+        height: ((height * safe_scale).round().max(1.0)) as u32,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct TrayMenuEntry {
     id: Option<String>,
@@ -150,23 +243,63 @@ fn resolve_menu_action(id: &str) -> Option<MenuAction> {
 
 /// Store the tray icon bounds from a click event into shared state.
 fn store_anchor(app: &AppHandle, rect: &tauri::Rect) {
-    let (x, y) = match rect.position {
-        tauri::Position::Physical(p) => (p.x, p.y),
-        tauri::Position::Logical(l) => (l.x as i32, l.y as i32),
-    };
-    let (width, height) = match rect.size {
-        tauri::Size::Physical(s) => (s.width, s.height),
-        tauri::Size::Logical(l) => (l.width as u32, l.height as u32),
+    let monitors = app
+        .get_webview_window("main")
+        .and_then(|window| window.available_monitors().ok())
+        .unwrap_or_default()
+        .into_iter()
+        .map(|monitor| MonitorScaleInfo::from_monitor(&monitor))
+        .collect::<Vec<_>>();
+
+    let anchor = match (rect.position, rect.size) {
+        (tauri::Position::Physical(position), tauri::Size::Physical(size)) => TrayAnchor {
+            x: position.x,
+            y: position.y,
+            width: size.width,
+            height: size.height,
+        },
+        (tauri::Position::Logical(position), tauri::Size::Logical(size)) => {
+            let scale = scale_factor_for_logical_rect(
+                position.x,
+                position.y,
+                size.width,
+                size.height,
+                &monitors,
+            )
+            .unwrap_or(1.0);
+            logical_to_physical_anchor(position.x, position.y, size.width, size.height, scale)
+        }
+        (tauri::Position::Physical(position), tauri::Size::Logical(size)) => {
+            let scale =
+                scale_factor_for_physical_point(position.x, position.y, &monitors).unwrap_or(1.0);
+            TrayAnchor {
+                x: position.x,
+                y: position.y,
+                width: ((size.width * scale).round().max(1.0)) as u32,
+                height: ((size.height * scale).round().max(1.0)) as u32,
+            }
+        }
+        (tauri::Position::Logical(position), tauri::Size::Physical(size)) => {
+            let scale = scale_factor_for_logical_rect(
+                position.x,
+                position.y,
+                size.width as f64,
+                size.height as f64,
+                &monitors,
+            )
+            .unwrap_or(1.0);
+            TrayAnchor {
+                x: (position.x * scale).round() as i32,
+                y: (position.y * scale).round() as i32,
+                width: size.width,
+                height: size.height,
+            }
+        }
     };
 
     if let Some(st) = app.try_state::<Mutex<AppState>>() {
         let mut guard = st.lock().unwrap();
-        guard.tray_anchor = Some(TrayAnchor {
-            x,
-            y,
-            width,
-            height,
-        });
+        guard.tray_anchor = Some(anchor);
     }
 }
 
@@ -352,5 +485,42 @@ mod tests {
                 provider_id: "codex".into()
             }
         );
+    }
+
+    #[test]
+    fn logical_tray_anchor_uses_matching_monitor_scale() {
+        let monitors = vec![
+            MonitorScaleInfo {
+                physical_x: 0,
+                physical_y: 0,
+                physical_width: 1920,
+                physical_height: 1080,
+                logical_x: 0.0,
+                logical_y: 0.0,
+                logical_width: 1920.0,
+                logical_height: 1080.0,
+                scale_factor: 1.0,
+            },
+            MonitorScaleInfo {
+                physical_x: 1920,
+                physical_y: 0,
+                physical_width: 2560,
+                physical_height: 1440,
+                logical_x: 960.0,
+                logical_y: 0.0,
+                logical_width: 1280.0,
+                logical_height: 720.0,
+                scale_factor: 2.0,
+            },
+        ];
+
+        let scale = scale_factor_for_logical_rect(1500.0, 500.0, 12.0, 12.0, &monitors)
+            .expect("matching monitor scale");
+        let anchor = logical_to_physical_anchor(1500.0, 500.0, 12.0, 12.0, scale);
+
+        assert_eq!(anchor.x, 3000);
+        assert_eq!(anchor.y, 1000);
+        assert_eq!(anchor.width, 24);
+        assert_eq!(anchor.height, 24);
     }
 }

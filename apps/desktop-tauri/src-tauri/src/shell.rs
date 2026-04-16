@@ -97,7 +97,7 @@ pub fn transition_to_target(
         ShellTransitionRequest {
             mode,
             target,
-            position: position.or_else(|| default_surface_position(app, mode)),
+            position,
         },
         false,
     )
@@ -114,7 +114,7 @@ pub fn reopen_to_target(
         ShellTransitionRequest {
             mode,
             target,
-            position: position.or_else(|| default_surface_position(app, mode)),
+            position,
         },
         true,
     )
@@ -208,18 +208,16 @@ fn apply_transition_request(
         let resolution = resolve_transition_request(&guard, &request, force_same_mode_apply);
         (previous, resolution)
     };
+    let position = resolve_transition_position(request.position, &resolution, || {
+        default_surface_position(app, request.mode)
+    });
 
     match resolution {
-        TransitionResolution::ModeChange { transition, target } => apply_transition(
-            app,
-            &window,
-            &transition,
-            &previous,
-            target,
-            request.position,
-        ),
+        TransitionResolution::ModeChange { transition, target } => {
+            apply_transition(app, &window, &transition, &previous, target, position)
+        }
         TransitionResolution::SameModeRetarget { mode, target } => {
-            apply_same_mode_target_update(app, &window, mode, target, request.position)
+            apply_same_mode_target_update(app, &window, mode, target, position)
         }
         TransitionResolution::SameModeReopen { mode, target } => {
             let transition = SurfaceTransition {
@@ -227,14 +225,7 @@ fn apply_transition_request(
                 to: mode,
                 properties: mode.window_properties(),
             };
-            apply_transition(
-                app,
-                &window,
-                &transition,
-                &previous,
-                target,
-                request.position,
-            )
+            apply_transition(app, &window, &transition, &previous, target, position)
         }
         TransitionResolution::Noop { mode } => Ok(mode),
     }
@@ -270,6 +261,24 @@ fn current_surface_snapshot(state: &AppState) -> SurfaceSnapshot {
     SurfaceSnapshot {
         mode: state.surface_machine.current(),
         target: state.current_target.clone(),
+    }
+}
+
+fn resolve_transition_position<F>(
+    requested: Option<(i32, i32)>,
+    resolution: &TransitionResolution,
+    fallback: F,
+) -> Option<(i32, i32)>
+where
+    F: FnOnce() -> Option<(i32, i32)>,
+{
+    match resolution {
+        TransitionResolution::ModeChange { .. } | TransitionResolution::SameModeReopen { .. } => {
+            requested.or_else(fallback)
+        }
+        TransitionResolution::SameModeRetarget { .. } | TransitionResolution::Noop { .. } => {
+            requested
+        }
     }
 }
 
@@ -698,6 +707,64 @@ mod tests {
             }
             _ => panic!("expected same-mode reopen update"),
         }
+    }
+
+    #[test]
+    fn same_mode_retarget_skips_default_position_synthesis() {
+        let resolution = TransitionResolution::SameModeRetarget {
+            mode: SurfaceMode::Settings,
+            target: SurfaceTarget::Settings {
+                tab: "about".into(),
+            },
+        };
+        let mut fallback_called = false;
+
+        let position = resolve_transition_position(None, &resolution, || {
+            fallback_called = true;
+            Some((10, 20))
+        });
+
+        assert_eq!(position, None);
+        assert!(
+            !fallback_called,
+            "same-mode retarget should not request a default position"
+        );
+    }
+
+    #[test]
+    fn same_mode_retarget_preserves_explicit_position() {
+        let resolution = TransitionResolution::SameModeRetarget {
+            mode: SurfaceMode::PopOut,
+            target: SurfaceTarget::Provider {
+                provider_id: "codex".into(),
+            },
+        };
+
+        let position = resolve_transition_position(Some((10, 20)), &resolution, || {
+            panic!("explicit same-mode retarget position should be used directly")
+        });
+
+        assert_eq!(position, Some((10, 20)));
+    }
+
+    #[test]
+    fn same_mode_reopen_still_uses_default_position() {
+        let resolution = TransitionResolution::SameModeReopen {
+            mode: SurfaceMode::TrayPanel,
+            target: SurfaceTarget::Summary,
+        };
+        let mut fallback_called = false;
+
+        let position = resolve_transition_position(None, &resolution, || {
+            fallback_called = true;
+            Some((42, 24))
+        });
+
+        assert_eq!(position, Some((42, 24)));
+        assert!(
+            fallback_called,
+            "same-mode reopen should still synthesize a default position"
+        );
     }
 
     #[test]

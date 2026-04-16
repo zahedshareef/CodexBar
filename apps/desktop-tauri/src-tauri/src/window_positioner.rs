@@ -21,14 +21,26 @@ pub struct PanelSize {
 const MARGIN: i32 = 8;
 const GAP: i32 = 8;
 
+fn physical_panel_size(panel_size: &PanelSize, scale_factor: f64) -> (i32, i32) {
+    let scale_factor = if scale_factor.is_finite() && scale_factor > 0.0 {
+        scale_factor
+    } else {
+        1.0
+    };
+
+    let width = ((panel_size.width as f64) * scale_factor).round().max(1.0) as i32;
+    let height = ((panel_size.height as f64) * scale_factor).round().max(1.0) as i32;
+    (width, height)
+}
+
 fn clamp_to_work_area(
     target_x: i32,
     target_y: i32,
     monitor_rect: &Rect,
     panel_size: &PanelSize,
+    scale_factor: f64,
 ) -> (i32, i32) {
-    let pw = panel_size.width as i32;
-    let ph = panel_size.height as i32;
+    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
     let min_x = monitor_rect.x + MARGIN;
     let min_y = monitor_rect.y + MARGIN;
     let max_x = (monitor_rect.x + monitor_rect.width as i32 - pw - MARGIN).max(min_x);
@@ -47,10 +59,9 @@ pub fn calculate_panel_position(
     icon_rect: &Rect,
     monitor_rect: &Rect,
     panel_size: &PanelSize,
-    _scale_factor: f64,
+    scale_factor: f64,
 ) -> (i32, i32) {
-    let pw = panel_size.width as i32;
-    let ph = panel_size.height as i32;
+    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
     let mx = monitor_rect.x;
     let my = monitor_rect.y;
     let mw = monitor_rect.width as i32;
@@ -82,10 +93,9 @@ pub fn calculate_panel_position(
 pub fn calculate_shortcut_position(
     monitor_rect: &Rect,
     panel_size: &PanelSize,
-    _scale_factor: f64,
+    scale_factor: f64,
 ) -> (i32, i32) {
-    let pw = panel_size.width as i32;
-    let ph = panel_size.height as i32;
+    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
     let mx = monitor_rect.x;
     let my = monitor_rect.y;
     let mw = monitor_rect.width as i32;
@@ -111,10 +121,9 @@ pub fn calculate_popout_position(
     icon_rect: Option<&Rect>,
     monitor_rect: &Rect,
     panel_size: &PanelSize,
-    _scale_factor: f64,
+    scale_factor: f64,
 ) -> (i32, i32) {
-    let pw = panel_size.width as i32;
-    let ph = panel_size.height as i32;
+    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
     let mx = monitor_rect.x;
     let my = monitor_rect.y;
     let mw = monitor_rect.width as i32;
@@ -135,7 +144,7 @@ pub fn calculate_popout_position(
         (mx + mw - pw - MARGIN, my + mh - ph - MARGIN)
     };
 
-    clamp_to_work_area(target_x, target_y, monitor_rect, panel_size)
+    clamp_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
 }
 
 #[cfg(test)]
@@ -291,9 +300,14 @@ mod tests {
         };
         let (x1, y1) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 1.0);
         let (x2, y2) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 2.0);
-        // Pure pixel math — scale factor is forwarded but does not alter the
-        // result because inputs are already in physical pixels.
-        assert_eq!((x1, y1), (x2, y2));
+        assert!(
+            x2 < x1,
+            "higher scale should shift the panel left to fit its physical width"
+        );
+        assert!(
+            y2 < y1,
+            "higher scale should shift the panel upward to fit its physical height"
+        );
     }
 
     // --- shortcut-anchor tests ---
@@ -391,5 +405,26 @@ mod tests {
         };
         let (_, y) = calculate_popout_position(Some(&icon), &tall_monitor(), &panel(), 1.0);
         assert!(y > icon.y);
+    }
+
+    #[test]
+    fn popout_high_dpi_uses_physical_panel_size() {
+        let icon = Rect {
+            x: 1800,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (x1, y1) = calculate_popout_position(Some(&icon), &standard_monitor(), &panel(), 1.0);
+        let (x2, y2) = calculate_popout_position(Some(&icon), &standard_monitor(), &panel(), 2.0);
+
+        assert!(
+            x2 < x1,
+            "higher scale should account for wider physical popout bounds"
+        );
+        assert!(
+            y2 < y1,
+            "higher scale should account for taller physical popout bounds"
+        );
     }
 }
