@@ -49,6 +49,16 @@ fn clamp_to_work_area(
     (target_x.clamp(min_x, max_x), target_y.clamp(min_y, max_y))
 }
 
+pub fn clamp_position_to_work_area(
+    target_x: i32,
+    target_y: i32,
+    monitor_rect: &Rect,
+    panel_size: &PanelSize,
+    scale_factor: f64,
+) -> (i32, i32) {
+    clamp_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
+}
+
 /// Calculate panel position anchored to a tray icon rectangle.
 ///
 /// Placement rules:
@@ -138,7 +148,7 @@ pub fn calculate_popout_position(
         (mx + mw - pw - MARGIN, my + mh - ph - MARGIN)
     };
 
-    clamp_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
+    clamp_position_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
 }
 
 #[cfg(test)]

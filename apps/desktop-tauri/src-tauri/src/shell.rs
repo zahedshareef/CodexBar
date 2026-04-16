@@ -213,7 +213,8 @@ fn apply_transition_request(
         &resolution,
         should_synthesize_default_position(&resolution),
         || default_surface_position(app, request.mode),
-    );
+    )
+    .or_else(|| preserved_visible_mode_change_position(&window, &resolution));
 
     match resolution {
         TransitionResolution::ModeChange { transition, target } => {
@@ -291,6 +292,72 @@ where
         | TransitionResolution::SameModeRetarget { .. }
         | TransitionResolution::Noop { .. } => None,
     }
+}
+
+fn reclamp_preserved_visible_position(
+    current_top_left: (i32, i32),
+    monitor_rect: &Rect,
+    destination_mode: SurfaceMode,
+    scale_factor: f64,
+) -> (i32, i32) {
+    window_positioner::clamp_position_to_work_area(
+        current_top_left.0,
+        current_top_left.1,
+        monitor_rect,
+        &surface_panel_size(destination_mode),
+        scale_factor,
+    )
+}
+
+fn current_monitor_work_area(
+    window: &WebviewWindow,
+    current_top_left: (i32, i32),
+) -> Option<(Rect, f64)> {
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        return Some((monitor_work_area_rect(&monitor), monitor.scale_factor()));
+    }
+
+    let monitors = window.available_monitors().ok()?;
+    if let Some(monitor) =
+        monitor_containing_point(&monitors, current_top_left.0, current_top_left.1)
+    {
+        return Some((monitor_work_area_rect(monitor), monitor.scale_factor()));
+    }
+
+    if let Ok(size) = window.outer_size() {
+        let center_x = current_top_left.0 + size.width as i32 / 2;
+        let center_y = current_top_left.1 + size.height as i32 / 2;
+        if let Some(monitor) = monitor_containing_point(&monitors, center_x, center_y) {
+            return Some((monitor_work_area_rect(monitor), monitor.scale_factor()));
+        }
+    }
+
+    let monitor = window.primary_monitor().ok()??;
+    Some((monitor_work_area_rect(&monitor), monitor.scale_factor()))
+}
+
+fn preserved_visible_mode_change_position(
+    window: &WebviewWindow,
+    resolution: &TransitionResolution,
+) -> Option<(i32, i32)> {
+    let TransitionResolution::ModeChange { transition, .. } = resolution else {
+        return None;
+    };
+
+    if !transition.from.window_properties().visible || !transition.to.window_properties().visible {
+        return None;
+    }
+
+    let current = window.outer_position().ok()?;
+    let current_top_left = (current.x, current.y);
+    let (monitor_rect, scale_factor) = current_monitor_work_area(window, current_top_left)?;
+
+    Some(reclamp_preserved_visible_position(
+        current_top_left,
+        &monitor_rect,
+        transition.to,
+        scale_factor,
+    ))
 }
 
 fn should_synthesize_default_position(resolution: &TransitionResolution) -> bool {
@@ -844,6 +911,26 @@ mod tests {
             !fallback_called,
             "visible-to-visible mode changes should preserve the current window position"
         );
+    }
+
+    #[test]
+    fn larger_visible_destination_reclamps_preserved_top_left() {
+        let current_top_left = (1492, 512);
+        let monitor = Rect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+
+        let reclamped = reclamp_preserved_visible_position(
+            current_top_left,
+            &monitor,
+            SurfaceMode::Settings,
+            1.0,
+        );
+
+        assert_eq!(reclamped, (1392, 472));
     }
 
     #[test]
