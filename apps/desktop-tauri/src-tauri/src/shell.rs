@@ -181,7 +181,7 @@ where
     }
 
     let previous = current_surface_snapshot(state);
-    let transition = state.transition_surface(SurfaceMode::Hidden, Some(SurfaceTarget::Summary));
+    let transition = state.hide_surface();
     Some(HideToTrayPlan {
         previous,
         transition,
@@ -274,7 +274,11 @@ fn current_surface_snapshot(state: &AppState) -> SurfaceSnapshot {
 }
 
 fn restore_surface_snapshot(state: &mut AppState, snapshot: &SurfaceSnapshot) {
-    let _ = state.transition_surface(snapshot.mode, Some(snapshot.target.clone()));
+    if snapshot.mode == SurfaceMode::Hidden {
+        let _ = state.hide_surface();
+    } else {
+        let _ = state.transition_surface(snapshot.mode, snapshot.target.clone());
+    }
 }
 
 fn commit_surface_snapshot(app: &AppHandle, snapshot: &SurfaceSnapshot) -> Result<(), String> {
@@ -429,19 +433,6 @@ fn apply_transition(
     }
 }
 
-/// Perform a surface transition, apply window properties, and emit the event.
-/// Optionally repositions the window at `position` (physical pixels) before showing.
-#[allow(dead_code)]
-pub fn transition_surface(
-    app: &AppHandle,
-    mode: SurfaceMode,
-    target: Option<SurfaceTarget>,
-    position: Option<(i32, i32)>,
-) {
-    let target = target.unwrap_or_else(|| SurfaceTarget::default_for_mode(mode));
-    let _ = transition_to_target(app, mode, target, position);
-}
-
 /// Toggle the tray panel: hide if currently showing, show at `position` otherwise.
 pub fn toggle_tray_panel(app: &AppHandle, position: Option<(i32, i32)>) {
     let current = {
@@ -557,7 +548,7 @@ mod tests {
     #[test]
     fn conditional_hide_to_tray_updates_matching_surface() {
         let mut state = AppState::new();
-        state.transition_surface(SurfaceMode::TrayPanel, Some(SurfaceTarget::Summary));
+        state.transition_surface(SurfaceMode::TrayPanel, SurfaceTarget::Summary);
 
         let plan =
             prepare_hide_to_tray_if_current(&mut state, |mode| mode == SurfaceMode::TrayPanel)
@@ -572,7 +563,7 @@ mod tests {
     #[test]
     fn conditional_hide_to_tray_leaves_non_matching_surface_alone() {
         let mut state = AppState::new();
-        state.transition_surface(SurfaceMode::PopOut, Some(SurfaceTarget::Dashboard));
+        state.transition_surface(SurfaceMode::PopOut, SurfaceTarget::Dashboard);
 
         let plan =
             prepare_hide_to_tray_if_current(&mut state, |mode| mode == SurfaceMode::TrayPanel);
@@ -587,9 +578,9 @@ mod tests {
         let mut state = AppState::new();
         state.transition_surface(
             SurfaceMode::Settings,
-            Some(SurfaceTarget::Settings {
+            SurfaceTarget::Settings {
                 tab: "general".into(),
-            }),
+            },
         );
 
         let resolution = resolve_transition_request(
@@ -621,7 +612,7 @@ mod tests {
     #[test]
     fn same_mode_provider_request_resolves_as_retarget() {
         let mut state = AppState::new();
-        state.transition_surface(SurfaceMode::PopOut, Some(SurfaceTarget::Dashboard));
+        state.transition_surface(SurfaceMode::PopOut, SurfaceTarget::Dashboard);
 
         let resolution = resolve_transition_request(
             &state,
@@ -652,7 +643,7 @@ mod tests {
     #[test]
     fn same_mode_reopen_request_resolves_as_update() {
         let mut state = AppState::new();
-        state.transition_surface(SurfaceMode::TrayPanel, Some(SurfaceTarget::Summary));
+        state.transition_surface(SurfaceMode::TrayPanel, SurfaceTarget::Summary);
 
         let resolution = resolve_transition_request(
             &state,
@@ -732,7 +723,7 @@ mod tests {
             },
         };
         let mut state = AppState::new();
-        state.transition_surface(SurfaceMode::Hidden, Some(SurfaceTarget::Summary));
+        state.hide_surface();
 
         restore_surface_snapshot(&mut state, &previous);
 

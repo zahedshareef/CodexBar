@@ -161,6 +161,18 @@ impl AppState {
     pub fn transition_surface(
         &mut self,
         mode: SurfaceMode,
+        target: SurfaceTarget,
+    ) -> Option<SurfaceTransition> {
+        self.transition_surface_internal(mode, Some(target))
+    }
+
+    pub fn hide_surface(&mut self) -> Option<SurfaceTransition> {
+        self.transition_surface_internal(SurfaceMode::Hidden, Some(SurfaceTarget::Summary))
+    }
+
+    fn transition_surface_internal(
+        &mut self,
+        mode: SurfaceMode,
         target: Option<SurfaceTarget>,
     ) -> Option<SurfaceTransition> {
         let next_target = Self::resolved_target_for_mode(mode, target);
@@ -200,9 +212,9 @@ mod tests {
 
         let transition = state.transition_surface(
             SurfaceMode::Settings,
-            Some(SurfaceTarget::Settings {
+            SurfaceTarget::Settings {
                 tab: "apiKeys".into(),
-            }),
+            },
         );
 
         assert!(transition.is_some());
@@ -218,8 +230,7 @@ mod tests {
     fn transition_applies_summary_target_for_tray_panel() {
         let mut state = AppState::new();
 
-        let transition =
-            state.transition_surface(SurfaceMode::TrayPanel, Some(SurfaceTarget::Summary));
+        let transition = state.transition_surface(SurfaceMode::TrayPanel, SurfaceTarget::Summary);
 
         assert!(transition.is_some());
         assert_eq!(state.current_target, SurfaceTarget::Summary);
@@ -229,8 +240,7 @@ mod tests {
     fn transition_applies_dashboard_target_for_pop_out() {
         let mut state = AppState::new();
 
-        let transition =
-            state.transition_surface(SurfaceMode::PopOut, Some(SurfaceTarget::Dashboard));
+        let transition = state.transition_surface(SurfaceMode::PopOut, SurfaceTarget::Dashboard);
 
         assert!(transition.is_some());
         assert_eq!(state.current_target, SurfaceTarget::Dashboard);
@@ -241,16 +251,16 @@ mod tests {
         let mut state = AppState::new();
         state.transition_surface(
             SurfaceMode::Settings,
-            Some(SurfaceTarget::Settings {
+            SurfaceTarget::Settings {
                 tab: "apiKeys".into(),
-            }),
+            },
         );
 
         let transition = state.transition_surface(
             SurfaceMode::Settings,
-            Some(SurfaceTarget::Settings {
+            SurfaceTarget::Settings {
                 tab: "about".into(),
-            }),
+            },
         );
 
         assert!(transition.is_none());
@@ -265,13 +275,13 @@ mod tests {
     #[test]
     fn same_mode_provider_retarget_updates_target() {
         let mut state = AppState::new();
-        state.transition_surface(SurfaceMode::PopOut, Some(SurfaceTarget::Dashboard));
+        state.transition_surface(SurfaceMode::PopOut, SurfaceTarget::Dashboard);
 
         let transition = state.transition_surface(
             SurfaceMode::PopOut,
-            Some(SurfaceTarget::Provider {
+            SurfaceTarget::Provider {
                 provider_id: "claude".into(),
-            }),
+            },
         );
 
         assert!(transition.is_none());
@@ -288,12 +298,12 @@ mod tests {
         let mut state = AppState::new();
         state.transition_surface(
             SurfaceMode::Settings,
-            Some(SurfaceTarget::Settings {
+            SurfaceTarget::Settings {
                 tab: "apiKeys".into(),
-            }),
+            },
         );
 
-        let transition = state.transition_surface(SurfaceMode::Hidden, None);
+        let transition = state.hide_surface();
 
         assert!(transition.is_some());
         assert_eq!(state.current_target, SurfaceTarget::Summary);
@@ -305,9 +315,9 @@ mod tests {
 
         state.transition_surface(
             SurfaceMode::PopOut,
-            Some(SurfaceTarget::Settings {
+            SurfaceTarget::Settings {
                 tab: "general".into(),
-            }),
+            },
         );
 
         assert_eq!(state.current_target, SurfaceTarget::Dashboard);
