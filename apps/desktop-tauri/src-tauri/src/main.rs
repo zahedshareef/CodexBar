@@ -90,24 +90,17 @@ fn main() {
                     return;
                 }
                 // Blur in TrayPanel mode → auto-hide.
-                let Some(st) = window.try_state::<Mutex<AppState>>() else {
-                    return;
-                };
-                if st.lock().unwrap().surface_machine.current() == SurfaceMode::TrayPanel {
-                    let _ = shell::hide_to_tray(window.app_handle());
-                }
+                let _ = shell::hide_to_tray_if_current(window.app_handle(), |mode| {
+                    mode == SurfaceMode::TrayPanel
+                });
             }
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 // Close visible shell surfaces → hide instead of quitting.
-                let Some(st) = window.try_state::<Mutex<AppState>>() else {
-                    return;
-                };
-                let guard = st.lock().unwrap();
-                let cur = guard.surface_machine.current();
-                if should_hide_close_request(cur) {
+                if matches!(
+                    shell::hide_to_tray_if_current(window.app_handle(), should_hide_close_request),
+                    Ok(Some(_))
+                ) {
                     api.prevent_close();
-                    drop(guard);
-                    let _ = shell::hide_to_tray(window.app_handle());
                 }
             }
             _ => {}

@@ -42,6 +42,12 @@ enum TransitionResolution {
     },
 }
 
+struct HideToTrayPlan {
+    previous: SurfaceSnapshot,
+    transition: Option<SurfaceTransition>,
+    target: SurfaceTarget,
+}
+
 /// Apply the window properties dictated by a surface mode.
 pub fn apply_window_properties(
     window: &WebviewWindow,
@@ -121,33 +127,63 @@ fn apply_transition_request_with_strategy(
 }
 
 pub fn hide_to_tray(app: &AppHandle) -> Result<SurfaceMode, String> {
+    hide_to_tray_if_current(app, |_| true).map(|mode| mode.unwrap_or(SurfaceMode::Hidden))
+}
+
+pub fn hide_to_tray_if_current<P>(
+    app: &AppHandle,
+    is_eligible: P,
+) -> Result<Option<SurfaceMode>, String>
+where
+    P: FnOnce(SurfaceMode) -> bool,
+{
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window unavailable".to_string())?;
     let st = app
         .try_state::<Mutex<AppState>>()
         .ok_or_else(|| "app state unavailable".to_string())?;
-    let (transition, previous, current_target) = {
+    let plan = {
         let mut guard = st.lock().unwrap();
-        let previous = current_surface_snapshot(&guard);
-        let transition =
-            guard.transition_surface(SurfaceMode::Hidden, Some(SurfaceTarget::Summary));
-        guard.current_target = SurfaceTarget::Summary;
-        (transition, previous, guard.current_target.clone())
+        prepare_hide_to_tray_if_current(&mut guard, is_eligible)
     };
 
-    if let Some(transition) = transition {
-        apply_transition(app, &window, &transition, &previous, current_target, None)
+    let Some(plan) = plan else {
+        return Ok(None);
+    };
+
+    if let Some(transition) = plan.transition {
+        apply_transition(app, &window, &transition, &plan.previous, plan.target, None).map(Some)
     } else {
         let _ = window.hide();
-        Ok(SurfaceMode::Hidden)
+        Ok(Some(SurfaceMode::Hidden))
     }
 }
 
 #[allow(dead_code)]
 pub fn hide_to_tray_state(state: &mut AppState) {
-    let _ = state.transition_surface(SurfaceMode::Hidden, Some(SurfaceTarget::Summary));
-    state.current_target = SurfaceTarget::Summary;
+    let _ = prepare_hide_to_tray_if_current(state, |_| true);
+}
+
+fn prepare_hide_to_tray_if_current<P>(
+    state: &mut AppState,
+    is_eligible: P,
+) -> Option<HideToTrayPlan>
+where
+    P: FnOnce(SurfaceMode) -> bool,
+{
+    let current = state.surface_machine.current();
+    if !is_eligible(current) {
+        return None;
+    }
+
+    let previous = current_surface_snapshot(state);
+    let transition = state.transition_surface(SurfaceMode::Hidden, Some(SurfaceTarget::Summary));
+    Some(HideToTrayPlan {
+        previous,
+        transition,
+        target: state.current_target.clone(),
+    })
 }
 
 fn apply_transition_request(
@@ -437,6 +473,34 @@ mod tests {
 
         assert_eq!(state.surface_machine.current(), SurfaceMode::Hidden);
         assert_eq!(state.current_target, SurfaceTarget::Summary);
+    }
+
+    #[test]
+    fn conditional_hide_to_tray_updates_matching_surface() {
+        let mut state = AppState::new();
+        state.transition_surface(SurfaceMode::TrayPanel, Some(SurfaceTarget::Summary));
+
+        let plan =
+            prepare_hide_to_tray_if_current(&mut state, |mode| mode == SurfaceMode::TrayPanel)
+                .expect("tray panel should be eligible");
+
+        assert_eq!(plan.previous.mode, SurfaceMode::TrayPanel);
+        assert_eq!(state.surface_machine.current(), SurfaceMode::Hidden);
+        assert_eq!(state.current_target, SurfaceTarget::Summary);
+        assert_eq!(plan.target, SurfaceTarget::Summary);
+    }
+
+    #[test]
+    fn conditional_hide_to_tray_leaves_non_matching_surface_alone() {
+        let mut state = AppState::new();
+        state.transition_surface(SurfaceMode::PopOut, Some(SurfaceTarget::Dashboard));
+
+        let plan =
+            prepare_hide_to_tray_if_current(&mut state, |mode| mode == SurfaceMode::TrayPanel);
+
+        assert!(plan.is_none());
+        assert_eq!(state.surface_machine.current(), SurfaceMode::PopOut);
+        assert_eq!(state.current_target, SurfaceTarget::Dashboard);
     }
 
     #[test]
