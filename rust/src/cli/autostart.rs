@@ -3,14 +3,9 @@
 //! Enables/disables CodexBar to start automatically when Windows boots
 
 use clap::Args;
-use std::path::PathBuf;
 
 #[cfg(target_os = "windows")]
-use std::ffi::OsStr;
-#[cfg(target_os = "windows")]
-use std::os::windows::ffi::OsStrExt;
-
-const APP_NAME: &str = "CodexBar";
+use crate::settings::Settings;
 
 #[derive(Args, Debug)]
 pub struct AutostartArgs {
@@ -46,157 +41,22 @@ pub async fn run(args: AutostartArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Get the path to the current executable
-fn get_exe_path() -> anyhow::Result<PathBuf> {
-    let exe = std::env::current_exe()?;
-    Ok(exe)
-}
-
 /// Enable auto-start by adding registry entry
 #[cfg(target_os = "windows")]
 fn enable_autostart() -> anyhow::Result<()> {
-    use windows::Win32::System::Registry::{
-        HKEY_CURRENT_USER, KEY_WRITE, REG_SZ, RegCloseKey, RegOpenKeyExW, RegSetValueExW,
-    };
-    use windows::core::PCWSTR;
-
-    let exe_path = get_exe_path()?;
-    let command = format!("\"{}\" menubar", exe_path.display());
-
-    let subkey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-    let subkey_wide: Vec<u16> = OsStr::new(subkey)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-
-    let name_wide: Vec<u16> = OsStr::new(APP_NAME)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-
-    let value_wide: Vec<u16> = OsStr::new(&command)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-
-    unsafe {
-        let mut hkey = windows::Win32::System::Registry::HKEY::default();
-
-        let result = RegOpenKeyExW(
-            HKEY_CURRENT_USER,
-            PCWSTR(subkey_wide.as_ptr()),
-            0,
-            KEY_WRITE,
-            &mut hkey,
-        );
-
-        if result.is_err() {
-            return Err(anyhow::anyhow!("Failed to open registry key: {:?}", result));
-        }
-
-        let result = RegSetValueExW(
-            hkey,
-            PCWSTR(name_wide.as_ptr()),
-            0,
-            REG_SZ,
-            Some(&value_wide.align_to::<u8>().1[..value_wide.len() * 2]),
-        );
-
-        let _ = RegCloseKey(hkey);
-
-        if result.is_err() {
-            return Err(anyhow::anyhow!(
-                "Failed to set registry value: {:?}",
-                result
-            ));
-        }
-    }
-
-    Ok(())
+    Settings::apply_start_at_login_registry(true)
 }
 
 /// Disable auto-start by removing registry entry
 #[cfg(target_os = "windows")]
 fn disable_autostart() -> anyhow::Result<()> {
-    use windows::Win32::System::Registry::{
-        HKEY_CURRENT_USER, KEY_WRITE, RegCloseKey, RegDeleteValueW, RegOpenKeyExW,
-    };
-    use windows::core::PCWSTR;
-
-    let subkey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-    let subkey_wide: Vec<u16> = OsStr::new(subkey)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-
-    let name_wide: Vec<u16> = OsStr::new(APP_NAME)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-
-    unsafe {
-        let mut hkey = windows::Win32::System::Registry::HKEY::default();
-
-        let result = RegOpenKeyExW(
-            HKEY_CURRENT_USER,
-            PCWSTR(subkey_wide.as_ptr()),
-            0,
-            KEY_WRITE,
-            &mut hkey,
-        );
-
-        if result.is_err() {
-            // Key doesn't exist, already disabled
-            return Ok(());
-        }
-
-        let _ = RegDeleteValueW(hkey, PCWSTR(name_wide.as_ptr()));
-        let _ = RegCloseKey(hkey);
-    }
-
-    Ok(())
+    Settings::apply_start_at_login_registry(false)
 }
 
 /// Check if auto-start is enabled
 #[cfg(target_os = "windows")]
 fn is_autostart_enabled() -> bool {
-    use windows::Win32::System::Registry::{
-        HKEY_CURRENT_USER, KEY_READ, RegCloseKey, RegOpenKeyExW, RegQueryValueExW,
-    };
-    use windows::core::PCWSTR;
-
-    let subkey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-    let subkey_wide: Vec<u16> = OsStr::new(subkey)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-
-    let name_wide: Vec<u16> = OsStr::new(APP_NAME)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-
-    unsafe {
-        let mut hkey = windows::Win32::System::Registry::HKEY::default();
-
-        let result = RegOpenKeyExW(
-            HKEY_CURRENT_USER,
-            PCWSTR(subkey_wide.as_ptr()),
-            0,
-            KEY_READ,
-            &mut hkey,
-        );
-
-        if result.is_err() {
-            return false;
-        }
-
-        let result = RegQueryValueExW(hkey, PCWSTR(name_wide.as_ptr()), None, None, None, None);
-
-        let _ = RegCloseKey(hkey);
-
-        result.is_ok()
-    }
+    Settings::is_start_at_login_enabled()
 }
 
 #[cfg(not(target_os = "windows"))]

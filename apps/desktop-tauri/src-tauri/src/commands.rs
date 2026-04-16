@@ -444,7 +444,7 @@ pub fn update_settings(
         settings.refresh_interval_secs = v;
     }
     if let Some(v) = patch.start_at_login {
-        settings.start_at_login = v;
+        settings.set_start_at_login(v).map_err(|e| e.to_string())?;
     }
     if let Some(v) = patch.show_notifications {
         settings.show_notifications = v;
