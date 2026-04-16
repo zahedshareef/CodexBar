@@ -109,17 +109,33 @@ export interface SettingsSnapshot {
   enabledProviders: string[];
   refreshIntervalSecs: number;
   startAtLogin: boolean;
+  startMinimized: boolean;
   showNotifications: boolean;
+  soundEnabled: boolean;
+  soundVolume: number;
+  highUsageThreshold: number;
+  criticalUsageThreshold: number;
   trayIconMode: string;
+  switcherShowsIcons: boolean;
+  menuBarShowsHighestUsage: boolean;
+  menuBarShowsPercent: boolean;
   showAsUsed: boolean;
+  showCreditsExtraUsage: boolean;
+  showAllTokenAccountsInMenu: boolean;
   surpriseAnimations: boolean;
   enableAnimations: boolean;
   resetTimeRelative: boolean;
   menuBarDisplayMode: string;
   hidePersonalInfo: boolean;
   updateChannel: string;
+  autoDownloadUpdates: boolean;
+  installUpdatesOnQuit: boolean;
   globalShortcut: string;
   uiLanguage: string;
+  claudeAvoidKeychainPrompts: boolean;
+  disableKeychainAccess: boolean;
+  showDebugSettings: boolean;
+  providerMetrics: Record<string, string>;
 }
 
 /** Partial settings object — only include fields you want to change. */
@@ -127,17 +143,34 @@ export interface SettingsUpdate {
   enabledProviders?: string[];
   refreshIntervalSecs?: number;
   startAtLogin?: boolean;
+  startMinimized?: boolean;
   showNotifications?: boolean;
+  soundEnabled?: boolean;
+  soundVolume?: number;
+  highUsageThreshold?: number;
+  criticalUsageThreshold?: number;
   trayIconMode?: string;
+  switcherShowsIcons?: boolean;
+  menuBarShowsHighestUsage?: boolean;
+  menuBarShowsPercent?: boolean;
   showAsUsed?: boolean;
+  showCreditsExtraUsage?: boolean;
+  showAllTokenAccountsInMenu?: boolean;
   surpriseAnimations?: boolean;
   enableAnimations?: boolean;
   resetTimeRelative?: boolean;
   menuBarDisplayMode?: string;
   hidePersonalInfo?: boolean;
   updateChannel?: string;
+  autoDownloadUpdates?: boolean;
+  installUpdatesOnQuit?: boolean;
   globalShortcut?: string;
   uiLanguage?: string;
+  claudeAvoidKeychainPrompts?: boolean;
+  disableKeychainAccess?: boolean;
+  showDebugSettings?: boolean;
+  /** Map of provider CLI name → metric preference label. */
+  providerMetrics?: Record<string, string>;
 }
 
 export interface BootstrapState {

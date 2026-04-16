@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use codexbar::core::{FetchContext, OpenAIDashboardCacheStore, Provider, ProviderFetchResult, ProviderId, RateWindow};
 use codexbar::cost_scanner::get_daily_cost_history;
 use codexbar::providers::*;
-use codexbar::settings::{ApiKeys, Language, ManualCookies, Settings, TrayIconMode, UpdateChannel};
+use codexbar::settings::{ApiKeys, Language, ManualCookies, MetricPreference, Settings, TrayIconMode, UpdateChannel};
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
@@ -241,17 +241,33 @@ pub struct SettingsSnapshot {
     enabled_providers: Vec<String>,
     refresh_interval_secs: u64,
     start_at_login: bool,
+    start_minimized: bool,
     show_notifications: bool,
+    sound_enabled: bool,
+    sound_volume: u8,
+    high_usage_threshold: f64,
+    critical_usage_threshold: f64,
     tray_icon_mode: &'static str,
+    switcher_shows_icons: bool,
+    menu_bar_shows_highest_usage: bool,
+    menu_bar_shows_percent: bool,
     show_as_used: bool,
+    show_credits_extra_usage: bool,
+    show_all_token_accounts_in_menu: bool,
     surprise_animations: bool,
     enable_animations: bool,
     reset_time_relative: bool,
     menu_bar_display_mode: String,
     hide_personal_info: bool,
     update_channel: &'static str,
+    auto_download_updates: bool,
+    install_updates_on_quit: bool,
     global_shortcut: String,
     ui_language: &'static str,
+    claude_avoid_keychain_prompts: bool,
+    disable_keychain_access: bool,
+    show_debug_settings: bool,
+    provider_metrics: std::collections::HashMap<String, &'static str>,
 }
 
 #[tauri::command]
@@ -281,21 +297,43 @@ impl From<Settings> for SettingsSnapshot {
         let mut enabled_providers = settings.enabled_providers.into_iter().collect::<Vec<_>>();
         enabled_providers.sort();
 
+        let provider_metrics = settings
+            .provider_metrics
+            .into_iter()
+            .map(|(k, v)| (k, metric_preference_label(v)))
+            .collect();
+
         Self {
             enabled_providers,
             refresh_interval_secs: settings.refresh_interval_secs,
             start_at_login: settings.start_at_login,
+            start_minimized: settings.start_minimized,
             show_notifications: settings.show_notifications,
+            sound_enabled: settings.sound_enabled,
+            sound_volume: settings.sound_volume,
+            high_usage_threshold: settings.high_usage_threshold,
+            critical_usage_threshold: settings.critical_usage_threshold,
             tray_icon_mode: tray_icon_mode_label(settings.tray_icon_mode),
+            switcher_shows_icons: settings.switcher_shows_icons,
+            menu_bar_shows_highest_usage: settings.menu_bar_shows_highest_usage,
+            menu_bar_shows_percent: settings.menu_bar_shows_percent,
             show_as_used: settings.show_as_used,
+            show_credits_extra_usage: settings.show_credits_extra_usage,
+            show_all_token_accounts_in_menu: settings.show_all_token_accounts_in_menu,
             surprise_animations: settings.surprise_animations,
             enable_animations: settings.enable_animations,
             reset_time_relative: settings.reset_time_relative,
             menu_bar_display_mode: settings.menu_bar_display_mode,
             hide_personal_info: settings.hide_personal_info,
             update_channel: update_channel_label(settings.update_channel),
+            auto_download_updates: settings.auto_download_updates,
+            install_updates_on_quit: settings.install_updates_on_quit,
             global_shortcut: settings.global_shortcut,
             ui_language: language_label(settings.ui_language),
+            claude_avoid_keychain_prompts: settings.claude_avoid_keychain_prompts,
+            disable_keychain_access: settings.disable_keychain_access,
+            show_debug_settings: settings.show_debug_settings,
+            provider_metrics,
         }
     }
 }
@@ -499,6 +537,29 @@ fn language_label(language: Language) -> &'static str {
     }
 }
 
+fn metric_preference_label(pref: MetricPreference) -> &'static str {
+    match pref {
+        MetricPreference::Automatic => "automatic",
+        MetricPreference::Session => "session",
+        MetricPreference::Weekly => "weekly",
+        MetricPreference::Model => "model",
+        MetricPreference::Credits => "credits",
+        MetricPreference::Average => "average",
+    }
+}
+
+fn parse_metric_preference(s: &str) -> Option<MetricPreference> {
+    match s {
+        "automatic" => Some(MetricPreference::Automatic),
+        "session" => Some(MetricPreference::Session),
+        "weekly" => Some(MetricPreference::Weekly),
+        "model" => Some(MetricPreference::Model),
+        "credits" => Some(MetricPreference::Credits),
+        "average" => Some(MetricPreference::Average),
+        _ => None,
+    }
+}
+
 // ── Settings mutation ─────────────────────────────────────────────────
 
 /// Partial settings update — every field is optional so the frontend can
@@ -509,17 +570,34 @@ pub struct SettingsUpdate {
     pub enabled_providers: Option<Vec<String>>,
     pub refresh_interval_secs: Option<u64>,
     pub start_at_login: Option<bool>,
+    pub start_minimized: Option<bool>,
     pub show_notifications: Option<bool>,
+    pub sound_enabled: Option<bool>,
+    pub sound_volume: Option<u8>,
+    pub high_usage_threshold: Option<f64>,
+    pub critical_usage_threshold: Option<f64>,
     pub tray_icon_mode: Option<String>,
+    pub switcher_shows_icons: Option<bool>,
+    pub menu_bar_shows_highest_usage: Option<bool>,
+    pub menu_bar_shows_percent: Option<bool>,
     pub show_as_used: Option<bool>,
+    pub show_credits_extra_usage: Option<bool>,
+    pub show_all_token_accounts_in_menu: Option<bool>,
     pub surprise_animations: Option<bool>,
     pub enable_animations: Option<bool>,
     pub reset_time_relative: Option<bool>,
     pub menu_bar_display_mode: Option<String>,
     pub hide_personal_info: Option<bool>,
     pub update_channel: Option<String>,
+    pub auto_download_updates: Option<bool>,
+    pub install_updates_on_quit: Option<bool>,
     pub global_shortcut: Option<String>,
     pub ui_language: Option<String>,
+    pub claude_avoid_keychain_prompts: Option<bool>,
+    pub disable_keychain_access: Option<bool>,
+    pub show_debug_settings: Option<bool>,
+    /// Map of provider CLI name → metric preference label.
+    pub provider_metrics: Option<std::collections::HashMap<String, String>>,
 }
 
 fn parse_tray_icon_mode(s: &str) -> Option<TrayIconMode> {
@@ -607,6 +685,61 @@ pub fn update_settings(
         && let Some(lang) = parse_language(s)
     {
         settings.ui_language = lang;
+    }
+    if let Some(v) = patch.start_minimized {
+        settings.start_minimized = v;
+    }
+    if let Some(v) = patch.sound_enabled {
+        settings.sound_enabled = v;
+    }
+    if let Some(v) = patch.sound_volume {
+        settings.sound_volume = v;
+    }
+    if let Some(v) = patch.high_usage_threshold {
+        settings.high_usage_threshold = v.clamp(0.0, 100.0);
+    }
+    if let Some(v) = patch.critical_usage_threshold {
+        settings.critical_usage_threshold = v.clamp(0.0, 100.0);
+    }
+    if let Some(v) = patch.switcher_shows_icons {
+        settings.switcher_shows_icons = v;
+    }
+    if let Some(v) = patch.menu_bar_shows_highest_usage {
+        settings.menu_bar_shows_highest_usage = v;
+    }
+    if let Some(v) = patch.menu_bar_shows_percent {
+        settings.menu_bar_shows_percent = v;
+    }
+    if let Some(v) = patch.show_credits_extra_usage {
+        settings.show_credits_extra_usage = v;
+    }
+    if let Some(v) = patch.show_all_token_accounts_in_menu {
+        settings.show_all_token_accounts_in_menu = v;
+    }
+    if let Some(v) = patch.auto_download_updates {
+        settings.auto_download_updates = v;
+    }
+    if let Some(v) = patch.install_updates_on_quit {
+        settings.install_updates_on_quit = v;
+    }
+    if let Some(v) = patch.claude_avoid_keychain_prompts {
+        settings.claude_avoid_keychain_prompts = v;
+    }
+    if let Some(v) = patch.disable_keychain_access {
+        settings.disable_keychain_access = v;
+        if v {
+            settings.claude_avoid_keychain_prompts = true;
+        }
+    }
+    if let Some(v) = patch.show_debug_settings {
+        settings.show_debug_settings = v;
+    }
+    if let Some(metrics_map) = patch.provider_metrics {
+        for (provider, label) in metrics_map {
+            if let Some(pref) = parse_metric_preference(&label) {
+                settings.provider_metrics.insert(provider, pref);
+            }
+        }
     }
 
     settings.save().map_err(|e| e.to_string())?;

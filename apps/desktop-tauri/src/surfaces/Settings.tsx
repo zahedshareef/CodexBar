@@ -273,6 +273,13 @@ function GeneralTab({ settings, set, saving }: TabProps) {
           onChange={(v) => set({ startAtLogin: v })}
         />
       </Field>
+      <Field label="Start minimized" description="Hide the main window on launch; only the tray icon is visible.">
+        <Toggle
+          checked={settings.startMinimized}
+          disabled={saving}
+          onChange={(v) => set({ startMinimized: v })}
+        />
+      </Field>
 
       <h3 className="settings-section__title">Refresh</h3>
       <Field label="Refresh interval" description="Seconds between automatic provider refreshes (0 = manual).">
@@ -294,6 +301,47 @@ function GeneralTab({ settings, set, saving }: TabProps) {
           onChange={(v) => set({ showNotifications: v })}
         />
       </Field>
+      <Field label="Sound alerts" description="Play a sound when usage thresholds are hit.">
+        <Toggle
+          checked={settings.soundEnabled}
+          disabled={saving}
+          onChange={(v) => set({ soundEnabled: v })}
+        />
+      </Field>
+      {settings.soundEnabled && (
+        <Field label="Alert volume" description="Volume for threshold alert sounds (0–100).">
+          <NumberInput
+            value={settings.soundVolume}
+            min={0}
+            max={100}
+            step={5}
+            disabled={saving}
+            onChange={(v) => set({ soundVolume: v })}
+          />
+        </Field>
+      )}
+
+      <h3 className="settings-section__title">Usage Thresholds</h3>
+      <Field label="High usage warning (%)" description="Show a warning when usage exceeds this percentage.">
+        <NumberInput
+          value={settings.highUsageThreshold}
+          min={0}
+          max={100}
+          step={5}
+          disabled={saving}
+          onChange={(v) => set({ highUsageThreshold: v })}
+        />
+      </Field>
+      <Field label="Critical usage alert (%)" description="Show a critical alert when usage exceeds this percentage.">
+        <NumberInput
+          value={settings.criticalUsageThreshold}
+          min={0}
+          max={100}
+          step={5}
+          disabled={saving}
+          onChange={(v) => set({ criticalUsageThreshold: v })}
+        />
+      </Field>
 
       <h3 className="settings-section__title">Keyboard</h3>
       <Field label="Global shortcut" description="Key combination to toggle the tray panel.">
@@ -310,6 +358,15 @@ function GeneralTab({ settings, set, saving }: TabProps) {
 
 // ── Providers ────────────────────────────────────────────────────────
 
+const METRIC_OPTIONS = [
+  { value: "automatic", label: "Automatic" },
+  { value: "session", label: "Session" },
+  { value: "weekly", label: "Weekly" },
+  { value: "model", label: "Model" },
+  { value: "credits", label: "Credits" },
+  { value: "average", label: "Average" },
+];
+
 function ProvidersTab({
   settings,
   providers,
@@ -323,6 +380,11 @@ function ProvidersTab({
     if (on) next.add(id);
     else next.delete(id);
     set({ enabledProviders: [...next].sort() });
+  };
+
+  const setMetric = (id: string, metric: string) => {
+    const next = { ...settings.providerMetrics, [id]: metric };
+    set({ providerMetrics: next });
   };
 
   return (
@@ -349,6 +411,26 @@ function ProvidersTab({
           </li>
         ))}
       </ul>
+
+      <h3 className="settings-section__title">Metric preferences</h3>
+      <p className="settings-section__hint">
+        Choose which usage metric is shown for each provider in the tray.
+      </p>
+      <ul className="provider-list">
+        {providers.map((p) => (
+          <li key={p.id} className="provider-row">
+            <div className="provider-row__info">
+              <strong>{p.displayName}</strong>
+            </div>
+            <Select
+              value={settings.providerMetrics[p.id] ?? "automatic"}
+              options={METRIC_OPTIONS}
+              disabled={saving}
+              onChange={(v) => setMetric(p.id, v)}
+            />
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }
@@ -368,6 +450,33 @@ function DisplayTab({ settings, set, saving }: TabProps) {
             { value: "perProvider", label: "Per provider" },
           ]}
           onChange={(v) => set({ trayIconMode: v })}
+        />
+      </Field>
+      <Field label="Show provider icons" description="Display provider icons in the tray switcher.">
+        <Toggle
+          checked={settings.switcherShowsIcons}
+          disabled={saving}
+          onChange={(v) => set({ switcherShowsIcons: v })}
+        />
+      </Field>
+      <Field
+        label="Prefer highest usage"
+        description="Show the provider closest to its limit in the merged tray display."
+      >
+        <Toggle
+          checked={settings.menuBarShowsHighestUsage}
+          disabled={saving}
+          onChange={(v) => set({ menuBarShowsHighestUsage: v })}
+        />
+      </Field>
+      <Field
+        label="Show percent in tray"
+        description="Replace usage bar with provider branding + percentage text."
+      >
+        <Toggle
+          checked={settings.menuBarShowsPercent}
+          disabled={saving}
+          onChange={(v) => set({ menuBarShowsPercent: v })}
         />
       </Field>
 
@@ -390,6 +499,26 @@ function DisplayTab({ settings, set, saving }: TabProps) {
           checked={settings.showAsUsed}
           disabled={saving}
           onChange={(v) => set({ showAsUsed: v })}
+        />
+      </Field>
+      <Field
+        label="Show credits & extra usage"
+        description="Display credit balance and additional usage information."
+      >
+        <Toggle
+          checked={settings.showCreditsExtraUsage}
+          disabled={saving}
+          onChange={(v) => set({ showCreditsExtraUsage: v })}
+        />
+      </Field>
+      <Field
+        label="Show all token accounts"
+        description="List all token accounts in provider menus instead of collapsing them."
+      >
+        <Toggle
+          checked={settings.showAllTokenAccountsInMenu}
+          disabled={saving}
+          onChange={(v) => set({ showAllTokenAccountsInMenu: v })}
         />
       </Field>
 
@@ -438,6 +567,26 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
           onChange={(v) => set({ updateChannel: v })}
         />
       </Field>
+      <Field
+        label="Auto-download updates"
+        description="Download available updates in the background automatically."
+      >
+        <Toggle
+          checked={settings.autoDownloadUpdates}
+          disabled={saving}
+          onChange={(v) => set({ autoDownloadUpdates: v })}
+        />
+      </Field>
+      <Field
+        label="Install updates on quit"
+        description="Apply a downloaded update when you next quit CodexBar."
+      >
+        <Toggle
+          checked={settings.installUpdatesOnQuit}
+          disabled={saving}
+          onChange={(v) => set({ installUpdatesOnQuit: v })}
+        />
+      </Field>
 
       <h3 className="settings-section__title">Language</h3>
       <Field label="Interface language" description="Language used throughout the UI.">
@@ -460,6 +609,44 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
           onChange={(v) => set({ resetTimeRelative: v })}
         />
       </Field>
+
+      <h3 className="settings-section__title">Credentials &amp; Security</h3>
+      <Field
+        label="Avoid keychain prompts (Claude)"
+        description="Skip keychain credential reads for Claude to prevent OS permission dialogs."
+      >
+        <Toggle
+          checked={settings.claudeAvoidKeychainPrompts}
+          disabled={saving || settings.disableKeychainAccess}
+          onChange={(v) => set({ claudeAvoidKeychainPrompts: v })}
+        />
+      </Field>
+      <Field
+        label="Disable all keychain access"
+        description="Turn off credential/keychain reads for all providers. Also enables the Claude option above."
+      >
+        <Toggle
+          checked={settings.disableKeychainAccess}
+          disabled={saving}
+          onChange={(v) => set({ disableKeychainAccess: v })}
+        />
+      </Field>
+
+      {settings.showDebugSettings && (
+        <>
+          <h3 className="settings-section__title">Debug</h3>
+          <Field
+            label="Show debug settings"
+            description="Reveal troubleshooting and developer surfaces in the UI."
+          >
+            <Toggle
+              checked={settings.showDebugSettings}
+              disabled={saving}
+              onChange={(v) => set({ showDebugSettings: v })}
+            />
+          </Field>
+        </>
+      )}
     </section>
   );
 }
