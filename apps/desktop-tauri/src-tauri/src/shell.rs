@@ -637,6 +637,59 @@ fn popout_position(
     )
 }
 
+fn inferred_tray_anchor_rect(monitor: &MonitorPlacement) -> Rect {
+    const SYNTHETIC_TRAY_ICON_SIZE: u32 = 24;
+    const SYNTHETIC_TRAY_EDGE_PADDING: i32 = 8;
+
+    let work_right = monitor.work_area.x + monitor.work_area.width as i32;
+    let work_bottom = monitor.work_area.y + monitor.work_area.height as i32;
+    let bounds_top = monitor.bounds.y;
+    let bounds_bottom = monitor.bounds.y + monitor.bounds.height as i32;
+    let top_gap = monitor.work_area.y - bounds_top;
+    let bottom_gap = bounds_bottom - work_bottom;
+
+    let x = work_right - SYNTHETIC_TRAY_ICON_SIZE as i32 - SYNTHETIC_TRAY_EDGE_PADDING;
+    let y = if top_gap > bottom_gap {
+        monitor.work_area.y - SYNTHETIC_TRAY_ICON_SIZE as i32 - SYNTHETIC_TRAY_EDGE_PADDING
+    } else {
+        work_bottom + SYNTHETIC_TRAY_EDGE_PADDING
+    };
+
+    Rect {
+        x,
+        y,
+        width: SYNTHETIC_TRAY_ICON_SIZE,
+        height: SYNTHETIC_TRAY_ICON_SIZE,
+    }
+}
+
+fn inferred_tray_panel_position_for_monitor(monitor: &MonitorPlacement) -> (i32, i32) {
+    window_positioner::calculate_panel_position(
+        &inferred_tray_anchor_rect(monitor),
+        &monitor.work_area,
+        &tray_panel_size(),
+        monitor.scale_factor,
+    )
+}
+
+pub fn inferred_tray_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
+    let window = app.get_webview_window("main")?;
+    let monitor = window
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| monitor_placement(&monitor))
+        .or_else(|| {
+            window
+                .current_monitor()
+                .ok()
+                .flatten()
+                .map(|monitor| monitor_placement(&monitor))
+        })?;
+
+    Some(inferred_tray_panel_position_for_monitor(&monitor))
+}
+
 fn tray_anchor_rect(anchor: crate::state::TrayAnchor) -> Rect {
     Rect {
         x: anchor.x,
@@ -781,7 +834,9 @@ fn visible_surface_position_for_mode_with_fallbacks(
 pub fn default_surface_position(app: &AppHandle, mode: SurfaceMode) -> Option<(i32, i32)> {
     match mode {
         SurfaceMode::Hidden => None,
-        SurfaceMode::TrayPanel => tray_panel_position(app).or_else(|| shortcut_panel_position(app)),
+        SurfaceMode::TrayPanel => tray_panel_position(app)
+            .or_else(|| inferred_tray_panel_position(app))
+            .or_else(|| shortcut_panel_position(app)),
         SurfaceMode::PopOut | SurfaceMode::Settings => visible_surface_position_for_mode(app, mode),
     }
 }
@@ -1208,6 +1263,92 @@ mod tests {
                 &surface_panel_size(SurfaceMode::PopOut),
                 anchor_monitor.scale_factor,
             ))
+        );
+    }
+
+    #[test]
+    fn inferred_tray_anchor_defaults_to_bottom_right_of_work_area() {
+        let monitor = MonitorPlacement {
+            bounds: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            work_area: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1040,
+            },
+            scale_factor: 1.0,
+        };
+
+        let anchor = inferred_tray_anchor_rect(&monitor);
+
+        assert_eq!(anchor.x, 1888);
+        assert_eq!(anchor.y, 1048);
+        assert_eq!(anchor.width, 24);
+        assert_eq!(anchor.height, 24);
+    }
+
+    #[test]
+    fn inferred_tray_anchor_supports_top_taskbar_layouts() {
+        let monitor = MonitorPlacement {
+            bounds: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            work_area: Rect {
+                x: 0,
+                y: 40,
+                width: 1920,
+                height: 1040,
+            },
+            scale_factor: 1.0,
+        };
+
+        let anchor = inferred_tray_anchor_rect(&monitor);
+
+        assert_eq!(anchor.x, 1888);
+        assert_eq!(anchor.y, 8);
+    }
+
+    #[test]
+    fn inferred_tray_panel_position_uses_tray_style_corner_fallback() {
+        let monitor = MonitorPlacement {
+            bounds: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            work_area: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1040,
+            },
+            scale_factor: 1.0,
+        };
+
+        let position = inferred_tray_panel_position_for_monitor(&monitor);
+
+        assert_eq!(
+            position,
+            window_positioner::calculate_panel_position(
+                &Rect {
+                    x: 1888,
+                    y: 1048,
+                    width: 24,
+                    height: 24,
+                },
+                &monitor.work_area,
+                &tray_panel_size(),
+                monitor.scale_factor,
+            )
         );
     }
 
