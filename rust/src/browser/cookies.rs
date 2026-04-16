@@ -40,6 +40,18 @@ pub enum CookieError {
 
     #[error("DPAPI error: {0}")]
     Dpapi(String),
+
+    /// Chrome 127+ App-Bound Encryption (ABE) is protecting the cookie encryption key.
+    /// The user-level DPAPI key in Local State can no longer decrypt cookies encrypted
+    /// after the ABE migration.  Decryption of the key itself succeeds, but AES-GCM
+    /// authentication fails on every cookie.  Resolution: use Microsoft Edge, Firefox,
+    /// or manual cookie import.
+    #[error(
+        "Chrome App-Bound Encryption (Chrome 127+) is blocking automatic import. \
+             Try Microsoft Edge or Firefox instead, or paste cookies manually \
+             (Settings → Cookies)."
+    )]
+    AppBoundEncryption,
 }
 
 /// A browser cookie
@@ -71,10 +83,23 @@ impl CookieExtractor {
         domain: &str,
     ) -> Result<Vec<Cookie>, CookieError> {
         let mut all_cookies = Vec::new();
+        // Preserve the first ABE error seen so it can be surfaced when no cookies
+        // were recovered from any profile of this browser.
+        let mut abe_error: Option<CookieError> = None;
 
         for profile in &browser.profiles {
             match Self::extract_profile_cookies(browser, profile, domain) {
                 Ok(cookies) => all_cookies.extend(cookies),
+                Err(CookieError::AppBoundEncryption) => {
+                    tracing::debug!(
+                        "App-Bound Encryption blocked profile {}: {}",
+                        profile.name,
+                        browser.browser_type.display_name()
+                    );
+                    if abe_error.is_none() {
+                        abe_error = Some(CookieError::AppBoundEncryption);
+                    }
+                }
                 Err(e) => {
                     tracing::debug!(
                         "Failed to extract cookies from profile {}: {}",
@@ -83,6 +108,14 @@ impl CookieExtractor {
                     );
                 }
             }
+        }
+
+        // If we obtained no cookies at all and every failure was ABE, surface that
+        // specific error so callers can try alternative browsers or manual import.
+        if all_cookies.is_empty()
+            && let Some(abe_err) = abe_error
+        {
+            return Err(abe_err);
         }
 
         Ok(all_cookies)
@@ -99,6 +132,32 @@ impl CookieExtractor {
         } else {
             Self::extract_firefox_cookies(profile, domain)
         }
+    }
+
+    /// Detect whether Chrome App-Bound Encryption (ABE, Chrome 127+) is active for
+    /// this browser profile by checking for the `app_bound_encrypted_key` field in
+    /// the Local State JSON.  The field is written by Chrome when it migrates the
+    /// cookie-encryption key to the ABE system; its presence means the user-level
+    /// DPAPI key stored in `encrypted_key` will no longer decrypt newly written
+    /// cookies.
+    fn detect_app_bound_encryption(local_state_path: &Path) -> bool {
+        let Ok(content) = Self::read_file_shared(local_state_path) else {
+            return false;
+        };
+        let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) else {
+            return false;
+        };
+        let present = json
+            .get("os_crypt")
+            .and_then(|v| v.get("app_bound_encrypted_key"))
+            .is_some();
+        if present {
+            tracing::debug!(
+                "Chrome App-Bound Encryption detected in {:?}",
+                local_state_path
+            );
+        }
+        present
     }
 
     /// Extract cookies from a Chromium-based browser
@@ -143,6 +202,7 @@ impl CookieExtractor {
         );
 
         let mut cookies = Vec::new();
+        let mut decrypt_failures: u32 = 0;
         {
             // Keep SQLite handles scoped so Windows can delete the temp DB afterward.
             let conn = Connection::open(&temp_db)?;
@@ -174,6 +234,7 @@ impl CookieExtractor {
                     Ok(v) => v,
                     Err(e) => {
                         tracing::debug!("Failed to decrypt cookie {}: {}", name, e);
+                        decrypt_failures += 1;
                         continue;
                     }
                 };
@@ -194,10 +255,32 @@ impl CookieExtractor {
             }
         }
 
-        tracing::debug!("Found {} cookies for {}", cookies.len(), domain);
+        tracing::debug!(
+            "Found {} cookies for {} ({} failed to decrypt)",
+            cookies.len(),
+            domain,
+            decrypt_failures
+        );
 
         // Clean up temp file
         let _ = std::fs::remove_file(&temp_db);
+
+        // If every candidate cookie failed to decrypt and no cookies were recovered,
+        // check whether Chrome App-Bound Encryption (Chrome 127+) is the culprit.
+        // ABE replaces the user-level DPAPI cookie key with a system-level key that
+        // cannot be read by third-party tools, causing systematic AES-GCM auth failures.
+        if cookies.is_empty()
+            && decrypt_failures > 0
+            && Self::detect_app_bound_encryption(&local_state_path)
+        {
+            tracing::warn!(
+                browser = %browser.browser_type.display_name(),
+                decrypt_failures,
+                "Chrome App-Bound Encryption (ABE) detected: all {} cookies failed to decrypt",
+                decrypt_failures
+            );
+            return Err(CookieError::AppBoundEncryption);
+        }
 
         Ok(cookies)
     }
@@ -325,10 +408,12 @@ impl CookieExtractor {
 
             tracing::debug!("Decrypted {} bytes successfully", plaintext.len(),);
 
-            // Modern Chromium (127+) adds a 32-byte prefix to the plaintext
-            // (App-Bound Encryption wrapper). Try to find where the actual value starts.
-            // Look for the start of valid UTF-8 by scanning for the first ASCII character
-            // that could start a cookie value.
+            // Some Chromium versions prepend metadata bytes before the actual
+            // cookie value in the AES-GCM plaintext.  If the leading bytes look
+            // non-ASCII, skip up to a 32-byte internal header to find the start
+            // of the cookie string.  This is distinct from App-Bound Encryption
+            // (ABE): ABE failures are caught upstream as AES-GCM authentication
+            // errors and never reach this point.
             let value_bytes = if plaintext.len() > 32 {
                 // Check if first 32 bytes are garbage (non-ASCII)
                 let has_garbage_prefix = plaintext[..32].iter().any(|&b| !(32..=127).contains(&b));
@@ -520,6 +605,10 @@ pub fn get_cookies_for_domain(domain: &str) -> Result<Vec<Cookie>, CookieError> 
         return Err(CookieError::BrowserNotInstalled);
     }
 
+    // Track whether any browser raised an App-Bound Encryption error so we can
+    // surface that specific, actionable message if no other browser succeeds.
+    let mut abe_error_seen = false;
+
     // Try each browser until we find cookies
     for browser in browsers {
         match CookieExtractor::extract_for_domain(&browser, domain) {
@@ -533,6 +622,17 @@ pub fn get_cookies_for_domain(domain: &str) -> Result<Vec<Cookie>, CookieError> 
                 return Ok(cookies);
             }
             Ok(_) => continue,
+            Err(CookieError::AppBoundEncryption) => {
+                // Chrome ABE is blocking this browser; log a warning and keep
+                // trying Edge / Firefox which are unaffected by ABE.
+                tracing::warn!(
+                    browser = %browser.browser_type.display_name(),
+                    "App-Bound Encryption prevents automatic cookie import; \
+                     trying remaining browsers"
+                );
+                abe_error_seen = true;
+                // Continue to next browser rather than giving up
+            }
             Err(e) => {
                 tracing::debug!(
                     "Failed to get cookies from {}: {}",
@@ -541,6 +641,12 @@ pub fn get_cookies_for_domain(domain: &str) -> Result<Vec<Cookie>, CookieError> 
                 );
             }
         }
+    }
+
+    // Surface a clear ABE error if it was the only kind of failure encountered,
+    // so the UI can show an actionable message instead of a generic "not found".
+    if abe_error_seen {
+        return Err(CookieError::AppBoundEncryption);
     }
 
     Err(CookieError::NotFound(domain.to_string()))
@@ -586,5 +692,60 @@ mod tests {
                 println!("Could not get cookies: {}", e);
             }
         }
+    }
+
+    /// Verify that the ABE error variant formats a readable, actionable message.
+    #[test]
+    fn test_abe_error_display() {
+        let err = CookieError::AppBoundEncryption;
+        let msg = err.to_string();
+        assert!(
+            msg.contains("App-Bound Encryption"),
+            "ABE error should mention App-Bound Encryption"
+        );
+        assert!(
+            msg.contains("Edge") || msg.contains("Firefox"),
+            "ABE error should suggest alternative browsers"
+        );
+        assert!(
+            msg.contains("Settings") || msg.contains("manually"),
+            "ABE error should mention manual import fallback"
+        );
+    }
+
+    /// Verify that ABE detection returns false for a Local State JSON without the field.
+    #[test]
+    fn test_detect_abe_absent() {
+        use std::io::Write;
+
+        let dir = std::env::temp_dir();
+        let path = dir.join("codexbar_test_local_state_no_abe.json");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            write!(f, r#"{{"os_crypt":{{"encrypted_key":"QUJDREVGR0g="}}}}"#).unwrap();
+        }
+        let detected = CookieExtractor::detect_app_bound_encryption(&path);
+        let _ = std::fs::remove_file(&path);
+        assert!(!detected, "ABE should not be detected when field is absent");
+    }
+
+    /// Verify that ABE detection returns true for a Local State JSON with the ABE field.
+    #[test]
+    fn test_detect_abe_present() {
+        use std::io::Write;
+
+        let dir = std::env::temp_dir();
+        let path = dir.join("codexbar_test_local_state_abe.json");
+        {
+            let mut f = std::fs::File::create(&path).unwrap();
+            write!(
+                f,
+                r#"{{"os_crypt":{{"encrypted_key":"QUJDREVGR0g=","app_bound_encrypted_key":"c29tZWtleQ=="}}}}"#
+            )
+            .unwrap();
+        }
+        let detected = CookieExtractor::detect_app_bound_encryption(&path);
+        let _ = std::fs::remove_file(&path);
+        assert!(detected, "ABE should be detected when field is present");
     }
 }
