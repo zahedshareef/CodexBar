@@ -632,21 +632,17 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      {settings.showDebugSettings && (
-        <>
-          <h3 className="settings-section__title">Debug</h3>
-          <Field
-            label="Show debug settings"
-            description="Reveal troubleshooting and developer surfaces in the UI."
-          >
-            <Toggle
-              checked={settings.showDebugSettings}
-              disabled={saving}
-              onChange={(v) => set({ showDebugSettings: v })}
-            />
-          </Field>
-        </>
-      )}
+      <h3 className="settings-section__title">Debug</h3>
+      <Field
+        label="Show debug settings"
+        description="Reveal troubleshooting and developer surfaces in the UI."
+      >
+        <Toggle
+          checked={settings.showDebugSettings}
+          disabled={saving}
+          onChange={(v) => set({ showDebugSettings: v })}
+        />
+      </Field>
     </section>
   );
 }

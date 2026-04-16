@@ -144,6 +144,7 @@ export function getAppInfo(): Promise<AppInfoBridge> {
 
 export function getProviderChartData(
   providerId: string,
+  accountEmail?: string,
 ): Promise<ProviderChartData> {
-  return invoke<ProviderChartData>("get_provider_chart_data", { providerId });
+  return invoke<ProviderChartData>("get_provider_chart_data", { providerId, accountEmail });
 }

@@ -84,7 +84,8 @@ export default function ProviderDetail({
 
   useEffect(() => {
     let cancelled = false;
-    getProviderChartData(provider.providerId)
+    setChartData(null);
+    getProviderChartData(provider.providerId, provider.accountEmail ?? undefined)
       .then((data) => {
         if (!cancelled) setChartData(data);
       })

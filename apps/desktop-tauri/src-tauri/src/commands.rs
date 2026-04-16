@@ -1358,7 +1358,7 @@ pub struct ProviderChartData {
 }
 
 #[tauri::command]
-pub fn get_provider_chart_data(provider_id: String) -> ProviderChartData {
+pub fn get_provider_chart_data(provider_id: String, account_email: Option<String>) -> ProviderChartData {
     // Cost history (available for any provider that has local JSONL cost data)
     let raw_cost = get_daily_cost_history(&provider_id, 30);
     let cost_history: Vec<DailyCostPoint> = raw_cost
@@ -1368,7 +1368,7 @@ pub fn get_provider_chart_data(provider_id: String) -> ProviderChartData {
 
     // Credits history + usage breakdown — only for codex/openai providers from dashboard cache
     let (credits_history, usage_breakdown) =
-        load_openai_dashboard_chart_data(&provider_id);
+        load_openai_dashboard_chart_data(&provider_id, account_email.as_deref());
 
     ProviderChartData {
         provider_id,
@@ -1380,15 +1380,24 @@ pub fn get_provider_chart_data(provider_id: String) -> ProviderChartData {
 
 fn load_openai_dashboard_chart_data(
     provider_id: &str,
+    account_email: Option<&str>,
 ) -> (Vec<DailyCostPoint>, Vec<DailyUsageBreakdown>) {
     // Only codex (openai) provider has dashboard cache data
     if provider_id != "codex" && provider_id != "openai" {
         return (Vec::new(), Vec::new());
     }
 
+    let Some(account_email) = account_email else {
+        return (Vec::new(), Vec::new());
+    };
+
     let Some(cache) = OpenAIDashboardCacheStore::load() else {
         return (Vec::new(), Vec::new());
     };
+
+    if !cache.account_email.eq_ignore_ascii_case(account_email) {
+        return (Vec::new(), Vec::new());
+    }
 
     let snapshot = &cache.snapshot;
 
