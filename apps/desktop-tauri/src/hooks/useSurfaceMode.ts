@@ -1,16 +1,11 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type { SurfaceMode, SurfaceTarget } from "../types/bridge";
-import { getCurrentSurfaceState } from "../lib/tauri";
+import { getCurrentSurfaceMode } from "../lib/tauri";
 
 interface SurfaceModePayload {
   mode: SurfaceMode;
   previous: SurfaceMode;
-  target: SurfaceTarget;
-}
-
-export interface SurfaceState {
-  mode: SurfaceMode;
   target: SurfaceTarget;
 }
 
@@ -20,28 +15,22 @@ export interface SurfaceState {
  * Reads the initial mode from the Rust backend, then keeps in sync via
  * the `surface-mode-changed` Tauri event.
  */
-export function useSurfaceMode(): SurfaceState {
-  const [surface, setSurface] = useState<SurfaceState>({
-    mode: "hidden",
-    target: { kind: "summary" },
-  });
+export function useSurfaceMode(): SurfaceMode {
+  const [mode, setMode] = useState<SurfaceMode>("hidden");
 
   useEffect(() => {
     let cancelled = false;
 
-    getCurrentSurfaceState().then((current) => {
+    getCurrentSurfaceMode().then((current) => {
       if (!cancelled) {
-        setSurface(current);
+        setMode(current);
       }
     });
 
     const unlisten = listen<SurfaceModePayload>(
       "surface-mode-changed",
       (event) => {
-        setSurface({
-          mode: event.payload.mode,
-          target: event.payload.target,
-        });
+        setMode(event.payload.mode);
       },
     );
 
@@ -51,5 +40,5 @@ export function useSurfaceMode(): SurfaceState {
     };
   }, []);
 
-  return surface;
+  return mode;
 }

@@ -1,5 +1,5 @@
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
-import type { BootstrapState, ProviderUsageSnapshot, SurfaceTarget } from "../types/bridge";
+import { useCallback, useMemo, useState } from "react";
+import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
@@ -19,22 +19,14 @@ function sortProviders(list: ProviderUsageSnapshot[]): ProviderUsageSnapshot[] {
 
 export default function TrayPanel({
   state,
-  target,
 }: {
   state: BootstrapState;
-  target: SurfaceTarget;
 }) {
   const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  useLayoutEffect(() => {
-    if (target.kind === "summary") {
-      setSelectedId(null);
-    }
-  }, [target]);
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
 
