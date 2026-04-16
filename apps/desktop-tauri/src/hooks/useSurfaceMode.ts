@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import type { SurfaceMode, SurfaceTarget } from "../types/bridge";
-import { getCurrentSurfaceMode } from "../lib/tauri";
+import type {
+  CurrentSurfaceState,
+  SurfaceMode,
+  SurfaceTarget,
+} from "../types/bridge";
+import { getCurrentSurfaceMode, getCurrentSurfaceState } from "../lib/tauri";
 
 interface SurfaceModePayload {
   mode: SurfaceMode;
@@ -41,4 +45,44 @@ export function useSurfaceMode(): SurfaceMode {
   }, []);
 
   return mode;
+}
+
+/**
+ * Subscribe to the current surface target for a given coarse mode.
+ *
+ * This keeps same-mode retargets visible inside already-mounted surfaces without
+ * promoting root routing to full mode+target snapshots.
+ */
+export function useSurfaceTarget(mode?: SurfaceMode): SurfaceTarget | null {
+  const [target, setTarget] = useState<SurfaceTarget | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getCurrentSurfaceState().then((current: CurrentSurfaceState) => {
+      if (cancelled) {
+        return;
+      }
+
+      setTarget(mode === undefined || current.mode === mode ? current.target : null);
+    });
+
+    const unlisten = listen<SurfaceModePayload>(
+      "surface-mode-changed",
+      (event) => {
+        setTarget(
+          mode === undefined || event.payload.mode === mode
+            ? event.payload.target
+            : null,
+        );
+      },
+    );
+
+    return () => {
+      cancelled = true;
+      unlisten.then((fn) => fn());
+    };
+  }, [mode]);
+
+  return target;
 }

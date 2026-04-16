@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
+import { useSurfaceTarget } from "../hooks/useSurfaceMode";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
@@ -29,6 +30,7 @@ export default function PopOutPanel({
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const shellTarget = useSurfaceTarget("popOut");
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
 
@@ -53,6 +55,21 @@ export default function PopOutPanel({
   const toggleSelect = useCallback((id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
   }, []);
+
+  useEffect(() => {
+    if (!shellTarget) {
+      return;
+    }
+
+    if (shellTarget.kind === "provider") {
+      setSelectedId((current) =>
+        current === shellTarget.providerId ? current : shellTarget.providerId,
+      );
+      return;
+    }
+
+    setSelectedId(null);
+  }, [shellTarget]);
 
   // Loading
   if (isRefreshing && sorted.length === 0) {

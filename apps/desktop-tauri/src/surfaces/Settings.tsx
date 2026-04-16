@@ -9,6 +9,7 @@ import type {
   SettingsUpdate,
 } from "../types/bridge";
 import { useSettings } from "../hooks/useSettings";
+import { useSurfaceTarget } from "../hooks/useSurfaceMode";
 import { useUpdateState } from "../hooks/useUpdateState";
 import {
   getApiKeyProviders,
@@ -181,6 +182,18 @@ export default function Settings({ state, initialTab }: { state: BootstrapState;
   const resolvedInitial: SettingsTab =
     initialTab && isSettingsTab(initialTab) ? initialTab : "general";
   const [activeTab, setActiveTab] = useState<SettingsTab>(resolvedInitial);
+  const shellTarget = useSurfaceTarget("settings");
+
+  useEffect(() => {
+    if (shellTarget?.kind !== "settings" || !isSettingsTab(shellTarget.tab)) {
+      return;
+    }
+
+    const nextTab: SettingsTab = shellTarget.tab;
+    setActiveTab((current) =>
+      current === nextTab ? current : nextTab,
+    );
+  }, [shellTarget]);
 
   const set = (patch: SettingsUpdate) => void update(patch);
 
