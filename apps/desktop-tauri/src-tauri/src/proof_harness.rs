@@ -56,8 +56,26 @@ struct ProofMenuSnapshot {
     menu_items: Vec<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ProofStateOverride {
+    mode: SurfaceMode,
+    target: SurfaceTarget,
+    window_rect: Option<ProofRect>,
+}
+
+#[derive(Debug, Default)]
+struct ProofSyncControl {
+    suppressed_transitions: usize,
+}
+
+struct SurfaceTransitionSyncSuppression;
+
 static PROOF_MENU_SNAPSHOT: LazyLock<Mutex<ProofMenuSnapshot>> =
     LazyLock::new(|| Mutex::new(ProofMenuSnapshot::default()));
+static PROOF_STATE_OVERRIDE: LazyLock<Mutex<Option<ProofStateOverride>>> =
+    LazyLock::new(|| Mutex::new(None));
+static PROOF_SYNC_CONTROL: LazyLock<Mutex<ProofSyncControl>> =
+    LazyLock::new(|| Mutex::new(ProofSyncControl::default()));
 /// Proof configuration parsed from `CODEXBAR_PROOF_MODE`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -220,7 +238,7 @@ pub fn capture_state(app: &AppHandle) -> Result<ProofStatePayload, String> {
             .ok_or_else(|| "app state unavailable".to_string())?;
         let guard = st.lock().unwrap();
         (
-            guard.surface_machine.current().as_str().to_string(),
+            guard.surface_machine.current(),
             guard.current_target.clone(),
             guard.tray_anchor.map(|anchor| ProofRect {
                 x: anchor.x,
@@ -235,11 +253,13 @@ pub fn capture_state(app: &AppHandle) -> Result<ProofStatePayload, String> {
     let window = app
         .get_webview_window("main")
         .ok_or_else(|| "main window unavailable".to_string())?;
+    let (mode, target, window_rect) =
+        resolve_surface_state(mode, target, window_rect(&window), proof_state_override());
 
     Ok(ProofStatePayload {
         mode,
         target,
-        window_rect: window_rect(&window),
+        window_rect,
         tray_anchor: tray_anchor.clone(),
         work_area: resolve_work_area(&window, tray_anchor.as_ref()),
         menu_path: menu_snapshot.menu_path,
@@ -250,6 +270,7 @@ pub fn capture_state(app: &AppHandle) -> Result<ProofStatePayload, String> {
 pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStatePayload, String> {
     ensure_proof_mode(app)?;
     clear_menu_snapshot();
+    clear_proof_state_override();
     let mut emit_after_command = false;
 
     match command {
@@ -266,6 +287,7 @@ pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStateP
         ProofCommand::OpenNativeMenu => {
             let (menu_path, menu_items) = native_menu_snapshot_for_path("tray");
             set_menu_snapshot(Some(menu_path), menu_items);
+            set_proof_state_override(native_menu_state_override());
             emit_after_command = true;
         }
         ProofCommand::OpenDashboard => {
@@ -322,7 +344,12 @@ pub fn sync_after_surface_transition(app: &AppHandle) {
         return;
     }
 
+    if surface_transition_sync_is_suppressed() {
+        return;
+    }
+
     clear_menu_snapshot();
+    clear_proof_state_override();
     emit_state_changed(app);
 }
 
@@ -331,6 +358,7 @@ fn clear_menu_snapshot() {
 }
 
 fn transition_about_path(app: &AppHandle) -> Result<(), String> {
+    let _suppression = suppress_surface_transition_sync();
     persist_about_path_snapshot(
         shell::transition_to_target(
             app,
@@ -364,9 +392,67 @@ fn set_menu_snapshot(menu_path: Option<String>, menu_items: Vec<String>) {
     snapshot.menu_items = menu_items;
 }
 
+fn native_menu_state_override() -> ProofStateOverride {
+    ProofStateOverride {
+        mode: SurfaceMode::Hidden,
+        target: SurfaceTarget::default_for_mode(SurfaceMode::Hidden),
+        window_rect: None,
+    }
+}
+
+fn resolve_surface_state(
+    mode: SurfaceMode,
+    target: SurfaceTarget,
+    window_rect: Option<ProofRect>,
+    state_override: Option<ProofStateOverride>,
+) -> (String, SurfaceTarget, Option<ProofRect>) {
+    if let Some(state_override) = state_override {
+        (
+            state_override.mode.as_str().to_string(),
+            state_override.target,
+            state_override.window_rect,
+        )
+    } else {
+        (mode.as_str().to_string(), target, window_rect)
+    }
+}
+
+fn proof_state_override() -> Option<ProofStateOverride> {
+    PROOF_STATE_OVERRIDE.lock().unwrap().clone()
+}
+
+fn set_proof_state_override(state_override: ProofStateOverride) {
+    *PROOF_STATE_OVERRIDE.lock().unwrap() = Some(state_override);
+}
+
+fn clear_proof_state_override() {
+    *PROOF_STATE_OVERRIDE.lock().unwrap() = None;
+}
+
+fn suppress_surface_transition_sync() -> SurfaceTransitionSyncSuppression {
+    PROOF_SYNC_CONTROL.lock().unwrap().suppressed_transitions += 1;
+    SurfaceTransitionSyncSuppression
+}
+
+fn surface_transition_sync_is_suppressed() -> bool {
+    PROOF_SYNC_CONTROL.lock().unwrap().suppressed_transitions > 0
+}
+
+impl Drop for SurfaceTransitionSyncSuppression {
+    fn drop(&mut self) {
+        let mut control = PROOF_SYNC_CONTROL.lock().unwrap();
+        control.suppressed_transitions = control.suppressed_transitions.saturating_sub(1);
+    }
+}
+
 #[cfg(test)]
 fn menu_snapshot() -> ProofMenuSnapshot {
     PROOF_MENU_SNAPSHOT.lock().unwrap().clone()
+}
+
+#[cfg(test)]
+fn current_proof_state_override() -> Option<ProofStateOverride> {
+    proof_state_override()
 }
 
 fn native_menu_snapshot_for_path(menu_path: &str) -> (String, Vec<String>) {
@@ -626,5 +712,45 @@ mod tests {
         let snapshot = menu_snapshot();
         assert!(snapshot.menu_path.is_none());
         assert!(snapshot.menu_items.is_empty());
+    }
+
+    #[test]
+    fn native_menu_override_normalizes_visible_surface_state() {
+        let (mode, target, window_rect) = resolve_surface_state(
+            SurfaceMode::PopOut,
+            SurfaceTarget::Dashboard,
+            Some(ProofRect {
+                x: 10,
+                y: 20,
+                width: 300,
+                height: 200,
+            }),
+            Some(native_menu_state_override()),
+        );
+
+        assert_eq!(mode, SurfaceMode::Hidden.as_str());
+        assert_eq!(target, SurfaceTarget::Summary);
+        assert!(window_rect.is_none());
+    }
+
+    #[test]
+    fn clearing_override_restores_surface_state_passthrough() {
+        set_proof_state_override(native_menu_state_override());
+        clear_proof_state_override();
+
+        assert!(current_proof_state_override().is_none());
+    }
+
+    #[test]
+    fn surface_transition_sync_suppression_is_scoped() {
+        clear_proof_state_override();
+        assert!(!surface_transition_sync_is_suppressed());
+
+        {
+            let _suppression = suppress_surface_transition_sync();
+            assert!(surface_transition_sync_is_suppressed());
+        }
+
+        assert!(!surface_transition_sync_is_suppressed());
     }
 }
