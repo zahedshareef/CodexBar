@@ -188,7 +188,7 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
-                button: MouseButton::Left,
+                button,
                 button_state: MouseButtonState::Up,
                 rect,
                 ..
@@ -196,8 +196,10 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             {
                 let app = tray.app_handle();
                 store_anchor(app, &rect);
-                let position = shell::tray_panel_position(app);
-                shell::toggle_tray_panel(app, position);
+                if button == MouseButton::Left {
+                    let position = shell::tray_panel_position(app);
+                    shell::toggle_tray_panel(app, position);
+                }
             }
         })
         .on_menu_event(|app, event| {
@@ -215,10 +217,15 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
             if id == "show_panel" {
                 request.position =
                     shell::tray_panel_position(app).or_else(|| shell::shortcut_panel_position(app));
-                let _ = shell::reopen_to_target(app, request.mode, request.target, request.position);
-            } else {
                 let _ =
-                    shell::transition_to_target(app, request.mode, request.target, request.position);
+                    shell::reopen_to_target(app, request.mode, request.target, request.position);
+            } else {
+                let _ = shell::transition_to_target(
+                    app,
+                    request.mode,
+                    request.target,
+                    request.position,
+                );
             }
         }
         Some(MenuAction::Refresh) => {

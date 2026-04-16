@@ -97,7 +97,7 @@ pub fn transition_to_target(
         ShellTransitionRequest {
             mode,
             target,
-            position,
+            position: position.or_else(|| default_surface_position(app, mode)),
         },
         false,
     )
@@ -114,7 +114,7 @@ pub fn reopen_to_target(
         ShellTransitionRequest {
             mode,
             target,
-            position,
+            position: position.or_else(|| default_surface_position(app, mode)),
         },
         true,
     )
@@ -447,54 +447,105 @@ pub fn toggle_tray_panel(app: &AppHandle, position: Option<(i32, i32)>) {
 }
 
 /// Panel dimensions derived from the tray-panel surface mode properties.
-fn tray_panel_size() -> PanelSize {
-    let props = SurfaceMode::TrayPanel.window_properties();
+fn surface_panel_size(mode: SurfaceMode) -> PanelSize {
+    let props = mode.window_properties();
     PanelSize {
         width: props.width as u32,
         height: props.height as u32,
     }
 }
 
-/// Calculate panel position anchored to the saved tray icon rectangle.
-pub fn tray_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
-    let anchor = {
-        let st = app.state::<Mutex<AppState>>();
-        st.lock().unwrap().tray_anchor
-    }?;
+fn tray_panel_size() -> PanelSize {
+    surface_panel_size(SurfaceMode::TrayPanel)
+}
 
-    let window = app.get_webview_window("main")?;
-    let monitors = window.available_monitors().ok()?;
+fn monitor_work_area_rect(monitor: &tauri::Monitor) -> Rect {
+    let work_area = monitor.work_area();
+    Rect {
+        x: work_area.position.x,
+        y: work_area.position.y,
+        width: work_area.size.width,
+        height: work_area.size.height,
+    }
+}
 
-    // Find the monitor whose bounds contain the tray icon.
-    let monitor = monitors.iter().find(|m| {
-        let p = m.position();
-        let s = m.size();
-        anchor.x >= p.x
-            && anchor.x < p.x + s.width as i32
-            && anchor.y >= p.y
-            && anchor.y < p.y + s.height as i32
-    })?;
-
-    let pos = monitor.position();
-    let size = monitor.size();
-    let scale = monitor.scale_factor();
-
-    let icon_rect = Rect {
+fn tray_anchor_rect(anchor: crate::state::TrayAnchor) -> Rect {
+    Rect {
         x: anchor.x,
         y: anchor.y,
         width: anchor.width,
         height: anchor.height,
-    };
-    let monitor_rect = Rect {
-        x: pos.x,
-        y: pos.y,
-        width: size.width,
-        height: size.height,
-    };
+    }
+}
+
+fn monitor_for_anchor(
+    monitors: &[tauri::Monitor],
+    anchor: crate::state::TrayAnchor,
+) -> Option<&tauri::Monitor> {
+    let anchor_cx = anchor.x + anchor.width as i32 / 2;
+    let anchor_cy = anchor.y + anchor.height as i32 / 2;
+
+    monitors.iter().find(|monitor| {
+        let pos = monitor.position();
+        let size = monitor.size();
+        anchor_cx >= pos.x
+            && anchor_cx < pos.x + size.width as i32
+            && anchor_cy >= pos.y
+            && anchor_cy < pos.y + size.height as i32
+    })
+}
+
+fn current_tray_anchor(app: &AppHandle) -> Option<crate::state::TrayAnchor> {
+    let st = app.try_state::<Mutex<AppState>>()?;
+    st.lock().ok()?.tray_anchor
+}
+
+fn visible_surface_position_for_mode(app: &AppHandle, mode: SurfaceMode) -> Option<(i32, i32)> {
+    let window = app.get_webview_window("main")?;
+    let monitors = window.available_monitors().ok()?;
+    let panel_size = surface_panel_size(mode);
+
+    if let Some(anchor) = current_tray_anchor(app)
+        && let Some(monitor) = monitor_for_anchor(&monitors, anchor)
+    {
+        return Some(window_positioner::calculate_popout_position(
+            Some(&tray_anchor_rect(anchor)),
+            &monitor_work_area_rect(monitor),
+            &panel_size,
+            monitor.scale_factor(),
+        ));
+    }
+
+    let monitor = window.primary_monitor().ok()??;
+    Some(window_positioner::calculate_popout_position(
+        None,
+        &monitor_work_area_rect(&monitor),
+        &panel_size,
+        monitor.scale_factor(),
+    ))
+}
+
+pub fn default_surface_position(app: &AppHandle, mode: SurfaceMode) -> Option<(i32, i32)> {
+    match mode {
+        SurfaceMode::Hidden => None,
+        SurfaceMode::TrayPanel => tray_panel_position(app).or_else(|| shortcut_panel_position(app)),
+        SurfaceMode::PopOut | SurfaceMode::Settings => visible_surface_position_for_mode(app, mode),
+    }
+}
+
+/// Calculate panel position anchored to the saved tray icon rectangle.
+pub fn tray_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
+    let anchor = current_tray_anchor(app)?;
+
+    let window = app.get_webview_window("main")?;
+    let monitors = window.available_monitors().ok()?;
+
+    let monitor = monitor_for_anchor(&monitors, anchor)?;
+    let scale = monitor.scale_factor();
 
     Some(window_positioner::calculate_panel_position(
-        &icon_rect,
-        &monitor_rect,
+        &tray_anchor_rect(anchor),
+        &monitor_work_area_rect(monitor),
         &tray_panel_size(),
         scale,
     ))
@@ -504,19 +555,10 @@ pub fn tray_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
 pub fn shortcut_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
     let window = app.get_webview_window("main")?;
     let monitor = window.primary_monitor().ok()??;
-    let pos = monitor.position();
-    let size = monitor.size();
     let scale = monitor.scale_factor();
 
-    let monitor_rect = Rect {
-        x: pos.x,
-        y: pos.y,
-        width: size.width,
-        height: size.height,
-    };
-
     Some(window_positioner::calculate_shortcut_position(
-        &monitor_rect,
+        &monitor_work_area_rect(&monitor),
         &tray_panel_size(),
         scale,
     ))
