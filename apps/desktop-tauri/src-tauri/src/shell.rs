@@ -208,9 +208,12 @@ fn apply_transition_request(
         let resolution = resolve_transition_request(&guard, &request, force_same_mode_apply);
         (previous, resolution)
     };
-    let position = resolve_transition_position(request.position, &resolution, || {
-        default_surface_position(app, request.mode)
-    });
+    let position = resolve_transition_position(
+        request.position,
+        &resolution,
+        should_synthesize_default_position(&resolution),
+        || default_surface_position(app, request.mode),
+    );
 
     match resolution {
         TransitionResolution::ModeChange { transition, target } => {
@@ -267,18 +270,36 @@ fn current_surface_snapshot(state: &AppState) -> SurfaceSnapshot {
 fn resolve_transition_position<F>(
     requested: Option<(i32, i32)>,
     resolution: &TransitionResolution,
+    synthesize_default: bool,
     fallback: F,
 ) -> Option<(i32, i32)>
 where
     F: FnOnce() -> Option<(i32, i32)>,
 {
+    if requested.is_some() {
+        return requested;
+    }
+
     match resolution {
-        TransitionResolution::ModeChange { .. } | TransitionResolution::SameModeReopen { .. } => {
-            requested.or_else(fallback)
+        TransitionResolution::ModeChange { .. } | TransitionResolution::SameModeReopen { .. }
+            if synthesize_default =>
+        {
+            fallback()
         }
-        TransitionResolution::SameModeRetarget { .. } | TransitionResolution::Noop { .. } => {
-            requested
+        TransitionResolution::ModeChange { .. }
+        | TransitionResolution::SameModeReopen { .. }
+        | TransitionResolution::SameModeRetarget { .. }
+        | TransitionResolution::Noop { .. } => None,
+    }
+}
+
+fn should_synthesize_default_position(resolution: &TransitionResolution) -> bool {
+    match resolution {
+        TransitionResolution::ModeChange { transition, .. } => {
+            transition.from == SurfaceMode::Hidden
         }
+        TransitionResolution::SameModeReopen { .. } => true,
+        TransitionResolution::SameModeRetarget { .. } | TransitionResolution::Noop { .. } => false,
     }
 }
 
@@ -719,7 +740,7 @@ mod tests {
         };
         let mut fallback_called = false;
 
-        let position = resolve_transition_position(None, &resolution, || {
+        let position = resolve_transition_position(None, &resolution, false, || {
             fallback_called = true;
             Some((10, 20))
         });
@@ -740,7 +761,7 @@ mod tests {
             },
         };
 
-        let position = resolve_transition_position(Some((10, 20)), &resolution, || {
+        let position = resolve_transition_position(Some((10, 20)), &resolution, false, || {
             panic!("explicit same-mode retarget position should be used directly")
         });
 
@@ -755,7 +776,7 @@ mod tests {
         };
         let mut fallback_called = false;
 
-        let position = resolve_transition_position(None, &resolution, || {
+        let position = resolve_transition_position(None, &resolution, true, || {
             fallback_called = true;
             Some((42, 24))
         });
@@ -764,6 +785,68 @@ mod tests {
         assert!(
             fallback_called,
             "same-mode reopen should still synthesize a default position"
+        );
+    }
+
+    #[test]
+    fn visible_mode_change_skips_default_position_synthesis() {
+        let resolution = TransitionResolution::ModeChange {
+            transition: SurfaceTransition {
+                from: SurfaceMode::PopOut,
+                to: SurfaceMode::Settings,
+                properties: SurfaceMode::Settings.window_properties(),
+            },
+            target: SurfaceTarget::Settings {
+                tab: "about".into(),
+            },
+        };
+        let mut fallback_called = false;
+
+        let position = resolve_transition_position(
+            None,
+            &resolution,
+            should_synthesize_default_position(&resolution),
+            || {
+                fallback_called = true;
+                Some((20, 30))
+            },
+        );
+
+        assert_eq!(position, None);
+        assert!(
+            !fallback_called,
+            "visible-to-visible mode changes should preserve the current window position"
+        );
+    }
+
+    #[test]
+    fn hidden_mode_change_still_uses_default_position() {
+        let resolution = TransitionResolution::ModeChange {
+            transition: SurfaceTransition {
+                from: SurfaceMode::Hidden,
+                to: SurfaceMode::Settings,
+                properties: SurfaceMode::Settings.window_properties(),
+            },
+            target: SurfaceTarget::Settings {
+                tab: "general".into(),
+            },
+        };
+        let mut fallback_called = false;
+
+        let position = resolve_transition_position(
+            None,
+            &resolution,
+            should_synthesize_default_position(&resolution),
+            || {
+                fallback_called = true;
+                Some((64, 48))
+            },
+        );
+
+        assert_eq!(position, Some((64, 48)));
+        assert!(
+            fallback_called,
+            "hidden opens should still synthesize default placement"
         );
     }
 

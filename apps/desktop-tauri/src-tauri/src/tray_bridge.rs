@@ -19,10 +19,6 @@ struct MonitorScaleInfo {
     physical_y: i32,
     physical_width: u32,
     physical_height: u32,
-    logical_x: f64,
-    logical_y: f64,
-    logical_width: f64,
-    logical_height: f64,
     scale_factor: f64,
 }
 
@@ -42,45 +38,19 @@ impl MonitorScaleInfo {
             physical_y: position.y,
             physical_width: size.width,
             physical_height: size.height,
-            logical_x: position.x as f64 / safe_scale,
-            logical_y: position.y as f64 / safe_scale,
-            logical_width: size.width as f64 / safe_scale,
-            logical_height: size.height as f64 / safe_scale,
             scale_factor: safe_scale,
         }
     }
 }
 
-fn scale_factor_for_logical_rect(
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-    monitors: &[MonitorScaleInfo],
-) -> Option<f64> {
-    let center_x = x + width * 0.5;
-    let center_y = y + height * 0.5;
-
-    monitors
-        .iter()
-        .filter(|monitor| {
-            center_x >= monitor.logical_x
-                && center_x < monitor.logical_x + monitor.logical_width
-                && center_y >= monitor.logical_y
-                && center_y < monitor.logical_y + monitor.logical_height
-        })
-        .max_by(|left, right| left.scale_factor.total_cmp(&right.scale_factor))
-        .map(|monitor| monitor.scale_factor)
-}
-
-fn scale_factor_for_physical_point(x: i32, y: i32, monitors: &[MonitorScaleInfo]) -> Option<f64> {
+fn scale_factor_for_physical_point(x: f64, y: f64, monitors: &[MonitorScaleInfo]) -> Option<f64> {
     monitors
         .iter()
         .find(|monitor| {
-            x >= monitor.physical_x
-                && x < monitor.physical_x + monitor.physical_width as i32
-                && y >= monitor.physical_y
-                && y < monitor.physical_y + monitor.physical_height as i32
+            x >= monitor.physical_x as f64
+                && x < (monitor.physical_x + monitor.physical_width as i32) as f64
+                && y >= monitor.physical_y as f64
+                && y < (monitor.physical_y + monitor.physical_height as i32) as f64
         })
         .map(|monitor| monitor.scale_factor)
 }
@@ -103,6 +73,44 @@ fn logical_to_physical_anchor(
         y: (y * safe_scale).round() as i32,
         width: ((width * safe_scale).round().max(1.0)) as u32,
         height: ((height * safe_scale).round().max(1.0)) as u32,
+    }
+}
+
+fn resolve_tray_anchor(
+    rect: &tauri::Rect,
+    click_position: tauri::PhysicalPosition<f64>,
+    monitors: &[MonitorScaleInfo],
+) -> Option<TrayAnchor> {
+    let click_scale = scale_factor_for_physical_point(click_position.x, click_position.y, monitors);
+
+    match (rect.position, rect.size) {
+        (tauri::Position::Physical(position), tauri::Size::Physical(size)) => Some(TrayAnchor {
+            x: position.x,
+            y: position.y,
+            width: size.width,
+            height: size.height,
+        }),
+        (tauri::Position::Logical(position), tauri::Size::Logical(size)) => {
+            click_scale.map(|scale| {
+                logical_to_physical_anchor(position.x, position.y, size.width, size.height, scale)
+            })
+        }
+        (tauri::Position::Physical(position), tauri::Size::Logical(size)) => {
+            click_scale.map(|scale| TrayAnchor {
+                x: position.x,
+                y: position.y,
+                width: ((size.width * scale).round().max(1.0)) as u32,
+                height: ((size.height * scale).round().max(1.0)) as u32,
+            })
+        }
+        (tauri::Position::Logical(position), tauri::Size::Physical(size)) => {
+            click_scale.map(|scale| TrayAnchor {
+                x: (position.x * scale).round() as i32,
+                y: (position.y * scale).round() as i32,
+                width: size.width,
+                height: size.height,
+            })
+        }
     }
 }
 
@@ -242,7 +250,7 @@ fn resolve_menu_action(id: &str) -> Option<MenuAction> {
 }
 
 /// Store the tray icon bounds from a click event into shared state.
-fn store_anchor(app: &AppHandle, rect: &tauri::Rect) {
+fn store_anchor(app: &AppHandle, rect: &tauri::Rect, click_position: tauri::PhysicalPosition<f64>) {
     let monitors = app
         .get_webview_window("main")
         .and_then(|window| window.available_monitors().ok())
@@ -251,50 +259,8 @@ fn store_anchor(app: &AppHandle, rect: &tauri::Rect) {
         .map(|monitor| MonitorScaleInfo::from_monitor(&monitor))
         .collect::<Vec<_>>();
 
-    let anchor = match (rect.position, rect.size) {
-        (tauri::Position::Physical(position), tauri::Size::Physical(size)) => TrayAnchor {
-            x: position.x,
-            y: position.y,
-            width: size.width,
-            height: size.height,
-        },
-        (tauri::Position::Logical(position), tauri::Size::Logical(size)) => {
-            let scale = scale_factor_for_logical_rect(
-                position.x,
-                position.y,
-                size.width,
-                size.height,
-                &monitors,
-            )
-            .unwrap_or(1.0);
-            logical_to_physical_anchor(position.x, position.y, size.width, size.height, scale)
-        }
-        (tauri::Position::Physical(position), tauri::Size::Logical(size)) => {
-            let scale =
-                scale_factor_for_physical_point(position.x, position.y, &monitors).unwrap_or(1.0);
-            TrayAnchor {
-                x: position.x,
-                y: position.y,
-                width: ((size.width * scale).round().max(1.0)) as u32,
-                height: ((size.height * scale).round().max(1.0)) as u32,
-            }
-        }
-        (tauri::Position::Logical(position), tauri::Size::Physical(size)) => {
-            let scale = scale_factor_for_logical_rect(
-                position.x,
-                position.y,
-                size.width as f64,
-                size.height as f64,
-                &monitors,
-            )
-            .unwrap_or(1.0);
-            TrayAnchor {
-                x: (position.x * scale).round() as i32,
-                y: (position.y * scale).round() as i32,
-                width: size.width,
-                height: size.height,
-            }
-        }
+    let Some(anchor) = resolve_tray_anchor(rect, click_position, &monitors) else {
+        return;
     };
 
     if let Some(st) = app.try_state::<Mutex<AppState>>() {
@@ -323,12 +289,13 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             if let TrayIconEvent::Click {
                 button,
                 button_state: MouseButtonState::Up,
+                position,
                 rect,
                 ..
             } = event
             {
                 let app = tray.app_handle();
-                store_anchor(app, &rect);
+                store_anchor(app, &rect, position);
                 if button == MouseButton::Left {
                     let position = shell::tray_panel_position(app);
                     shell::toggle_tray_panel(app, position);
@@ -488,17 +455,13 @@ mod tests {
     }
 
     #[test]
-    fn logical_tray_anchor_uses_matching_monitor_scale() {
+    fn logical_tray_anchor_uses_click_monitor_scale() {
         let monitors = vec![
             MonitorScaleInfo {
                 physical_x: 0,
                 physical_y: 0,
                 physical_width: 1920,
                 physical_height: 1080,
-                logical_x: 0.0,
-                logical_y: 0.0,
-                logical_width: 1920.0,
-                logical_height: 1080.0,
                 scale_factor: 1.0,
             },
             MonitorScaleInfo {
@@ -506,21 +469,47 @@ mod tests {
                 physical_y: 0,
                 physical_width: 2560,
                 physical_height: 1440,
-                logical_x: 960.0,
-                logical_y: 0.0,
-                logical_width: 1280.0,
-                logical_height: 720.0,
                 scale_factor: 2.0,
             },
         ];
 
-        let scale = scale_factor_for_logical_rect(1500.0, 500.0, 12.0, 12.0, &monitors)
-            .expect("matching monitor scale");
-        let anchor = logical_to_physical_anchor(1500.0, 500.0, 12.0, 12.0, scale);
+        let rect = tauri::Rect {
+            position: tauri::Position::Logical(tauri::LogicalPosition::new(1500.0, 500.0)),
+            size: tauri::Size::Logical(tauri::LogicalSize::new(12.0, 12.0)),
+        };
+        let anchor = resolve_tray_anchor(
+            &rect,
+            tauri::PhysicalPosition::new(1510.0, 500.0),
+            &monitors,
+        )
+        .expect("matching click monitor scale");
 
-        assert_eq!(anchor.x, 3000);
-        assert_eq!(anchor.y, 1000);
-        assert_eq!(anchor.width, 24);
-        assert_eq!(anchor.height, 24);
+        assert_eq!(anchor.x, 1500);
+        assert_eq!(anchor.y, 500);
+        assert_eq!(anchor.width, 12);
+        assert_eq!(anchor.height, 12);
+    }
+
+    #[test]
+    fn logical_tray_anchor_skips_conversion_without_click_monitor() {
+        let monitors = vec![MonitorScaleInfo {
+            physical_x: 0,
+            physical_y: 0,
+            physical_width: 1920,
+            physical_height: 1080,
+            scale_factor: 1.0,
+        }];
+        let rect = tauri::Rect {
+            position: tauri::Position::Logical(tauri::LogicalPosition::new(1500.0, 500.0)),
+            size: tauri::Size::Logical(tauri::LogicalSize::new(12.0, 12.0)),
+        };
+
+        let anchor = resolve_tray_anchor(
+            &rect,
+            tauri::PhysicalPosition::new(2500.0, 500.0),
+            &monitors,
+        );
+
+        assert!(anchor.is_none());
     }
 }
