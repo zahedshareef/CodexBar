@@ -1267,7 +1267,7 @@ mod tests {
     }
 
     #[test]
-    fn settings_surface_uses_tray_anchor_position_when_available() {
+    fn visible_surface_position_settings_surface_uses_tray_anchor_position_when_available() {
         let anchor_monitor = MonitorPlacement {
             bounds: Rect {
                 x: 0,
