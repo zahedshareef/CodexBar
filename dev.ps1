@@ -120,7 +120,8 @@ if (-not $hasCargo -or ($needsDlltool -and -not $hasDlltool)) {
     }
 }
 
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+$npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
+if (-not $npmCommand) {
     Write-Host "ERROR: npm (Node.js) not found." -ForegroundColor Red
     Write-Host "Install Node.js to build apps/desktop-tauri before running this script." -ForegroundColor Yellow
     exit 1
@@ -132,7 +133,7 @@ if (-not $SkipBuild) {
     Push-Location $TauriFrontendDir
     try {
         Write-Host "Building desktop frontend..." -ForegroundColor Cyan
-        npm run build
+        & $npmCommand.Source run build
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     } finally {
         Pop-Location
