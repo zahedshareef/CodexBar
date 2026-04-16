@@ -9,6 +9,7 @@ import type {
   ProofStatePayload,
   CookieInfoBridge,
   ProviderCatalogEntry,
+  ProviderChartData,
   ProviderUsageSnapshot,
   SettingsSnapshot,
   SettingsUpdate,
@@ -139,4 +140,10 @@ export function removeManualCookie(
 
 export function getAppInfo(): Promise<AppInfoBridge> {
   return invoke<AppInfoBridge>("get_app_info");
+}
+
+export function getProviderChartData(
+  providerId: string,
+): Promise<ProviderChartData> {
+  return invoke<ProviderChartData>("get_provider_chart_data", { providerId });
 }

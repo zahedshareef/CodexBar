@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 use std::sync::Mutex;
 
-use codexbar::core::{FetchContext, Provider, ProviderFetchResult, ProviderId, RateWindow};
+use codexbar::core::{FetchContext, OpenAIDashboardCacheStore, Provider, ProviderFetchResult, ProviderId, RateWindow};
+use codexbar::cost_scanner::get_daily_cost_history;
 use codexbar::providers::*;
 use codexbar::settings::{ApiKeys, Language, ManualCookies, Settings, TrayIconMode, UpdateChannel};
 use serde::{Deserialize, Serialize};
@@ -436,6 +437,10 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
         BridgeCommandDescriptor {
             id: "get_app_info",
             description: "Read app metadata displayed in the shell About surface.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_provider_chart_data",
+            description: "Return cost history, credits history, and usage breakdown chart data for a provider.",
         },
     ]
 }
@@ -1180,6 +1185,115 @@ pub fn open_release_page(state: tauri::State<'_, Mutex<AppState>>) -> Result<(),
             .ok_or("No update information available")?
     };
     open_url_in_browser(&url)
+}
+
+// ── Provider chart data ──────────────────────────────────────────────
+
+/// A single (date, value) point for cost or credits history charts.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyCostPoint {
+    pub date: String,
+    pub value: f64,
+}
+
+/// A single service's usage within a day for the stacked usage breakdown chart.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceUsagePoint {
+    pub service: String,
+    pub credits_used: f64,
+}
+
+/// One day's stacked usage breakdown.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyUsageBreakdown {
+    pub day: String,
+    pub services: Vec<ServiceUsagePoint>,
+    pub total_credits_used: f64,
+}
+
+/// Full chart data bundle for one provider.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderChartData {
+    pub provider_id: String,
+    pub cost_history: Vec<DailyCostPoint>,
+    pub credits_history: Vec<DailyCostPoint>,
+    pub usage_breakdown: Vec<DailyUsageBreakdown>,
+}
+
+#[tauri::command]
+pub fn get_provider_chart_data(provider_id: String) -> ProviderChartData {
+    // Cost history (available for any provider that has local JSONL cost data)
+    let raw_cost = get_daily_cost_history(&provider_id, 30);
+    let cost_history: Vec<DailyCostPoint> = raw_cost
+        .into_iter()
+        .map(|(date, value)| DailyCostPoint { date, value })
+        .collect();
+
+    // Credits history + usage breakdown — only for codex/openai providers from dashboard cache
+    let (credits_history, usage_breakdown) =
+        load_openai_dashboard_chart_data(&provider_id);
+
+    ProviderChartData {
+        provider_id,
+        cost_history,
+        credits_history,
+        usage_breakdown,
+    }
+}
+
+fn load_openai_dashboard_chart_data(
+    provider_id: &str,
+) -> (Vec<DailyCostPoint>, Vec<DailyUsageBreakdown>) {
+    // Only codex (openai) provider has dashboard cache data
+    if provider_id != "codex" && provider_id != "openai" {
+        return (Vec::new(), Vec::new());
+    }
+
+    let Some(cache) = OpenAIDashboardCacheStore::load() else {
+        return (Vec::new(), Vec::new());
+    };
+
+    let snapshot = &cache.snapshot;
+
+    // Pick daily_breakdown if available, else usage_breakdown
+    let breakdown_source = if !snapshot.daily_breakdown.is_empty() {
+        &snapshot.daily_breakdown
+    } else if !snapshot.usage_breakdown.is_empty() {
+        &snapshot.usage_breakdown
+    } else {
+        return (Vec::new(), Vec::new());
+    };
+
+    let credits_history: Vec<DailyCostPoint> = breakdown_source
+        .iter()
+        .map(|d| DailyCostPoint {
+            date: d.day.clone(),
+            value: d.total_credits_used,
+        })
+        .collect();
+
+    let usage_breakdown: Vec<DailyUsageBreakdown> = snapshot
+        .usage_breakdown
+        .iter()
+        .map(|d| DailyUsageBreakdown {
+            day: d.day.clone(),
+            services: d
+                .services
+                .iter()
+                .map(|s| ServiceUsagePoint {
+                    service: s.service.clone(),
+                    credits_used: s.credits_used,
+                })
+                .collect(),
+            total_credits_used: d.total_credits_used,
+        })
+        .collect();
+
+    (credits_history, usage_breakdown)
 }
 
 fn open_url_in_browser(url: &str) -> Result<(), String> {

@@ -76,6 +76,7 @@ fn main() {
             commands::set_manual_cookie,
             commands::remove_manual_cookie,
             commands::get_app_info,
+            commands::get_provider_chart_data,
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {

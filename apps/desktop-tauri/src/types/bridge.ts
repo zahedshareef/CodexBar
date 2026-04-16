@@ -254,3 +254,28 @@ export interface AppInfoBridge {
   updateChannel: string;
   tagline: string;
 }
+
+// ── Chart data types ─────────────────────────────────────────────────
+
+export interface DailyCostPoint {
+  date: string;
+  value: number;
+}
+
+export interface ServiceUsagePoint {
+  service: string;
+  creditsUsed: number;
+}
+
+export interface DailyUsageBreakdown {
+  day: string;
+  services: ServiceUsagePoint[];
+  totalCreditsUsed: number;
+}
+
+export interface ProviderChartData {
+  providerId: string;
+  costHistory: DailyCostPoint[];
+  creditsHistory: DailyCostPoint[];
+  usageBreakdown: DailyUsageBreakdown[];
+}

@@ -1273,3 +1273,152 @@ body {
     max-height: calc(100vh - 160px);
   }
 }
+
+/* ── Provider detail: org label ─────────────────────────────────────── */
+
+.tray-detail__org {
+  font-size: 0.78rem;
+  color: #8b95b0;
+}
+
+/* ── Provider detail: pace indicator ───────────────────────────────── */
+
+.tray-detail__pace {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(17, 21, 34, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tray-detail__pace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tray-detail__pace-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #8ea3ff;
+}
+
+.tray-detail__pace-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.tray-detail__pace-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tray-detail__pace-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(142, 163, 255, 0.12);
+  overflow: hidden;
+}
+
+.tray-detail__pace-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #5d87ff;
+  transition: width 0.3s ease;
+}
+
+.tray-detail__pace-fill--expected {
+  background: rgba(142, 163, 255, 0.35);
+}
+
+.tray-detail__pace-eta {
+  font-size: 0.78rem;
+  color: #fb923c;
+  font-weight: 500;
+}
+
+.tray-detail__pace-ok {
+  font-size: 0.78rem;
+  color: #06d6a0;
+  font-weight: 500;
+}
+
+/* ── Provider detail: charts section ───────────────────────────────── */
+
+.tray-detail__charts {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Mini bar chart ─────────────────────────────────────────────────── */
+
+.mini-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mini-chart--empty {
+  opacity: 0.5;
+}
+
+.mini-chart__label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #8ea3ff;
+}
+
+.mini-chart__empty-msg {
+  font-size: 0.78rem;
+  color: #8b95b0;
+  font-style: italic;
+}
+
+.mini-chart__svg {
+  display: block;
+  border-radius: 4px;
+  overflow: visible;
+  max-width: 100%;
+}
+
+.mini-chart__axis {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.68rem;
+  color: #8b95b0;
+  font-family: "Cascadia Code", "Fira Code", monospace;
+  padding: 0 2px;
+}
+
+.mini-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 2px;
+}
+
+.mini-chart__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: #b7c0db;
+}
+
+.mini-chart__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
