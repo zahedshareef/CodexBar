@@ -10,6 +10,7 @@ use tauri::{AppHandle, Manager};
 use crate::shell;
 use crate::state::{AppState, TrayAnchor};
 use crate::surface::SurfaceMode;
+use crate::surface_target::SurfaceTarget;
 
 /// Build the native context menu shown on tray right-click.
 fn build_tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
@@ -93,13 +94,30 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
         "show_panel" => {
             let position =
                 shell::tray_panel_position(app).or_else(|| shell::shortcut_panel_position(app));
-            shell::transition_surface(app, SurfaceMode::TrayPanel, None, position);
+            shell::transition_surface(
+                app,
+                SurfaceMode::TrayPanel,
+                Some(SurfaceTarget::Summary),
+                position,
+            );
         }
         "pop_out" => {
-            shell::transition_surface(app, SurfaceMode::PopOut, None, None);
+            shell::transition_surface(
+                app,
+                SurfaceMode::PopOut,
+                Some(SurfaceTarget::Dashboard),
+                None,
+            );
         }
         "settings" => {
-            shell::transition_surface(app, SurfaceMode::Settings, None, None);
+            shell::transition_surface(
+                app,
+                SurfaceMode::Settings,
+                Some(SurfaceTarget::Settings {
+                    tab: "general".into(),
+                }),
+                None,
+            );
         }
         "refresh" => {
             let handle = app.clone();

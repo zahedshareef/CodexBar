@@ -87,7 +87,12 @@ pub fn toggle_tray_panel(app: &AppHandle, position: Option<(i32, i32)>) {
     if current == SurfaceMode::TrayPanel {
         transition_surface(app, SurfaceMode::Hidden, None, None);
     } else {
-        transition_surface(app, SurfaceMode::TrayPanel, None, position);
+        transition_surface(
+            app,
+            SurfaceMode::TrayPanel,
+            Some(SurfaceTarget::Summary),
+            position,
+        );
     }
 }
 

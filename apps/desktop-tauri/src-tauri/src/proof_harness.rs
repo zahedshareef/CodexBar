@@ -22,7 +22,6 @@ use tauri::{AppHandle, Manager};
 use crate::shell;
 use crate::state::AppState;
 use crate::surface::SurfaceMode;
-use crate::surface_target::SurfaceTarget;
 /// Proof configuration parsed from `CODEXBAR_PROOF_MODE`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -55,15 +54,9 @@ impl ProofConfig {
             return None;
         }
 
-        let settings_tab = if surface_str == SurfaceMode::Settings.as_str() {
-            tab.filter(|tab| is_settings_tab(tab))
-        } else {
-            None
-        };
-
         Some(ProofConfig {
             target_surface: surface_str.to_string(),
-            settings_tab,
+            settings_tab: tab,
         })
     }
 
@@ -84,16 +77,6 @@ pub fn activate(app: &AppHandle) {
 
     let Some(config) = config else { return };
     let target = config.surface_mode();
-    let surface_target = match target {
-        SurfaceMode::Settings => Some(SurfaceTarget::Settings {
-            tab: config
-                .settings_tab
-                .clone()
-                .unwrap_or_else(|| "general".into()),
-        }),
-        _ => None,
-    };
-
     tracing::info!(
         "proof-harness: activating surface={} tab={:?}",
         config.target_surface,
@@ -101,7 +84,7 @@ pub fn activate(app: &AppHandle) {
     );
 
     let position = proof_window_position(app);
-    shell::transition_surface(app, target, surface_target, position);
+    shell::transition_surface(app, target, None, position);
 }
 
 /// Calculate a predictable, centered-ish window position for proof captures.
@@ -121,13 +104,6 @@ pub fn is_proof_mode(app: &AppHandle) -> bool {
     app.try_state::<Mutex<AppState>>()
         .map(|st| st.lock().unwrap().proof_config.is_some())
         .unwrap_or(false)
-}
-
-fn is_settings_tab(tab: &str) -> bool {
-    matches!(
-        tab,
-        "general" | "providers" | "display" | "apiKeys" | "cookies" | "advanced" | "about"
-    )
 }
 
 #[cfg(test)]
@@ -170,26 +146,6 @@ mod tests {
             let cfg = ProofConfig::from_env().unwrap();
             assert_eq!(cfg.target_surface, "settings");
             assert_eq!(cfg.settings_tab.as_deref(), Some("apiKeys"));
-            assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
-        });
-    }
-
-    #[test]
-    fn parse_settings_without_tab() {
-        with_proof_mode_env(Some("settings"), || {
-            let cfg = ProofConfig::from_env().unwrap();
-            assert_eq!(cfg.target_surface, "settings");
-            assert!(cfg.settings_tab.is_none());
-            assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
-        });
-    }
-
-    #[test]
-    fn invalid_settings_tab_falls_back_to_general() {
-        with_proof_mode_env(Some("settings:bogus"), || {
-            let cfg = ProofConfig::from_env().unwrap();
-            assert_eq!(cfg.target_surface, "settings");
-            assert!(cfg.settings_tab.is_none());
             assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
         });
     }

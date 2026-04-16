@@ -13,6 +13,7 @@ use std::sync::Mutex;
 
 use state::AppState;
 use surface::SurfaceMode;
+use surface_target::SurfaceTarget;
 use tauri::Manager;
 
 fn main() {
@@ -33,7 +34,12 @@ fn main() {
             };
             if current == SurfaceMode::Hidden {
                 let position = shell::shortcut_panel_position(app);
-                shell::transition_surface(app, SurfaceMode::TrayPanel, None, position);
+                shell::transition_surface(
+                    app,
+                    SurfaceMode::TrayPanel,
+                    Some(SurfaceTarget::Summary),
+                    position,
+                );
             } else if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_focus();
             }

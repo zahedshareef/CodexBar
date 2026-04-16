@@ -207,6 +207,28 @@ mod tests {
     }
 
     #[test]
+    fn transition_applies_summary_target_for_tray_panel() {
+        let mut state = AppState::new();
+
+        let transition =
+            state.transition_surface(SurfaceMode::TrayPanel, Some(SurfaceTarget::Summary));
+
+        assert!(transition.is_some());
+        assert_eq!(state.current_target, SurfaceTarget::Summary);
+    }
+
+    #[test]
+    fn transition_applies_dashboard_target_for_pop_out() {
+        let mut state = AppState::new();
+
+        let transition =
+            state.transition_surface(SurfaceMode::PopOut, Some(SurfaceTarget::Dashboard));
+
+        assert!(transition.is_some());
+        assert_eq!(state.current_target, SurfaceTarget::Dashboard);
+    }
+
+    #[test]
     fn noop_transition_keeps_existing_target() {
         let mut state = AppState::new();
         state.transition_surface(
@@ -230,6 +252,22 @@ mod tests {
                 tab: "apiKeys".into()
             }
         );
+    }
+
+    #[test]
+    fn hidden_transition_resets_target_to_summary() {
+        let mut state = AppState::new();
+        state.transition_surface(
+            SurfaceMode::Settings,
+            Some(SurfaceTarget::Settings {
+                tab: "apiKeys".into(),
+            }),
+        );
+
+        let transition = state.transition_surface(SurfaceMode::Hidden, None);
+
+        assert!(transition.is_some());
+        assert_eq!(state.current_target, SurfaceTarget::Summary);
     }
 
     #[test]
