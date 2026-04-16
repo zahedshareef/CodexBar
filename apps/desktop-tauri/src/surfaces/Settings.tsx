@@ -6,6 +6,8 @@ import type {
   BootstrapState,
   CookieInfoBridge,
   ProviderCatalogEntry,
+  ProviderUsageSnapshot,
+  RateWindowSnapshot,
   SettingsTabId,
   SettingsUpdate,
 } from "../types/bridge";
@@ -16,6 +18,7 @@ import {
   getApiKeyProviders,
   getApiKeys,
   getAppInfo,
+  getCachedProviders,
   getManualCookies,
   removeApiKey,
   removeManualCookie,
@@ -234,6 +237,7 @@ export default function Settings({ state }: { state: BootstrapState }) {
             providers={state.providers}
             set={set}
             saving={saving}
+            onNavigate={handleTabClick}
           />
         )}
         {activeTab === "display" && (
@@ -367,12 +371,122 @@ const METRIC_OPTIONS = [
   { value: "average", label: "Average" },
 ];
 
+const PROVIDER_ICON_MAP: Record<string, { icon: string; color: string }> = {
+  codex:       { icon: "◆", color: "#49a3b0" },
+  claude:      { icon: "◈", color: "#cc7c5e" },
+  cursor:      { icon: "▸", color: "#00bfa5" },
+  gemini:      { icon: "✦", color: "#ab87ea" },
+  copilot:     { icon: "⬡", color: "#a855f7" },
+  antigravity: { icon: "◉", color: "#60ba7e" },
+  factory:     { icon: "◎", color: "#ff6b35" },
+  droid:       { icon: "◎", color: "#ff6b35" },
+  zai:         { icon: "Z", color: "#e85a6a" },
+  "z.ai":      { icon: "Z", color: "#e85a6a" },
+  kiro:        { icon: "K", color: "#ff9900" },
+  vertexai:    { icon: "△", color: "#4285f4" },
+  augment:     { icon: "A", color: "#6366f1" },
+  minimax:     { icon: "M", color: "#fe603c" },
+  opencode:    { icon: "○", color: "#3b82f6" },
+  kimi:        { icon: "☽", color: "#fe603c" },
+  kimik2:      { icon: "☽", color: "#4c00ff" },
+  amp:         { icon: "⚡", color: "#dc2626" },
+  jetbrains:   { icon: "J", color: "#ff3399" },
+  alibaba:     { icon: "阿", color: "#ff6a00" },
+  nanogpt:     { icon: "N", color: "#687fa1" },
+};
+
+function getProviderMeta(id: string): { icon: string; color: string } {
+  return PROVIDER_ICON_MAP[id.toLowerCase()] ?? { icon: "●", color: "#5d87ff" };
+}
+
+function relativeAgo(isoString: string): string {
+  const diff = Date.now() - new Date(isoString).getTime();
+  const secs = Math.round(Math.abs(diff) / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
+function relativeIn(isoString: string): string {
+  const diff = new Date(isoString).getTime() - Date.now();
+  if (diff <= 0) return "now";
+  const secs = Math.round(diff / 1000);
+  if (secs < 60) return `in ${secs}s`;
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `in ${mins}m`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `in ${hrs}h`;
+  return `in ${Math.round(hrs / 24)}d`;
+}
+
+function UsageBar({
+  label,
+  rate,
+  color,
+}: {
+  label: string;
+  rate: RateWindowSnapshot;
+  color: string;
+}) {
+  const pct = rate.isExhausted ? 100 : Math.min(100, rate.usedPercent);
+  const resetHint = rate.resetsAt
+    ? `Resets ${relativeIn(rate.resetsAt)}`
+    : rate.resetDescription ?? null;
+
+  return (
+    <div className="provider-usage-bar">
+      <div className="provider-usage-bar__header">
+        <span className="provider-usage-bar__label">{label}</span>
+        <span
+          className="provider-usage-bar__pct"
+          style={rate.isExhausted ? { color: "#ff6c6c" } : undefined}
+        >
+          {rate.isExhausted ? "Exhausted" : `${pct.toFixed(0)}%`}
+        </span>
+      </div>
+      <div className="provider-usage-bar__track">
+        <div
+          className="provider-usage-bar__fill"
+          style={{ width: `${pct}%`, background: color }}
+        />
+      </div>
+      {resetHint && (
+        <span className="provider-usage-bar__reset">{resetHint}</span>
+      )}
+    </div>
+  );
+}
+
 function ProvidersTab({
   settings,
   providers,
   set,
   saving,
-}: TabProps & { providers: ProviderCatalogEntry[] }) {
+  onNavigate,
+}: TabProps & {
+  providers: ProviderCatalogEntry[];
+  onNavigate: (tab: SettingsTab) => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(
+    providers[0]?.id ?? null,
+  );
+  const [snapshots, setSnapshots] = useState<ProviderUsageSnapshot[]>([]);
+  const [apiKeyProviders, setApiKeyProviders] = useState<
+    ApiKeyProviderInfoBridge[]
+  >([]);
+
+  useEffect(() => {
+    void Promise.all([getCachedProviders(), getApiKeyProviders()]).then(
+      ([snaps, akps]) => {
+        setSnapshots(snaps);
+        setApiKeyProviders(akps);
+      },
+    );
+  }, []);
+
   const enabled = new Set(settings.enabledProviders);
 
   const toggle = (id: string, on: boolean) => {
@@ -387,51 +501,200 @@ function ProvidersTab({
     set({ providerMetrics: next });
   };
 
+  const snapshotMap = new Map(snapshots.map((s) => [s.providerId, s]));
+  const apiKeyMap = new Map(apiKeyProviders.map((p) => [p.id, p]));
+
+  const selectedProvider = providers.find((p) => p.id === selectedId) ?? null;
+  const selectedSnap = selectedId ? snapshotMap.get(selectedId) ?? null : null;
+  const selectedApiKey = selectedId ? apiKeyMap.get(selectedId) ?? null : null;
+  const isEnabled = selectedId ? enabled.has(selectedId) : false;
+  const { icon: selIcon, color: selColor } = selectedId
+    ? getProviderMeta(selectedId)
+    : { icon: "●", color: "#5d87ff" };
+
   return (
-    <section className="settings-section">
-      <h3 className="settings-section__title">Enabled providers</h3>
-      <p className="settings-section__hint">
-        Toggle which providers are visible in the tray and panels.
-      </p>
-      <ul className="provider-list">
-        {providers.map((p) => (
-          <li key={p.id} className="provider-row">
-            <div className="provider-row__info">
-              <strong>{p.displayName}</strong>
-              <span className="provider-row__meta">
-                {p.id}
-                {p.cookieDomain ? ` · ${p.cookieDomain}` : " · token-based"}
+    <div className="provider-split">
+      {/* ── Sidebar ── */}
+      <div className="provider-sidebar">
+        {providers.map((p) => {
+          const { icon, color } = getProviderMeta(p.id);
+          const isOn = enabled.has(p.id);
+          const isSelected = p.id === selectedId;
+          return (
+            <div
+              key={p.id}
+              className={`provider-sidebar-item${isSelected ? " provider-sidebar-item--selected" : ""}`}
+              onClick={() => setSelectedId(p.id)}
+            >
+              <span className="provider-sidebar-icon" style={{ color }}>
+                {icon}
+              </span>
+              <span className="provider-sidebar-name">{p.displayName}</span>
+              {isOn && <span className="provider-sidebar-dot" />}
+              {/* stop click propagation so toggle click doesn't also select */}
+              <span onClick={(e) => e.stopPropagation()}>
+                <Toggle
+                  checked={isOn}
+                  disabled={saving}
+                  onChange={(v) => toggle(p.id, v)}
+                />
               </span>
             </div>
-            <Toggle
-              checked={enabled.has(p.id)}
-              disabled={saving}
-              onChange={(v) => toggle(p.id, v)}
-            />
-          </li>
-        ))}
-      </ul>
+          );
+        })}
+      </div>
 
-      <h3 className="settings-section__title">Metric preferences</h3>
-      <p className="settings-section__hint">
-        Choose which usage metric is shown for each provider in the tray.
-      </p>
-      <ul className="provider-list">
-        {providers.map((p) => (
-          <li key={p.id} className="provider-row">
-            <div className="provider-row__info">
-              <strong>{p.displayName}</strong>
+      {/* ── Detail panel ── */}
+      <div className="provider-detail">
+        {!selectedProvider ? (
+          <div className="provider-detail-empty">
+            Select a provider to see details.
+          </div>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="provider-detail-header">
+              <span
+                className="provider-detail-icon"
+                style={{ color: selColor }}
+              >
+                {selIcon}
+              </span>
+              <span className="provider-detail-title">
+                {selectedProvider.displayName}
+              </span>
+              <Toggle
+                checked={isEnabled}
+                disabled={saving}
+                onChange={(v) => toggle(selectedProvider.id, v)}
+              />
             </div>
-            <Select
-              value={settings.providerMetrics[p.id] ?? "automatic"}
-              options={METRIC_OPTIONS}
-              disabled={saving}
-              onChange={(v) => setMetric(p.id, v)}
-            />
-          </li>
-        ))}
-      </ul>
-    </section>
+
+            {/* Info grid */}
+            <dl className="provider-detail-grid">
+              <dt>State</dt>
+              <dd>{isEnabled ? "Enabled" : "Disabled"}</dd>
+              {selectedSnap && (
+                <>
+                  <dt>Source</dt>
+                  <dd>{selectedSnap.sourceLabel || "-"}</dd>
+
+                  <dt>Updated</dt>
+                  <dd>{relativeAgo(selectedSnap.updatedAt)}</dd>
+
+                  {!settings.hidePersonalInfo && selectedSnap.accountEmail && (
+                    <>
+                      <dt>Account</dt>
+                      <dd>{selectedSnap.accountEmail}</dd>
+                    </>
+                  )}
+
+                  {selectedSnap.planName && (
+                    <>
+                      <dt>Plan</dt>
+                      <dd>{selectedSnap.planName}</dd>
+                    </>
+                  )}
+
+                  {!settings.hidePersonalInfo &&
+                    selectedSnap.accountOrganization && (
+                      <>
+                        <dt>Organization</dt>
+                        <dd>{selectedSnap.accountOrganization}</dd>
+                      </>
+                    )}
+
+                  {selectedSnap.error && (
+                    <>
+                      <dt>Error</dt>
+                      <dd className="error">{selectedSnap.error}</dd>
+                    </>
+                  )}
+                </>
+              )}
+            </dl>
+
+            {/* Usage section */}
+            {selectedSnap && isEnabled && (
+              <div className="provider-detail-section">
+                <h4>Usage</h4>
+                <UsageBar
+                  label="Session"
+                  rate={selectedSnap.primary}
+                  color={selColor}
+                />
+                {selectedSnap.secondary && (
+                  <UsageBar
+                    label="Weekly"
+                    rate={selectedSnap.secondary}
+                    color={selColor}
+                  />
+                )}
+                {selectedSnap.tertiary && (
+                  <UsageBar
+                    label="Tertiary"
+                    rate={selectedSnap.tertiary}
+                    color={selColor}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Settings section */}
+            <div className="provider-detail-section">
+              <h4>Settings</h4>
+              <Field label="Metric">
+                <Select
+                  value={
+                    settings.providerMetrics[selectedProvider.id] ?? "automatic"
+                  }
+                  options={METRIC_OPTIONS}
+                  disabled={saving}
+                  onChange={(v) => setMetric(selectedProvider.id, v)}
+                />
+              </Field>
+            </div>
+
+            {/* Credentials section */}
+            {(selectedProvider.cookieDomain !== null || selectedApiKey) && (
+              <div className="provider-detail-section">
+                <h4>Credentials</h4>
+                <div className="provider-detail-actions">
+                  {selectedProvider.cookieDomain !== null && (
+                    <button
+                      className="credential-btn"
+                      onClick={() => onNavigate("cookies")}
+                    >
+                      Configure Cookie
+                    </button>
+                  )}
+                  {selectedApiKey && (
+                    <>
+                      <button
+                        className="credential-btn"
+                        onClick={() => onNavigate("apiKeys")}
+                      >
+                        Configure API Key
+                      </button>
+                      {selectedApiKey.dashboardUrl && (
+                        <a
+                          className="credential-card__link"
+                          href={selectedApiKey.dashboardUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Open dashboard ↗
+                        </a>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
