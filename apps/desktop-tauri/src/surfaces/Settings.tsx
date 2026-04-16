@@ -6,9 +6,11 @@ import type {
   BootstrapState,
   CookieInfoBridge,
   ProviderCatalogEntry,
+  SettingsTabId,
   SettingsUpdate,
 } from "../types/bridge";
 import { useSettings } from "../hooks/useSettings";
+import { useSurfaceTarget } from "../hooks/useSurfaceMode";
 import { useUpdateState } from "../hooks/useUpdateState";
 import {
   getApiKeyProviders,
@@ -19,6 +21,7 @@ import {
   removeManualCookie,
   setApiKey,
   setManualCookie,
+  setSurfaceMode,
 } from "../lib/tauri";
 
 // ── tiny reusable controls ──────────────────────────────────────────
@@ -151,14 +154,7 @@ function Field({
 
 // ── tab types ────────────────────────────────────────────────────────
 
-type SettingsTab =
-  | "general"
-  | "providers"
-  | "display"
-  | "apiKeys"
-  | "cookies"
-  | "advanced"
-  | "about";
+type SettingsTab = SettingsTabId;
 
 const TAB_META: { id: SettingsTab; label: string; icon: string }[] = [
   { id: "general", label: "General", icon: "⚙" },
@@ -176,13 +172,31 @@ function isSettingsTab(value: string): value is SettingsTab {
   return TAB_META.some((t) => t.id === value);
 }
 
-export default function Settings({ state, initialTab }: { state: BootstrapState; initialTab?: string }) {
+export default function Settings({ state }: { state: BootstrapState }) {
   const { settings, saving, error, update } = useSettings(state.settings);
-  const resolvedInitial: SettingsTab =
-    initialTab && isSettingsTab(initialTab) ? initialTab : "general";
-  const [activeTab, setActiveTab] = useState<SettingsTab>(resolvedInitial);
+  const shellTarget = useSurfaceTarget("settings");
+  const initialTab: SettingsTab =
+    shellTarget?.kind === "settings" && isSettingsTab(shellTarget.tab)
+      ? shellTarget.tab
+      : "general";
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+  useEffect(() => {
+    if (shellTarget?.kind !== "settings" || !isSettingsTab(shellTarget.tab)) {
+      return;
+    }
+
+    const nextTab: SettingsTab = shellTarget.tab;
+    setActiveTab((current) =>
+      current === nextTab ? current : nextTab,
+    );
+  }, [shellTarget]);
 
   const set = (patch: SettingsUpdate) => void update(patch);
+  const handleTabClick = useCallback((tab: SettingsTab) => {
+    setActiveTab(tab);
+    void setSurfaceMode("settings", { kind: "settings", tab });
+  }, []);
 
   return (
     <div className="settings">
@@ -194,7 +208,7 @@ export default function Settings({ state, initialTab }: { state: BootstrapState;
             role="tab"
             aria-selected={activeTab === t.id}
             className={`settings-tab ${activeTab === t.id ? "settings-tab--active" : ""}`}
-            onClick={() => setActiveTab(t.id)}
+            onClick={() => handleTabClick(t.id)}
           >
             <span className="settings-tab__icon">{t.icon}</span>
             {t.label}

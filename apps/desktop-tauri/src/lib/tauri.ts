@@ -4,12 +4,17 @@ import type {
   ApiKeyProviderInfoBridge,
   AppInfoBridge,
   BootstrapState,
+  CurrentSurfaceState,
+  ProofCommand,
+  ProofStatePayload,
   CookieInfoBridge,
-  ProofConfig,
   ProviderCatalogEntry,
   ProviderUsageSnapshot,
   SettingsSnapshot,
   SettingsUpdate,
+  SurfaceMode,
+  SurfaceTargetForMode,
+  VisibleSurfaceMode,
   UpdateStatePayload,
 } from "../types/bridge";
 
@@ -31,12 +36,27 @@ export function updateSettings(
   return invoke<SettingsSnapshot>("update_settings", { patch });
 }
 
-export function setSurfaceMode(mode: string): Promise<string> {
-  return invoke<string>("set_surface_mode", { mode });
+export function setSurfaceMode<M extends VisibleSurfaceMode>(
+  mode: M,
+  target: SurfaceTargetForMode<M>,
+): Promise<SurfaceMode> {
+  return invoke<SurfaceMode>("set_surface_mode", { mode, target });
 }
 
-export function getCurrentSurfaceMode(): Promise<string> {
-  return invoke<string>("get_current_surface_mode");
+export function getCurrentSurfaceMode(): Promise<SurfaceMode> {
+  return invoke<SurfaceMode>("get_current_surface_mode");
+}
+
+export function getCurrentSurfaceState(): Promise<CurrentSurfaceState> {
+  return invoke<CurrentSurfaceState>("get_current_surface_state");
+}
+
+export function getProofState(): Promise<ProofStatePayload> {
+  return invoke<ProofStatePayload>("get_proof_state");
+}
+
+export function runProofCommand(command: ProofCommand): Promise<ProofStatePayload> {
+  return invoke<ProofStatePayload>("run_proof_command", { command });
 }
 
 export function refreshProviders(): Promise<void> {
@@ -119,10 +139,4 @@ export function removeManualCookie(
 
 export function getAppInfo(): Promise<AppInfoBridge> {
   return invoke<AppInfoBridge>("get_app_info");
-}
-
-// ── Proof harness bridge ─────────────────────────────────────────────
-
-export function getProofConfig(): Promise<ProofConfig | null> {
-  return invoke<ProofConfig | null>("get_proof_config");
 }

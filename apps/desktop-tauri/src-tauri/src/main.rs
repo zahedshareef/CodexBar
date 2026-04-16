@@ -5,14 +5,24 @@ mod shell;
 mod shortcut_bridge;
 mod state;
 mod surface;
+mod surface_target;
 mod tray_bridge;
+mod tray_menu;
 mod window_positioner;
 
 use std::sync::Mutex;
 
 use state::AppState;
 use surface::SurfaceMode;
+use surface_target::SurfaceTarget;
 use tauri::Manager;
+
+fn should_hide_close_request(mode: SurfaceMode) -> bool {
+    matches!(
+        mode,
+        SurfaceMode::TrayPanel | SurfaceMode::PopOut | SurfaceMode::Settings
+    )
+}
 
 fn main() {
     codexbar::logging::init(false, false).expect("failed to initialize logging");
@@ -28,17 +38,13 @@ fn main() {
         .manage(Mutex::new(initial_state))
         .plugin(shortcut_bridge::plugin())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // Second launch → show/focus the existing surface.
-            let current = {
-                let st = app.state::<Mutex<AppState>>();
-                st.lock().unwrap().surface_machine.current()
-            };
-            if current == SurfaceMode::Hidden {
-                let position = shell::shortcut_panel_position(app);
-                shell::transition_surface(app, SurfaceMode::TrayPanel, position);
-            } else if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_focus();
-            }
+            let position = shell::shortcut_panel_position(app);
+            let _ = shell::reopen_to_target(
+                app,
+                SurfaceMode::TrayPanel,
+                SurfaceTarget::Summary,
+                position,
+            );
         }))
         .invoke_handler(tauri::generate_handler![
             commands::get_bootstrap_state,
@@ -47,6 +53,9 @@ fn main() {
             commands::update_settings,
             commands::set_surface_mode,
             commands::get_current_surface_mode,
+            commands::get_current_surface_state,
+            commands::get_proof_state,
+            commands::run_proof_command,
             commands::refresh_providers,
             commands::get_cached_providers,
             commands::get_update_state,
@@ -63,7 +72,6 @@ fn main() {
             commands::set_manual_cookie,
             commands::remove_manual_cookie,
             commands::get_app_info,
-            commands::get_proof_config,
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
@@ -94,34 +102,38 @@ fn main() {
                     return;
                 }
                 // Blur in TrayPanel mode → auto-hide.
-                let Some(st) = window.try_state::<Mutex<AppState>>() else {
-                    return;
-                };
-                let mut guard = st.lock().unwrap();
-                if guard.surface_machine.current() == SurfaceMode::TrayPanel {
-                    if let Some(t) = guard.surface_machine.transition(SurfaceMode::Hidden) {
-                        let _ = window.hide();
-                        events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
-                    }
-                }
+                let _ = shell::hide_to_tray_if_current(window.app_handle(), |mode| {
+                    mode == SurfaceMode::TrayPanel
+                });
             }
             tauri::WindowEvent::CloseRequested { api, .. } => {
-                // Close in PopOut / Settings → hide instead of quitting.
-                let Some(st) = window.try_state::<Mutex<AppState>>() else {
-                    return;
-                };
-                let mut guard = st.lock().unwrap();
-                let cur = guard.surface_machine.current();
-                if cur == SurfaceMode::PopOut || cur == SurfaceMode::Settings {
+                // Close visible shell surfaces → hide instead of quitting.
+                if matches!(
+                    shell::hide_to_tray_if_current(window.app_handle(), should_hide_close_request),
+                    Ok(Some(_))
+                ) {
                     api.prevent_close();
-                    if let Some(t) = guard.surface_machine.transition(SurfaceMode::Hidden) {
-                        let _ = window.hide();
-                        events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
-                    }
                 }
             }
             _ => {}
         })
         .run(tauri::generate_context!())
         .expect("failed to run CodexBar desktop shell");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn close_request_hides_tray_first_surfaces() {
+        assert!(should_hide_close_request(SurfaceMode::TrayPanel));
+        assert!(should_hide_close_request(SurfaceMode::PopOut));
+        assert!(should_hide_close_request(SurfaceMode::Settings));
+    }
+
+    #[test]
+    fn close_request_leaves_hidden_surface_alone() {
+        assert!(!should_hide_close_request(SurfaceMode::Hidden));
+    }
 }

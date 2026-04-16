@@ -8,9 +8,10 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 use crate::events;
-use crate::proof_harness::ProofConfig;
+use crate::proof_harness::{self, ProofCommand, ProofStatePayload};
 use crate::state::{AppState, UpdateState, UpdateStatePayload};
-use crate::surface::{SurfaceMode, WindowProperties};
+use crate::surface::SurfaceMode;
+use crate::surface_target::SurfaceTarget;
 
 // ── Bridge snapshot types ────────────────────────────────────────────
 
@@ -166,10 +167,17 @@ pub struct BridgeEventDescriptor {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CurrentSurfaceState {
+    pub mode: String,
+    pub target: SurfaceTarget,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ProviderCatalogEntry {
-    id: String,
-    display_name: String,
-    cookie_domain: Option<String>,
+    pub(crate) id: String,
+    pub(crate) display_name: String,
+    pub(crate) cookie_domain: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -194,7 +202,7 @@ pub struct SettingsSnapshot {
 #[tauri::command]
 pub fn get_bootstrap_state() -> BootstrapState {
     BootstrapState {
-        contract_version: "v0",
+        contract_version: "v1",
         surface_modes: surface_modes(),
         commands: bridge_commands(),
         events: bridge_events(),
@@ -297,7 +305,27 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
         },
         BridgeCommandDescriptor {
             id: "update_settings",
-            description: "Planned settings mutation entrypoint backed by the Rust settings facade.",
+            description: "Persist a partial settings update through the shared Rust settings facade.",
+        },
+        BridgeCommandDescriptor {
+            id: "set_surface_mode",
+            description: "Switch the shell to a visible surface using a required typed target.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_current_surface_mode",
+            description: "Read the current coarse shell surface mode.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_current_surface_state",
+            description: "Read the current coarse shell mode together with its typed target.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_proof_state",
+            description: "Dump proof-harness state including surface target, window rect, tray anchor, and work-area evidence.",
+        },
+        BridgeCommandDescriptor {
+            id: "run_proof_command",
+            description: "Drive deterministic proof-harness transitions such as tray, native menu, dashboard, provider, settings, about, and hide.",
         },
         BridgeCommandDescriptor {
             id: "get_update_state",
@@ -323,11 +351,47 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
             id: "open_release_page",
             description: "Open the release page for the available update in the default browser.",
         },
+        BridgeCommandDescriptor {
+            id: "get_api_keys",
+            description: "List stored API keys for configured providers.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_api_key_providers",
+            description: "List providers that support API-key authentication and related help metadata.",
+        },
+        BridgeCommandDescriptor {
+            id: "set_api_key",
+            description: "Store or replace an API key for a provider.",
+        },
+        BridgeCommandDescriptor {
+            id: "remove_api_key",
+            description: "Delete a stored API key for a provider.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_manual_cookies",
+            description: "List manually stored provider cookies.",
+        },
+        BridgeCommandDescriptor {
+            id: "set_manual_cookie",
+            description: "Store or replace a manual provider cookie value.",
+        },
+        BridgeCommandDescriptor {
+            id: "remove_manual_cookie",
+            description: "Delete a stored manual provider cookie.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_app_info",
+            description: "Read app metadata displayed in the shell About surface.",
+        },
     ]
 }
 
 fn bridge_events() -> Vec<BridgeEventDescriptor> {
     vec![
+        BridgeEventDescriptor {
+            id: "surface-mode-changed",
+            description: "Emitted when the shell changes coarse mode or typed target.",
+        },
         BridgeEventDescriptor {
             id: "provider-updated",
             description: "Emitted as provider usage snapshots refresh in the shared backend.",
@@ -347,6 +411,10 @@ fn bridge_events() -> Vec<BridgeEventDescriptor> {
         BridgeEventDescriptor {
             id: "login-phase-changed",
             description: "Emitted when a provider login flow advances between phases.",
+        },
+        BridgeEventDescriptor {
+            id: "proof-state-changed",
+            description: "Emitted when the proof harness updates menu evidence or visible shell state for parity capture.",
         },
     ]
 }
@@ -427,14 +495,10 @@ pub fn update_settings(
     let mut settings = Settings::load();
 
     // If the shortcut is changing, validate and re-register before persisting.
-    if let Some(ref new_shortcut) = patch.global_shortcut {
-        if *new_shortcut != settings.global_shortcut {
-            crate::shortcut_bridge::reregister_shortcut(
-                &app,
-                &settings.global_shortcut,
-                new_shortcut,
-            )?;
-        }
+    if let Some(ref new_shortcut) = patch.global_shortcut
+        && *new_shortcut != settings.global_shortcut
+    {
+        crate::shortcut_bridge::reregister_shortcut(&app, &settings.global_shortcut, new_shortcut)?;
     }
 
     if let Some(providers) = patch.enabled_providers {
@@ -449,10 +513,10 @@ pub fn update_settings(
     if let Some(v) = patch.show_notifications {
         settings.show_notifications = v;
     }
-    if let Some(ref s) = patch.tray_icon_mode {
-        if let Some(mode) = parse_tray_icon_mode(s) {
-            settings.tray_icon_mode = mode;
-        }
+    if let Some(ref s) = patch.tray_icon_mode
+        && let Some(mode) = parse_tray_icon_mode(s)
+    {
+        settings.tray_icon_mode = mode;
     }
     if let Some(v) = patch.show_as_used {
         settings.show_as_used = v;
@@ -472,18 +536,18 @@ pub fn update_settings(
     if let Some(v) = patch.hide_personal_info {
         settings.hide_personal_info = v;
     }
-    if let Some(ref s) = patch.update_channel {
-        if let Some(ch) = parse_update_channel(s) {
-            settings.update_channel = ch;
-        }
+    if let Some(ref s) = patch.update_channel
+        && let Some(ch) = parse_update_channel(s)
+    {
+        settings.update_channel = ch;
     }
     if let Some(v) = patch.global_shortcut {
         settings.global_shortcut = v;
     }
-    if let Some(ref s) = patch.ui_language {
-        if let Some(lang) = parse_language(s) {
-            settings.ui_language = lang;
-        }
+    if let Some(ref s) = patch.ui_language
+        && let Some(lang) = parse_language(s)
+    {
+        settings.ui_language = lang;
     }
 
     settings.save().map_err(|e| e.to_string())?;
@@ -496,22 +560,14 @@ pub fn update_settings(
 #[tauri::command]
 pub fn set_surface_mode(
     mode: String,
+    target: SurfaceTarget,
     window: tauri::WebviewWindow,
-    state: tauri::State<'_, Mutex<AppState>>,
 ) -> Result<String, String> {
-    let target =
-        SurfaceMode::parse(&mode).ok_or_else(|| format!("unknown surface mode: {mode}"))?;
+    let mode = SurfaceMode::parse(&mode).ok_or_else(|| format!("unknown surface mode: {mode}"))?;
+    let target = validate_surface_target(mode, target)?;
 
-    let mut guard = state.lock().map_err(|e| e.to_string())?;
-
-    match guard.surface_machine.transition(target) {
-        Some(t) => {
-            crate::shell::apply_window_properties(&window, &t.properties)?;
-            crate::events::emit_surface_mode_changed(window.app_handle(), t.from, t.to);
-            Ok(t.to.as_str().to_string())
-        }
-        None => Ok(guard.surface_machine.current().as_str().to_string()),
-    }
+    crate::shell::transition_to_target(window.app_handle(), mode, target, None)
+        .map(|mode| mode.as_str().to_string())
 }
 
 #[tauri::command]
@@ -525,16 +581,57 @@ pub fn get_current_surface_mode(state: tauri::State<'_, Mutex<AppState>>) -> Str
         .to_string()
 }
 
-/// Apply the window properties dictated by a surface transition.
-///
-/// Delegates to `shell::apply_window_properties` — kept here as a local alias
-/// for use by the frontend-facing `set_surface_mode` command.
-#[allow(dead_code)]
-fn apply_window_properties(
-    window: &tauri::WebviewWindow,
-    props: &WindowProperties,
-) -> Result<(), String> {
-    crate::shell::apply_window_properties(window, props)
+#[tauri::command]
+pub fn get_current_surface_state(state: tauri::State<'_, Mutex<AppState>>) -> CurrentSurfaceState {
+    let guard = state.lock().unwrap();
+    CurrentSurfaceState {
+        mode: guard.surface_machine.current().as_str().to_string(),
+        target: guard.current_target.clone(),
+    }
+}
+
+#[tauri::command]
+pub fn get_proof_state(app: tauri::AppHandle) -> Result<ProofStatePayload, String> {
+    proof_harness::ensure_proof_mode(&app)?;
+    proof_harness::capture_state(&app)
+}
+
+#[tauri::command]
+pub fn run_proof_command(
+    app: tauri::AppHandle,
+    command: String,
+) -> Result<ProofStatePayload, String> {
+    let command =
+        ProofCommand::parse(&command).ok_or_else(|| format!("unknown proof command: {command}"))?;
+    proof_harness::run_command(&app, command)
+}
+
+fn validate_surface_target(
+    mode: SurfaceMode,
+    target: SurfaceTarget,
+) -> Result<SurfaceTarget, String> {
+    if mode == SurfaceMode::Hidden {
+        return Err("set_surface_mode only supports visible surfaces".into());
+    }
+
+    if target.mode() != mode {
+        return Err(format!(
+            "surface target '{}' is not valid for mode '{}'",
+            target_label(&target),
+            mode.as_str()
+        ));
+    }
+
+    Ok(target)
+}
+
+fn target_label(target: &SurfaceTarget) -> String {
+    match target {
+        SurfaceTarget::Summary => "summary".into(),
+        SurfaceTarget::Dashboard => "dashboard".into(),
+        SurfaceTarget::Provider { provider_id } => format!("provider:{provider_id}"),
+        SurfaceTarget::Settings { tab } => format!("settings:{tab}"),
+    }
 }
 
 // ── Provider refresh commands ────────────────────────────────────────
@@ -1045,9 +1142,72 @@ fn open_url_in_browser(url: &str) -> Result<(), String> {
     Ok(())
 }
 
-// ── Proof harness commands ───────────────────────────────────────────
+#[cfg(test)]
+mod tests {
+    use super::{bridge_commands, bridge_events, validate_surface_target};
+    use crate::surface::SurfaceMode;
+    use crate::surface_target::SurfaceTarget;
 
-#[tauri::command]
-pub fn get_proof_config(state: tauri::State<'_, Mutex<AppState>>) -> Option<ProofConfig> {
-    state.lock().ok().and_then(|g| g.proof_config.clone())
+    #[test]
+    fn validate_surface_target_accepts_matching_target() {
+        let target = validate_surface_target(
+            SurfaceMode::Settings,
+            SurfaceTarget::Settings {
+                tab: "apiKeys".into(),
+            },
+        )
+        .unwrap();
+
+        assert_eq!(
+            target,
+            SurfaceTarget::Settings {
+                tab: "apiKeys".into()
+            }
+        );
+    }
+
+    #[test]
+    fn validate_surface_target_rejects_mismatched_target() {
+        let error = validate_surface_target(
+            SurfaceMode::TrayPanel,
+            SurfaceTarget::Settings {
+                tab: "apiKeys".into(),
+            },
+        )
+        .unwrap_err();
+
+        assert!(error.contains("not valid for mode 'trayPanel'"));
+    }
+
+    #[test]
+    fn validate_surface_target_rejects_hidden_mode() {
+        let error =
+            validate_surface_target(SurfaceMode::Hidden, SurfaceTarget::Summary).unwrap_err();
+
+        assert!(error.contains("only supports visible surfaces"));
+    }
+
+    #[test]
+    fn bootstrap_contract_lists_current_surface_commands() {
+        let ids = bridge_commands()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+
+        assert!(ids.contains(&"set_surface_mode"));
+        assert!(ids.contains(&"get_current_surface_mode"));
+        assert!(ids.contains(&"get_current_surface_state"));
+        assert!(ids.contains(&"get_app_info"));
+        assert!(!ids.contains(&"get_proof_config"));
+    }
+
+    #[test]
+    fn bootstrap_contract_lists_surface_mode_changed_event() {
+        let ids = bridge_events()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+
+        assert!(ids.contains(&"surface-mode-changed"));
+    }
 }

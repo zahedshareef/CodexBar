@@ -19,6 +19,45 @@ pub struct PanelSize {
 
 /// Margin kept between the panel edge and the monitor work-area edge.
 const MARGIN: i32 = 8;
+const GAP: i32 = 8;
+
+fn physical_panel_size(panel_size: &PanelSize, scale_factor: f64) -> (i32, i32) {
+    let scale_factor = if scale_factor.is_finite() && scale_factor > 0.0 {
+        scale_factor
+    } else {
+        1.0
+    };
+
+    let width = ((panel_size.width as f64) * scale_factor).round().max(1.0) as i32;
+    let height = ((panel_size.height as f64) * scale_factor).round().max(1.0) as i32;
+    (width, height)
+}
+
+fn clamp_to_work_area(
+    target_x: i32,
+    target_y: i32,
+    monitor_rect: &Rect,
+    panel_size: &PanelSize,
+    scale_factor: f64,
+) -> (i32, i32) {
+    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
+    let min_x = monitor_rect.x + MARGIN;
+    let min_y = monitor_rect.y + MARGIN;
+    let max_x = (monitor_rect.x + monitor_rect.width as i32 - pw - MARGIN).max(min_x);
+    let max_y = (monitor_rect.y + monitor_rect.height as i32 - ph - MARGIN).max(min_y);
+
+    (target_x.clamp(min_x, max_x), target_y.clamp(min_y, max_y))
+}
+
+pub fn clamp_position_to_work_area(
+    target_x: i32,
+    target_y: i32,
+    monitor_rect: &Rect,
+    panel_size: &PanelSize,
+    scale_factor: f64,
+) -> (i32, i32) {
+    clamp_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
+}
 
 /// Calculate panel position anchored to a tray icon rectangle.
 ///
@@ -30,45 +69,35 @@ pub fn calculate_panel_position(
     icon_rect: &Rect,
     monitor_rect: &Rect,
     panel_size: &PanelSize,
-    _scale_factor: f64,
+    scale_factor: f64,
 ) -> (i32, i32) {
-    let pw = panel_size.width as i32;
-    let ph = panel_size.height as i32;
-    let mx = monitor_rect.x;
+    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
     let my = monitor_rect.y;
-    let mw = monitor_rect.width as i32;
     let mh = monitor_rect.height as i32;
 
-    // Horizontal: center on icon, clamp to work area.
     let icon_cx = icon_rect.x + (icon_rect.width as i32) / 2;
-    let x = (icon_cx - pw / 2)
-        .max(mx + MARGIN)
-        .min(mx + mw - pw - MARGIN);
-
-    // Vertical: above or below the icon depending on taskbar edge.
     let icon_cy = icon_rect.y + (icon_rect.height as i32) / 2;
     let monitor_cy = my + mh / 2;
 
-    let y = if icon_cy > monitor_cy {
+    let target_x = icon_cx - pw / 2;
+    let target_y = if icon_cy > monitor_cy {
         // Bottom taskbar → open above.
-        (icon_rect.y - ph - MARGIN).max(my + MARGIN)
+        icon_rect.y - ph - MARGIN
     } else {
         // Top taskbar → open below.
-        let below = icon_rect.y + icon_rect.height as i32 + MARGIN;
-        below.min(my + mh - ph - MARGIN)
+        icon_rect.y + icon_rect.height as i32 + MARGIN
     };
 
-    (x, y)
+    clamp_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
 }
 
 /// Position for shortcut-triggered opening: 22 % from left, vertically centred.
 pub fn calculate_shortcut_position(
     monitor_rect: &Rect,
     panel_size: &PanelSize,
-    _scale_factor: f64,
+    scale_factor: f64,
 ) -> (i32, i32) {
-    let pw = panel_size.width as i32;
-    let ph = panel_size.height as i32;
+    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
     let mx = monitor_rect.x;
     let my = monitor_rect.y;
     let mw = monitor_rect.width as i32;
@@ -83,11 +112,59 @@ pub fn calculate_shortcut_position(
     (x, y)
 }
 
+/// Calculate detached popout/settings placement.
+///
+/// Placement rules:
+/// - With a known tray anchor, centre horizontally on the tray parity anchor
+///   point (icon centre-x, top-y) and pick above or below based on available
+///   space before clamping inside the work area.
+/// - Without a tray anchor, fall back to the bottom-right corner of the work
+///   area and clamp so the window remains visible.
+pub fn calculate_popout_position(
+    icon_rect: Option<&Rect>,
+    monitor_rect: &Rect,
+    panel_size: &PanelSize,
+    scale_factor: f64,
+) -> (i32, i32) {
+    let (pw, ph) = physical_panel_size(panel_size, scale_factor);
+    let mx = monitor_rect.x;
+    let my = monitor_rect.y;
+    let mw = monitor_rect.width as i32;
+    let mh = monitor_rect.height as i32;
+
+    let (target_x, target_y) = if let Some(icon_rect) = icon_rect {
+        let anchor_x = icon_rect.x + (icon_rect.width as i32) / 2;
+        let anchor_y = icon_rect.y;
+        let x = anchor_x - pw / 2;
+        let space_above = anchor_y - my - MARGIN;
+        let space_below = my + mh - anchor_y - MARGIN;
+        let y = if space_above >= ph + GAP || space_above > space_below {
+            anchor_y - ph - GAP
+        } else {
+            anchor_y + GAP
+        };
+        (x, y)
+    } else {
+        (mx + mw - pw - MARGIN, my + mh - ph - MARGIN)
+    };
+
+    clamp_position_to_work_area(target_x, target_y, monitor_rect, panel_size, scale_factor)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn standard_monitor() -> Rect {
+        Rect {
+            x: 0,
+            y: 0,
+            width: 2400,
+            height: 1080,
+        }
+    }
+
+    fn hd_monitor() -> Rect {
         Rect {
             x: 0,
             y: 0,
@@ -103,6 +180,15 @@ mod tests {
         }
     }
 
+    fn tall_monitor() -> Rect {
+        Rect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1400,
+        }
+    }
+
     // --- tray-anchor tests ---
 
     #[test]
@@ -113,7 +199,7 @@ mod tests {
             width: 24,
             height: 24,
         };
-        let (_, y) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        let (_, y) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 1.0);
         assert!(y < icon.y, "panel should sit above the icon");
     }
 
@@ -125,7 +211,7 @@ mod tests {
             width: 24,
             height: 24,
         };
-        let (_, y) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        let (_, y) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 1.0);
         assert!(
             y >= icon.y + icon.height as i32,
             "panel should sit below the icon"
@@ -140,7 +226,7 @@ mod tests {
             width: 24,
             height: 24,
         };
-        let (x, _) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        let (x, _) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 1.0);
         let icon_cx = icon.x + 12;
         let panel_cx = x + 210;
         assert!(
@@ -158,7 +244,7 @@ mod tests {
             width: 24,
             height: 24,
         };
-        let (x, _) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        let (x, _) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 1.0);
         assert!(x >= MARGIN, "panel must not exceed left margin");
     }
 
@@ -170,7 +256,7 @@ mod tests {
             width: 24,
             height: 24,
         };
-        let (x, _) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        let (x, _) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 1.0);
         assert!(
             x + panel().width as i32 + MARGIN <= 1920,
             "panel must not exceed right margin"
@@ -185,8 +271,26 @@ mod tests {
             width: 24,
             height: 24,
         };
-        let (_, y) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
+        let (_, y) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 1.0);
         assert!(y >= MARGIN, "panel must not exceed top margin");
+    }
+
+    #[test]
+    fn top_taskbar_work_area_clamps_open_below_to_min_y() {
+        let work_area = Rect {
+            x: 0,
+            y: 40,
+            width: 1920,
+            height: 1040,
+        };
+        let icon = Rect {
+            x: 960,
+            y: 4,
+            width: 24,
+            height: 24,
+        };
+        let (_, y) = calculate_panel_position(&icon, &work_area, &panel(), 1.0);
+        assert_eq!(y, work_area.y + MARGIN);
     }
 
     #[test]
@@ -216,25 +320,31 @@ mod tests {
             width: 24,
             height: 24,
         };
-        let (x1, y1) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 1.0);
-        let (x2, y2) = calculate_panel_position(&icon, &standard_monitor(), &panel(), 2.0);
-        // Pure pixel math — scale factor is forwarded but does not alter the
-        // result because inputs are already in physical pixels.
-        assert_eq!((x1, y1), (x2, y2));
+        let (x1, y1) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 1.0);
+        let (x2, y2) = calculate_panel_position(&icon, &hd_monitor(), &panel(), 2.0);
+        assert!(
+            x2 < x1,
+            "higher scale should shift the panel left to fit its physical width"
+        );
+        assert!(
+            y2 < y1,
+            "higher scale should shift the panel upward to fit its physical height"
+        );
     }
 
     // --- shortcut-anchor tests ---
 
     #[test]
     fn shortcut_position_22_pct_from_left() {
-        let (x, _) = calculate_shortcut_position(&standard_monitor(), &panel(), 1.0);
+        let monitor = hd_monitor();
+        let (x, _) = calculate_shortcut_position(&monitor, &panel(), 1.0);
         let expected_x = (1920.0 * 0.22) as i32;
         assert_eq!(x, expected_x);
     }
 
     #[test]
     fn shortcut_position_vertically_centred() {
-        let (_, y) = calculate_shortcut_position(&standard_monitor(), &panel(), 1.0);
+        let (_, y) = calculate_shortcut_position(&hd_monitor(), &panel(), 1.0);
         let expected_y = (1080 - 560) / 2;
         assert_eq!(y, expected_y);
     }
@@ -252,5 +362,103 @@ mod tests {
         assert!(x + panel().width as i32 + MARGIN <= monitor.width as i32);
         assert!(y >= MARGIN);
         assert!(y + panel().height as i32 + MARGIN <= monitor.height as i32);
+    }
+
+    // --- visible-surface popout tests ---
+
+    #[test]
+    fn popout_falls_back_to_bottom_right_when_no_tray_anchor() {
+        let work_area = Rect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let target = calculate_popout_position(None, &work_area, &panel(), 1.0);
+        assert_eq!(target, (1492, 512));
+    }
+
+    #[test]
+    fn popout_clamps_inside_monitor_bounds() {
+        let icon = Rect {
+            x: 1910,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (x, y) = calculate_popout_position(Some(&icon), &standard_monitor(), &panel(), 1.0);
+        assert!(x >= 8);
+        assert!(y >= 8);
+    }
+
+    #[test]
+    fn tray_anchored_popout_centres_on_known_anchor() {
+        let icon = Rect {
+            x: 1800,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (x, _) = calculate_popout_position(Some(&icon), &standard_monitor(), &panel(), 1.0);
+        let icon_cx = icon.x + 12;
+        let panel_cx = x + 210;
+        assert!((icon_cx - panel_cx).abs() <= 1);
+    }
+
+    #[test]
+    fn popout_prefers_above_tray_when_space_below_is_tight() {
+        let icon = Rect {
+            x: 1600,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (_, y) = calculate_popout_position(Some(&icon), &standard_monitor(), &panel(), 1.0);
+        assert!(y < icon.y);
+    }
+
+    #[test]
+    fn popout_prefers_below_tray_when_space_above_is_tight() {
+        let icon = Rect {
+            x: 1600,
+            y: 8,
+            width: 24,
+            height: 24,
+        };
+        let (_, y) = calculate_popout_position(Some(&icon), &tall_monitor(), &panel(), 1.0);
+        assert!(y > icon.y);
+    }
+
+    #[test]
+    fn top_taskbar_popout_uses_tray_top_anchor_point() {
+        let icon = Rect {
+            x: 1600,
+            y: 8,
+            width: 24,
+            height: 24,
+        };
+        let (_, y) = calculate_popout_position(Some(&icon), &tall_monitor(), &panel(), 1.0);
+        assert_eq!(y, icon.y + GAP);
+    }
+
+    #[test]
+    fn popout_high_dpi_uses_physical_panel_size() {
+        let icon = Rect {
+            x: 1800,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+        let (x1, y1) = calculate_popout_position(Some(&icon), &standard_monitor(), &panel(), 1.0);
+        let (x2, y2) = calculate_popout_position(Some(&icon), &standard_monitor(), &panel(), 2.0);
+
+        assert!(
+            x2 < x1,
+            "higher scale should account for wider physical popout bounds"
+        );
+        assert!(
+            y2 < y1,
+            "higher scale should account for taller physical popout bounds"
+        );
     }
 }

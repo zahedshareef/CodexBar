@@ -1,5 +1,8 @@
-import { useCallback, useMemo, useState } from "react";
-import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type {
+  BootstrapState,
+  ProviderUsageSnapshot,
+} from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
@@ -19,12 +22,28 @@ function sortProviders(
   });
 }
 
-export default function PopOutPanel({ state }: { state: BootstrapState }) {
+export default function PopOutPanel({
+  state,
+  providerId,
+}: {
+  state: BootstrapState;
+  providerId?: string;
+}) {
   const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    providerId ?? null,
+  );
+
+  useEffect(() => {
+    // Keep selectedId in sync with the shell target passed down from App routing.
+    setSelectedId((current) => {
+      const next = providerId ?? null;
+      return current === next ? current : next;
+    });
+  }, [providerId]);
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
 
@@ -39,15 +58,27 @@ export default function PopOutPanel({ state }: { state: BootstrapState }) {
   );
 
   const openSettings = useCallback(() => {
-    setSurfaceMode("settings");
+    setSurfaceMode("settings", { kind: "settings", tab: "general" });
   }, []);
 
   const goTray = useCallback(() => {
-    setSurfaceMode("trayPanel");
+    setSurfaceMode("trayPanel", { kind: "summary" });
   }, []);
 
   const toggleSelect = useCallback((id: string) => {
-    setSelectedId((prev) => (prev === id ? null : id));
+    const nextSelectedId = selectedId === id ? null : id;
+    setSelectedId(nextSelectedId);
+    void setSurfaceMode(
+      "popOut",
+      nextSelectedId === null
+        ? { kind: "dashboard" }
+        : { kind: "provider", providerId: id },
+    );
+  }, [selectedId]);
+
+  const handleBack = useCallback(() => {
+    setSelectedId(null);
+    void setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
 
   // Loading
@@ -136,7 +167,7 @@ export default function PopOutPanel({ state }: { state: BootstrapState }) {
               provider={selected}
               hideEmail={settings.hidePersonalInfo}
               resetRelative={settings.resetTimeRelative}
-              onBack={() => setSelectedId(null)}
+              onBack={handleBack}
             />
           </div>
         )}

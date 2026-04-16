@@ -1,4 +1,87 @@
 export type SurfaceMode = "hidden" | "trayPanel" | "popOut" | "settings";
+export type VisibleSurfaceMode = Exclude<SurfaceMode, "hidden">;
+export type SettingsTabId =
+  | "general"
+  | "providers"
+  | "display"
+  | "apiKeys"
+  | "cookies"
+  | "advanced"
+  | "about";
+export type ProofProviderId =
+  | "codex"
+  | "claude"
+  | "cursor"
+  | "factory"
+  | "gemini"
+  | "antigravity"
+  | "copilot"
+  | "zai"
+  | "minimax"
+  | "kiro"
+  | "vertexai"
+  | "augment"
+  | "opencode"
+  | "kimi"
+  | "kimik2"
+  | "amp"
+  | "warp"
+  | "ollama"
+  | "openrouter"
+  | "synthetic"
+  | "jetbrains"
+  | "alibaba"
+  | "nanogpt"
+  | "infini";
+
+export type TrayPanelSurfaceTarget = { kind: "summary" };
+export type PopOutSurfaceTarget =
+  | { kind: "dashboard" }
+  | { kind: "provider"; providerId: string };
+export type SettingsSurfaceTarget = { kind: "settings"; tab: SettingsTabId };
+
+export type SurfaceTarget =
+  | TrayPanelSurfaceTarget
+  | PopOutSurfaceTarget
+  | SettingsSurfaceTarget;
+
+export type SurfaceTargetForMode<M extends VisibleSurfaceMode> =
+  M extends "trayPanel"
+    ? TrayPanelSurfaceTarget
+    : M extends "popOut"
+      ? PopOutSurfaceTarget
+      : SettingsSurfaceTarget;
+
+export interface CurrentSurfaceState {
+  mode: SurfaceMode;
+  target: SurfaceTarget;
+}
+
+export interface ProofRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ProofStatePayload {
+  mode: SurfaceMode;
+  target: SurfaceTarget;
+  windowRect: ProofRect | null;
+  trayAnchor: ProofRect | null;
+  workArea: ProofRect | null;
+  menuPath: string | null;
+  menuItems: string[];
+}
+
+export type ProofCommand =
+  | "open-tray-panel"
+  | "open-native-menu"
+  | "open-dashboard"
+  | "open-about-path"
+  | "hide-surface"
+  | `open-provider:${ProofProviderId}`
+  | `open-settings:${SettingsTabId}`;
 
 export interface SurfaceModeDescriptor {
   id: string;
@@ -158,11 +241,4 @@ export interface AppInfoBridge {
   buildNumber: string;
   updateChannel: string;
   tagline: string;
-}
-
-// ── Proof harness types ──────────────────────────────────────────────
-
-export interface ProofConfig {
-  targetSurface: SurfaceMode;
-  settingsTab: string | null;
 }

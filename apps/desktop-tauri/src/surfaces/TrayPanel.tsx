@@ -17,7 +17,11 @@ function sortProviders(list: ProviderUsageSnapshot[]): ProviderUsageSnapshot[] {
   });
 }
 
-export default function TrayPanel({ state }: { state: BootstrapState }) {
+export default function TrayPanel({
+  state,
+}: {
+  state: BootstrapState;
+}) {
   const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
@@ -37,11 +41,11 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   );
 
   const openSettings = useCallback(() => {
-    setSurfaceMode("settings");
+    setSurfaceMode("settings", { kind: "settings", tab: "general" });
   }, []);
 
   const openPopOut = useCallback(() => {
-    setSurfaceMode("popOut");
+    setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
 
   const handleBack = useCallback(() => {

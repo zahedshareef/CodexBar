@@ -8,6 +8,8 @@ use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 use crate::shell;
+use crate::surface::SurfaceMode;
+use crate::surface_target::SurfaceTarget;
 
 /// Parse a settings shortcut string (e.g. `"Ctrl+Shift+U"`) into a Tauri `Shortcut`.
 ///
@@ -100,7 +102,12 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
         .with_handler(|app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
                 let position = shell::shortcut_panel_position(app);
-                shell::toggle_tray_panel(app, position);
+                let _ = shell::reopen_to_target(
+                    app,
+                    SurfaceMode::TrayPanel,
+                    SurfaceTarget::Summary,
+                    position,
+                );
             }
         })
         .build()

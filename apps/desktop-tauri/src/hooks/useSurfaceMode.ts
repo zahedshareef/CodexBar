@@ -1,12 +1,8 @@
-import { useEffect, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
-import type { SurfaceMode } from "../types/bridge";
-import { getCurrentSurfaceMode } from "../lib/tauri";
+import type { SurfaceMode, SurfaceTarget } from "../types/bridge";
+import { useSurfaceSnapshot } from "./useSurfaceSnapshot";
 
-interface SurfaceModePayload {
-  mode: SurfaceMode;
-  previous: SurfaceMode;
-}
+export type { SurfaceSnapshot } from "./useSurfaceSnapshot";
+export { useSurfaceSnapshot } from "./useSurfaceSnapshot";
 
 /**
  * Subscribe to the current surface mode.
@@ -15,27 +11,21 @@ interface SurfaceModePayload {
  * the `surface-mode-changed` Tauri event.
  */
 export function useSurfaceMode(): SurfaceMode {
-  const [mode, setMode] = useState<SurfaceMode>("hidden");
+  return useSurfaceSnapshot().mode;
+}
 
-  useEffect(() => {
-    let cancelled = false;
+/**
+ * Subscribe to the current surface target for a given coarse mode.
+ *
+ * Returns null when the current mode does not match the requested mode so that
+ * already-mounted surfaces can ignore retargets aimed at other surfaces.
+ */
+export function useSurfaceTarget(mode?: SurfaceMode): SurfaceTarget | null {
+  const snapshot = useSurfaceSnapshot();
 
-    getCurrentSurfaceMode().then((m) => {
-      if (!cancelled) setMode(m as SurfaceMode);
-    });
+  if (mode !== undefined && snapshot.mode !== mode) {
+    return null;
+  }
 
-    const unlisten = listen<SurfaceModePayload>(
-      "surface-mode-changed",
-      (event) => {
-        setMode(event.payload.mode);
-      },
-    );
-
-    return () => {
-      cancelled = true;
-      unlisten.then((fn) => fn());
-    };
-  }, []);
-
-  return mode;
+  return snapshot.target;
 }
