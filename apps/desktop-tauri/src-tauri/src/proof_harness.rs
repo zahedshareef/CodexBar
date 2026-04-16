@@ -1,11 +1,14 @@
 //! Proof/debug harness for the Tauri desktop shell.
 //!
-//! Activated by the `CODEXBAR_PROOF_MODE` environment variable. The value
-//! specifies a surface to display on startup, e.g.:
+//! Activated by the `CODEXBAR_PROOF_MODE` environment variable.  The value
+//! specifies a target surface and optional settings tab to display on
+//! startup, e.g.:
 //!
-//!   - `trayPanel` — show the tray panel
-//!   - `popOut`    — show the pop-out dashboard
-//!   - `settings`  — show settings
+//!   - `trayPanel`          — show the tray panel
+//!   - `popOut`             — show the pop-out dashboard
+//!   - `settings`           — show settings (General tab)
+//!   - `settings:apiKeys`   — show settings on the API Keys tab
+//!   - `settings:cookies`   — show settings on the Cookies tab
 //!
 //! In proof mode the shell immediately transitions to the requested surface
 //! and suppresses blur-dismiss so the window stays visible for automated
@@ -19,12 +22,15 @@ use tauri::{AppHandle, Manager};
 use crate::shell;
 use crate::state::AppState;
 use crate::surface::SurfaceMode;
+use crate::surface_target::SurfaceTarget;
 /// Proof configuration parsed from `CODEXBAR_PROOF_MODE`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProofConfig {
     /// The surface to show on startup (serialized as the camelCase id).
     pub target_surface: String,
+    /// Optional settings tab id (e.g. `"apiKeys"`, `"cookies"`).
+    pub settings_tab: Option<String>,
 }
 
 impl ProofConfig {
@@ -38,13 +44,26 @@ impl ProofConfig {
             return None;
         }
 
-        if SurfaceMode::parse(raw).is_none() {
-            tracing::warn!("CODEXBAR_PROOF_MODE: unknown surface '{raw}', ignoring");
+        let (surface_str, tab) = if let Some((s, t)) = raw.split_once(':') {
+            (s, Some(t.to_string()))
+        } else {
+            (raw, None)
+        };
+
+        if SurfaceMode::parse(surface_str).is_none() {
+            tracing::warn!("CODEXBAR_PROOF_MODE: unknown surface '{surface_str}', ignoring");
             return None;
         }
 
+        let settings_tab = if surface_str == SurfaceMode::Settings.as_str() {
+            tab.filter(|tab| is_settings_tab(tab))
+        } else {
+            None
+        };
+
         Some(ProofConfig {
-            target_surface: raw.to_string(),
+            target_surface: surface_str.to_string(),
+            settings_tab,
         })
     }
 
@@ -64,15 +83,25 @@ pub fn activate(app: &AppHandle) {
     };
 
     let Some(config) = config else { return };
-    let mode = config.surface_mode();
+    let target = config.surface_mode();
+    let surface_target = match target {
+        SurfaceMode::Settings => Some(SurfaceTarget::Settings {
+            tab: config
+                .settings_tab
+                .clone()
+                .unwrap_or_else(|| "general".into()),
+        }),
+        _ => None,
+    };
 
     tracing::info!(
-        "proof-harness: activating surface={}",
-        config.target_surface
+        "proof-harness: activating surface={} tab={:?}",
+        config.target_surface,
+        config.settings_tab,
     );
 
     let position = proof_window_position(app);
-    shell::transition_surface(app, mode, None, position);
+    shell::transition_surface(app, target, surface_target, position);
 }
 
 /// Calculate a predictable, centered-ish window position for proof captures.
@@ -92,6 +121,13 @@ pub fn is_proof_mode(app: &AppHandle) -> bool {
     app.try_state::<Mutex<AppState>>()
         .map(|st| st.lock().unwrap().proof_config.is_some())
         .unwrap_or(false)
+}
+
+fn is_settings_tab(tab: &str) -> bool {
+    matches!(
+        tab,
+        "general" | "providers" | "display" | "apiKeys" | "cookies" | "advanced" | "about"
+    )
 }
 
 #[cfg(test)]
@@ -123,14 +159,37 @@ mod tests {
         with_proof_mode_env(Some("trayPanel"), || {
             let cfg = ProofConfig::from_env().unwrap();
             assert_eq!(cfg.target_surface, "trayPanel");
+            assert!(cfg.settings_tab.is_none());
             assert_eq!(cfg.surface_mode(), SurfaceMode::TrayPanel);
         });
     }
 
     #[test]
-    fn parse_settings_surface() {
+    fn parse_settings_with_tab() {
+        with_proof_mode_env(Some("settings:apiKeys"), || {
+            let cfg = ProofConfig::from_env().unwrap();
+            assert_eq!(cfg.target_surface, "settings");
+            assert_eq!(cfg.settings_tab.as_deref(), Some("apiKeys"));
+            assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
+        });
+    }
+
+    #[test]
+    fn parse_settings_without_tab() {
         with_proof_mode_env(Some("settings"), || {
             let cfg = ProofConfig::from_env().unwrap();
+            assert_eq!(cfg.target_surface, "settings");
+            assert!(cfg.settings_tab.is_none());
+            assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
+        });
+    }
+
+    #[test]
+    fn invalid_settings_tab_falls_back_to_general() {
+        with_proof_mode_env(Some("settings:bogus"), || {
+            let cfg = ProofConfig::from_env().unwrap();
+            assert_eq!(cfg.target_surface, "settings");
+            assert!(cfg.settings_tab.is_none());
             assert_eq!(cfg.surface_mode(), SurfaceMode::Settings);
         });
     }
