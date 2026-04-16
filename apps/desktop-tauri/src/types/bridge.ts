@@ -24,6 +24,32 @@ export interface CurrentSurfaceState {
   target: SurfaceTarget;
 }
 
+export interface ProofRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ProofStatePayload {
+  mode: SurfaceMode;
+  target: SurfaceTarget;
+  windowRect: ProofRect | null;
+  trayAnchor: ProofRect | null;
+  workArea: ProofRect | null;
+  menuPath: string | null;
+  menuItems: string[];
+}
+
+export type ProofCommand =
+  | "open-tray-panel"
+  | "open-native-menu"
+  | "open-dashboard"
+  | "open-about-path"
+  | "hide-surface"
+  | `open-provider:${string}`
+  | `open-settings:${string}`;
+
 export interface SurfaceModeDescriptor {
   id: string;
   label: string;

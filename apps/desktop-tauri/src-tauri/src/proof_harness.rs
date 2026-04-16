@@ -6,23 +6,57 @@
 //!
 //!   - `trayPanel`          — show the tray panel
 //!   - `popOut`             — show the pop-out dashboard
+//!   - `popOut:provider:codex` — show a provider pop-out
 //!   - `settings`           — show settings (General tab)
 //!   - `settings:apiKeys`   — show settings on the API Keys tab
 //!   - `settings:cookies`   — show settings on the Cookies tab
+//!   - `settings:about`     — show settings on the About tab
 //!
 //! In proof mode the shell immediately transitions to the requested surface
 //! and suppresses blur-dismiss so the window stays visible for automated
 //! screenshot capture.
 
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, WebviewWindow};
 
+use crate::commands::get_provider_catalog;
+use crate::events;
 use crate::shell;
 use crate::state::AppState;
 use crate::surface::SurfaceMode;
 use crate::surface_target::SurfaceTarget;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProofRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProofStatePayload {
+    pub mode: String,
+    pub target: SurfaceTarget,
+    pub window_rect: Option<ProofRect>,
+    pub tray_anchor: Option<ProofRect>,
+    pub work_area: Option<ProofRect>,
+    pub menu_path: Option<String>,
+    pub menu_items: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ProofMenuSnapshot {
+    menu_path: Option<String>,
+    menu_items: Vec<String>,
+}
+
+static PROOF_MENU_SNAPSHOT: LazyLock<Mutex<ProofMenuSnapshot>> =
+    LazyLock::new(|| Mutex::new(ProofMenuSnapshot::default()));
 /// Proof configuration parsed from `CODEXBAR_PROOF_MODE`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,6 +65,9 @@ pub struct ProofConfig {
     pub target_surface: String,
     /// Optional settings tab id (e.g. `"apiKeys"`, `"cookies"`).
     pub settings_tab: Option<String>,
+    /// Optional target payload for richer proof routing, such as
+    /// `"provider:codex"` for pop-out provider views.
+    pub target_payload: Option<String>,
 }
 
 impl ProofConfig {
@@ -44,7 +81,7 @@ impl ProofConfig {
             return None;
         }
 
-        let (surface_str, tab) = if let Some((s, t)) = raw.split_once(':') {
+        let (surface_str, payload) = if let Some((s, t)) = raw.split_once(':') {
             (s, Some(t.to_string()))
         } else {
             (raw, None)
@@ -57,7 +94,10 @@ impl ProofConfig {
 
         Some(ProofConfig {
             target_surface: surface_str.to_string(),
-            settings_tab: tab,
+            settings_tab: (surface_str == SurfaceMode::Settings.as_str())
+                .then_some(payload.clone())
+                .flatten(),
+            target_payload: payload,
         })
     }
 
@@ -69,7 +109,12 @@ impl ProofConfig {
     pub fn surface_target(&self) -> SurfaceTarget {
         match self.surface_mode() {
             SurfaceMode::Hidden | SurfaceMode::TrayPanel => SurfaceTarget::Summary,
-            SurfaceMode::PopOut => SurfaceTarget::Dashboard,
+            SurfaceMode::PopOut => self
+                .target_payload
+                .as_deref()
+                .and_then(SurfaceTarget::parse)
+                .filter(|target| target.mode() == SurfaceMode::PopOut)
+                .unwrap_or(SurfaceTarget::Dashboard),
             SurfaceMode::Settings => SurfaceTarget::Settings {
                 tab: self
                     .settings_tab
@@ -80,10 +125,53 @@ impl ProofConfig {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProofCommand {
+    OpenTrayPanel,
+    OpenNativeMenu,
+    OpenDashboard,
+    OpenProvider { provider_id: String },
+    OpenSettings { tab: String },
+    OpenAboutPath,
+    HideSurface,
+}
+
+impl ProofCommand {
+    pub fn parse(raw: &str) -> Option<Self> {
+        match raw {
+            "open-tray-panel" => Some(Self::OpenTrayPanel),
+            "open-native-menu" => Some(Self::OpenNativeMenu),
+            "open-dashboard" => Some(Self::OpenDashboard),
+            "open-about-path" => Some(Self::OpenAboutPath),
+            "hide-surface" => Some(Self::HideSurface),
+            _ => {
+                if let Some(provider_id) = raw.strip_prefix("open-provider:")
+                    && !provider_id.is_empty()
+                {
+                    return Some(Self::OpenProvider {
+                        provider_id: provider_id.to_string(),
+                    });
+                }
+
+                if let Some(tab) = raw.strip_prefix("open-settings:")
+                    && !tab.is_empty()
+                {
+                    return Some(Self::OpenSettings {
+                        tab: tab.to_string(),
+                    });
+                }
+
+                None
+            }
+        }
+    }
+}
+
 /// Immediately transition to the proof-mode target surface.
 ///
 /// Called from the Tauri `setup` closure when proof mode is active.
 pub fn activate(app: &AppHandle) {
+    clear_menu_snapshot();
     let config = {
         let st = app.state::<Mutex<AppState>>();
         st.lock().unwrap().proof_config.clone()
@@ -99,6 +187,7 @@ pub fn activate(app: &AppHandle) {
 
     let position = proof_window_position(app);
     let _ = shell::transition_to_target(app, target, config.surface_target(), position);
+    emit_state_changed(app);
 }
 
 /// Calculate a predictable, centered-ish window position for proof captures.
@@ -120,10 +209,207 @@ pub fn is_proof_mode(app: &AppHandle) -> bool {
         .unwrap_or(false)
 }
 
+pub fn capture_state(app: &AppHandle) -> Result<ProofStatePayload, String> {
+    let (mode, target, tray_anchor) = {
+        let st = app
+            .try_state::<Mutex<AppState>>()
+            .ok_or_else(|| "app state unavailable".to_string())?;
+        let guard = st.lock().unwrap();
+        (
+            guard.surface_machine.current().as_str().to_string(),
+            guard.current_target.clone(),
+            guard.tray_anchor.map(|anchor| ProofRect {
+                x: anchor.x,
+                y: anchor.y,
+                width: anchor.width,
+                height: anchor.height,
+            }),
+        )
+    };
+
+    let menu_snapshot = PROOF_MENU_SNAPSHOT.lock().unwrap().clone();
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window unavailable".to_string())?;
+
+    Ok(ProofStatePayload {
+        mode,
+        target,
+        window_rect: window_rect(&window),
+        tray_anchor: tray_anchor.clone(),
+        work_area: resolve_work_area(&window, tray_anchor.as_ref()),
+        menu_path: menu_snapshot.menu_path,
+        menu_items: menu_snapshot.menu_items,
+    })
+}
+
+pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStatePayload, String> {
+    ensure_proof_mode(app)?;
+    clear_menu_snapshot();
+
+    match command {
+        ProofCommand::OpenTrayPanel => {
+            let position =
+                shell::tray_panel_position(app).or_else(|| shell::shortcut_panel_position(app));
+            shell::reopen_to_target(
+                app,
+                SurfaceMode::TrayPanel,
+                SurfaceTarget::Summary,
+                position,
+            )?;
+        }
+        ProofCommand::OpenNativeMenu => {
+            set_menu_snapshot(Some("tray".into()), native_menu_items());
+        }
+        ProofCommand::OpenDashboard => {
+            shell::transition_to_target(app, SurfaceMode::PopOut, SurfaceTarget::Dashboard, None)?;
+        }
+        ProofCommand::OpenProvider { provider_id } => {
+            shell::transition_to_target(
+                app,
+                SurfaceMode::PopOut,
+                SurfaceTarget::Provider { provider_id },
+                None,
+            )?;
+        }
+        ProofCommand::OpenSettings { tab } => {
+            shell::transition_to_target(
+                app,
+                SurfaceMode::Settings,
+                SurfaceTarget::Settings { tab },
+                None,
+            )?;
+        }
+        ProofCommand::OpenAboutPath => {
+            set_menu_snapshot(Some("tray/about".into()), native_menu_items());
+            shell::transition_to_target(
+                app,
+                SurfaceMode::Settings,
+                SurfaceTarget::Settings {
+                    tab: "about".into(),
+                },
+                None,
+            )?;
+        }
+        ProofCommand::HideSurface => {
+            shell::hide_to_tray(app)?;
+        }
+    }
+
+    let payload = capture_state(app)?;
+    events::emit_proof_state_changed(app, &payload);
+    Ok(payload)
+}
+
+pub fn ensure_proof_mode(app: &AppHandle) -> Result<(), String> {
+    if is_proof_mode(app) {
+        Ok(())
+    } else {
+        Err("proof harness is disabled".into())
+    }
+}
+
+pub fn emit_state_changed(app: &AppHandle) {
+    if let Ok(payload) = capture_state(app) {
+        events::emit_proof_state_changed(app, &payload);
+    }
+}
+
+fn clear_menu_snapshot() {
+    set_menu_snapshot(None, Vec::new());
+}
+
+fn set_menu_snapshot(menu_path: Option<String>, menu_items: Vec<String>) {
+    let mut snapshot = PROOF_MENU_SNAPSHOT.lock().unwrap();
+    snapshot.menu_path = menu_path;
+    snapshot.menu_items = menu_items;
+}
+
+fn native_menu_items() -> Vec<String> {
+    let providers = get_provider_catalog();
+    let mut items = vec![
+        "Show Panel".to_string(),
+        "Pop Out Dashboard".to_string(),
+        "Settings".to_string(),
+        "About".to_string(),
+    ];
+
+    if !providers.is_empty() {
+        items.extend(
+            providers
+                .into_iter()
+                .map(|provider| format!("Providers/Open {}", provider.display_name)),
+        );
+    }
+
+    items.extend(["Refresh All".into(), "Quit CodexBar".into()]);
+    items
+}
+
+fn window_rect(window: &WebviewWindow) -> Option<ProofRect> {
+    if !window.is_visible().ok()? {
+        return None;
+    }
+
+    let position = window.outer_position().ok()?;
+    let size = window.outer_size().ok()?;
+    Some(ProofRect {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+    })
+}
+
+fn resolve_work_area(window: &WebviewWindow, tray_anchor: Option<&ProofRect>) -> Option<ProofRect> {
+    let monitors = window.available_monitors().ok()?;
+    if let Some(anchor) = tray_anchor
+        && let Some(monitor) = monitor_containing_rect(&monitors, anchor)
+    {
+        return Some(monitor_work_area_rect(monitor));
+    }
+
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        return Some(monitor_work_area_rect(&monitor));
+    }
+
+    window
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| monitor_work_area_rect(&monitor))
+}
+
+fn monitor_containing_rect<'a>(
+    monitors: &'a [tauri::Monitor],
+    rect: &ProofRect,
+) -> Option<&'a tauri::Monitor> {
+    let center_x = rect.x + rect.width as i32 / 2;
+    let center_y = rect.y + rect.height as i32 / 2;
+
+    monitors.iter().find(|monitor| {
+        let position = monitor.position();
+        let size = monitor.size();
+        center_x >= position.x
+            && center_x < position.x + size.width as i32
+            && center_y >= position.y
+            && center_y < position.y + size.height as i32
+    })
+}
+
+fn monitor_work_area_rect(monitor: &tauri::Monitor) -> ProofRect {
+    let work_area = monitor.work_area();
+    ProofRect {
+        x: work_area.position.x,
+        y: work_area.position.y,
+        width: work_area.size.width,
+        height: work_area.size.height,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{LazyLock, Mutex};
 
     static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
@@ -168,6 +454,42 @@ mod tests {
                 }
             );
         });
+    }
+
+    #[test]
+    fn parse_settings_about_proof_target() {
+        with_proof_mode_env(Some("settings:about"), || {
+            let cfg = ProofConfig::from_env().unwrap();
+            assert_eq!(cfg.target_surface, "settings");
+            assert_eq!(cfg.settings_tab.as_deref(), Some("about"));
+        });
+    }
+
+    #[test]
+    fn parse_provider_popout_proof_target() {
+        with_proof_mode_env(Some("popOut:provider:codex"), || {
+            let cfg = ProofConfig::from_env().unwrap();
+            assert_eq!(cfg.target_surface, "popOut");
+            assert_eq!(cfg.target_payload.as_deref(), Some("provider:codex"));
+            assert_eq!(
+                cfg.surface_target(),
+                SurfaceTarget::Provider {
+                    provider_id: "codex".into()
+                }
+            );
+        });
+    }
+
+    #[test]
+    fn parse_proof_command_for_native_menu() {
+        let command = ProofCommand::parse("open-native-menu").unwrap();
+        assert_eq!(command, ProofCommand::OpenNativeMenu);
+    }
+
+    #[test]
+    fn parse_proof_command_for_about_entry_path() {
+        let command = ProofCommand::parse("open-about-path").unwrap();
+        assert_eq!(command, ProofCommand::OpenAboutPath);
     }
 
     #[test]

@@ -5,6 +5,8 @@ import type {
   AppInfoBridge,
   BootstrapState,
   CurrentSurfaceState,
+  ProofCommand,
+  ProofStatePayload,
   CookieInfoBridge,
   ProviderCatalogEntry,
   ProviderUsageSnapshot,
@@ -47,6 +49,14 @@ export function getCurrentSurfaceMode(): Promise<SurfaceMode> {
 
 export function getCurrentSurfaceState(): Promise<CurrentSurfaceState> {
   return invoke<CurrentSurfaceState>("get_current_surface_state");
+}
+
+export function getProofState(): Promise<ProofStatePayload> {
+  return invoke<ProofStatePayload>("get_proof_state");
+}
+
+export function runProofCommand(command: ProofCommand): Promise<ProofStatePayload> {
+  return invoke<ProofStatePayload>("run_proof_command", { command });
 }
 
 export function refreshProviders(): Promise<void> {

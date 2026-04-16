@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
 use crate::events;
+use crate::proof_harness::{self, ProofCommand, ProofStatePayload};
 use crate::state::{AppState, UpdateState, UpdateStatePayload};
 use crate::surface::SurfaceMode;
 use crate::surface_target::SurfaceTarget;
@@ -319,6 +320,14 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
             description: "Read the current coarse shell mode together with its typed target.",
         },
         BridgeCommandDescriptor {
+            id: "get_proof_state",
+            description: "Dump proof-harness state including surface target, window rect, tray anchor, and work-area evidence.",
+        },
+        BridgeCommandDescriptor {
+            id: "run_proof_command",
+            description: "Drive deterministic proof-harness transitions such as tray, native menu, dashboard, provider, settings, about, and hide.",
+        },
+        BridgeCommandDescriptor {
             id: "get_update_state",
             description: "Get the current app-update lifecycle state.",
         },
@@ -402,6 +411,10 @@ fn bridge_events() -> Vec<BridgeEventDescriptor> {
         BridgeEventDescriptor {
             id: "login-phase-changed",
             description: "Emitted when a provider login flow advances between phases.",
+        },
+        BridgeEventDescriptor {
+            id: "proof-state-changed",
+            description: "Emitted when the proof harness updates menu evidence or visible shell state for parity capture.",
         },
     ]
 }
@@ -575,6 +588,22 @@ pub fn get_current_surface_state(state: tauri::State<'_, Mutex<AppState>>) -> Cu
         mode: guard.surface_machine.current().as_str().to_string(),
         target: guard.current_target.clone(),
     }
+}
+
+#[tauri::command]
+pub fn get_proof_state(app: tauri::AppHandle) -> Result<ProofStatePayload, String> {
+    proof_harness::ensure_proof_mode(&app)?;
+    proof_harness::capture_state(&app)
+}
+
+#[tauri::command]
+pub fn run_proof_command(
+    app: tauri::AppHandle,
+    command: String,
+) -> Result<ProofStatePayload, String> {
+    let command =
+        ProofCommand::parse(&command).ok_or_else(|| format!("unknown proof command: {command}"))?;
+    proof_harness::run_command(&app, command)
 }
 
 fn validate_surface_target(

@@ -50,6 +50,8 @@ fn main() {
             commands::set_surface_mode,
             commands::get_current_surface_mode,
             commands::get_current_surface_state,
+            commands::get_proof_state,
+            commands::run_proof_command,
             commands::refresh_providers,
             commands::get_cached_providers,
             commands::get_update_state,
