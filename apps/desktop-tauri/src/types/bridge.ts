@@ -171,6 +171,15 @@ export interface CostSnapshotBridge {
   formattedLimit: string | null;
 }
 
+export interface PaceSnapshot {
+  stage: "on_track" | "slightly_ahead" | "ahead" | "far_ahead" | "slightly_behind" | "behind" | "far_behind";
+  deltaPercent: number;
+  willLastToReset: boolean;
+  etaSeconds: number | null;
+  expectedUsedPercent: number;
+  actualUsedPercent: number;
+}
+
 export interface ProviderUsageSnapshot {
   providerId: string;
   displayName: string;
@@ -184,6 +193,9 @@ export interface ProviderUsageSnapshot {
   sourceLabel: string;
   updatedAt: string;
   error: string | null;
+  pace: PaceSnapshot | null;
+  accountOrganization: string | null;
+  trayStatusLabel: string | null;
 }
 
 export interface RefreshCompletePayload {

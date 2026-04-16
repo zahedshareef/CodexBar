@@ -6,6 +6,7 @@ pub(crate) struct TrayMenuEntry {
     pub(crate) label: String,
     pub(crate) children: Vec<Self>,
     pub(crate) is_separator: bool,
+    pub(crate) disabled: bool,
 }
 
 impl TrayMenuEntry {
@@ -15,6 +16,7 @@ impl TrayMenuEntry {
             label: label.into(),
             children: Vec::new(),
             is_separator: false,
+            disabled: false,
         }
     }
 
@@ -24,6 +26,7 @@ impl TrayMenuEntry {
             label: label.into(),
             children,
             is_separator: false,
+            disabled: false,
         }
     }
 
@@ -33,6 +36,17 @@ impl TrayMenuEntry {
             label: String::new(),
             children: Vec::new(),
             is_separator: true,
+            disabled: false,
+        }
+    }
+
+    pub(crate) fn status_row(id: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            id: Some(id.into()),
+            label: label.into(),
+            children: Vec::new(),
+            is_separator: false,
+            disabled: true,
         }
     }
 
@@ -49,14 +63,25 @@ impl TrayMenuEntry {
     }
 }
 
-pub(crate) fn build_tray_menu(providers: &[ProviderCatalogEntry]) -> Vec<TrayMenuEntry> {
-    let mut menu = vec![
-        TrayMenuEntry::item("show_panel", "Show Panel"),
-        TrayMenuEntry::item("pop_out", "Pop Out Dashboard"),
-        TrayMenuEntry::item("settings", "Settings"),
-        TrayMenuEntry::item("about", "About"),
-        TrayMenuEntry::separator(),
-    ];
+pub(crate) fn build_tray_menu(
+    providers: &[ProviderCatalogEntry],
+    status_labels: &[(String, String)],
+) -> Vec<TrayMenuEntry> {
+    let mut menu: Vec<TrayMenuEntry> = Vec::new();
+
+    // Status rows (one per enabled provider with live usage).
+    for (id, label) in status_labels {
+        menu.push(TrayMenuEntry::status_row(format!("status_{id}"), label));
+    }
+    if !status_labels.is_empty() {
+        menu.push(TrayMenuEntry::separator());
+    }
+
+    menu.push(TrayMenuEntry::item("refresh", "Refresh All"));
+    menu.push(TrayMenuEntry::item("pop_out", "Pop Out Dashboard"));
+    menu.push(TrayMenuEntry::item("show_panel", "Show Panel"));
+    menu.push(TrayMenuEntry::separator());
+
     if !providers.is_empty() {
         menu.push(TrayMenuEntry::submenu(
             "Providers",
@@ -72,11 +97,16 @@ pub(crate) fn build_tray_menu(providers: &[ProviderCatalogEntry]) -> Vec<TrayMen
         ));
         menu.push(TrayMenuEntry::separator());
     }
-    menu.extend([
-        TrayMenuEntry::item("refresh", "Refresh All"),
-        TrayMenuEntry::separator(),
-        TrayMenuEntry::item("quit", "Quit CodexBar"),
-    ]);
+
+    menu.push(TrayMenuEntry::item("settings", "Settings"));
+    menu.push(TrayMenuEntry::item(
+        "check_for_updates",
+        "Check for Updates",
+    ));
+    menu.push(TrayMenuEntry::item("about", "About"));
+    menu.push(TrayMenuEntry::separator());
+    menu.push(TrayMenuEntry::item("quit", "Quit CodexBar"));
+
     menu
 }
 
@@ -153,6 +183,13 @@ fn proof_menu_entries<'a>(
 mod tests {
     use super::*;
 
+    fn menu_contains(menu: &[TrayMenuEntry], id: &str) -> bool {
+        menu.iter().any(|entry| {
+            entry.id.as_deref() == Some(id)
+                || (!entry.children.is_empty() && menu_contains(&entry.children, id))
+        })
+    }
+
     fn sample_provider_catalog() -> Vec<ProviderCatalogEntry> {
         vec![
             ProviderCatalogEntry {
@@ -170,17 +207,19 @@ mod tests {
 
     #[test]
     fn proof_menu_items_follow_current_context() {
-        let items = proof_menu_items(&build_tray_menu(&sample_provider_catalog()), "tray").unwrap();
+        let items =
+            proof_menu_items(&build_tray_menu(&sample_provider_catalog(), &[]), "tray").unwrap();
 
         assert_eq!(
             items,
             vec![
-                "Show Panel",
-                "Pop Out Dashboard",
-                "Settings",
-                "About",
-                "Providers",
                 "Refresh All",
+                "Pop Out Dashboard",
+                "Show Panel",
+                "Providers",
+                "Settings",
+                "Check for Updates",
+                "About",
                 "Quit CodexBar",
             ]
         );
@@ -189,7 +228,7 @@ mod tests {
     #[test]
     fn proof_menu_items_follow_submenu_context() {
         let items = proof_menu_items(
-            &build_tray_menu(&sample_provider_catalog()),
+            &build_tray_menu(&sample_provider_catalog(), &[]),
             "tray/providers",
         )
         .unwrap();
@@ -200,10 +239,32 @@ mod tests {
     #[test]
     fn proof_menu_context_for_leaf_item_returns_parent_menu() {
         let (menu_path, items) =
-            proof_menu_context_for_item(&build_tray_menu(&sample_provider_catalog()), "about")
+            proof_menu_context_for_item(&build_tray_menu(&sample_provider_catalog(), &[]), "about")
                 .unwrap();
 
         assert_eq!(menu_path, "tray");
         assert!(items.iter().any(|item| item == "About"));
+    }
+
+    #[test]
+    fn check_for_updates_item_is_present() {
+        let menu = build_tray_menu(&sample_provider_catalog(), &[]);
+        assert!(menu_contains(&menu, "check_for_updates"));
+    }
+
+    #[test]
+    fn status_rows_appear_at_top_with_separator() {
+        let labels = vec![
+            ("claude".to_string(), "Claude 60%".to_string()),
+            ("codex".to_string(), "Codex 30%".to_string()),
+        ];
+        let menu = build_tray_menu(&sample_provider_catalog(), &labels);
+        // First two items should be disabled status rows.
+        assert_eq!(menu[0].id.as_deref(), Some("status_claude"));
+        assert!(menu[0].disabled);
+        assert_eq!(menu[1].id.as_deref(), Some("status_codex"));
+        assert!(menu[1].disabled);
+        // Third item should be a separator.
+        assert!(menu[2].is_separator);
     }
 }

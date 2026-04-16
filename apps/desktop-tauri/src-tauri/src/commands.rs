@@ -52,6 +52,18 @@ pub struct CostSnapshotBridge {
     pub formatted_limit: Option<String>,
 }
 
+/// Pace prediction snapshot for tray/bridge display.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaceSnapshot {
+    pub stage: &'static str,
+    pub delta_percent: f64,
+    pub will_last_to_reset: bool,
+    pub eta_seconds: Option<f64>,
+    pub expected_used_percent: f64,
+    pub actual_used_percent: f64,
+}
+
 /// A frontend-friendly snapshot of one provider's usage data.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,11 +80,47 @@ pub struct ProviderUsageSnapshot {
     pub source_label: String,
     pub updated_at: String,
     pub error: Option<String>,
+    pub pace: Option<PaceSnapshot>,
+    pub account_organization: Option<String>,
+    pub tray_status_label: Option<String>,
+}
+
+fn pace_stage_str(stage: codexbar::core::PaceStage) -> &'static str {
+    use codexbar::core::PaceStage;
+    match stage {
+        PaceStage::OnTrack => "on_track",
+        PaceStage::SlightlyAhead => "slightly_ahead",
+        PaceStage::Ahead => "ahead",
+        PaceStage::FarAhead => "far_ahead",
+        PaceStage::SlightlyBehind => "slightly_behind",
+        PaceStage::Behind => "behind",
+        PaceStage::FarBehind => "far_behind",
+    }
 }
 
 impl ProviderUsageSnapshot {
     fn from_fetch_result(id: ProviderId, result: &ProviderFetchResult) -> Self {
         let usage = &result.usage;
+
+        let pace =
+            codexbar::core::UsagePace::weekly(&usage.primary, None, 10080).map(|p| PaceSnapshot {
+                stage: pace_stage_str(p.stage),
+                delta_percent: p.delta_percent,
+                will_last_to_reset: p.will_last_to_reset,
+                eta_seconds: p.eta_seconds,
+                expected_used_percent: p.expected_used_percent,
+                actual_used_percent: p.actual_used_percent,
+            });
+
+        let tray_status_label = {
+            let pct = format!("{:.0}%", usage.primary.used_percent);
+            if let Some(desc) = &usage.primary.reset_description {
+                Some(format!("{pct} • resets in {desc}"))
+            } else {
+                Some(pct)
+            }
+        };
+
         Self {
             provider_id: id.cli_name().to_string(),
             display_name: id.display_name().to_string(),
@@ -104,6 +152,9 @@ impl ProviderUsageSnapshot {
             source_label: result.source_label.clone(),
             updated_at: usage.updated_at.to_rfc3339(),
             error: None,
+            pace,
+            account_organization: usage.account_organization.clone(),
+            tray_status_label,
         }
     }
 
@@ -128,6 +179,9 @@ impl ProviderUsageSnapshot {
             source_label: String::new(),
             updated_at: chrono::Utc::now().to_rfc3339(),
             error: Some(error),
+            pace: None,
+            account_organization: None,
+            tray_status_label: None,
         }
     }
 }
@@ -764,6 +818,15 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
             .filter(|s| s.error.is_some())
             .count()
     };
+
+    // Update tray status items once after the full refresh cycle.
+    {
+        let cached = {
+            let guard = state.lock().map_err(|e| e.to_string())?;
+            guard.provider_cache.clone()
+        };
+        crate::tray_bridge::update_tray_status_items(app, &cached);
+    }
 
     events::emit_refresh_complete(app, enabled_ids.len(), error_count);
 

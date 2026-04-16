@@ -118,8 +118,9 @@ fn resolve_tray_anchor(
 fn build_native_tray_menu(
     app: &AppHandle,
     providers: &[ProviderCatalogEntry],
+    status_labels: &[(String, String)],
 ) -> tauri::Result<Menu<tauri::Wry>> {
-    let spec = build_tray_menu(providers);
+    let spec = build_tray_menu(providers, status_labels);
     let entries = spec
         .iter()
         .map(|entry| build_native_menu_entry(app, entry))
@@ -170,6 +171,7 @@ fn resolve_menu_target(id: &str) -> Option<shell::ShellTransitionRequest> {
 enum MenuAction {
     Transition(shell::ShellTransitionRequest),
     Refresh,
+    CheckForUpdates,
     Quit,
 }
 
@@ -181,6 +183,7 @@ enum MenuTransitionDispatch {
 fn resolve_menu_action(id: &str) -> Option<MenuAction> {
     match id {
         "refresh" => Some(MenuAction::Refresh),
+        "check_for_updates" => Some(MenuAction::CheckForUpdates),
         "quit" => Some(MenuAction::Quit),
         _ => resolve_menu_target(id).map(MenuAction::Transition),
     }
@@ -226,13 +229,13 @@ fn store_anchor(app: &AppHandle, rect: &tauri::Rect, click_position: tauri::Phys
 /// - **Left-click** toggles the custom tray panel via the surface state machine.
 /// - **Right-click** opens the native context menu with shell actions.
 pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let menu = build_native_tray_menu(app.handle(), &crate::commands::get_provider_catalog())?;
+    let menu = build_native_tray_menu(app.handle(), &crate::commands::get_provider_catalog(), &[])?;
 
     // Embed the icon at compile time so it works regardless of working directory.
     let icon_bytes = include_bytes!("../../../../rust/icons/icon.png");
     let icon = Image::from_bytes(icon_bytes)?;
 
-    let _tray = TrayIconBuilder::new()
+    let _tray = TrayIconBuilder::with_id("codexbar-main")
         .icon(icon)
         .tooltip("CodexBar Desktop")
         .menu(&menu)
@@ -295,10 +298,45 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
                 let _ = crate::commands::do_refresh_providers(&handle).await;
             });
         }
+        Some(MenuAction::CheckForUpdates) => {
+            let handle = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let state = handle.state::<Mutex<AppState>>();
+                let _ = crate::commands::check_for_updates(handle.clone(), state).await;
+            });
+        }
         Some(MenuAction::Quit) => {
             app.exit(0);
         }
         None => {}
+    }
+}
+
+/// Rebuild the tray menu with current provider status labels after a refresh cycle.
+pub fn update_tray_status_items(
+    app: &AppHandle,
+    snapshots: &[crate::commands::ProviderUsageSnapshot],
+) {
+    let catalog = crate::commands::get_provider_catalog();
+    let status_labels: Vec<(String, String)> = snapshots
+        .iter()
+        .filter(|s| s.error.is_none())
+        .map(|s| {
+            let label = s
+                .tray_status_label
+                .clone()
+                .unwrap_or_else(|| format!("{:.0}%", s.primary.used_percent));
+            (
+                s.provider_id.clone(),
+                format!("{} {}", s.display_name, label),
+            )
+        })
+        .collect();
+
+    if let Ok(menu) = build_native_tray_menu(app, &catalog, &status_labels)
+        && let Some(tray) = app.tray_by_id("codexbar-main")
+    {
+        let _ = tray.set_menu(Some(menu));
     }
 }
 
@@ -359,7 +397,7 @@ fn build_native_menu_entry(
         app,
         entry.id.clone().unwrap_or_default(),
         &entry.label,
-        true,
+        !entry.disabled,
         None::<&str>,
     )?))
 }
@@ -385,7 +423,7 @@ mod tests {
 
     #[test]
     fn tray_menu_includes_about_and_provider_entries() {
-        let menu = build_tray_menu(&sample_provider_catalog());
+        let menu = build_tray_menu(&sample_provider_catalog(), &[]);
         assert!(menu_contains(&menu, "about"));
         assert!(menu_contains(&menu, "provider:codex"));
         assert!(menu_contains(&menu, "quit"));
