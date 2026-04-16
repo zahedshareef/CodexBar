@@ -1890,10 +1890,10 @@ impl CodexBarApp {
 
         if request.show_context_menu {
             #[cfg(target_os = "windows")]
-            if let Some(ref tray_manager) = self.tray_manager {
-                if let Some(hwnd) = find_main_window() {
-                    tray_manager.show_context_menu(hwnd.0 as isize);
-                }
+            if let Some(ref tray_manager) = self.tray_manager
+                && let Some(hwnd) = find_main_window()
+            {
+                tray_manager.show_context_menu(hwnd.0 as isize);
             }
         }
 

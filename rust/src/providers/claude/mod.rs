@@ -359,7 +359,7 @@ fn which_claude() -> Option<std::path::PathBuf> {
             find_windows_claude_in_path(),
         ];
 
-        return candidates.into_iter().flatten().find(|p| p.exists());
+        candidates.into_iter().flatten().find(|p| p.exists())
     }
 
     #[cfg(not(windows))]
