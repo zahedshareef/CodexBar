@@ -41,8 +41,7 @@ cd Win-CodexBar
 
 This will:
 1. Check for Rust and MinGW-w64, install them if missing
-2. Build the Tauri frontend (`apps/desktop-tauri`)
-3. Build the Tauri desktop shell in debug mode
+2. Build the Tauri desktop shell in debug mode through Tauri's no-bundle workflow
 4. Launch the desktop app
 
 Other options:
@@ -66,8 +65,7 @@ cd Win-CodexBar
 
 This will:
 1. Detect your WSL environment
-2. Build the Tauri frontend (`apps/desktop-tauri`)
-3. Build CodexBar Desktop as a native Linux binary
+2. Build CodexBar Desktop through Tauri's no-bundle workflow
 4. Launch the desktop shell (WSLg) or CLI (no display server detected)
 
 CLI-only mode (no display server needed):
@@ -116,9 +114,9 @@ Install them automatically with:
 Then build:
 ```powershell
 cd apps/desktop-tauri
-npm run build
+npm install
 cd ../..
-cargo build --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml --release
+npm --prefix apps/desktop-tauri run tauri:build
 # Binary at: target/release/codexbar-desktop-tauri.exe
 ```
 
@@ -126,8 +124,8 @@ cargo build --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml --release
 
 ### Desktop shell
 ```powershell
-cargo run
-# or: cargo run -p codexbar-desktop-tauri
+.\dev.ps1
+# or: cd apps/desktop-tauri && npm run tauri:dev
 ```
 
 ### CLI
@@ -165,7 +163,7 @@ codexbar cost -p claude
 
 ## First Run
 
-1. Run `.\dev.ps1`, `./dev.sh`, or `cargo run` from the repo root to start the desktop shell
+1. Run `.\dev.ps1`, `./dev.sh`, or `cd apps/desktop-tauri && npm run tauri:dev` to start the desktop shell
 2. Click **Settings** in the menu
 3. In **General**, choose your preferred UI language
 4. In **Providers**, enable the providers you use and check their auth state

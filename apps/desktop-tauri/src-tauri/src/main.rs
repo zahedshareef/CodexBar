@@ -1,5 +1,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
+use std::time::Duration;
+
 mod commands;
 mod events;
 mod proof_harness;
@@ -86,21 +88,25 @@ fn main() {
             if is_proof_mode {
                 proof_harness::activate(app.handle());
             } else if force_start_visible {
-                shell::reopen_to_target(
-                    app.handle(),
-                    SurfaceMode::TrayPanel,
-                    SurfaceTarget::Summary,
-                    None,
-                )?;
+                let app = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(250)).await;
+                    let _ = shell::reopen_to_target(
+                        &app,
+                        SurfaceMode::TrayPanel,
+                        SurfaceTarget::Summary,
+                        None,
+                    );
+                });
             }
 
             Ok(())
         })
-        .on_window_event(|window, event| match event {
+        .on_window_event(move |window, event| match event {
             tauri::WindowEvent::Focused(false) => {
                 // Suppress blur-dismiss in proof mode so the window stays
                 // visible for automated screenshot capture.
-                if proof_harness::is_proof_mode(window.app_handle()) {
+                if force_start_visible || proof_harness::is_proof_mode(window.app_handle()) {
                     return;
                 }
                 // Blur in TrayPanel mode → auto-hide.

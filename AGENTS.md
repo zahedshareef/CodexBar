@@ -23,7 +23,8 @@
 - Test: `cargo test`.
 - Run CLI locally: `cargo run -p codexbar -- --help`, `cargo run -p codexbar -- usage -p claude`,
   `cargo run -p codexbar -- cost`.
-- Run the desktop shell: `cargo run`, `cargo run -p codexbar-desktop-tauri`, `.\dev.ps1`, or `./dev.sh`.
+- Run the desktop shell through Tauri's build/dev flow: `.\dev.ps1`, `./dev.sh`, or
+  `cd apps/desktop-tauri && npm run tauri:dev`.
 - Format/lint before handoff when code changed: `cargo fmt --all` and `cargo clippy --all-targets -- -D warnings`
   (or explain why not run).
 - There is no active root-level `Scripts/` build pipeline in this port. Do not rely on legacy `Scripts/*.sh` commands.

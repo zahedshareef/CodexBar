@@ -5,8 +5,8 @@
 
 .DESCRIPTION
     Checks that build prerequisites are installed (Rust, MinGW-w64),
-    installs them if missing, then builds the Tauri frontend and launches
-    the desktop shell.
+    installs them if missing, then builds the Tauri desktop shell through the
+    Tauri CLI and launches it.
 
 .PARAMETER Release
     Build in release mode (optimised). Default is debug.
@@ -35,7 +35,6 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = $PSScriptRoot
 $TauriFrontendDir = Join-Path $RepoRoot "apps\desktop-tauri"
-$TauriManifestPath = Join-Path $TauriFrontendDir "src-tauri\Cargo.toml"
 $TargetDir = Join-Path $RepoRoot "target"
 $DesktopBinaryName = "codexbar-desktop-tauri.exe"
 
@@ -132,21 +131,16 @@ if (-not $npmCommand) {
 if (-not $SkipBuild) {
     Push-Location $TauriFrontendDir
     try {
-        Write-Host "Building desktop frontend..." -ForegroundColor Cyan
-        & $npmCommand.Source run build
+        if ($Release) {
+            Write-Host "Building CodexBar Desktop (release, no bundle)..." -ForegroundColor Cyan
+            & $npmCommand.Source run tauri:build
+        } else {
+            Write-Host "Building CodexBar Desktop (debug, no bundle)..." -ForegroundColor Cyan
+            & $npmCommand.Source run tauri:build:debug
+        }
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     } finally {
         Pop-Location
-    }
-
-    if ($Release) {
-        Write-Host "Building CodexBar Desktop (release)..." -ForegroundColor Cyan
-        cargo build --manifest-path $TauriManifestPath --bin codexbar-desktop-tauri --release
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    } else {
-        Write-Host "Building CodexBar Desktop (debug)..." -ForegroundColor Cyan
-        cargo build --manifest-path $TauriManifestPath --bin codexbar-desktop-tauri
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
 }
 
@@ -182,6 +176,9 @@ if ($Verbose) {
         $env:RUST_LOG = "debug"
     }
     Write-Host "Verbose logging enabled via RUST_LOG=$env:RUST_LOG" -ForegroundColor Cyan
+}
+if (-not $env:TAURI_DEV) {
+    $env:TAURI_DEV = "0"
 }
 
 Write-Host ""

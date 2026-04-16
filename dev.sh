@@ -13,7 +13,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 RUST_DIR="$REPO_ROOT/rust"
 TAURI_APP_DIR="$REPO_ROOT/apps/desktop-tauri"
-TAURI_MANIFEST="$TAURI_APP_DIR/src-tauri/Cargo.toml"
 
 # ── Parse arguments ──────────────────────────────────────────────────────────
 
@@ -128,17 +127,14 @@ if [ "$SKIP_BUILD" -eq 0 ]; then
         fi
     else
         cd "$TAURI_APP_DIR"
-        echo "Building desktop frontend..."
-        npm run build
-        cd "$REPO_ROOT"
-
         if [ "$RELEASE" -eq 1 ]; then
-            echo "Building CodexBar Desktop (release, target=$NATIVE_TARGET)..."
-            cargo build --manifest-path "$TAURI_MANIFEST" --bin codexbar-desktop-tauri --release "${TARGET_FLAG[@]}"
+            echo "Building CodexBar Desktop (release, no bundle)..."
+            npm run tauri:build
         else
-            echo "Building CodexBar Desktop (debug, target=$NATIVE_TARGET)..."
-            cargo build --manifest-path "$TAURI_MANIFEST" --bin codexbar-desktop-tauri "${TARGET_FLAG[@]}"
+            echo "Building CodexBar Desktop (debug, no bundle)..."
+            npm run tauri:build:debug
         fi
+        cd "$REPO_ROOT"
     fi
 fi
 
@@ -176,6 +172,9 @@ if [ "$VERBOSE" -eq 1 ]; then
         export RUST_LOG="${RUST_LOG:-debug}"
         echo "Verbose logging enabled via RUST_LOG=$RUST_LOG"
     fi
+fi
+if [ "$CLI_MODE" -eq 0 ] && [ -z "${TAURI_DEV:-}" ]; then
+    export TAURI_DEV=0
 fi
 
 if [ "$CLI_MODE" -eq 1 ]; then

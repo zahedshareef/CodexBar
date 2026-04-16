@@ -39,8 +39,7 @@ cd Win-CodexBar
 
 它会执行以下操作：
 1. 检查 Rust 和 MinGW-w64，缺失时自动安装
-2. 构建 Tauri 前端（`apps/desktop-tauri`）
-3. 以 debug 模式构建 Tauri 桌面壳层
+2. 通过 Tauri 的 no-bundle 工作流以 debug 模式构建桌面壳层
 4. 启动桌面应用
 
 其他选项：
@@ -63,8 +62,7 @@ cd Win-CodexBar
 
 它会执行以下操作：
 1. 检测当前 WSL 环境
-2. 构建 Tauri 前端（`apps/desktop-tauri`）
-3. 将 CodexBar Desktop 构建为原生 Linux 二进制
+2. 通过 Tauri 的 no-bundle 工作流构建 CodexBar Desktop
 4. 启动桌面壳层（WSLg）或 CLI（未检测到显示服务时）
 
 仅 CLI 模式（无需显示服务）：
@@ -110,9 +108,9 @@ cd Win-CodexBar
 然后构建：
 ```powershell
 cd apps/desktop-tauri
-npm run build
+npm install
 cd ../..
-cargo build --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml --release
+npm --prefix apps/desktop-tauri run tauri:build
 # 二进制路径：target/release/codexbar-desktop-tauri.exe
 ```
 
@@ -120,8 +118,8 @@ cargo build --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml --release
 
 ### 桌面壳层
 ```powershell
-cargo run
-# 或：cargo run -p codexbar-desktop-tauri
+.\dev.ps1
+# 或：cd apps/desktop-tauri && npm run tauri:dev
 ```
 
 ### CLI
@@ -159,7 +157,7 @@ codexbar cost -p claude
 
 ## 首次运行
 
-1. 在仓库根目录运行 `.\dev.ps1`、`./dev.sh` 或 `cargo run` 启动桌面壳层
+1. 在仓库根目录运行 `.\dev.ps1`、`./dev.sh`，或执行 `cd apps/desktop-tauri && npm run tauri:dev` 启动桌面壳层
 2. 在菜单中点击 **Settings**
 3. 前往 **Providers** 标签页，启用你使用的服务商
 4. 确保你已登录相应服务商 CLI（例如 `codex`、`claude`、`gemini`）
