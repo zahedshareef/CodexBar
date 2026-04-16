@@ -515,13 +515,18 @@ fn monitor_for_anchor(
     let anchor_cx = anchor.x + anchor.width as i32 / 2;
     let anchor_cy = anchor.y + anchor.height as i32 / 2;
 
+    monitor_containing_point(monitors, anchor_cx, anchor_cy)
+}
+
+fn monitor_containing_point(
+    monitors: &[tauri::Monitor],
+    x: i32,
+    y: i32,
+) -> Option<&tauri::Monitor> {
     monitors.iter().find(|monitor| {
         let pos = monitor.position();
         let size = monitor.size();
-        anchor_cx >= pos.x
-            && anchor_cx < pos.x + size.width as i32
-            && anchor_cy >= pos.y
-            && anchor_cy < pos.y + size.height as i32
+        x >= pos.x && x < pos.x + size.width as i32 && y >= pos.y && y < pos.y + size.height as i32
     })
 }
 
@@ -544,6 +549,28 @@ fn visible_surface_position_for_mode(app: &AppHandle, mode: SurfaceMode) -> Opti
             &panel_size,
             monitor.scale_factor(),
         ));
+    }
+
+    if let Ok(Some(monitor)) = window.current_monitor() {
+        return Some(window_positioner::calculate_popout_position(
+            None,
+            &monitor_work_area_rect(&monitor),
+            &panel_size,
+            monitor.scale_factor(),
+        ));
+    }
+
+    if let (Ok(position), Ok(size)) = (window.outer_position(), window.outer_size()) {
+        let center_x = position.x + size.width as i32 / 2;
+        let center_y = position.y + size.height as i32 / 2;
+        if let Some(monitor) = monitor_containing_point(&monitors, center_x, center_y) {
+            return Some(window_positioner::calculate_popout_position(
+                None,
+                &monitor_work_area_rect(monitor),
+                &panel_size,
+                monitor.scale_factor(),
+            ));
+        }
     }
 
     let monitor = window.primary_monitor().ok()??;

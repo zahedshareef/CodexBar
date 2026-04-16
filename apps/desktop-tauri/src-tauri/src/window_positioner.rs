@@ -113,8 +113,9 @@ pub fn calculate_shortcut_position(
 /// Calculate detached popout/settings placement.
 ///
 /// Placement rules:
-/// - With a known tray anchor, centre horizontally on the icon and pick above
-///   or below based on available space before clamping inside the work area.
+/// - With a known tray anchor, centre horizontally on the tray parity anchor
+///   point (icon centre-x, top-y) and pick above or below based on available
+///   space before clamping inside the work area.
 /// - Without a tray anchor, fall back to the bottom-right corner of the work
 ///   area and clamp so the window remains visible.
 pub fn calculate_popout_position(
@@ -130,14 +131,15 @@ pub fn calculate_popout_position(
     let mh = monitor_rect.height as i32;
 
     let (target_x, target_y) = if let Some(icon_rect) = icon_rect {
-        let icon_cx = icon_rect.x + (icon_rect.width as i32) / 2;
-        let x = icon_cx - pw / 2;
-        let space_above = icon_rect.y - my - MARGIN;
-        let space_below = my + mh - (icon_rect.y + icon_rect.height as i32) - MARGIN;
+        let anchor_x = icon_rect.x + (icon_rect.width as i32) / 2;
+        let anchor_y = icon_rect.y;
+        let x = anchor_x - pw / 2;
+        let space_above = anchor_y - my - MARGIN;
+        let space_below = my + mh - anchor_y - MARGIN;
         let y = if space_above >= ph + GAP || space_above > space_below {
-            icon_rect.y - ph - GAP
+            anchor_y - ph - GAP
         } else {
-            icon_rect.y + icon_rect.height as i32 + GAP
+            anchor_y + GAP
         };
         (x, y)
     } else {
@@ -405,6 +407,18 @@ mod tests {
         };
         let (_, y) = calculate_popout_position(Some(&icon), &tall_monitor(), &panel(), 1.0);
         assert!(y > icon.y);
+    }
+
+    #[test]
+    fn top_taskbar_popout_uses_tray_top_anchor_point() {
+        let icon = Rect {
+            x: 1600,
+            y: 8,
+            width: 24,
+            height: 24,
+        };
+        let (_, y) = calculate_popout_position(Some(&icon), &tall_monitor(), &panel(), 1.0);
+        assert_eq!(y, icon.y + GAP);
     }
 
     #[test]
