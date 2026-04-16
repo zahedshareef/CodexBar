@@ -373,9 +373,22 @@ fn transition_about_path(app: &AppHandle) -> Result<(), String> {
 }
 
 fn persist_about_path_snapshot(result: Result<(), String>) -> Result<(), String> {
+    persist_about_path_snapshot_for_item("about", result)
+}
+
+fn persist_about_path_snapshot_for_item(
+    item_id: &str,
+    result: Result<(), String>,
+) -> Result<(), String> {
     match result {
         Ok(()) => {
-            let (menu_path, menu_items) = native_menu_context_for_item("about");
+            let (menu_path, menu_items) = match native_menu_context_for_item(item_id) {
+                Ok(context) => context,
+                Err(err) => {
+                    clear_menu_snapshot();
+                    return Err(err);
+                }
+            };
             set_menu_snapshot(Some(menu_path), menu_items);
             Ok(())
         }
@@ -462,11 +475,11 @@ fn native_menu_snapshot_for_path(menu_path: &str) -> (String, Vec<String>) {
     (menu_path.to_string(), menu_items)
 }
 
-fn native_menu_context_for_item(item_id: &str) -> (String, Vec<String>) {
+fn native_menu_context_for_item(item_id: &str) -> Result<(String, Vec<String>), String> {
     let providers = get_provider_catalog();
     let entries = tray_menu::build_tray_menu(&providers);
     tray_menu::proof_menu_context_for_item(&entries, item_id)
-        .unwrap_or_else(|| ("tray".into(), Vec::new()))
+        .ok_or_else(|| format!("proof menu context missing tray item: {item_id}"))
 }
 
 fn proof_payload_is_supported(surface_mode: SurfaceMode, payload: Option<&str>) -> bool {
@@ -709,6 +722,21 @@ mod tests {
         let result = persist_about_path_snapshot(Err("boom".into()));
 
         assert_eq!(result.unwrap_err(), "boom");
+        let snapshot = menu_snapshot();
+        assert!(snapshot.menu_path.is_none());
+        assert!(snapshot.menu_items.is_empty());
+    }
+
+    #[test]
+    fn about_path_snapshot_fails_when_about_item_is_missing() {
+        set_menu_snapshot(Some("tray".into()), vec!["About".into()]);
+
+        let result = persist_about_path_snapshot_for_item("missing-about", Ok(()));
+
+        assert_eq!(
+            result.unwrap_err(),
+            "proof menu context missing tray item: missing-about"
+        );
         let snapshot = menu_snapshot();
         assert!(snapshot.menu_path.is_none());
         assert!(snapshot.menu_items.is_empty());
