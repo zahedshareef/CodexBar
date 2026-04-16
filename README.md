@@ -1,4 +1,4 @@
-[This repo is under some refactor and changes for the upcoming updates till the next couple of days]
+[This repo is under some refactor and changes for the upcoming updates for the next couple of days. Stay tune!]
 
 # Win-CodexBar — Windows & WSL Port of CodexBar
 
