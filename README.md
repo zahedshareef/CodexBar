@@ -1,3 +1,5 @@
+[This repo is under some refactor and changes for the upcoming updates till the next couple of days]
+
 # Win-CodexBar — Windows & WSL Port of CodexBar
 
 [简体中文说明](./README.zh-CN.md)
