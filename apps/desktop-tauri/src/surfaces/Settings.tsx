@@ -178,12 +178,14 @@ function isSettingsTab(value: string): value is SettingsTab {
   return TAB_META.some((t) => t.id === value);
 }
 
-export default function Settings({ state, initialTab }: { state: BootstrapState; initialTab?: string }) {
+export default function Settings({ state }: { state: BootstrapState }) {
   const { settings, saving, error, update } = useSettings(state.settings);
-  const resolvedInitial: SettingsTab =
-    initialTab && isSettingsTab(initialTab) ? initialTab : "general";
-  const [activeTab, setActiveTab] = useState<SettingsTab>(resolvedInitial);
   const shellTarget = useSurfaceTarget("settings");
+  const initialTab: SettingsTab =
+    shellTarget?.kind === "settings" && isSettingsTab(shellTarget.tab)
+      ? shellTarget.tab
+      : "general";
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   useEffect(() => {
     if (shellTarget?.kind !== "settings" || !isSettingsTab(shellTarget.tab)) {

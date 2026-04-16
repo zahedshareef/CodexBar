@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { checkForUpdates, getBootstrapState } from "./lib/tauri";
-import { useSurfaceSnapshot } from "./hooks/useSurfaceMode";
+import { useSurfaceMode } from "./hooks/useSurfaceMode";
 import Settings from "./surfaces/Settings";
 import TrayPanel from "./surfaces/TrayPanel";
 import PopOutPanel from "./surfaces/PopOutPanel";
-import type { BootstrapState, SurfaceMode, SurfaceTarget } from "./types/bridge";
+import type { BootstrapState, SurfaceMode } from "./types/bridge";
 
 export default function App() {
-  const surface = useSurfaceSnapshot();
+  const mode = useSurfaceMode();
   const [state, setState] = useState<BootstrapState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,18 +56,14 @@ export default function App() {
     );
   }
 
-  return (
-    <SurfaceRouter mode={surface.mode} target={surface.target} state={state} />
-  );
+  return <SurfaceRouter mode={mode} state={state} />;
 }
 
 function SurfaceRouter({
   mode,
-  target,
   state,
 }: {
   mode: SurfaceMode;
-  target: SurfaceTarget | null;
   state: BootstrapState;
 }) {
   switch (mode) {
@@ -76,27 +72,22 @@ function SurfaceRouter({
     case "trayPanel":
       return <TrayPanel state={state} />;
     case "popOut":
-      return <PopOutPanel state={state} initialTarget={target} />;
+      return <PopOutPanel state={state} />;
     case "settings":
-      return (
-        <SettingsLayout
-          state={state}
-          initialTab={target?.kind === "settings" ? target.tab : undefined}
-        />
-      );
+      return <SettingsLayout state={state} />;
     default:
       return <TrayPanel state={state} />;
   }
 }
 
-function SettingsLayout({ state, initialTab }: { state: BootstrapState; initialTab?: string }) {
+function SettingsLayout({ state }: { state: BootstrapState }) {
   return (
     <main className="shell">
       <header className="hero">
         <p className="eyebrow">Settings</p>
         <h1>Preferences</h1>
       </header>
-      <Settings state={state} initialTab={initialTab} />
+      <Settings state={state} />
     </main>
   );
 }

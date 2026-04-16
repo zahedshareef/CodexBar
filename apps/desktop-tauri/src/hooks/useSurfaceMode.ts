@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type {
   CurrentSurfaceState,
@@ -18,41 +18,83 @@ interface SurfaceSnapshot {
   target: SurfaceTarget | null;
 }
 
-export function useSurfaceSnapshot(): SurfaceSnapshot {
-  const [snapshot, setSnapshot] = useState<SurfaceSnapshot>({
-    mode: "hidden",
-    target: null,
-  });
+let currentSnapshot: SurfaceSnapshot = {
+  mode: "hidden",
+  target: null,
+};
 
-  useEffect(() => {
-    let cancelled = false;
+const subscribers = new Set<() => void>();
+let storeStarted = false;
 
-    getCurrentSurfaceState().then((current: CurrentSurfaceState) => {
-      if (!cancelled) {
-        setSnapshot({
-          mode: current.mode,
-          target: current.target,
-        });
-      }
+function sameTarget(
+  left: SurfaceTarget | null,
+  right: SurfaceTarget | null,
+): boolean {
+  if (left === right) return true;
+  if (left === null || right === null) return false;
+  if (left.kind !== right.kind) return false;
+
+  switch (left.kind) {
+    case "provider":
+      return right.kind === "provider" && left.providerId === right.providerId;
+    case "settings":
+      return right.kind === "settings" && left.tab === right.tab;
+    default:
+      return true;
+  }
+}
+
+function publishSnapshot(next: SurfaceSnapshot): void {
+  if (
+    currentSnapshot.mode === next.mode &&
+    sameTarget(currentSnapshot.target, next.target)
+  ) {
+    return;
+  }
+
+  currentSnapshot = next;
+  subscribers.forEach((notify) => notify());
+}
+
+function startSurfaceStore(): void {
+  if (storeStarted) {
+    return;
+  }
+
+  storeStarted = true;
+
+  void getCurrentSurfaceState()
+    .then((current: CurrentSurfaceState) => {
+      publishSnapshot({
+        mode: current.mode,
+        target: current.target,
+      });
+    })
+    .catch(() => {});
+
+  void listen<SurfaceModePayload>("surface-mode-changed", (event) => {
+    publishSnapshot({
+      mode: event.payload.mode,
+      target: event.payload.target,
     });
+  }).catch(() => {});
+}
 
-    const unlisten = listen<SurfaceModePayload>(
-      "surface-mode-changed",
-      (event) => {
-        setSnapshot({
-          mode: event.payload.mode,
-          target: event.payload.target,
-        });
-      },
-    );
+function subscribe(notify: () => void): () => void {
+  startSurfaceStore();
+  subscribers.add(notify);
 
-    return () => {
-      cancelled = true;
-      unlisten.then((fn) => fn());
-    };
-  }, []);
+  return () => {
+    subscribers.delete(notify);
+  };
+}
 
-  return snapshot;
+function getSnapshot(): SurfaceSnapshot {
+  return currentSnapshot;
+}
+
+export function useSurfaceSnapshot(): SurfaceSnapshot {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 /**
