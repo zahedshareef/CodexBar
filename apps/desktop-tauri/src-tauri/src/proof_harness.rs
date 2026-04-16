@@ -177,7 +177,6 @@ impl ProofCommand {
 ///
 /// Called from the Tauri `setup` closure when proof mode is active.
 pub fn activate(app: &AppHandle) {
-    clear_menu_snapshot();
     let config = {
         let st = app.state::<Mutex<AppState>>();
         st.lock().unwrap().proof_config.clone()
@@ -193,7 +192,6 @@ pub fn activate(app: &AppHandle) {
 
     let position = proof_window_position(app);
     let _ = shell::transition_to_target(app, target, config.surface_target(), position);
-    emit_state_changed(app);
 }
 
 /// Calculate a predictable, centered-ish window position for proof captures.
@@ -252,6 +250,7 @@ pub fn capture_state(app: &AppHandle) -> Result<ProofStatePayload, String> {
 pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStatePayload, String> {
     ensure_proof_mode(app)?;
     clear_menu_snapshot();
+    let mut emit_after_command = false;
 
     match command {
         ProofCommand::OpenTrayPanel => {
@@ -267,6 +266,7 @@ pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStateP
         ProofCommand::OpenNativeMenu => {
             let (menu_path, menu_items) = native_menu_snapshot_for_path("tray");
             set_menu_snapshot(Some(menu_path), menu_items);
+            emit_after_command = true;
         }
         ProofCommand::OpenDashboard => {
             shell::transition_to_target(app, SurfaceMode::PopOut, SurfaceTarget::Dashboard, None)?;
@@ -289,6 +289,7 @@ pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStateP
         }
         ProofCommand::OpenAboutPath => {
             transition_about_path(app)?;
+            emit_after_command = true;
         }
         ProofCommand::HideSurface => {
             shell::hide_to_tray(app)?;
@@ -296,7 +297,9 @@ pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStateP
     }
 
     let payload = capture_state(app)?;
-    events::emit_proof_state_changed(app, &payload);
+    if emit_after_command {
+        events::emit_proof_state_changed(app, &payload);
+    }
     Ok(payload)
 }
 
@@ -312,6 +315,15 @@ pub fn emit_state_changed(app: &AppHandle) {
     if let Ok(payload) = capture_state(app) {
         events::emit_proof_state_changed(app, &payload);
     }
+}
+
+pub fn sync_after_surface_transition(app: &AppHandle) {
+    if !is_proof_mode(app) {
+        return;
+    }
+
+    clear_menu_snapshot();
+    emit_state_changed(app);
 }
 
 fn clear_menu_snapshot() {

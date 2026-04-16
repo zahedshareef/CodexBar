@@ -6,6 +6,7 @@ import type {
   BootstrapState,
   CookieInfoBridge,
   ProviderCatalogEntry,
+  SettingsTabId,
   SettingsUpdate,
 } from "../types/bridge";
 import { useSettings } from "../hooks/useSettings";
@@ -153,14 +154,7 @@ function Field({
 
 // ── tab types ────────────────────────────────────────────────────────
 
-type SettingsTab =
-  | "general"
-  | "providers"
-  | "display"
-  | "apiKeys"
-  | "cookies"
-  | "advanced"
-  | "about";
+type SettingsTab = SettingsTabId;
 
 const TAB_META: { id: SettingsTab; label: string; icon: string }[] = [
   { id: "general", label: "General", icon: "⚙" },

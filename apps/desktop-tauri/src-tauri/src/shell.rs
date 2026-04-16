@@ -6,6 +6,7 @@ use std::sync::{LazyLock, Mutex};
 use tauri::{AppHandle, Manager, WebviewWindow};
 
 use crate::events;
+use crate::proof_harness;
 use crate::state::AppState;
 use crate::surface::{SurfaceMode, SurfaceTransition, WindowProperties};
 use crate::surface_target::SurfaceTarget;
@@ -469,6 +470,7 @@ fn apply_same_mode_target_update(
         },
     )?;
     events::emit_surface_mode_changed(app, mode, mode, target);
+    proof_harness::sync_after_surface_transition(app);
     Ok(mode)
 }
 
@@ -494,6 +496,7 @@ fn apply_transition(
                 },
             )?;
             events::emit_surface_mode_changed(app, transition.from, transition.to, current_target);
+            proof_harness::sync_after_surface_transition(app);
             Ok(transition.to)
         }
         Err(err) => {
@@ -525,6 +528,7 @@ fn apply_transition(
                     hidden.mode,
                     hidden.target.clone(),
                 );
+                proof_harness::sync_after_surface_transition(app);
                 tracing::warn!(
                     "shell: failed to restore recovery surface during {:?} -> {:?} after reverting to {:?}; forcing hidden surface: apply error: {}; recovery error: {}",
                     transition.from,
@@ -542,6 +546,7 @@ fn apply_transition(
                 recovery.mode,
                 recovery.target.clone(),
             );
+            proof_harness::sync_after_surface_transition(app);
             tracing::warn!(
                 "shell: recovered from window-property failure during {:?} -> {:?} by reapplying {:?}: {}",
                 transition.from,

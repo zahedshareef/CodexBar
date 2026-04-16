@@ -1,11 +1,44 @@
 export type SurfaceMode = "hidden" | "trayPanel" | "popOut" | "settings";
 export type VisibleSurfaceMode = Exclude<SurfaceMode, "hidden">;
+export type SettingsTabId =
+  | "general"
+  | "providers"
+  | "display"
+  | "apiKeys"
+  | "cookies"
+  | "advanced"
+  | "about";
+export type ProofProviderId =
+  | "codex"
+  | "claude"
+  | "cursor"
+  | "factory"
+  | "gemini"
+  | "antigravity"
+  | "copilot"
+  | "zai"
+  | "minimax"
+  | "kiro"
+  | "vertexai"
+  | "augment"
+  | "opencode"
+  | "kimi"
+  | "kimik2"
+  | "amp"
+  | "warp"
+  | "ollama"
+  | "openrouter"
+  | "synthetic"
+  | "jetbrains"
+  | "alibaba"
+  | "nanogpt"
+  | "infini";
 
 export type TrayPanelSurfaceTarget = { kind: "summary" };
 export type PopOutSurfaceTarget =
   | { kind: "dashboard" }
   | { kind: "provider"; providerId: string };
-export type SettingsSurfaceTarget = { kind: "settings"; tab: string };
+export type SettingsSurfaceTarget = { kind: "settings"; tab: SettingsTabId };
 
 export type SurfaceTarget =
   | TrayPanelSurfaceTarget
@@ -47,8 +80,8 @@ export type ProofCommand =
   | "open-dashboard"
   | "open-about-path"
   | "hide-surface"
-  | `open-provider:${string}`
-  | `open-settings:${string}`;
+  | `open-provider:${ProofProviderId}`
+  | `open-settings:${SettingsTabId}`;
 
 export interface SurfaceModeDescriptor {
   id: string;
