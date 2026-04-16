@@ -12,6 +12,8 @@ import type {
   ProviderCatalogEntry,
   ProviderChartData,
   ProviderUsageSnapshot,
+  ProviderTokenAccountsBridge,
+  TokenAccountSupportBridge,
   SettingsSnapshot,
   SettingsUpdate,
   SurfaceMode,
@@ -162,4 +164,48 @@ export function getProviderChartData(
   accountEmail?: string,
 ): Promise<ProviderChartData> {
   return invoke<ProviderChartData>("get_provider_chart_data", { providerId, accountEmail });
+}
+
+// ── Token account bridge ─────────────────────────────────────────────
+
+export function getTokenAccountProviders(): Promise<TokenAccountSupportBridge[]> {
+  return invoke<TokenAccountSupportBridge[]>("get_token_account_providers");
+}
+
+export function getTokenAccounts(
+  providerId: string,
+): Promise<ProviderTokenAccountsBridge> {
+  return invoke<ProviderTokenAccountsBridge>("get_token_accounts", { providerId });
+}
+
+export function addTokenAccount(
+  providerId: string,
+  label: string,
+  token: string,
+): Promise<ProviderTokenAccountsBridge> {
+  return invoke<ProviderTokenAccountsBridge>("add_token_account", {
+    providerId,
+    label,
+    token,
+  });
+}
+
+export function removeTokenAccount(
+  providerId: string,
+  accountId: string,
+): Promise<ProviderTokenAccountsBridge> {
+  return invoke<ProviderTokenAccountsBridge>("remove_token_account", {
+    providerId,
+    accountId,
+  });
+}
+
+export function setActiveTokenAccount(
+  providerId: string,
+  accountId: string,
+): Promise<ProviderTokenAccountsBridge> {
+  return invoke<ProviderTokenAccountsBridge>("set_active_token_account", {
+    providerId,
+    accountId,
+  });
 }

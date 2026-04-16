@@ -7,6 +7,8 @@ import type {
   CookieInfoBridge,
   DetectedBrowserBridge,
   ProviderCatalogEntry,
+  ProviderTokenAccountsBridge,
+  TokenAccountSupportBridge,
   ProviderUsageSnapshot,
   RateWindowSnapshot,
   SettingsTabId,
@@ -21,6 +23,11 @@ import {
   getAppInfo,
   getCachedProviders,
   getManualCookies,
+  getTokenAccountProviders,
+  getTokenAccounts,
+  addTokenAccount,
+  removeTokenAccount,
+  setActiveTokenAccount,
   importBrowserCookies,
   listDetectedBrowsers,
   removeApiKey,
@@ -168,6 +175,7 @@ const TAB_META: { id: SettingsTab; label: string; icon: string }[] = [
   { id: "display", label: "Display", icon: "◧" },
   { id: "apiKeys", label: "API Keys", icon: "🔑" },
   { id: "cookies", label: "Cookies", icon: "🍪" },
+  { id: "tokenAccounts", label: "Tokens", icon: "🪙" },
   { id: "advanced", label: "Advanced", icon: "⌘" },
   { id: "about", label: "About", icon: "ℹ" },
 ];
@@ -255,6 +263,7 @@ export default function Settings({ state }: { state: BootstrapState }) {
         {activeTab === "cookies" && (
           <CookiesTab providers={state.providers} />
         )}
+        {activeTab === "tokenAccounts" && <TokenAccountsTab />}
         {activeTab === "about" && <AboutTab />}
       </div>
     </div>
@@ -1353,7 +1362,220 @@ function CookiesTab({ providers }: { providers: ProviderCatalogEntry[] }) {
   );
 }
 
-// ── About ────────────────────────────────────────────────────────────
+// ── Token Accounts ────────────────────────────────────────────────────
+
+function TokenAccountsTab() {
+  const [providers, setProviders] = useState<TokenAccountSupportBridge[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState("");
+  const [providerData, setProviderData] =
+    useState<ProviderTokenAccountsBridge | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Add-account form
+  const [addLabel, setAddLabel] = useState("");
+  const [addToken, setAddToken] = useState("");
+
+  useEffect(() => {
+    getTokenAccountProviders()
+      .then(setProviders)
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      );
+  }, []);
+
+  useEffect(() => {
+    if (!selectedProviderId) {
+      setProviderData(null);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    getTokenAccounts(selectedProviderId)
+      .then((data) => {
+        setProviderData(data);
+      })
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : String(err)),
+      )
+      .finally(() => setBusy(false));
+  }, [selectedProviderId]);
+
+  const handleAdd = async () => {
+    if (!selectedProviderId || !addLabel.trim() || !addToken.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await addTokenAccount(
+        selectedProviderId,
+        addLabel.trim(),
+        addToken.trim(),
+      );
+      setProviderData(data);
+      setAddLabel("");
+      setAddToken("");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemove = async (accountId: string) => {
+    if (!selectedProviderId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await removeTokenAccount(selectedProviderId, accountId);
+      setProviderData(data);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSetActive = async (accountId: string) => {
+    if (!selectedProviderId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const data = await setActiveTokenAccount(selectedProviderId, accountId);
+      setProviderData(data);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const placeholder = providerData?.support.placeholder ?? "Paste token…";
+
+  return (
+    <section className="settings-section">
+      <h3 className="settings-section__title">Token Accounts</h3>
+      <p className="settings-section__hint">
+        Manage multiple session tokens or API tokens per provider. The active
+        account is used for all fetches. Only providers that require manual
+        tokens appear here.
+      </p>
+
+      {error && (
+        <div className="settings-status settings-status--error">{error}</div>
+      )}
+
+      <div className="settings-field">
+        <div className="settings-field__text">
+          <span className="settings-field__label">Provider</span>
+        </div>
+        <div className="settings-field__control">
+          <Select
+            value={selectedProviderId}
+            options={[
+              { value: "", label: "Select provider…" },
+              ...providers.map((p) => ({
+                value: p.providerId,
+                label: p.displayName,
+              })),
+            ]}
+            onChange={(v) => {
+              setSelectedProviderId(v);
+              setAddLabel("");
+              setAddToken("");
+              setError(null);
+            }}
+            disabled={busy}
+          />
+        </div>
+      </div>
+
+      {selectedProviderId && providerData && (
+        <>
+          <p className="settings-section__hint">{providerData.support.subtitle}</p>
+
+          <h3 className="settings-section__title">Saved Accounts</h3>
+          {providerData.accounts.length > 0 ? (
+            <ul className="credential-list">
+              {providerData.accounts.map((acct) => (
+                <li key={acct.id} className="credential-card">
+                  <div className="credential-card__header">
+                    <div className="credential-card__info">
+                      <strong>{acct.label}</strong>
+                      <span className="credential-card__meta">
+                        {acct.isActive && (
+                          <span className="credential-card__badge credential-card__badge--set">
+                            Active
+                          </span>
+                        )}
+                        <span className="credential-card__date">
+                          Added {acct.addedAt}
+                        </span>
+                        {acct.lastUsed && (
+                          <span className="credential-card__date">
+                            · Used {acct.lastUsed}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="credential-card__actions">
+                      {!acct.isActive && (
+                        <button
+                          className="credential-btn credential-btn--secondary"
+                          disabled={busy}
+                          onClick={() => void handleSetActive(acct.id)}
+                        >
+                          Set Active
+                        </button>
+                      )}
+                      <button
+                        className="credential-btn credential-btn--danger"
+                        disabled={busy}
+                        onClick={() => void handleRemove(acct.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="credential-empty">No accounts saved for this provider.</p>
+          )}
+
+          <h3 className="settings-section__title">Add Account</h3>
+          <div className="credential-add-form">
+            <input
+              className="text-input"
+              type="text"
+              placeholder="Label (e.g. Work, Personal)…"
+              value={addLabel}
+              onChange={(e) => setAddLabel(e.target.value)}
+              disabled={busy}
+            />
+            <textarea
+              className="text-input credential-textarea"
+              placeholder={placeholder}
+              rows={3}
+              value={addToken}
+              onChange={(e) => setAddToken(e.target.value)}
+              disabled={busy}
+            />
+            <button
+              className="credential-btn credential-btn--primary"
+              disabled={busy || !addLabel.trim() || !addToken.trim()}
+              onClick={() => void handleAdd()}
+            >
+              Add Account
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ── About ─────────────────────────────────────────────────────────────
 
 function AboutTab() {
   const [appInfo, setAppInfo] = useState<AppInfoBridge | null>(null);

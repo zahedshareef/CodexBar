@@ -6,6 +6,7 @@ export type SettingsTabId =
   | "display"
   | "apiKeys"
   | "cookies"
+  | "tokenAccounts"
   | "advanced"
   | "about";
 export type ProofProviderId =
@@ -317,4 +318,29 @@ export interface ProviderChartData {
   costHistory: DailyCostPoint[];
   creditsHistory: DailyCostPoint[];
   usageBreakdown: DailyUsageBreakdown[];
+}
+
+// ── Token account types ──────────────────────────────────────────────
+
+export interface TokenAccountSupportBridge {
+  providerId: string;
+  displayName: string;
+  title: string;
+  subtitle: string;
+  placeholder: string;
+}
+
+export interface TokenAccountBridge {
+  id: string;
+  label: string;
+  addedAt: string;
+  lastUsed: string | null;
+  isActive: boolean;
+}
+
+export interface ProviderTokenAccountsBridge {
+  providerId: string;
+  support: TokenAccountSupportBridge;
+  accounts: TokenAccountBridge[];
+  activeIndex: number;
 }
