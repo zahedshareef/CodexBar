@@ -25,6 +25,7 @@ let currentSnapshot: SurfaceSnapshot = {
 
 const subscribers = new Set<() => void>();
 let storeStarted = false;
+let snapshotVersion = 0;
 
 function sameTarget(
   left: SurfaceTarget | null,
@@ -53,7 +54,33 @@ function publishSnapshot(next: SurfaceSnapshot): void {
   }
 
   currentSnapshot = next;
+  snapshotVersion += 1;
   subscribers.forEach((notify) => notify());
+}
+
+function publishBootstrapSnapshot(
+  next: SurfaceSnapshot,
+  bootstrapVersion: number,
+): void {
+  if (snapshotVersion !== bootstrapVersion) {
+    return;
+  }
+
+  publishSnapshot(next);
+}
+
+function loadInitialSnapshot(bootstrapVersion: number): void {
+  void getCurrentSurfaceState()
+    .then((current: CurrentSurfaceState) => {
+      publishBootstrapSnapshot(
+        {
+          mode: current.mode,
+          target: current.target,
+        },
+        bootstrapVersion,
+      );
+    })
+    .catch(() => {});
 }
 
 function startSurfaceStore(): void {
@@ -63,21 +90,18 @@ function startSurfaceStore(): void {
 
   storeStarted = true;
 
-  void getCurrentSurfaceState()
-    .then((current: CurrentSurfaceState) => {
-      publishSnapshot({
-        mode: current.mode,
-        target: current.target,
-      });
-    })
-    .catch(() => {});
-
   void listen<SurfaceModePayload>("surface-mode-changed", (event) => {
     publishSnapshot({
       mode: event.payload.mode,
       target: event.payload.target,
     });
-  }).catch(() => {});
+  })
+    .then(() => {
+      loadInitialSnapshot(snapshotVersion);
+    })
+    .catch(() => {
+      loadInitialSnapshot(snapshotVersion);
+    });
 }
 
 function subscribe(notify: () => void): () => void {

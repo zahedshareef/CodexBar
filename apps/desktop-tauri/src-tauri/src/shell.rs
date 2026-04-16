@@ -297,18 +297,14 @@ fn hidden_surface_snapshot() -> SurfaceSnapshot {
     }
 }
 
-fn restore_recovery_visibility<F>(
+fn restore_recovery_surface<F>(
     recovery: &SurfaceSnapshot,
-    mut show_and_focus: F,
+    mut apply_properties: F,
 ) -> Result<(), String>
 where
-    F: FnMut() -> Result<(), String>,
+    F: FnMut(&WindowProperties) -> Result<(), String>,
 {
-    if recovery.mode.window_properties().visible {
-        show_and_focus()?;
-    }
-
-    Ok(())
+    apply_properties(&recovery.mode.window_properties())
 }
 
 fn recovery_snapshot_for_failed_transition(
@@ -376,15 +372,13 @@ fn apply_transition(
         Err(err) => {
             let recovery =
                 recovery_snapshot_for_failed_transition(transition, previous, &current_target);
-            if let Err(recovery_err) = restore_recovery_visibility(&recovery, || {
-                window.show().map_err(|e| e.to_string())?;
-                window.set_focus().map_err(|e| e.to_string())?;
-                Ok(())
+            if let Err(recovery_err) = restore_recovery_surface(&recovery, |properties| {
+                apply_window_properties(window, properties)
             }) {
                 let hidden = hidden_surface_snapshot();
                 if let Err(hide_err) = window.hide().map_err(|e| e.to_string()) {
                     tracing::warn!(
-                        "shell: failed to re-establish recovery visibility during {:?} -> {:?} after restoring {:?}: apply error: {}; recovery error: {}; hide error: {}",
+                        "shell: failed to restore recovery surface during {:?} -> {:?} after reverting to {:?}: apply error: {}; recovery error: {}; hide error: {}",
                         transition.from,
                         transition.to,
                         recovery.mode,
@@ -405,7 +399,7 @@ fn apply_transition(
                     hidden.target.clone(),
                 );
                 tracing::warn!(
-                    "shell: failed to re-establish recovery visibility during {:?} -> {:?} after restoring {:?}; forcing hidden surface: apply error: {}; recovery error: {}",
+                    "shell: failed to restore recovery surface during {:?} -> {:?} after reverting to {:?}; forcing hidden surface: apply error: {}; recovery error: {}",
                     transition.from,
                     transition.to,
                     recovery.mode,
@@ -422,7 +416,7 @@ fn apply_transition(
                 recovery.target.clone(),
             );
             tracing::warn!(
-                "shell: recovered from window-property failure during {:?} -> {:?} by restoring {:?}: {}",
+                "shell: recovered from window-property failure during {:?} -> {:?} by reapplying {:?}: {}",
                 transition.from,
                 transition.to,
                 recovery.mode,
@@ -738,22 +732,27 @@ mod tests {
             target: SurfaceTarget::Summary,
         };
 
-        let err = restore_recovery_visibility(&recovery, || Err("show failed".into()))
-            .expect_err("visible recovery should fail when visibility is not restored");
+        let err = restore_recovery_surface(&recovery, |_| Err("show failed".into()))
+            .expect_err("visible recovery should fail when properties are not restored");
 
         assert_eq!(err, "show failed");
     }
 
     #[test]
-    fn hidden_recovery_does_not_require_visibility_restore() {
+    fn hidden_recovery_reapplies_hidden_properties() {
         let recovery = SurfaceSnapshot {
             mode: SurfaceMode::Hidden,
             target: SurfaceTarget::Summary,
         };
 
-        let restored = restore_recovery_visibility(&recovery, || Err("should not run".into()));
+        let mut applied_hidden = false;
+        let restored = restore_recovery_surface(&recovery, |properties| {
+            applied_hidden = !properties.visible;
+            Ok(())
+        });
 
         assert!(restored.is_ok());
+        assert!(applied_hidden);
     }
 
     #[test]
