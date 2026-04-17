@@ -500,6 +500,13 @@ pub enum LocaleKey {
     CriticalUsageWarningHelper,
     GlobalShortcutFieldLabel,
     GlobalShortcutToggleHelper,
+    ShortcutRecordButton,
+    ShortcutRecordingLabel,
+    ShortcutRecordingHint,
+    ShortcutClearButton,
+    ShortcutEmptyPlaceholder,
+    NotificationTestSound,
+    NotificationTestSoundPlaying,
 
     // Tauri desktop shell — Display tab fields
     TrayIconModeLabel,
@@ -1110,6 +1117,16 @@ impl LocaleKey {
             }
             LocaleKey::GlobalShortcutFieldLabel => "Global shortcut",
             LocaleKey::GlobalShortcutToggleHelper => "Key combination to toggle the tray panel.",
+            // REVIEW-i18n: Phase 7 shortcut-capture + notification test labels.
+            LocaleKey::ShortcutRecordButton => "Record",
+            LocaleKey::ShortcutRecordingLabel => "Recording…",
+            LocaleKey::ShortcutRecordingHint => {
+                "Press modifiers + a key. Esc cancels, Backspace clears."
+            }
+            LocaleKey::ShortcutClearButton => "Clear",
+            LocaleKey::ShortcutEmptyPlaceholder => "Not set",
+            LocaleKey::NotificationTestSound => "Test sound",
+            LocaleKey::NotificationTestSoundPlaying => "Playing…",
 
             // Tauri desktop shell — Display tab fields
             LocaleKey::TrayIconModeLabel => "Tray icon mode",
@@ -1718,6 +1735,14 @@ impl LocaleKey {
             LocaleKey::CriticalUsageWarningHelper => "当用量超过该百分比时显示严重告警。",
             LocaleKey::GlobalShortcutFieldLabel => "全局快捷键",
             LocaleKey::GlobalShortcutToggleHelper => "用于切换托盘面板的组合键。",
+            // REVIEW-i18n: Phase 7 shortcut-capture + notification test labels.
+            LocaleKey::ShortcutRecordButton => "录制",
+            LocaleKey::ShortcutRecordingLabel => "录制中…",
+            LocaleKey::ShortcutRecordingHint => "按下修饰键 + 任意键。Esc 取消，Backspace 清除。",
+            LocaleKey::ShortcutClearButton => "清除",
+            LocaleKey::ShortcutEmptyPlaceholder => "未设置",
+            LocaleKey::NotificationTestSound => "测试声音",
+            LocaleKey::NotificationTestSoundPlaying => "播放中…",
 
             // Tauri desktop shell — Display tab fields
             LocaleKey::TrayIconModeLabel => "托盘图标模式",
@@ -2368,6 +2393,19 @@ impl LocaleKey {
         (
             LocaleKey::GlobalShortcutToggleHelper,
             "GlobalShortcutToggleHelper",
+        ),
+        (LocaleKey::ShortcutRecordButton, "ShortcutRecordButton"),
+        (LocaleKey::ShortcutRecordingLabel, "ShortcutRecordingLabel"),
+        (LocaleKey::ShortcutRecordingHint, "ShortcutRecordingHint"),
+        (LocaleKey::ShortcutClearButton, "ShortcutClearButton"),
+        (
+            LocaleKey::ShortcutEmptyPlaceholder,
+            "ShortcutEmptyPlaceholder",
+        ),
+        (LocaleKey::NotificationTestSound, "NotificationTestSound"),
+        (
+            LocaleKey::NotificationTestSoundPlaying,
+            "NotificationTestSoundPlaying",
         ),
         (LocaleKey::TrayIconModeLabel, "TrayIconModeLabel"),
         (LocaleKey::TrayIconModeHelper, "TrayIconModeHelper"),
