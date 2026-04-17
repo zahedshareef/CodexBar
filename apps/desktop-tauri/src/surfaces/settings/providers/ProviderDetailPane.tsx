@@ -15,6 +15,7 @@ import { UsageSection } from "./sections/UsageSection";
 import { PaceSection } from "./sections/PaceSection";
 import { CostSection } from "./sections/CostSection";
 import { QuickActionsSection } from "./sections/QuickActionsSection";
+import { ChartsSection } from "./sections/charts/ChartsSection";
 
 interface Props {
   providerId: string | null;
@@ -185,12 +186,11 @@ export function ProviderDetailPane({ providerId }: Props) {
       >
         Inline token accounts — Phase 6e
       </section>
-      <section
-        className="provider-detail-section provider-detail-section--deferred"
-        data-deferred="6f"
-      >
-        Charts (cost / credits / usage breakdown) — Phase 6f
-      </section>
+      <ChartsSection
+        providerId={detail.id}
+        accountEmail={detail.email}
+        t={t}
+      />
 
       <QuickActionsSection
         provider={detail}

@@ -2871,4 +2871,103 @@ mod tests {
             assert!(ids.contains(&expected), "missing command id: {expected}");
         }
     }
+
+    #[test]
+    fn bootstrap_contract_lists_chart_data_command() {
+        let ids = bridge_commands()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+        assert!(
+            ids.contains(&"get_provider_chart_data"),
+            "get_provider_chart_data must be advertised to the bridge",
+        );
+    }
+
+    #[test]
+    fn chart_data_serde_roundtrip_preserves_fields() {
+        use super::{DailyCostPoint, DailyUsageBreakdown, ProviderChartData, ServiceUsagePoint};
+
+        let original = ProviderChartData {
+            provider_id: "codex".into(),
+            cost_history: vec![
+                DailyCostPoint {
+                    date: "2025-01-01".into(),
+                    value: 1.25,
+                },
+                DailyCostPoint {
+                    date: "2025-01-02".into(),
+                    value: 0.0,
+                },
+            ],
+            credits_history: vec![DailyCostPoint {
+                date: "2025-01-01".into(),
+                value: 42.0,
+            }],
+            usage_breakdown: vec![DailyUsageBreakdown {
+                day: "2025-01-01".into(),
+                services: vec![
+                    ServiceUsagePoint {
+                        service: "gpt-4o".into(),
+                        credits_used: 10.0,
+                    },
+                    ServiceUsagePoint {
+                        service: "gpt-4o-mini".into(),
+                        credits_used: 3.5,
+                    },
+                ],
+                total_credits_used: 13.5,
+            }],
+        };
+
+        let json = serde_json::to_string(&original).expect("serialize");
+        // camelCase is required by the TS bridge.
+        assert!(
+            json.contains("\"providerId\":\"codex\""),
+            "camelCase providerId: {json}"
+        );
+        assert!(json.contains("\"costHistory\""));
+        assert!(json.contains("\"creditsHistory\""));
+        assert!(json.contains("\"usageBreakdown\""));
+        assert!(json.contains("\"creditsUsed\":10.0"));
+        assert!(json.contains("\"totalCreditsUsed\":13.5"));
+
+        let back: ProviderChartData = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.provider_id, "codex");
+        assert_eq!(back.cost_history.len(), 2);
+        assert_eq!(back.cost_history[0].date, "2025-01-01");
+        assert_eq!(back.credits_history[0].value, 42.0);
+        assert_eq!(back.usage_breakdown[0].services.len(), 2);
+        assert_eq!(back.usage_breakdown[0].total_credits_used, 13.5);
+    }
+
+    #[test]
+    fn chart_data_for_unknown_provider_is_empty() {
+        // Non-openai/codex providers have no dashboard cache source, so
+        // credits_history + usage_breakdown must both be empty. Cost history
+        // may still be non-empty if local cost JSONL exists; we only assert
+        // on the two fields that depend exclusively on the dashboard cache.
+        let data =
+            super::get_provider_chart_data("this-provider-definitely-does-not-exist".into(), None);
+        assert_eq!(data.provider_id, "this-provider-definitely-does-not-exist");
+        assert!(
+            data.credits_history.is_empty(),
+            "non-codex provider must not emit credits history",
+        );
+        assert!(
+            data.usage_breakdown.is_empty(),
+            "non-codex provider must not emit usage breakdown",
+        );
+    }
+
+    #[test]
+    fn chart_data_requires_account_email_for_codex() {
+        // Even for codex, if no account email is supplied we cannot match
+        // against the cached dashboard snapshot, so both dashboard-sourced
+        // series must be empty.
+        let data = super::get_provider_chart_data("codex".into(), None);
+        assert_eq!(data.provider_id, "codex");
+        assert!(data.credits_history.is_empty());
+        assert!(data.usage_breakdown.is_empty());
+    }
 }

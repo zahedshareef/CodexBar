@@ -1925,3 +1925,103 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Phase 6f — Provider detail charts ────────────────────────────── */
+
+.provider-detail-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--provider-icon-ring);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.provider-detail-charts__tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--provider-icon-ring);
+  padding-bottom: 6px;
+}
+
+.provider-detail-charts__tab {
+  background: transparent;
+  color: var(--provider-row-text-secondary);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.provider-detail-charts__tab:hover {
+  background: var(--provider-row-bg);
+  color: var(--provider-row-text-primary);
+}
+
+.provider-detail-charts__tab[data-active="true"] {
+  background: var(--provider-row-bg);
+  color: var(--provider-row-text-primary);
+  border-color: var(--provider-icon-ring);
+}
+
+.provider-detail-charts__body {
+  min-height: 64px;
+}
+
+.provider-detail-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.provider-detail-chart__title {
+  font-size: 0.78rem;
+  color: var(--provider-row-text-secondary);
+}
+
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chart__svg {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+.chart__axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--provider-row-text-secondary);
+}
+
+.chart__axis-max {
+  font-variant-numeric: tabular-nums;
+}
+
+.chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 0.72rem;
+  color: var(--provider-row-text-secondary);
+}
+
+.chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart__legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
