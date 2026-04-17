@@ -2004,6 +2004,7 @@ impl CodexBarApp {
         self.write_test_state_now(&path);
     }
 
+    #[cfg(debug_assertions)]
     fn write_test_state_now(&mut self, path: &Path) {
         let selected_tab = if let Ok(state) = self.state.lock() {
             state.selected_tab
