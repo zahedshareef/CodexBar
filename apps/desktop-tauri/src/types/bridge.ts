@@ -461,4 +461,23 @@ export interface ProviderDetail {
   buyCreditsUrl: string | null;
 
   hasSnapshot: boolean;
+
+  /** Phase 6c — currently-persisted cookie source value ("auto" | "manual" | "off" | …).
+   *  `null` for providers that do not expose a cookie-source picker. */
+  cookieSource: string | null;
+  /** Phase 6c — currently-persisted region value. `null` for non-regional providers. */
+  region: string | null;
+}
+
+// ── Phase 6c — cookie-source & region pickers ────────────────────────
+
+export interface CookieSourceOption {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+export interface RegionOption {
+  value: string;
+  label: string;
 }

@@ -1906,6 +1906,63 @@ body {
   margin-bottom: 8px;
 }
 
+/* ── Phase 6c — cookie source & region pickers ────────────────────── */
+
+.provider-detail-segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--provider-row-bg);
+  border: 1px solid var(--provider-icon-ring);
+  border-radius: 8px;
+}
+
+.provider-detail-segmented__option {
+  appearance: none;
+  background: transparent;
+  color: var(--provider-row-text-secondary);
+  border: 0;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.provider-detail-segmented__option:hover:not(:disabled) {
+  color: var(--provider-row-text-primary);
+}
+
+.provider-detail-segmented__option.is-active {
+  background: var(--provider-row-bg-active, var(--provider-icon-ring));
+  color: var(--provider-row-text-primary);
+}
+
+.provider-detail-segmented__option:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.provider-detail-helper {
+  margin: 6px 0 0;
+  font-size: 0.76rem;
+  color: var(--provider-row-text-secondary);
+}
+
+.provider-detail-select {
+  appearance: none;
+  background: var(--provider-row-bg);
+  color: var(--provider-row-text-primary);
+  border: 1px solid var(--provider-icon-ring);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  min-width: 220px;
+}
+
+.provider-detail-select:disabled {
+  opacity: 0.55;
+}
+
 .btn.btn--ghost {
   background: var(--provider-row-bg);
   color: var(--provider-row-text-primary);

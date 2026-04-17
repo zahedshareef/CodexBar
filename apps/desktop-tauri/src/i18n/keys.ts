@@ -237,6 +237,8 @@ export const ALL_LOCALE_KEYS = [
   "ProviderCodexLastFetchFailedTitle",
   "ProviderCodexNotRunningHelp",
   "ProviderCookieSource",
+  "CookieSourceManual",
+  "ProviderRegion",
   "ProviderClaudeCookies",
   "ProviderClaudeCookiesHelp",
   "ProviderClaudeAvoidKeychainPrompts",

@@ -24,6 +24,8 @@ import type {
   SurfaceTargetForMode,
   VisibleSurfaceMode,
   UpdateStatePayload,
+  CookieSourceOption,
+  RegionOption,
 } from "../types/bridge";
 
 export function getBootstrapState(): Promise<BootstrapState> {
@@ -248,4 +250,26 @@ export function openProviderStatusPage(providerId: string): Promise<void> {
 
 export function triggerProviderLogin(providerId: string): Promise<void> {
   return invoke<void>("trigger_provider_login", { providerId });
+}
+
+// ── Phase 6c — cookie source & region pickers ────────────────────────
+
+export function getProviderCookieSourceOptions(
+  providerId: string,
+): Promise<CookieSourceOption[]> {
+  return invoke<CookieSourceOption[]>("get_provider_cookie_source_options", {
+    providerId,
+  });
+}
+
+export function getProviderRegionOptions(providerId: string): Promise<RegionOption[]> {
+  return invoke<RegionOption[]>("get_provider_region_options", { providerId });
+}
+
+export function setProviderCookieSource(providerId: string, source: string): Promise<void> {
+  return invoke<void>("set_provider_cookie_source", { providerId, source });
+}
+
+export function setProviderRegion(providerId: string, region: string): Promise<void> {
+  return invoke<void>("set_provider_region", { providerId, region });
 }
