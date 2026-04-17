@@ -29,6 +29,7 @@ import {
   type ProviderSidebarRow,
   type ProviderSidebarStatus,
 } from "./settings/providers/ProvidersSidebar";
+import { ProviderDetailPane } from "./settings/providers/ProviderDetailPane";
 import {
   getApiKeyProviders,
   getApiKeys,
@@ -575,11 +576,7 @@ function ProvidersTab({
         onToggleEnabled={toggle}
         disabled={saving}
       />
-      <div className="provider-detail">
-        <div className="provider-detail-empty">
-          {t("ProviderDetailPlaceholder")}
-        </div>
-      </div>
+      <ProviderDetailPane providerId={selectedId} />
     </div>
   );
 }

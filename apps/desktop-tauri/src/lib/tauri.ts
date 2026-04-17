@@ -13,6 +13,7 @@ import type {
   LocaleStrings,
   ProviderCatalogEntry,
   ProviderChartData,
+  ProviderDetail,
   ProviderSummary,
   ProviderUsageSnapshot,
   ProviderTokenAccountsBridge,
@@ -229,4 +230,22 @@ export function getLocaleStrings(
 
 export function setUiLanguage(language: Language): Promise<void> {
   return invoke<void>("set_ui_language", { language });
+}
+
+// ── Phase 6b — provider detail pane ──────────────────────────────────
+
+export function getProviderDetail(providerId: string): Promise<ProviderDetail> {
+  return invoke<ProviderDetail>("get_provider_detail", { providerId });
+}
+
+export function openProviderDashboard(providerId: string): Promise<void> {
+  return invoke<void>("open_provider_dashboard", { providerId });
+}
+
+export function openProviderStatusPage(providerId: string): Promise<void> {
+  return invoke<void>("open_provider_status_page", { providerId });
+}
+
+export function triggerProviderLogin(providerId: string): Promise<void> {
+  return invoke<void>("trigger_provider_login", { providerId });
 }

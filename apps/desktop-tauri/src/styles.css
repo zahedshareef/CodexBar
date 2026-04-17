@@ -1832,3 +1832,96 @@ body {
   margin: 0;
   cursor: pointer;
 }
+
+/* ── Provider detail pane (Phase 6b) ──────────────────────────────── */
+
+.provider-detail-header-block {
+  margin-bottom: 16px;
+}
+
+.provider-detail-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.provider-detail-subtitle {
+  font-size: 0.78rem;
+  color: var(--provider-row-text-secondary);
+}
+
+.provider-detail-empty--error {
+  color: var(--provider-status-error);
+}
+
+.provider-detail-error {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--provider-status-error);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+}
+
+.provider-detail-pace__stage {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--provider-row-text-primary);
+}
+
+.provider-detail-pace__stage[data-stage="far_behind"],
+.provider-detail-pace__stage[data-stage="behind"] {
+  color: var(--provider-status-error);
+}
+
+.provider-detail-pace__stage[data-stage="far_ahead"],
+.provider-detail-pace__stage[data-stage="ahead"] {
+  color: var(--provider-status-stale);
+}
+
+.provider-detail-pace__aux {
+  font-size: 0.78rem;
+  color: var(--provider-row-text-secondary);
+  margin-top: 2px;
+}
+
+.provider-usage-bar__pct[data-exhausted="true"] {
+  color: var(--provider-status-error);
+}
+
+.provider-usage-bar__fill[data-exhausted="true"] {
+  background: var(--provider-status-error);
+}
+
+.provider-detail-section--deferred {
+  opacity: 0.45;
+  font-size: 0.74rem;
+  color: var(--provider-row-text-secondary);
+  font-style: italic;
+  border: 1px dashed var(--provider-icon-ring);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 8px;
+}
+
+.btn.btn--ghost {
+  background: var(--provider-row-bg);
+  color: var(--provider-row-text-primary);
+  border: 1px solid var(--provider-icon-ring);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.btn.btn--ghost:hover:not(:disabled) {
+  background: var(--provider-row-bg-hover);
+}
+
+.btn.btn--ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

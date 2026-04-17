@@ -101,6 +101,8 @@ fn main() {
             commands::get_work_area_rect,
             commands::play_notification_sound,
             commands::open_provider_dashboard,
+            commands::open_provider_status_page,
+            commands::get_provider_detail,
             commands::trigger_provider_login,
             commands::revoke_provider_credentials,
             commands::get_locale_strings,

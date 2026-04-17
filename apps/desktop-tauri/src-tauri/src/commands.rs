@@ -584,6 +584,14 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
             description: "Open a provider's external dashboard URL in the default browser.",
         },
         BridgeCommandDescriptor {
+            id: "open_provider_status_page",
+            description: "Open a provider's external status page URL in the default browser.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_provider_detail",
+            description: "Return the aggregated identity/usage/pace/cost snapshot backing the Settings provider detail pane.",
+        },
+        BridgeCommandDescriptor {
             id: "trigger_provider_login",
             description: "Trigger a provider's login flow (CLI-based where available).",
         },
@@ -2302,6 +2310,12 @@ fn dashboard_url_for_provider(provider_id: &str) -> Option<String> {
         .and_then(|p| p.dashboard_url.map(|s| s.to_string()))
 }
 
+fn status_page_url_for_provider(provider_id: &str) -> Option<String> {
+    let id = ProviderId::from_cli_name(provider_id)?;
+    let provider = create_provider(id);
+    provider.metadata().status_page_url.map(|s| s.to_string())
+}
+
 #[tauri::command]
 pub fn open_provider_dashboard(provider_id: String) -> Result<(), String> {
     let url = dashboard_url_for_provider(&provider_id)
@@ -2310,17 +2324,146 @@ pub fn open_provider_dashboard(provider_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_provider_status_page(provider_id: String) -> Result<(), String> {
+    let url = status_page_url_for_provider(&provider_id)
+        .ok_or_else(|| format!("No status page URL registered for provider '{provider_id}'"))?;
+    open_url_in_browser(&url)
+}
+
+#[tauri::command]
 pub fn trigger_provider_login(provider_id: String) -> Result<(), String> {
-    // The login runners live in `codexbar::login` but are async-oriented and
-    // tightly coupled to the egui UI's phase callbacks. For the Tauri shell
-    // we currently surface the dashboard URL — a full end-to-end login flow
-    // will be wired up in Phase 6b together with phase-event plumbing.
+    // TODO(6b): replace fallthrough once LoginPhase events land. The login
+    // runners live in `codexbar::login` but are async-oriented and tightly
+    // coupled to the egui UI's phase callbacks. For the Tauri shell we
+    // currently surface the dashboard URL.
     if let Some(url) = dashboard_url_for_provider(&provider_id) {
         return open_url_in_browser(&url);
     }
     Err(format!(
         "Login flow for '{provider_id}' is not yet wired through the Tauri shell"
     ))
+}
+
+// ── Provider detail pane (Phase 6b) ──────────────────────────────────
+
+/// DTO for the provider detail pane in the Settings Providers tab.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderDetail {
+    pub id: String,
+    pub display_name: String,
+    pub enabled: bool,
+
+    // Identity
+    pub email: Option<String>,
+    pub plan: Option<String>,
+    pub auth_type: Option<String>,
+    pub source_label: Option<String>,
+    pub organization: Option<String>,
+    pub last_updated: Option<String>,
+
+    // Usage windows — reuse existing RateWindowSnapshot shape.
+    pub session: Option<RateWindowSnapshot>,
+    pub weekly: Option<RateWindowSnapshot>,
+    pub model_specific: Option<RateWindowSnapshot>,
+    pub tertiary: Option<RateWindowSnapshot>,
+
+    // Cost / pace.
+    pub cost: Option<CostSnapshotBridge>,
+    pub pace: Option<PaceSnapshot>,
+
+    // Error / state.
+    pub last_error: Option<String>,
+
+    // URLs for quick-actions (button visibility).
+    pub dashboard_url: Option<String>,
+    pub status_page_url: Option<String>,
+    pub buy_credits_url: Option<String>,
+
+    // True if the shared backend has produced any snapshot yet.
+    pub has_snapshot: bool,
+}
+
+fn build_provider_detail(provider_id: &str) -> Result<ProviderDetail, String> {
+    let id = ProviderId::from_cli_name(provider_id)
+        .ok_or_else(|| format!("Unknown provider id: {provider_id}"))?;
+
+    let settings = Settings::load();
+    let enabled = settings
+        .enabled_providers
+        .iter()
+        .any(|p| p == id.cli_name());
+
+    let provider = create_provider(id);
+    let metadata = provider.metadata();
+
+    Ok(ProviderDetail {
+        id: id.cli_name().to_string(),
+        display_name: id.display_name().to_string(),
+        enabled,
+        email: None,
+        plan: None,
+        auth_type: None,
+        source_label: None,
+        organization: None,
+        last_updated: None,
+        session: None,
+        weekly: None,
+        model_specific: None,
+        tertiary: None,
+        cost: None,
+        pace: None,
+        last_error: None,
+        dashboard_url: metadata.dashboard_url.map(|s| s.to_string()),
+        status_page_url: metadata.status_page_url.map(|s| s.to_string()),
+        // Buy-credits currently mirrors the dashboard URL for providers that
+        // support credit top-ups; refine once a dedicated URL lands upstream.
+        buy_credits_url: if metadata.supports_credits {
+            metadata.dashboard_url.map(|s| s.to_string())
+        } else {
+            None
+        },
+        has_snapshot: false,
+    })
+}
+
+#[tauri::command]
+pub fn get_provider_detail(
+    app: tauri::AppHandle,
+    provider_id: String,
+) -> Result<ProviderDetail, String> {
+    let mut detail = build_provider_detail(&provider_id)?;
+
+    // Merge the latest cached snapshot, if any.
+    let state = app.state::<Mutex<AppState>>();
+    if let Ok(guard) = state.lock()
+        && let Some(snap) = guard
+            .provider_cache
+            .iter()
+            .find(|s| s.provider_id == detail.id)
+    {
+        detail.email = snap.account_email.clone();
+        detail.plan = snap.plan_name.clone();
+        detail.organization = snap.account_organization.clone();
+        detail.source_label = if snap.source_label.is_empty() {
+            None
+        } else {
+            Some(snap.source_label.clone())
+        };
+        detail.last_updated = Some(snap.updated_at.clone());
+        if snap.error.is_none() {
+            detail.session = Some(snap.primary.clone());
+            detail.weekly = snap.secondary.clone();
+            detail.model_specific = snap.model_specific.clone();
+            detail.tertiary = snap.tertiary.clone();
+            detail.cost = snap.cost.clone();
+            detail.pace = snap.pace.clone();
+        }
+        detail.last_error = snap.error.clone();
+        detail.has_snapshot = true;
+    }
+
+    Ok(detail)
 }
 
 #[tauri::command]
@@ -2667,5 +2810,65 @@ mod tests {
     fn launch_block_reason_helper_prefers_ssh() {
         let msg = launch_block_reason(true, true).unwrap();
         assert!(msg.contains("SSH"));
+    }
+
+    // ── Phase 6b — provider detail pane ────────────────────────────
+
+    #[test]
+    fn build_provider_detail_populates_identity_urls() {
+        let detail = super::build_provider_detail("claude").expect("known provider");
+        assert_eq!(detail.id, "claude");
+        assert_eq!(detail.display_name, "Claude");
+        // Claude advertises a status page URL in its metadata.
+        assert!(detail.status_page_url.is_some());
+        // No snapshot yet — empty usage bars and no error.
+        assert!(detail.session.is_none());
+        assert!(detail.last_error.is_none());
+        assert!(!detail.has_snapshot);
+    }
+
+    #[test]
+    fn build_provider_detail_rejects_unknown_provider() {
+        let err = super::build_provider_detail("not-a-provider").unwrap_err();
+        assert!(err.contains("not-a-provider"));
+    }
+
+    #[test]
+    fn provider_detail_roundtrips_through_serde() {
+        let detail = super::build_provider_detail("codex").expect("known provider");
+        let json = serde_json::to_string(&detail).expect("serialize");
+        // camelCase rename survives the round-trip.
+        assert!(json.contains("\"displayName\""));
+        assert!(json.contains("\"hasSnapshot\""));
+        assert!(json.contains("\"statusPageUrl\""));
+    }
+
+    #[test]
+    fn pace_stage_serializes_to_snake_case_string() {
+        use codexbar::core::PaceStage;
+        assert_eq!(super::pace_stage_str(PaceStage::OnTrack), "on_track");
+        assert_eq!(
+            super::pace_stage_str(PaceStage::SlightlyAhead),
+            "slightly_ahead"
+        );
+        assert_eq!(super::pace_stage_str(PaceStage::FarAhead), "far_ahead");
+        assert_eq!(
+            super::pace_stage_str(PaceStage::SlightlyBehind),
+            "slightly_behind"
+        );
+        assert_eq!(super::pace_stage_str(PaceStage::Behind), "behind");
+        assert_eq!(super::pace_stage_str(PaceStage::FarBehind), "far_behind");
+    }
+
+    #[test]
+    fn bootstrap_contract_lists_phase6b_commands() {
+        let ids = bridge_commands()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+
+        for expected in ["get_provider_detail", "open_provider_status_page"] {
+            assert!(ids.contains(&expected), "missing command id: {expected}");
+        }
     }
 }

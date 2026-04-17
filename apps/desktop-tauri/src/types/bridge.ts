@@ -428,3 +428,37 @@ export interface LocaleStrings {
 
 /** Payload emitted for `locale-changed`: the persisted language label. */
 export type LocaleChangedPayload = Language;
+
+// ── Phase 6b — provider detail pane ──────────────────────────────────
+
+/** Aggregated per-provider payload powering the Settings detail pane. */
+export interface ProviderDetail {
+  id: string;
+  displayName: string;
+  enabled: boolean;
+
+  // Identity
+  email: string | null;
+  plan: string | null;
+  authType: string | null;
+  sourceLabel: string | null;
+  organization: string | null;
+  lastUpdated: string | null;
+
+  // Usage windows — mirror RateWindowSnapshot.
+  session: RateWindowSnapshot | null;
+  weekly: RateWindowSnapshot | null;
+  modelSpecific: RateWindowSnapshot | null;
+  tertiary: RateWindowSnapshot | null;
+
+  cost: CostSnapshotBridge | null;
+  pace: PaceSnapshot | null;
+
+  lastError: string | null;
+
+  dashboardUrl: string | null;
+  statusPageUrl: string | null;
+  buyCreditsUrl: string | null;
+
+  hasSnapshot: boolean;
+}
