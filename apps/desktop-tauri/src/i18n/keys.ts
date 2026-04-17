@@ -412,6 +412,7 @@ export const ALL_LOCALE_KEYS = [
   "DetailChartCost",
   "DetailChartCredits",
   "DetailChartUsageBreakdown",
+  "DetailChartEmpty",
   "DetailUpdatedPrefix",
   "BannerCheckingForUpdates",
   "BannerUpdateAvailablePrefix",

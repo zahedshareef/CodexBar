@@ -1,3 +1,6 @@
+import { useMemo, useRef, useState } from "react";
+import { serviceColorVar } from "../../../../../components/charts/chartPalette";
+import { useChartAnimation } from "../../../../../components/charts/useChartAnimation";
 import type { DailyUsageBreakdown } from "../../../../../types/bridge";
 
 /**
@@ -8,41 +11,58 @@ import type { DailyUsageBreakdown } from "../../../../../types/bridge";
  * Port target: the usage_breakdown stacked bar cluster in
  * `rust/src/native_ui/preferences.rs::render_provider_detail_panel`.
  *
- * Phase 6f uses a deterministic placeholder palette; the full service
- * palette is Phase 10.
+ * Phase 10: tokenised palette (`--chart-service-*`), per-row entrance
+ * animation, hover tooltip, and surprise-me hook.
  */
 
 interface Props {
   data: DailyUsageBreakdown[];
   title: string;
   ariaLabel: string;
+  animations: boolean;
+  surprise: boolean;
+  emptyMessage: string;
 }
 
-// Deterministic placeholder palette — Phase 10 will swap this for the
-// theme's full service-color tokens.
-const PALETTE = [
-  "#5d87ff",
-  "#06d6a0",
-  "#ffd166",
-  "#ef476f",
-  "#a78bfa",
-  "#38bdf8",
-  "#fb923c",
-  "#4ade80",
-];
-
-function serviceColor(service: string, ordered: string[]): string {
-  const idx = ordered.indexOf(service);
-  return PALETTE[(idx < 0 ? 0 : idx) % PALETTE.length];
-}
-
-export function UsageBreakdownChart({ data, title, ariaLabel }: Props) {
+export function UsageBreakdownChart({
+  data,
+  title,
+  ariaLabel,
+  animations,
+  surprise,
+  emptyMessage,
+}: Props) {
   const recent = data.slice(-14);
-  if (recent.length === 0) return null;
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [hover, setHover] = useState<{
+    label: string;
+    value: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
-  const allServices = Array.from(
-    new Set(recent.flatMap((d) => d.services.map((s) => s.service))),
-  ).sort();
+  const anim = useChartAnimation(recent.length, animations, [
+    recent.length,
+    recent[0]?.day,
+    recent[recent.length - 1]?.day,
+  ]);
+
+  const allServices = useMemo(
+    () =>
+      Array.from(new Set(recent.flatMap((d) => d.services.map((s) => s.service)))).sort(),
+    [recent],
+  );
+
+  if (recent.length === 0) {
+    return (
+      <div className="provider-detail-chart">
+        <div className="provider-detail-chart__title">{title}</div>
+        <div className="chart chart--stacked">
+          <div className="chart__empty">{emptyMessage}</div>
+        </div>
+      </div>
+    );
+  }
 
   const rowHeight = 14;
   const rowGap = 2;
@@ -51,13 +71,23 @@ export function UsageBreakdownChart({ data, title, ariaLabel }: Props) {
   const barAreaWidth = totalWidth - labelWidth;
   const svgHeight = recent.length * (rowHeight + rowGap);
 
-  // Max total across rows so bar lengths are comparable day-over-day.
   const max = Math.max(...recent.map((d) => d.totalCreditsUsed), 0.0001);
+
+  const onSegMove = (e: React.MouseEvent<SVGRectElement>, label: string, value: number) => {
+    const host = containerRef.current;
+    if (!host) return;
+    const rect = host.getBoundingClientRect();
+    setHover({ label, value, x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+  const onSegLeave = () => setHover(null);
 
   return (
     <div className="provider-detail-chart">
       <div className="provider-detail-chart__title">{title}</div>
-      <div className="chart chart--stacked">
+      <div
+        className={`chart chart--stacked${surprise ? " chart--surprise" : ""}`}
+        ref={containerRef}
+      >
         <svg
           width={totalWidth}
           height={svgHeight}
@@ -68,7 +98,8 @@ export function UsageBreakdownChart({ data, title, ariaLabel }: Props) {
         >
           {recent.map((day, rowIdx) => {
             const y = rowIdx * (rowHeight + rowGap);
-            const rowWidth = (day.totalCreditsUsed / max) * barAreaWidth;
+            const eased = anim.barProgress(rowIdx);
+            const rowWidth = (day.totalCreditsUsed / max) * barAreaWidth * eased;
             let xOffset = labelWidth;
             const sorted = [...day.services].sort((a, b) =>
               a.service.localeCompare(b.service),
@@ -89,6 +120,7 @@ export function UsageBreakdownChart({ data, title, ariaLabel }: Props) {
                     day.totalCreditsUsed > 0
                       ? (svc.creditsUsed / day.totalCreditsUsed) * rowWidth
                       : 0;
+                  const label = `${day.day} · ${svc.service}`;
                   const rect = (
                     <rect
                       key={`${day.day}-${svc.service}`}
@@ -96,9 +128,12 @@ export function UsageBreakdownChart({ data, title, ariaLabel }: Props) {
                       y={y}
                       width={Math.max(0.5, w)}
                       height={rowHeight}
-                      fill={serviceColor(svc.service, allServices)}
+                      fill={serviceColorVar(svc.service, allServices)}
                       opacity={0.9}
                       rx={1}
+                      className="chart__stack-rect"
+                      onMouseMove={(e) => onSegMove(e, label, svc.creditsUsed)}
+                      onMouseLeave={onSegLeave}
                     >
                       <title>
                         {day.day} {svc.service}: {svc.creditsUsed.toFixed(2)}
@@ -118,11 +153,21 @@ export function UsageBreakdownChart({ data, title, ariaLabel }: Props) {
               <span key={svc} className="chart__legend-item">
                 <span
                   className="chart__legend-dot"
-                  style={{ background: serviceColor(svc, allServices) }}
+                  style={{ background: serviceColorVar(svc, allServices) }}
                 />
                 {svc}
               </span>
             ))}
+          </div>
+        )}
+        {hover && !anim.running && (
+          <div
+            className="chart__tooltip"
+            style={{ left: hover.x, top: hover.y }}
+            role="tooltip"
+          >
+            <span className="chart__tooltip-label">{hover.label}</span>
+            <strong>{hover.value.toFixed(2)}</strong>
           </div>
         )}
       </div>

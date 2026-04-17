@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { getProviderChartData } from "../../../../../lib/tauri";
-import type { ProviderChartData } from "../../../../../types/bridge";
+import { getProviderChartData, getSettingsSnapshot } from "../../../../../lib/tauri";
+import type { ProviderChartData, SettingsSnapshot } from "../../../../../types/bridge";
 import type { useLocale } from "../../../../../hooks/useLocale";
 import { CostHistoryChart } from "./CostHistoryChart";
 import { CreditsHistoryChart } from "./CreditsHistoryChart";
@@ -21,10 +21,17 @@ type TabKey = "cost" | "credits" | "usage";
  *
  * Port target: cost_history / credits_history / usage_breakdown blocks
  * in `rust/src/native_ui/preferences.rs::render_provider_detail_panel`.
+ *
+ * Phase 10: fetches the latest settings snapshot so animation and
+ * surprise-me flags feed through to each chart component.
  */
 export function ChartsSection({ providerId, accountEmail, t }: Props) {
   const [data, setData] = useState<ProviderChartData | null>(null);
   const [active, setActive] = useState<TabKey | null>(null);
+  const [flags, setFlags] = useState<{ animations: boolean; surprise: boolean }>({
+    animations: true,
+    surprise: false,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +49,25 @@ export function ChartsSection({ providerId, accountEmail, t }: Props) {
     };
   }, [providerId, accountEmail]);
 
+  useEffect(() => {
+    let cancelled = false;
+    getSettingsSnapshot()
+      .then((s: SettingsSnapshot) => {
+        if (!cancelled) {
+          setFlags({
+            animations: s.enableAnimations,
+            surprise: s.surpriseAnimations,
+          });
+        }
+      })
+      .catch(() => {
+        // Keep defaults on failure.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [providerId]);
+
   if (!data) return null;
 
   const hasCost = data.costHistory.length > 0;
@@ -56,6 +82,7 @@ export function ChartsSection({ providerId, accountEmail, t }: Props) {
   if (hasUsage) available.push("usage");
 
   const current: TabKey = active && available.includes(active) ? active : available[0];
+  const emptyMsg = t("DetailChartEmpty");
 
   const tabLabel = (k: TabKey): string => {
     if (k === "cost") return t("DetailChartCost");
@@ -86,6 +113,10 @@ export function ChartsSection({ providerId, accountEmail, t }: Props) {
             data={data.costHistory}
             title={t("DetailChartCost")}
             ariaLabel={t("DetailChartCost")}
+            providerId={providerId}
+            animations={flags.animations}
+            surprise={flags.surprise}
+            emptyMessage={emptyMsg}
           />
         )}
         {current === "credits" && (
@@ -93,6 +124,10 @@ export function ChartsSection({ providerId, accountEmail, t }: Props) {
             data={data.creditsHistory}
             title={t("DetailChartCredits")}
             ariaLabel={t("DetailChartCredits")}
+            providerId={providerId}
+            animations={flags.animations}
+            surprise={flags.surprise}
+            emptyMessage={emptyMsg}
           />
         )}
         {current === "usage" && (
@@ -100,6 +135,9 @@ export function ChartsSection({ providerId, accountEmail, t }: Props) {
             data={data.usageBreakdown}
             title={t("DetailChartUsageBreakdown")}
             ariaLabel={t("DetailChartUsageBreakdown")}
+            animations={flags.animations}
+            surprise={flags.surprise}
+            emptyMessage={emptyMsg}
           />
         )}
       </div>
