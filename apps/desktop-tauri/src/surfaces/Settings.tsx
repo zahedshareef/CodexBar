@@ -6,6 +6,9 @@ import type {
   BootstrapState,
   CookieInfoBridge,
   DetectedBrowserBridge,
+  Language,
+  MenuBarDisplayMode,
+  MetricPreference,
   ProviderCatalogEntry,
   ProviderTokenAccountsBridge,
   TokenAccountSupportBridge,
@@ -13,6 +16,8 @@ import type {
   RateWindowSnapshot,
   SettingsTabId,
   SettingsUpdate,
+  TrayIconMode,
+  UpdateChannel,
 } from "../types/bridge";
 import { useSettings } from "../hooks/useSettings";
 import { useSurfaceTarget } from "../hooks/useSurfaceMode";
@@ -509,7 +514,7 @@ function ProvidersTab({
   };
 
   const setMetric = (id: string, metric: string) => {
-    const next = { ...settings.providerMetrics, [id]: metric };
+    const next = { ...settings.providerMetrics, [id]: metric as MetricPreference };
     set({ providerMetrics: next });
   };
 
@@ -724,7 +729,7 @@ function DisplayTab({ settings, set, saving }: TabProps) {
             { value: "single", label: "Single" },
             { value: "perProvider", label: "Per provider" },
           ]}
-          onChange={(v) => set({ trayIconMode: v })}
+          onChange={(v) => set({ trayIconMode: v as TrayIconMode })}
         />
       </Field>
       <Field label="Show provider icons" description="Display provider icons in the tray switcher.">
@@ -764,7 +769,7 @@ function DisplayTab({ settings, set, saving }: TabProps) {
             { value: "compact", label: "Compact" },
             { value: "minimal", label: "Minimal" },
           ]}
-          onChange={(v) => set({ menuBarDisplayMode: v })}
+          onChange={(v) => set({ menuBarDisplayMode: v as MenuBarDisplayMode })}
         />
       </Field>
 
@@ -839,7 +844,7 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
             { value: "stable", label: "Stable" },
             { value: "beta", label: "Beta" },
           ]}
-          onChange={(v) => set({ updateChannel: v })}
+          onChange={(v) => set({ updateChannel: v as UpdateChannel })}
         />
       </Field>
       <Field
@@ -872,7 +877,7 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
             { value: "english", label: "English" },
             { value: "chinese", label: "中文" },
           ]}
-          onChange={(v) => set({ uiLanguage: v })}
+          onChange={(v) => set({ uiLanguage: v as Language })}
         />
       </Field>
 
