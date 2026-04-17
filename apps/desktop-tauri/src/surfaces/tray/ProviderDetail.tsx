@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import type { PaceSnapshot, ProviderChartData, ProviderUsageSnapshot } from "../../types/bridge";
 import { getProviderChartData } from "../../lib/tauri";
+import { useLocale } from "../../hooks/useLocale";
 import UsageBar from "./UsageBar";
 import {
   SimpleBarChart,
   StackedBarChart,
 } from "../../components/MiniBarChart";
+import type { LocaleKey } from "../../i18n/keys";
 
 interface ProviderDetailProps {
   provider: ProviderUsageSnapshot;
@@ -31,26 +33,24 @@ function formatCurrency(amount: number, code: string): string {
   }
 }
 
-function paceLabel(pace: PaceSnapshot): string {
-  const sign = pace.deltaPercent >= 0 ? "+" : "";
-  const pct = `${sign}${pace.deltaPercent.toFixed(1)}%`;
-  switch (pace.stage) {
+function paceStageKey(stage: PaceSnapshot["stage"]): LocaleKey {
+  switch (stage) {
     case "on_track":
-      return `On track (${pct})`;
+      return "DetailPaceOnTrack";
     case "slightly_ahead":
-      return `Slightly ahead (${pct})`;
+      return "DetailPaceSlightlyAhead";
     case "ahead":
-      return `Ahead (${pct})`;
+      return "DetailPaceAhead";
     case "far_ahead":
-      return `Far ahead (${pct})`;
+      return "DetailPaceFarAhead";
     case "slightly_behind":
-      return `Slightly behind (${pct})`;
+      return "DetailPaceSlightlyBehind";
     case "behind":
-      return `Behind (${pct})`;
+      return "DetailPaceBehind";
     case "far_behind":
-      return `Far behind (${pct})`;
+      return "DetailPaceFarBehind";
     default:
-      return pct;
+      return "DetailPaceOnTrack";
   }
 }
 
@@ -80,6 +80,7 @@ export default function ProviderDetail({
   resetRelative: _resetRelative,
   onBack,
 }: ProviderDetailProps) {
+  const { t } = useLocale();
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
 
   useEffect(() => {
@@ -101,12 +102,12 @@ export default function ProviderDetail({
       : provider.accountEmail
     : null;
 
-  const windows: { label: string; snap: typeof provider.primary }[] = [
-    { label: "Primary", snap: provider.primary },
+  const windows: { labelKey: LocaleKey; snap: typeof provider.primary }[] = [
+    { labelKey: "DetailWindowPrimary", snap: provider.primary },
   ];
-  if (provider.secondary) windows.push({ label: "Secondary", snap: provider.secondary });
-  if (provider.modelSpecific) windows.push({ label: "Model-specific", snap: provider.modelSpecific });
-  if (provider.tertiary) windows.push({ label: "Tertiary", snap: provider.tertiary });
+  if (provider.secondary) windows.push({ labelKey: "DetailWindowSecondary", snap: provider.secondary });
+  if (provider.modelSpecific) windows.push({ labelKey: "DetailWindowModelSpecific", snap: provider.modelSpecific });
+  if (provider.tertiary) windows.push({ labelKey: "DetailWindowTertiary", snap: provider.tertiary });
 
   const hasCostHistory =
     chartData !== null && chartData.costHistory.length > 0;
@@ -118,7 +119,7 @@ export default function ProviderDetail({
   return (
     <div className="tray-detail">
       <button className="tray-detail__back" onClick={onBack} type="button">
-        ← Back
+        ← {t("DetailBackButton")}
       </button>
 
       <div className="tray-detail__head">
@@ -140,17 +141,17 @@ export default function ProviderDetail({
 
       <div className="tray-detail__windows">
         {windows.map((w) => (
-          <div key={w.label} className="tray-detail__window">
-            <UsageBar window={w.snap} label={w.label} />
+          <div key={w.labelKey} className="tray-detail__window">
+            <UsageBar window={w.snap} label={t(w.labelKey)} />
             <div className="tray-detail__window-meta">
               {w.snap.windowMinutes != null && (
-                <span>{w.snap.windowMinutes}m window</span>
+                <span>{w.snap.windowMinutes}{t("DetailWindowMinutesSuffix")}</span>
               )}
               {w.snap.resetDescription && (
                 <span>{w.snap.resetDescription}</span>
               )}
               {w.snap.isExhausted && (
-                <span className="tray-detail__exhausted">Exhausted</span>
+                <span className="tray-detail__exhausted">{t("DetailWindowExhausted")}</span>
               )}
             </div>
           </div>
@@ -161,12 +162,13 @@ export default function ProviderDetail({
       {provider.pace && (
         <div className="tray-detail__pace">
           <div className="tray-detail__pace-header">
-            <span className="tray-detail__pace-title">Pace</span>
+            <span className="tray-detail__pace-title">{t("DetailPaceTitle")}</span>
             <span
               className="tray-detail__pace-label"
               style={{ color: paceColor(provider.pace.stage) }}
             >
-              {paceLabel(provider.pace)}
+              {t(paceStageKey(provider.pace.stage))} ({provider.pace.deltaPercent >= 0 ? "+" : ""}
+              {provider.pace.deltaPercent.toFixed(1)}%)
             </span>
           </div>
           <div className="tray-detail__pace-bars">
@@ -190,12 +192,15 @@ export default function ProviderDetail({
           </div>
           {provider.pace.etaSeconds != null && !provider.pace.willLastToReset && (
             <span className="tray-detail__pace-eta">
-              ⚠ Runs out in ~{Math.round(provider.pace.etaSeconds / 3600)}h
+              ⚠ {t("DetailPaceRunsOutIn").replace(
+                "{}",
+                String(Math.round(provider.pace.etaSeconds / 3600)),
+              )}
             </span>
           )}
           {provider.pace.willLastToReset && (
             <span className="tray-detail__pace-ok">
-              ✓ Will last to reset
+              ✓ {t("DetailPaceWillLastToReset")}
             </span>
           )}
         </div>
@@ -203,9 +208,9 @@ export default function ProviderDetail({
 
       {provider.cost && (
         <div className="tray-detail__cost">
-          <h3>Cost — {provider.cost.period}</h3>
+          <h3>{t("DetailCostTitle")} — {provider.cost.period}</h3>
           <div className="tray-detail__cost-row">
-            <span>Used</span>
+            <span>{t("DetailCostUsed")}</span>
             <strong>
               {provider.cost.formattedUsed ||
                 formatCurrency(provider.cost.used, provider.cost.currencyCode)}
@@ -213,7 +218,7 @@ export default function ProviderDetail({
           </div>
           {provider.cost.limit != null && (
             <div className="tray-detail__cost-row">
-              <span>Limit</span>
+              <span>{t("DetailCostLimit")}</span>
               <strong>
                 {provider.cost.formattedLimit ||
                   formatCurrency(
@@ -225,7 +230,7 @@ export default function ProviderDetail({
           )}
           {provider.cost.remaining != null && (
             <div className="tray-detail__cost-row">
-              <span>Remaining</span>
+              <span>{t("DetailCostRemaining")}</span>
               <strong>
                 {formatCurrency(
                   provider.cost.remaining,
@@ -236,7 +241,7 @@ export default function ProviderDetail({
           )}
           {provider.cost.resetsAt && (
             <div className="tray-detail__cost-row">
-              <span>Resets</span>
+              <span>{t("DetailCostResets")}</span>
               <span>{provider.cost.resetsAt}</span>
             </div>
           )}
@@ -249,7 +254,7 @@ export default function ProviderDetail({
           {hasCostHistory && (
             <SimpleBarChart
               points={chartData!.costHistory}
-              label="Cost (30 days)"
+              label={t("DetailChartCost")}
               color="#5d87ff"
               formatValue={(v) => `$${v.toFixed(2)}`}
             />
@@ -257,7 +262,7 @@ export default function ProviderDetail({
           {hasCreditsHistory && (
             <SimpleBarChart
               points={chartData!.creditsHistory}
-              label="Credits used (30 days)"
+              label={t("DetailChartCredits")}
               color="#06d6a0"
               formatValue={(v) => v.toFixed(1)}
             />
@@ -265,7 +270,7 @@ export default function ProviderDetail({
           {hasUsageBreakdown && (
             <StackedBarChart
               points={chartData!.usageBreakdown}
-              label="Usage by service (30 days)"
+              label={t("DetailChartUsageBreakdown")}
               height={64}
             />
           )}
@@ -275,7 +280,7 @@ export default function ProviderDetail({
       <div className="tray-detail__footer">
         <span className="tray-detail__source">{provider.sourceLabel}</span>
         <span className="tray-detail__updated">
-          Updated {provider.updatedAt}
+          {t("DetailUpdatedPrefix")} {provider.updatedAt}
         </span>
       </div>
     </div>

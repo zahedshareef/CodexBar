@@ -1,4 +1,5 @@
 import type { ProviderUsageSnapshot } from "../../types/bridge";
+import { useLocale } from "../../hooks/useLocale";
 import UsageBar from "./UsageBar";
 
 interface ProviderCardProps {
@@ -34,6 +35,7 @@ export default function ProviderCard({
   resetRelative,
   onSelect,
 }: ProviderCardProps) {
+  const { t } = useLocale();
   const hasError = provider.error !== null;
   const reset = resetText(provider, resetRelative);
   const email = provider.accountEmail
@@ -62,7 +64,7 @@ export default function ProviderCard({
         {reset && <span className="tray-card__reset">{reset}</span>}
         {hasError && (
           <span className="tray-card__err" title={provider.error ?? ""}>
-            ⚠ Error
+            ⚠ {t("TrayCardErrorBadge")}
           </span>
         )}
       </div>

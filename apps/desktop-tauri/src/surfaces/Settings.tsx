@@ -22,6 +22,8 @@ import type {
 import { useSettings } from "../hooks/useSettings";
 import { useSurfaceTarget } from "../hooks/useSurfaceMode";
 import { useUpdateState } from "../hooks/useUpdateState";
+import { useLocale } from "../hooks/useLocale";
+import type { LocaleKey } from "../i18n/keys";
 import {
   getApiKeyProviders,
   getApiKeys,
@@ -174,15 +176,15 @@ function Field({
 
 type SettingsTab = SettingsTabId;
 
-const TAB_META: { id: SettingsTab; label: string; icon: string }[] = [
-  { id: "general", label: "General", icon: "⚙" },
-  { id: "providers", label: "Providers", icon: "◉" },
-  { id: "display", label: "Display", icon: "◧" },
-  { id: "apiKeys", label: "API Keys", icon: "🔑" },
-  { id: "cookies", label: "Cookies", icon: "🍪" },
-  { id: "tokenAccounts", label: "Tokens", icon: "🪙" },
-  { id: "advanced", label: "Advanced", icon: "⌘" },
-  { id: "about", label: "About", icon: "ℹ" },
+const TAB_META: { id: SettingsTab; labelKey: LocaleKey; icon: string }[] = [
+  { id: "general", labelKey: "TabGeneral", icon: "⚙" },
+  { id: "providers", labelKey: "TabProviders", icon: "◉" },
+  { id: "display", labelKey: "TabDisplay", icon: "◧" },
+  { id: "apiKeys", labelKey: "TabApiKeys", icon: "🔑" },
+  { id: "cookies", labelKey: "TabCookies", icon: "🍪" },
+  { id: "tokenAccounts", labelKey: "TabTokenAccounts", icon: "🪙" },
+  { id: "advanced", labelKey: "TabAdvanced", icon: "⌘" },
+  { id: "about", labelKey: "TabAbout", icon: "ℹ" },
 ];
 
 // ── main component ──────────────────────────────────────────────────
@@ -193,6 +195,7 @@ function isSettingsTab(value: string): value is SettingsTab {
 
 export default function Settings({ state }: { state: BootstrapState }) {
   const { settings, saving, error, update } = useSettings(state.settings);
+  const { t } = useLocale();
   const shellTarget = useSurfaceTarget("settings");
   const initialTab: SettingsTab =
     shellTarget?.kind === "settings" && isSettingsTab(shellTarget.tab)
@@ -221,16 +224,16 @@ export default function Settings({ state }: { state: BootstrapState }) {
     <div className="settings">
       {/* tab bar */}
       <nav className="settings-tabs" role="tablist">
-        {TAB_META.map((t) => (
+        {TAB_META.map((tab) => (
           <button
-            key={t.id}
+            key={tab.id}
             role="tab"
-            aria-selected={activeTab === t.id}
-            className={`settings-tab ${activeTab === t.id ? "settings-tab--active" : ""}`}
-            onClick={() => handleTabClick(t.id)}
+            aria-selected={activeTab === tab.id}
+            className={`settings-tab ${activeTab === tab.id ? "settings-tab--active" : ""}`}
+            onClick={() => handleTabClick(tab.id)}
           >
-            <span className="settings-tab__icon">{t.icon}</span>
-            {t.label}
+            <span className="settings-tab__icon">{tab.icon}</span>
+            {t(tab.labelKey)}
           </button>
         ))}
       </nav>
@@ -238,7 +241,7 @@ export default function Settings({ state }: { state: BootstrapState }) {
       {/* status bar */}
       {(saving || error) && (
         <div className={`settings-status ${error ? "settings-status--error" : ""}`}>
-          {saving ? "Saving…" : error}
+          {saving ? t("SettingsStatusSaving") : error}
         </div>
       )}
 
@@ -284,17 +287,18 @@ interface TabProps {
 }
 
 function GeneralTab({ settings, set, saving }: TabProps) {
+  const { t } = useLocale();
   return (
     <section className="settings-section">
-      <h3 className="settings-section__title">Startup</h3>
-      <Field label="Start at login" description="Launch CodexBar automatically when you sign in.">
+      <h3 className="settings-section__title">{t("StartupSettings")}</h3>
+      <Field label={t("StartAtLogin")} description={t("StartAtLoginHelper")}>
         <Toggle
           checked={settings.startAtLogin}
           disabled={saving}
           onChange={(v) => set({ startAtLogin: v })}
         />
       </Field>
-      <Field label="Start minimized" description="Hide the main window on launch; only the tray icon is visible.">
+      <Field label={t("StartMinimized")} description={t("StartMinimizedHelper")}>
         <Toggle
           checked={settings.startMinimized}
           disabled={saving}
@@ -302,8 +306,11 @@ function GeneralTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">Refresh</h3>
-      <Field label="Refresh interval" description="Seconds between automatic provider refreshes (0 = manual).">
+      <h3 className="settings-section__title">{t("SectionRefresh")}</h3>
+      <Field
+        label={t("RefreshIntervalLabel")}
+        description={t("RefreshIntervalHelper")}
+      >
         <NumberInput
           value={settings.refreshIntervalSecs}
           min={0}
@@ -314,15 +321,18 @@ function GeneralTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">Notifications</h3>
-      <Field label="Show notifications" description="Display desktop alerts for usage thresholds.">
+      <h3 className="settings-section__title">{t("SectionNotifications")}</h3>
+      <Field
+        label={t("ShowNotifications")}
+        description={t("ShowNotificationsHelper")}
+      >
         <Toggle
           checked={settings.showNotifications}
           disabled={saving}
           onChange={(v) => set({ showNotifications: v })}
         />
       </Field>
-      <Field label="Sound alerts" description="Play a sound when usage thresholds are hit.">
+      <Field label={t("SoundEnabled")} description={t("SoundEnabledHelper")}>
         <Toggle
           checked={settings.soundEnabled}
           disabled={saving}
@@ -330,7 +340,7 @@ function GeneralTab({ settings, set, saving }: TabProps) {
         />
       </Field>
       {settings.soundEnabled && (
-        <Field label="Alert volume" description="Volume for threshold alert sounds (0–100).">
+        <Field label={t("SoundVolume")} description={t("SoundVolumeHelper")}>
           <NumberInput
             value={settings.soundVolume}
             min={0}
@@ -342,8 +352,11 @@ function GeneralTab({ settings, set, saving }: TabProps) {
         </Field>
       )}
 
-      <h3 className="settings-section__title">Usage Thresholds</h3>
-      <Field label="High usage warning (%)" description="Show a warning when usage exceeds this percentage.">
+      <h3 className="settings-section__title">{t("SectionUsageThresholds")}</h3>
+      <Field
+        label={t("HighUsageAlert")}
+        description={t("HighUsageWarningHelper")}
+      >
         <NumberInput
           value={settings.highUsageThreshold}
           min={0}
@@ -353,7 +366,10 @@ function GeneralTab({ settings, set, saving }: TabProps) {
           onChange={(v) => set({ highUsageThreshold: v })}
         />
       </Field>
-      <Field label="Critical usage alert (%)" description="Show a critical alert when usage exceeds this percentage.">
+      <Field
+        label={t("CriticalUsageAlert")}
+        description={t("CriticalUsageWarningHelper")}
+      >
         <NumberInput
           value={settings.criticalUsageThreshold}
           min={0}
@@ -364,8 +380,11 @@ function GeneralTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">Keyboard</h3>
-      <Field label="Global shortcut" description="Key combination to toggle the tray panel.">
+      <h3 className="settings-section__title">{t("SectionKeyboard")}</h3>
+      <Field
+        label={t("GlobalShortcutFieldLabel")}
+        description={t("GlobalShortcutToggleHelper")}
+      >
         <TextInput
           value={settings.globalShortcut}
           placeholder="Ctrl+Shift+U"
@@ -718,21 +737,28 @@ function ProvidersTab({
 // ── Display ──────────────────────────────────────────────────────────
 
 function DisplayTab({ settings, set, saving }: TabProps) {
+  const { t } = useLocale();
   return (
     <section className="settings-section">
-      <h3 className="settings-section__title">Tray icon</h3>
-      <Field label="Tray icon mode" description="Single unified icon or one icon per enabled provider.">
+      <h3 className="settings-section__title">{t("TrayIcon")}</h3>
+      <Field
+        label={t("TrayIconModeLabel")}
+        description={t("TrayIconModeHelper")}
+      >
         <Select
           value={settings.trayIconMode}
           disabled={saving}
           options={[
-            { value: "single", label: "Single" },
-            { value: "perProvider", label: "Per provider" },
+            { value: "single", label: t("TrayIconModeSingle") },
+            { value: "perProvider", label: t("TrayIconModePerProvider") },
           ]}
           onChange={(v) => set({ trayIconMode: v as TrayIconMode })}
         />
       </Field>
-      <Field label="Show provider icons" description="Display provider icons in the tray switcher.">
+      <Field
+        label={t("ShowProviderIcons")}
+        description={t("ShowProviderIconsHelper")}
+      >
         <Toggle
           checked={settings.switcherShowsIcons}
           disabled={saving}
@@ -740,8 +766,8 @@ function DisplayTab({ settings, set, saving }: TabProps) {
         />
       </Field>
       <Field
-        label="Prefer highest usage"
-        description="Show the provider closest to its limit in the merged tray display."
+        label={t("PreferHighestUsage")}
+        description={t("PreferHighestUsageHelper")}
       >
         <Toggle
           checked={settings.menuBarShowsHighestUsage}
@@ -750,8 +776,8 @@ function DisplayTab({ settings, set, saving }: TabProps) {
         />
       </Field>
       <Field
-        label="Show percent in tray"
-        description="Replace usage bar with provider branding + percentage text."
+        label={t("ShowPercentInTray")}
+        description={t("ShowPercentInTrayHelper")}
       >
         <Toggle
           checked={settings.menuBarShowsPercent}
@@ -760,21 +786,21 @@ function DisplayTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <Field label="Display mode" description="Level of detail shown in the menu bar label.">
+      <Field label={t("DisplayModeLabel")} description={t("DisplayModeHelper")}>
         <Select
           value={settings.menuBarDisplayMode}
           disabled={saving}
           options={[
-            { value: "detailed", label: "Detailed" },
-            { value: "compact", label: "Compact" },
-            { value: "minimal", label: "Minimal" },
+            { value: "detailed", label: t("DisplayModeDetailed") },
+            { value: "compact", label: t("DisplayModeCompact") },
+            { value: "minimal", label: t("DisplayModeMinimal") },
           ]}
           onChange={(v) => set({ menuBarDisplayMode: v as MenuBarDisplayMode })}
         />
       </Field>
 
-      <h3 className="settings-section__title">Usage rendering</h3>
-      <Field label="Show as used" description="Display usage bars as consumed rather than remaining.">
+      <h3 className="settings-section__title">{t("SectionUsageRendering")}</h3>
+      <Field label={t("ShowAsUsedLabel")} description={t("ShowAsUsedHelper")}>
         <Toggle
           checked={settings.showAsUsed}
           disabled={saving}
@@ -782,8 +808,8 @@ function DisplayTab({ settings, set, saving }: TabProps) {
         />
       </Field>
       <Field
-        label="Show credits & extra usage"
-        description="Display credit balance and additional usage information."
+        label={t("ShowCreditsExtra")}
+        description={t("ShowCreditsExtraHelper")}
       >
         <Toggle
           checked={settings.showCreditsExtraUsage}
@@ -792,8 +818,8 @@ function DisplayTab({ settings, set, saving }: TabProps) {
         />
       </Field>
       <Field
-        label="Show all token accounts"
-        description="List all token accounts in provider menus instead of collapsing them."
+        label={t("ShowAllTokenAccountsLabel")}
+        description={t("ShowAllTokenAccountsHelper")}
       >
         <Toggle
           checked={settings.showAllTokenAccountsInMenu}
@@ -802,15 +828,21 @@ function DisplayTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">Animations</h3>
-      <Field label="Enable animations" description="Smooth transitions and animated progress bars.">
+      <h3 className="settings-section__title">{t("Animations")}</h3>
+      <Field
+        label={t("EnableAnimationsLabel")}
+        description={t("EnableAnimationsHelper")}
+      >
         <Toggle
           checked={settings.enableAnimations}
           disabled={saving}
           onChange={(v) => set({ enableAnimations: v })}
         />
       </Field>
-      <Field label="Surprise animations" description="Fun confetti and particle effects at milestones.">
+      <Field
+        label={t("SurpriseAnimationsLabel")}
+        description={t("SurpriseAnimationsHelper")}
+      >
         <Toggle
           checked={settings.surpriseAnimations}
           disabled={saving}
@@ -818,8 +850,11 @@ function DisplayTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">Privacy</h3>
-      <Field label="Hide personal info" description="Mask emails and account names in the UI.">
+      <h3 className="settings-section__title">{t("PrivacyTitle")}</h3>
+      <Field
+        label={t("HidePersonalInfo")}
+        description={t("HidePersonalInfoHelper")}
+      >
         <Toggle
           checked={settings.hidePersonalInfo}
           disabled={saving}
@@ -833,23 +868,27 @@ function DisplayTab({ settings, set, saving }: TabProps) {
 // ── Advanced ─────────────────────────────────────────────────────────
 
 function AdvancedTab({ settings, set, saving }: TabProps) {
+  const { t } = useLocale();
   return (
     <section className="settings-section">
-      <h3 className="settings-section__title">Updates</h3>
-      <Field label="Update channel" description="Stable for production releases, Beta for early access.">
+      <h3 className="settings-section__title">{t("UpdatesTitle")}</h3>
+      <Field
+        label={t("UpdateChannelChoice")}
+        description={t("UpdateChannelChoiceHelper")}
+      >
         <Select
           value={settings.updateChannel}
           disabled={saving}
           options={[
-            { value: "stable", label: "Stable" },
-            { value: "beta", label: "Beta" },
+            { value: "stable", label: t("UpdateChannelStableOption") },
+            { value: "beta", label: t("UpdateChannelBetaOption") },
           ]}
           onChange={(v) => set({ updateChannel: v as UpdateChannel })}
         />
       </Field>
       <Field
-        label="Auto-download updates"
-        description="Download available updates in the background automatically."
+        label={t("AutoDownloadUpdates")}
+        description={t("AutoDownloadUpdatesHelper")}
       >
         <Toggle
           checked={settings.autoDownloadUpdates}
@@ -858,8 +897,8 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
         />
       </Field>
       <Field
-        label="Install updates on quit"
-        description="Apply a downloaded update when you next quit CodexBar."
+        label={t("InstallUpdatesOnQuit")}
+        description={t("InstallUpdatesOnQuitHelper")}
       >
         <Toggle
           checked={settings.installUpdatesOnQuit}
@@ -868,21 +907,24 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">Language</h3>
-      <Field label="Interface language" description="Language used throughout the UI.">
+      <h3 className="settings-section__title">{t("SectionLanguage")}</h3>
+      <Field label={t("InterfaceLanguage")}>
         <Select
           value={settings.uiLanguage}
           disabled={saving}
           options={[
-            { value: "english", label: "English" },
-            { value: "chinese", label: "中文" },
+            { value: "english", label: t("LanguageEnglishOption") },
+            { value: "chinese", label: t("LanguageChineseOption") },
           ]}
           onChange={(v) => set({ uiLanguage: v as Language })}
         />
       </Field>
 
-      <h3 className="settings-section__title">Time</h3>
-      <Field label="Reset time relative" description="Show reset countdowns as relative times (e.g. 'in 3h').">
+      <h3 className="settings-section__title">{t("SectionTime")}</h3>
+      <Field
+        label={t("ResetTimeRelative")}
+        description={t("ResetTimeRelativeHelper")}
+      >
         <Toggle
           checked={settings.resetTimeRelative}
           disabled={saving}
@@ -890,10 +932,10 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">Credentials &amp; Security</h3>
+      <h3 className="settings-section__title">{t("SectionCredentialsSecurity")}</h3>
       <Field
-        label="Avoid keychain prompts (Claude)"
-        description="Skip keychain credential reads for Claude to prevent OS permission dialogs."
+        label={t("AvoidKeychainPromptsLabel")}
+        description={t("AvoidKeychainPromptsHelper")}
       >
         <Toggle
           checked={settings.claudeAvoidKeychainPrompts}
@@ -902,8 +944,8 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
         />
       </Field>
       <Field
-        label="Disable all keychain access"
-        description="Turn off credential/keychain reads for all providers. Also enables the Claude option above."
+        label={t("DisableAllKeychainLabel")}
+        description={t("DisableAllKeychainHelper")}
       >
         <Toggle
           checked={settings.disableKeychainAccess}
@@ -912,10 +954,10 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">Debug</h3>
+      <h3 className="settings-section__title">{t("SectionDebug")}</h3>
       <Field
-        label="Show debug settings"
-        description="Reveal troubleshooting and developer surfaces in the UI."
+        label={t("ShowDebugSettingsLabel")}
+        description={t("ShowDebugSettingsHelper")}
       >
         <Toggle
           checked={settings.showDebugSettings}
@@ -930,6 +972,7 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
 // ── API Keys ─────────────────────────────────────────────────────────
 
 function ApiKeysTab({ providers }: { providers: ProviderCatalogEntry[] }) {
+  const { t } = useLocale();
   const [keys, setKeys] = useState<ApiKeyInfoBridge[]>([]);
   const [apiKeyProviders, setApiKeyProviders] = useState<
     ApiKeyProviderInfoBridge[]
@@ -998,11 +1041,8 @@ function ApiKeysTab({ providers }: { providers: ProviderCatalogEntry[] }) {
 
   return (
     <section className="settings-section">
-      <h3 className="settings-section__title">API Keys</h3>
-      <p className="settings-section__hint">
-        Configure API keys for providers that use token-based authentication.
-        Keys are stored locally and never transmitted.
-      </p>
+      <h3 className="settings-section__title">{t("SectionApiKeys")}</h3>
+      <p className="settings-section__hint">{t("ApiKeysTabHint")}</p>
 
       {error && (
         <div className="settings-status settings-status--error">{error}</div>

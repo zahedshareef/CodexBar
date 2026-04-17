@@ -103,6 +103,8 @@ fn main() {
             commands::open_provider_dashboard,
             commands::trigger_provider_login,
             commands::revoke_provider_credentials,
+            commands::get_locale_strings,
+            commands::set_ui_language,
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
