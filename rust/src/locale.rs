@@ -593,6 +593,15 @@ pub enum LocaleKey {
     BannerInstallRestart,
     BannerUpdateFailedPrefix,
     BannerRetry,
+
+    // Tauri desktop shell — providers sidebar (Phase 6a)
+    ProviderSidebarReorderHint,
+    ProviderStatusOk,
+    ProviderStatusStale,
+    ProviderStatusError,
+    ProviderStatusLoading,
+    ProviderStatusDisabled,
+    ProviderDetailPlaceholder,
 }
 
 impl LocaleKey {
@@ -1160,6 +1169,15 @@ impl LocaleKey {
             LocaleKey::BannerInstallRestart => "Install & Restart",
             LocaleKey::BannerUpdateFailedPrefix => "Update failed",
             LocaleKey::BannerRetry => "Retry",
+
+            // Tauri desktop shell — providers sidebar (Phase 6a)
+            LocaleKey::ProviderSidebarReorderHint => "Drag to reorder",
+            LocaleKey::ProviderStatusOk => "Up to date",
+            LocaleKey::ProviderStatusStale => "Stale",
+            LocaleKey::ProviderStatusError => "Error",
+            LocaleKey::ProviderStatusLoading => "Loading",
+            LocaleKey::ProviderStatusDisabled => "Disabled",
+            LocaleKey::ProviderDetailPlaceholder => "Detail pane arriving in Phase 6b",
         }
     }
 
@@ -1689,6 +1707,15 @@ impl LocaleKey {
             LocaleKey::BannerInstallRestart => "安装并重启",
             LocaleKey::BannerUpdateFailedPrefix => "更新失败",
             LocaleKey::BannerRetry => "重试",
+
+            // Tauri desktop shell — providers sidebar (Phase 6a)
+            LocaleKey::ProviderSidebarReorderHint => "拖动以重新排序",
+            LocaleKey::ProviderStatusOk => "已更新",
+            LocaleKey::ProviderStatusStale => "已过期",
+            LocaleKey::ProviderStatusError => "错误",
+            LocaleKey::ProviderStatusLoading => "加载中",
+            LocaleKey::ProviderStatusDisabled => "已禁用",
+            LocaleKey::ProviderDetailPlaceholder => "详细面板将在 6b 阶段推出",
         }
     }
 }
@@ -2328,6 +2355,19 @@ impl LocaleKey {
             "BannerUpdateFailedPrefix",
         ),
         (LocaleKey::BannerRetry, "BannerRetry"),
+        (
+            LocaleKey::ProviderSidebarReorderHint,
+            "ProviderSidebarReorderHint",
+        ),
+        (LocaleKey::ProviderStatusOk, "ProviderStatusOk"),
+        (LocaleKey::ProviderStatusStale, "ProviderStatusStale"),
+        (LocaleKey::ProviderStatusError, "ProviderStatusError"),
+        (LocaleKey::ProviderStatusLoading, "ProviderStatusLoading"),
+        (LocaleKey::ProviderStatusDisabled, "ProviderStatusDisabled"),
+        (
+            LocaleKey::ProviderDetailPlaceholder,
+            "ProviderDetailPlaceholder",
+        ),
     ];
 }
 

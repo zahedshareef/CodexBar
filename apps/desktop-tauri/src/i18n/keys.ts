@@ -414,6 +414,13 @@ export const ALL_LOCALE_KEYS = [
   "BannerInstallRestart",
   "BannerUpdateFailedPrefix",
   "BannerRetry",
+  "ProviderSidebarReorderHint",
+  "ProviderStatusOk",
+  "ProviderStatusStale",
+  "ProviderStatusError",
+  "ProviderStatusLoading",
+  "ProviderStatusDisabled",
+  "ProviderDetailPlaceholder",
 ] as const;
 
 export type LocaleKey = (typeof ALL_LOCALE_KEYS)[number];
