@@ -589,6 +589,7 @@ pub enum LocaleKey {
     DetailChartCost,
     DetailChartCredits,
     DetailChartUsageBreakdown,
+    DetailChartEmpty,
     DetailUpdatedPrefix,
 
     // Tauri desktop shell — update banner
@@ -1225,6 +1226,7 @@ impl LocaleKey {
             LocaleKey::DetailChartCost => "Cost (30 days)",
             LocaleKey::DetailChartCredits => "Credits used (30 days)",
             LocaleKey::DetailChartUsageBreakdown => "Usage by service (30 days)",
+            LocaleKey::DetailChartEmpty => "No chart data yet.",
             LocaleKey::DetailUpdatedPrefix => "Updated",
 
             // Tauri desktop shell — update banner
@@ -1833,6 +1835,8 @@ impl LocaleKey {
             LocaleKey::DetailChartCost => "费用（30 天）",
             LocaleKey::DetailChartCredits => "已用额度（30 天）",
             LocaleKey::DetailChartUsageBreakdown => "按服务划分的用量（30 天）",
+            // REVIEW-i18n
+            LocaleKey::DetailChartEmpty => "暂无图表数据。",
             LocaleKey::DetailUpdatedPrefix => "更新于",
 
             // Tauri desktop shell — update banner
@@ -2539,6 +2543,7 @@ impl LocaleKey {
             LocaleKey::DetailChartUsageBreakdown,
             "DetailChartUsageBreakdown",
         ),
+        (LocaleKey::DetailChartEmpty, "DetailChartEmpty"),
         (LocaleKey::DetailUpdatedPrefix, "DetailUpdatedPrefix"),
         (
             LocaleKey::BannerCheckingForUpdates,

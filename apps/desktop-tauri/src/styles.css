@@ -21,6 +21,54 @@
   --provider-status-loading: #60a5fa;
   --provider-icon-ring: rgba(255, 255, 255, 0.08);
   --provider-icon-bg: rgba(255, 255, 255, 0.04);
+
+  /* Phase 10 — chart palette. Provider-key tokens mirror the egui
+     `native_ui/theme.rs::provider_color` mapping so the web shell and
+     the legacy tray render the same colors. Phase 12 (theming) will add
+     light-mode overrides here; keep these tokens CHART-scoped to avoid
+     colliding with layout tokens. */
+  --chart-claude: rgb(204, 124, 94);
+  --chart-codex: rgb(73, 163, 176);
+  --chart-gemini: rgb(171, 135, 234);
+  --chart-cursor: rgb(0, 191, 165);
+  --chart-copilot: rgb(168, 85, 247);
+  --chart-jetbrains: rgb(255, 51, 153);
+  --chart-antigravity: rgb(96, 186, 126);
+  --chart-augment: rgb(99, 102, 241);
+  --chart-amp: rgb(220, 38, 38);
+  --chart-factory: rgb(255, 107, 53);
+  --chart-droid: rgb(255, 107, 53);
+  --chart-kimi: rgb(254, 96, 60);
+  --chart-kimik2: rgb(76, 0, 255);
+  --chart-kiro: rgb(255, 153, 0);
+  --chart-opencode: rgb(59, 130, 246);
+  --chart-minimax: rgb(254, 96, 60);
+  --chart-vertexai: rgb(66, 133, 244);
+  --chart-zai: rgb(232, 90, 106);
+  --chart-synthetic: rgb(60, 60, 60);
+  --chart-alibaba: rgb(255, 106, 0);
+  --chart-nanogpt: rgb(104, 127, 161);
+
+  /* Default cost/credits series colors (match egui credits teal). */
+  --chart-cost: rgb(93, 135, 255);
+  --chart-credits: rgb(73, 163, 176);
+  --chart-peak: rgb(255, 200, 50);
+
+  /* Service palette for UsageBreakdownChart — mirrors
+     `native_ui/charts.rs::color_for_service`. */
+  --chart-service-cli: rgb(66, 140, 245);
+  --chart-service-review: rgb(240, 135, 46);
+  --chart-service-api: rgb(117, 191, 92);
+  --chart-service-1: rgb(204, 115, 235);
+  --chart-service-2: rgb(66, 199, 219);
+  --chart-service-3: rgb(240, 188, 66);
+  --chart-service-4: rgb(235, 87, 87);
+  --chart-service-5: rgb(156, 156, 156);
+
+  /* Tooltip surface — reused by all chart tooltips. */
+  --chart-tooltip-bg: rgba(17, 21, 34, 0.96);
+  --chart-tooltip-border: rgba(142, 163, 255, 0.32);
+  --chart-tooltip-text: #eef2ff;
 }
 
 * {
@@ -2349,4 +2397,101 @@ body {
   margin: 4px 0 0;
   font-size: 0.8rem;
   color: #ff6b6b;
+}
+
+/* ── Phase 10 — chart animation, hover tooltip, empty state ──────── */
+
+.chart {
+  position: relative;
+}
+
+.chart__empty {
+  padding: 10px 6px;
+  font-size: 0.78rem;
+  color: var(--provider-row-text-secondary);
+  font-style: italic;
+}
+
+.chart__bar,
+.chart__line,
+.chart__area,
+.chart__point,
+.chart__stack-rect {
+  transition:
+    opacity 0.15s ease,
+    filter 0.15s ease;
+}
+
+.chart__bar:hover,
+.chart__stack-rect:hover,
+.chart__point:hover {
+  filter: brightness(1.2);
+  cursor: crosshair;
+}
+
+.chart__tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+  background: var(--chart-tooltip-bg);
+  color: var(--chart-tooltip-text);
+  border: 1px solid var(--chart-tooltip-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+.chart__tooltip-label {
+  color: var(--provider-row-text-secondary);
+  margin-right: 6px;
+}
+
+/* Surprise easter-egg: bars jitter briefly on mount (mirrors the
+   tray "Wiggle" surprise). Kept tasteful and short. */
+@keyframes chart-surprise-wiggle {
+  0% { transform: translateX(0); }
+  20% { transform: translateX(-1px); }
+  40% { transform: translateX(1px); }
+  60% { transform: translateX(-0.5px); }
+  80% { transform: translateX(0.5px); }
+  100% { transform: translateX(0); }
+}
+
+.chart--surprise .chart__bar,
+.chart--surprise .chart__stack-rect {
+  animation: chart-surprise-wiggle 0.6s ease-in-out;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* Rainbow shimmer on the peak cap when surprise is on. */
+@keyframes chart-surprise-rainbow {
+  0%   { fill: var(--chart-peak); }
+  25%  { fill: var(--chart-service-1); }
+  50%  { fill: var(--chart-service-2); }
+  75%  { fill: var(--chart-service-3); }
+  100% { fill: var(--chart-peak); }
+}
+
+.chart--surprise .chart__peak-cap {
+  animation: chart-surprise-rainbow 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chart__bar,
+  .chart__line,
+  .chart__area,
+  .chart__point,
+  .chart__stack-rect,
+  .chart--surprise .chart__bar,
+  .chart--surprise .chart__stack-rect,
+  .chart--surprise .chart__peak-cap {
+    animation: none !important;
+    transition: none !important;
+  }
 }
