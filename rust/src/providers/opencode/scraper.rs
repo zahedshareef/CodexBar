@@ -523,10 +523,8 @@ impl OpenCodeUsageFetcher {
     /// Recursively collect workspace IDs from JSON
     fn collect_workspace_ids(value: &serde_json::Value, out: &mut Vec<String>) {
         match value {
-            serde_json::Value::String(s) => {
-                if s.starts_with("wrk_") && !out.contains(s) {
-                    out.push(s.clone());
-                }
+            serde_json::Value::String(s) if s.starts_with("wrk_") && !out.contains(s) => {
+                out.push(s.clone());
             }
             serde_json::Value::Array(arr) => {
                 for item in arr {

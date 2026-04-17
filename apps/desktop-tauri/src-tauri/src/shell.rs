@@ -1267,6 +1267,65 @@ mod tests {
     }
 
     #[test]
+    fn visible_surface_position_settings_surface_uses_tray_anchor_position_when_available() {
+        let anchor_monitor = MonitorPlacement {
+            bounds: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            work_area: Rect {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1040,
+            },
+            scale_factor: 1.0,
+        };
+        let current_monitor = MonitorPlacement {
+            bounds: Rect {
+                x: 1920,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            work_area: Rect {
+                x: 1920,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            },
+            scale_factor: 1.25,
+        };
+        let anchor = crate::state::TrayAnchor {
+            x: 1800,
+            y: 1040,
+            width: 24,
+            height: 24,
+        };
+
+        let position = visible_surface_position_for_mode_with_fallbacks(
+            SurfaceMode::Settings,
+            Some(&[anchor_monitor, current_monitor]),
+            Some(anchor),
+            Some(current_monitor),
+            None,
+            None,
+        );
+
+        assert_eq!(
+            position,
+            Some(window_positioner::calculate_popout_position(
+                Some(&tray_anchor_rect(anchor)),
+                &anchor_monitor.work_area,
+                &surface_panel_size(SurfaceMode::Settings),
+                anchor_monitor.scale_factor,
+            ))
+        );
+    }
+
+    #[test]
     fn inferred_tray_anchor_defaults_to_bottom_right_of_work_area() {
         let monitor = MonitorPlacement {
             bounds: Rect {

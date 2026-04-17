@@ -1361,10 +1361,10 @@ impl MultiTrayManager {
             .iter()
             .find(|(_, ti)| ti.id().0 == icon_id)
             .map(|(pid, _)| *pid);
-        if let Some(pid) = provider_id {
-            if let Some(menu) = self.provider_menus.borrow().get(&pid) {
-                unsafe { menu.show_context_menu_for_hwnd(hwnd, None) };
-            }
+        if let Some(pid) = provider_id
+            && let Some(menu) = self.provider_menus.borrow().get(&pid)
+        {
+            unsafe { menu.show_context_menu_for_hwnd(hwnd, None) };
         }
     }
 
@@ -1632,10 +1632,10 @@ impl UnifiedTrayManager {
                 // In per-provider mode, show the first provider's menu.
                 // (The right-click event doesn't reliably carry enough info
                 // to identify which icon was clicked in all edge cases.)
-                if let Some((&pid, _)) = multi.provider_icons.iter().next() {
-                    if let Some(menu) = multi.provider_menus.borrow().get(&pid) {
-                        unsafe { menu.show_context_menu_for_hwnd(hwnd, None) };
-                    }
+                if let Some((&pid, _)) = multi.provider_icons.iter().next()
+                    && let Some(menu) = multi.provider_menus.borrow().get(&pid)
+                {
+                    unsafe { menu.show_context_menu_for_hwnd(hwnd, None) };
                 }
             }
         }
