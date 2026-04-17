@@ -391,15 +391,17 @@ body {
   gap: 4px;
 }
 
+/* Section titles mirror upstream SwiftUI PreferencesView, which uses plain
+   `Text("System")` body text — not an eyebrow/uppercase caps treatment. */
 .settings-section__title {
-  margin: 14px 0 6px;
+  margin: 18px 0 6px;
   padding: 0;
   border-bottom: none;
-  color: var(--text-secondary);
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .settings-section__title:first-child {
@@ -419,7 +421,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 7px 10px;
+  padding: 6px 10px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.03);
   transition: background 0.12s;
@@ -2669,8 +2671,8 @@ body {
 .menu-surface {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px 0;
+  gap: 4px;
+  padding: 4px 0;
   width: 310px;
   font-size: 13px;
   line-height: 1.30;
@@ -2681,25 +2683,26 @@ body {
 
 .menu-surface--popout {
   width: 360px;
-  padding: 8px 0;
+  padding: 6px 0;
 }
 
 /* Header bar — small CodexBar wordmark + iconified actions
-   (refresh / settings / pop-out). Rendered in the upstream NSStatusItem
-   menu as a separate row; we keep it pinned to the top of the popover. */
+   (refresh / settings / pop-out). Upstream's NSMenu has no dedicated
+   title row; we keep one slim toolbar pinned to the top so the popover
+   exposes the same controls without dominating the layout. */
 .menu-surface__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 0 16px;
-  min-height: 22px;
+  padding: 0 12px;
+  min-height: 28px;
 }
 
 .menu-surface__title {
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-weight: 500;
+  letter-spacing: 0;
   color: var(--text-secondary);
 }
 
@@ -2716,12 +2719,12 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
   background: var(--accent);
   color: var(--surface);
-  font-size: 10px;
+  font-size: 9px;
   line-height: 1;
   font-weight: 700;
   flex-shrink: 0;
@@ -2736,13 +2739,13 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border: none;
-  border-radius: 5px;
+  border-radius: 4px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
@@ -2758,7 +2761,7 @@ body {
 }
 
 .menu-surface__summary {
-  padding: 0 16px;
+  padding: 0 12px;
   font-size: 11px;
   font-weight: 500;
   color: var(--text-eyebrow);
