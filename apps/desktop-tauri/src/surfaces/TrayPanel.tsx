@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
@@ -6,7 +7,11 @@ import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
 import { useLocale } from "../hooks/useLocale";
 import MenuCard from "../components/MenuCard";
-import MenuSurface, { MenuSummary, MenuEmpty } from "../components/MenuSurface";
+import MenuSurface, {
+  MenuSummary,
+  MenuEmpty,
+  type MenuFooterRow,
+} from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
 
 /** Sort: highest primary used% first, then alphabetical by name. */
@@ -46,10 +51,21 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const openPopOut = useCallback(() => {
     setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
+  const openAbout = useCallback(() => {
+    setSurfaceMode("settings", { kind: "settings", tab: "about" });
+  }, []);
+  const quitApp = useCallback(() => {
+    void getCurrentWindow().close();
+  }, []);
 
   const headerActions = [
-    { icon: "⚙", title: t("TooltipSettings"), onClick: openSettings },
     { icon: "⧉", title: t("TooltipPopOut"), onClick: openPopOut },
+  ];
+
+  const footerRows: MenuFooterRow[] = [
+    { icon: "⚙", label: t("TooltipSettings"), shortcut: "⌘,", onClick: openSettings },
+    { icon: "ℹ", label: "About CodexBar", onClick: openAbout },
+    { icon: "✕", label: "Quit", shortcut: "⌘Q", onClick: quitApp },
   ];
 
   const banner = (
@@ -71,6 +87,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         isRefreshing={isRefreshing}
         actions={headerActions}
         banner={banner}
+        footerRows={footerRows}
       >
         <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
       </MenuSurface>
@@ -84,6 +101,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       isRefreshing={isRefreshing}
       actions={headerActions}
       banner={banner}
+      footerRows={footerRows}
       summary={
         <MenuSummary
           total={sorted.length}

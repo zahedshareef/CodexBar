@@ -7,6 +7,13 @@ export interface MenuSurfaceAction {
   onClick: () => void;
 }
 
+export interface MenuFooterRow {
+  icon: string;
+  label: string;
+  shortcut?: string;
+  onClick: () => void;
+}
+
 interface MenuSurfaceProps {
   variant: "tray" | "popout";
   onRefresh: () => void;
@@ -14,6 +21,11 @@ interface MenuSurfaceProps {
   actions: MenuSurfaceAction[];
   summary?: ReactNode;
   banner?: ReactNode;
+  /**
+   * Native-style footer rows rendered like NSMenu items at the bottom of
+   * the popover (mirrors the upstream "Settings… / About / Quit" trio).
+   */
+  footerRows?: MenuFooterRow[];
   children: ReactNode;
 }
 
@@ -32,6 +44,7 @@ export default function MenuSurface({
   actions,
   summary,
   banner,
+  footerRows,
   children,
 }: MenuSurfaceProps) {
   const { t } = useLocale();
@@ -68,6 +81,26 @@ export default function MenuSurface({
       {banner}
       {summary}
       <div className="menu-surface__body">{children}</div>
+      {footerRows && footerRows.length > 0 && (
+        <nav className="menu-surface__footer" aria-label="Menu">
+          {footerRows.map((row) => (
+            <button
+              key={row.label}
+              type="button"
+              className="menu-surface__footer-row"
+              onClick={row.onClick}
+            >
+              <span className="menu-surface__footer-icon" aria-hidden>
+                {row.icon}
+              </span>
+              <span>{row.label}</span>
+              {row.shortcut && (
+                <span className="menu-surface__footer-shortcut">{row.shortcut}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   );
 }

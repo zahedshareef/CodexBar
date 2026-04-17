@@ -12,9 +12,49 @@
  */
 :root {
   color-scheme: dark;
-  font-family: Inter, "Segoe UI", sans-serif;
+  /* SF-system stack first so the rendered text matches macOS upstream
+     when the host font is available; Inter / Segoe UI remain as the
+     Windows fallbacks. */
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro",
+    "Segoe UI Variable", Inter, "Segoe UI", system-ui, sans-serif;
   background: var(--app-bg, #1c1c1e);
   color: var(--text-primary, #f5f5f7);
+
+  /* ── SwiftUI typography tokens (macOS parity) ─────────────────────
+     Mirror the SwiftUI text styles used by the upstream menu / Preferences:
+       .body       → 13px / regular   (.fontWeight default)
+       .body.medium→ 13px / 500
+       .headline   → 13px / 600       (semibold)
+       .subheadline→ 12px / regular
+       .footnote   → 11px / regular
+       .caption    → 11px / regular
+       .caption2   → 10px / regular
+       .title3     → 17px / 600
+  */
+  --font-body: 13px;
+  --font-body-weight: 400;
+  --font-medium-weight: 500;
+  --font-headline: 13px;
+  --font-headline-weight: 600;
+  --font-subheadline: 12px;
+  --font-footnote: 11px;
+  --font-caption: 11px;
+  --font-caption2: 10px;
+  --font-title: 20px;
+  --font-title3: 17px;
+  --line-tight: 1.3;
+
+  /* macOS layout / sizing tokens */
+  --bar-height: 6px;
+  --bar-radius: 3px;
+  --menu-width: 310px;
+  --popout-width: 360px;
+  --sidebar-width: 200px;
+  --icon-menu: 16px;
+  --icon-sidebar: 20px;
+  --icon-about: 64px;
+  --about-icon-radius: 14px;
 
   /* ── General surfaces / text ───────────────────────────────────── */
   --app-bg: #1c1c1e;
@@ -3111,4 +3151,506 @@ body {
 .menu-stack__item[data-deeplinked] .menu-card {
   background: var(--surface-elevated);
   border-radius: 6px;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ * macOS PARITY OVERLAY  (last cascade — wins over earlier rules)
+ *
+ * This block tightens the visual treatment so the Tauri shell mirrors
+ * the upstream SwiftUI `MenuContent` (NSMenu w/ NSHostingView items)
+ * and the SwiftUI `Settings` scene.  All earlier selectors continue
+ * to provide structure; this overlay adjusts colors, sizing, density,
+ * and adds a few NSMenu-style native rows.
+ * ════════════════════════════════════════════════════════════════════ */
+
+/* ── Thin overlay scrollbars (replace Windows default fat bars) ───── */
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 6px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.32);
+  background-clip: padding-box;
+}
+[data-theme="light"] *::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.22);
+  background-clip: padding-box;
+}
+[data-theme="light"] *::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.36);
+  background-clip: padding-box;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+/* ── Menu surface: NSMenu vibrancy approximation ──────────────────── */
+.menu-surface {
+  width: var(--menu-width);
+  background: rgba(36, 36, 38, 0.92);
+  backdrop-filter: saturate(180%) blur(28px);
+  -webkit-backdrop-filter: saturate(180%) blur(28px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.45),
+    0 16px 36px rgba(0, 0, 0, 0.45);
+  font-size: var(--font-body);
+  line-height: var(--line-tight);
+}
+.menu-surface--popout {
+  width: var(--popout-width);
+}
+[data-theme="light"] .menu-surface {
+  background: rgba(246, 246, 246, 0.92);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 0 0 0.5px rgba(0, 0, 0, 0.18),
+    0 16px 36px rgba(0, 0, 0, 0.18);
+}
+
+.menu-surface__header {
+  min-height: 30px;
+  padding: 4px 10px 2px;
+}
+.menu-surface__title {
+  font-size: var(--font-footnote);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+}
+.menu-surface__brand-icon {
+  width: var(--icon-menu);
+  height: var(--icon-menu);
+  border-radius: 4px;
+  font-size: 10px;
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 70%, #000 30%));
+  color: #fff;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.25);
+}
+.menu-surface__btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 13px;
+}
+
+/* Footer of native-style menu rows (Settings… / About / Pop-out / Quit) */
+.menu-surface__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 6px 6px;
+  margin-top: 2px;
+  border-top: 1px solid var(--menu-popover-divider);
+}
+.menu-surface__footer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.08s ease;
+}
+.menu-surface__footer-row:hover,
+.menu-surface__footer-row:focus-visible {
+  background: var(--accent);
+  color: #fff;
+  outline: none;
+}
+.menu-surface__footer-row .menu-surface__footer-icon {
+  width: 18px;
+  display: inline-flex;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.menu-surface__footer-row:hover .menu-surface__footer-icon,
+.menu-surface__footer-row:focus-visible .menu-surface__footer-icon {
+  color: #fff;
+}
+.menu-surface__footer-shortcut {
+  margin-left: auto;
+  font-size: var(--font-caption2);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.menu-surface__footer-row:hover .menu-surface__footer-shortcut {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── Menu card / metric row tightening ────────────────────────────── */
+.menu-card__name {
+  font-size: var(--font-headline);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.menu-card__email,
+.menu-card__plan,
+.menu-card__subtitle {
+  font-size: var(--font-caption);
+  font-weight: 400;
+}
+.menu-card__email {
+  color: var(--text-secondary);
+}
+.menu-card__group-title,
+.menu-metric__title {
+  font-size: var(--font-body);
+  font-weight: 500;
+}
+.menu-metric__bar,
+.menu-card__pace-track {
+  height: var(--bar-height);
+  border-radius: var(--bar-radius);
+  background: var(--usage-bar-track);
+  overflow: hidden;
+}
+.menu-metric__bar-fill,
+.menu-card__pace-fill {
+  height: 100%;
+  border-radius: var(--bar-radius);
+  transition: width 0.3s ease;
+}
+
+/* Upstream UsageProgressBar uses the provider brand color (which the
+   chart palette covers) but the menu defaults to a green-when-healthy
+   gradient based on usage threshold — green → yellow → orange → red. */
+:root {
+  --usage-bar-normal: #34c759;     /* macOS systemGreen  */
+  --usage-bar-high: #ffd60a;       /* macOS systemYellow */
+  --usage-bar-critical: #ff9f0a;   /* macOS systemOrange */
+  --usage-bar-exhausted: #ff453a;  /* macOS systemRed    */
+}
+[data-theme="light"] {
+  --usage-bar-normal: #30d158;
+  --usage-bar-high: #ffcc00;
+  --usage-bar-critical: #ff9500;
+  --usage-bar-exhausted: #ff3b30;
+}
+
+.menu-metric__pct,
+.menu-metric__reset {
+  font-size: var(--font-caption);
+}
+.menu-card__cost-line,
+.menu-card__pace-label,
+.menu-card__pace-eta,
+.menu-card__pace-ok {
+  font-size: var(--font-caption);
+}
+
+/* ── Card stack: align separator inset with upstream Divider() ───── */
+.menu-stack__sep {
+  margin: 6px 16px;
+}
+
+/* ── Settings: macOS toolbar-style tab bar ────────────────────────── */
+.settings-surface {
+  max-width: none;
+  padding: 0;
+}
+.settings {
+  background: var(--app-bg);
+  min-height: 100vh;
+}
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  margin: 0 0 4px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+  border-bottom: 1px solid var(--panel-border);
+  border-radius: 0;
+  justify-content: center;
+  overflow-x: auto;
+}
+[data-theme="light"] .settings-tabs {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0));
+}
+.settings-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 64px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--font-caption);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.settings-tab__icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.settings-tab:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+[data-theme="light"] .settings-tab:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.settings-tab--active {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: none;
+}
+[data-theme="light"] .settings-tab--active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Settings body container: padded, centered, capped at 560px ─── */
+.settings-body {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 18px 24px 28px;
+}
+.settings-status {
+  max-width: 560px;
+  margin: 6px auto 0;
+}
+
+/* ── Grouped form (SwiftUI Form .grouped) ─────────────────────────── */
+.settings-section {
+  margin: 0 0 22px;
+  padding: 0;
+  background: transparent;
+  gap: 0;
+}
+.settings-section__title {
+  margin: 0 4px 8px;
+  font-size: var(--font-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+.settings-section__hint {
+  margin: 8px 4px 0;
+  font-size: var(--font-caption);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.settings-section > .settings-field + .settings-field,
+.settings-section > .sound-enabled-row + .settings-field {
+  border-top: 1px solid var(--panel-border);
+  border-radius: 0;
+}
+.settings-section > .settings-field:first-of-type {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+.settings-section > .settings-field:last-of-type {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+.settings-field {
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.04);
+  transition: none;
+}
+[data-theme="light"] .settings-field {
+  background: rgba(0, 0, 0, 0.025);
+}
+.settings-field:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+[data-theme="light"] .settings-field:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.settings-field__label {
+  font-size: var(--font-body);
+  font-weight: 400;
+  color: var(--text-primary);
+}
+.settings-field__desc {
+  font-size: var(--font-caption);
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* New header style emitted by the section-header rewrite — when a
+   section title precedes a grouped field stack, give the title the
+   Apple-style uppercase eyebrow look. */
+.settings-section__group {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+}
+
+/* ── Form controls: native-feeling macOS look ─────────────────────── */
+.toggle {
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(120, 120, 128, 0.32);
+}
+.toggle::after {
+  width: 14px;
+  height: 14px;
+  top: 2px;
+  left: 2px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+.toggle--on {
+  background: #34c759;
+}
+.toggle--on::after {
+  transform: translateX(14px);
+  background: #fff;
+}
+
+.select,
+.number-input,
+.text-input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 6px;
+  font-size: var(--font-body);
+  padding: 4px 10px;
+  color: var(--text-primary);
+  height: 24px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.select {
+  padding-right: 26px;
+}
+.number-input {
+  width: 80px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+[data-theme="light"] .select,
+[data-theme="light"] .number-input,
+[data-theme="light"] .text-input {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.02);
+}
+.select:focus,
+.number-input:focus,
+.text-input:focus {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+/* ── Provider sidebar (Preferences › Providers) ───────────────────── */
+.provider-split {
+  gap: 16px;
+  min-height: 420px;
+}
+.providers-sidebar {
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+[data-theme="light"] .providers-sidebar {
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.10);
+}
+.providers-sidebar__row {
+  grid-template-columns: 12px var(--icon-sidebar) 1fr auto auto;
+  padding: 6px 8px;
+}
+.providers-sidebar__name {
+  font-size: var(--font-body);
+  font-weight: 500;
+}
+.providers-sidebar__subtitle {
+  font-size: var(--font-caption);
+}
+
+/* ── Provider detail pane ─────────────────────────────────────────── */
+.provider-detail {
+  background: var(--surface-elevated);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.provider-detail-title {
+  font-size: var(--font-title3);
+  font-weight: 600;
+}
+
+/* ── About pane parity ────────────────────────────────────────────── */
+.about-section {
+  text-align: center;
+  padding: 28px 20px 24px;
+}
+.about-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-about);
+  height: var(--icon-about);
+  margin: 0 auto 12px;
+  font-size: 36px;
+  color: #fff;
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 65%, #000 35%));
+  border-radius: var(--about-icon-radius);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.25),
+    0 8px 18px rgba(10, 132, 255, 0.25);
+}
+.about-title {
+  font-size: var(--font-title);
+  font-weight: 700;
+  margin: 0;
+}
+.about-version {
+  font-size: var(--font-caption);
+  color: var(--text-secondary);
+}
+.about-tagline {
+  font-size: var(--font-caption);
+  color: var(--text-secondary);
+}
+.about-copyright {
+  font-size: var(--font-caption2);
+  color: var(--text-muted);
+}
+
+/* ── Refresh icon spin animation reused by header button ──────────── */
+.menu-surface__btn .spin {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Reduce visual harshness of the menu summary line ─────────────── */
+.menu-surface__summary {
+  font-size: var(--font-caption);
+  color: var(--text-muted);
+  font-weight: 400;
+  padding: 2px 14px 0;
 }

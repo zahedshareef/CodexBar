@@ -128,7 +128,7 @@ function SurfaceRouter({
 
 function SettingsLayout({ state }: { state: BootstrapState }) {
   return (
-    <main className="settings-surface">
+    <main className="settings-surface settings-surface--full">
       <Settings state={state} />
     </main>
   );

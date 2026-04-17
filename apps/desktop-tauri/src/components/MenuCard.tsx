@@ -180,7 +180,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
           <div className="menu-card__name-group">
             <ProviderIcon
               providerId={provider.providerId}
-              size={18}
+              size={16}
               className="menu-card__provider-icon"
             />
             <span className="menu-card__name">{provider.displayName}</span>

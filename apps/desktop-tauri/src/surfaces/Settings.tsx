@@ -22,15 +22,21 @@ import ProvidersTab from "./settings/tabs/ProvidersTab";
 
 type SettingsTab = SettingsTabId;
 
+// Tab order mirrors upstream PreferencesView (General, Providers, Display,
+// Advanced, About) with the Win-port-specific credential tabs grouped after
+// Providers so they remain reachable but don't push parity tabs out of view.
+// Glyph approximations stand in for the upstream SF Symbols
+// (gearshape / square.grid.2x2 / eye / key / book.closed / circle.hexagongrid /
+//  slider.horizontal.3 / info.circle).
 const TAB_META: { id: SettingsTab; labelKey: LocaleKey; icon: string }[] = [
   { id: "general", labelKey: "TabGeneral", icon: "⚙" },
-  { id: "providers", labelKey: "TabProviders", icon: "◉" },
-  { id: "display", labelKey: "TabDisplay", icon: "◧" },
+  { id: "providers", labelKey: "TabProviders", icon: "▦" },
+  { id: "display", labelKey: "TabDisplay", icon: "◉" },
   { id: "apiKeys", labelKey: "TabApiKeys", icon: "🔑" },
   { id: "cookies", labelKey: "TabCookies", icon: "🍪" },
-  { id: "tokenAccounts", labelKey: "TabTokenAccounts", icon: "🪙" },
-  { id: "advanced", labelKey: "TabAdvanced", icon: "⌘" },
-  { id: "about", labelKey: "TabAbout", icon: "ℹ" },
+  { id: "tokenAccounts", labelKey: "TabTokenAccounts", icon: "◈" },
+  { id: "advanced", labelKey: "TabAdvanced", icon: "⌥" },
+  { id: "about", labelKey: "TabAbout", icon: "ⓘ" },
 ];
 
 function isSettingsTab(value: string): value is SettingsTab {
