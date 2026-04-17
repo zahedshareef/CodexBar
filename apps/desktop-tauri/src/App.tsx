@@ -6,7 +6,7 @@ import { useTheme } from "./hooks/useTheme";
 import Settings from "./surfaces/Settings";
 import TrayPanel from "./surfaces/TrayPanel";
 import PopOutPanel from "./surfaces/PopOutPanel";
-import { LocaleProvider, useLocale } from "./i18n/LocaleProvider";
+import { LocaleProvider } from "./i18n/LocaleProvider";
 import type { BootstrapState, ThemePreference } from "./types/bridge";
 import type { SurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
 
@@ -127,13 +127,8 @@ function SurfaceRouter({
 }
 
 function SettingsLayout({ state }: { state: BootstrapState }) {
-  const { t } = useLocale();
   return (
-    <main className="shell">
-      <header className="hero">
-        <p className="eyebrow">{t("ActionSettings")}</p>
-        <h1>{t("ActionSettings")}</h1>
-      </header>
+    <main className="shell shell--settings">
       <Settings state={state} />
     </main>
   );

@@ -8,6 +8,9 @@ import { useLocale } from "../hooks/useLocale";
 import ProviderCard from "./tray/ProviderCard";
 import ProviderDetail from "./tray/ProviderDetail";
 import UpdateBanner from "../components/UpdateBanner";
+import SurfaceHeader from "./shared/SurfaceHeader";
+import SurfaceSummary from "./shared/SurfaceSummary";
+import SurfaceEmpty from "./shared/SurfaceEmpty";
 
 /** Sort: highest primary used% first, then alphabetical by name. */
 function sortProviders(list: ProviderUsageSnapshot[]): ProviderUsageSnapshot[] {
@@ -18,11 +21,7 @@ function sortProviders(list: ProviderUsageSnapshot[]): ProviderUsageSnapshot[] {
   });
 }
 
-export default function TrayPanel({
-  state,
-}: {
-  state: BootstrapState;
-}) {
+export default function TrayPanel({ state }: { state: BootstrapState }) {
   const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
@@ -31,12 +30,10 @@ export default function TrayPanel({
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
-
   const selected = useMemo(
     () => sorted.find((p) => p.providerId === selectedId) ?? null,
     [sorted, selectedId],
   );
-
   const errorCount = useMemo(
     () => sorted.filter((p) => p.error !== null).length,
     [sorted],
@@ -45,16 +42,11 @@ export default function TrayPanel({
   const openSettings = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "general" });
   }, []);
-
   const openPopOut = useCallback(() => {
     setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
+  const handleBack = useCallback(() => setSelectedId(null), []);
 
-  const handleBack = useCallback(() => {
-    setSelectedId(null);
-  }, []);
-
-  // Detail drill-in view
   if (selected) {
     return (
       <main className="shell shell--tray-panel">
@@ -68,72 +60,50 @@ export default function TrayPanel({
     );
   }
 
-  // Loading state
-  if (isRefreshing && sorted.length === 0) {
+  const headerActions = [
+    { icon: "⚙", title: t("TooltipSettings"), onClick: openSettings },
+    { icon: "⧉", title: t("TooltipPopOut"), onClick: openPopOut },
+  ];
+
+  const banner = (
+    <UpdateBanner
+      updateState={updateState}
+      onCheck={checkNow}
+      onDownload={download}
+      onApply={apply}
+      onDismiss={dismiss}
+      onOpenRelease={openRelease}
+    />
+  );
+
+  if (sorted.length === 0) {
     return (
       <main className="shell shell--tray-panel">
-        <TrayHeader
+        <SurfaceHeader
           onRefresh={refresh}
           isRefreshing={isRefreshing}
-          onSettings={openSettings}
-          onPopOut={openPopOut}
+          actions={headerActions}
         />
-        <UpdateBanner updateState={updateState} onCheck={checkNow} onDownload={download} onApply={apply} onDismiss={dismiss} onOpenRelease={openRelease} />
-        <div className="tray-empty">
-          <div className="tray-empty__spinner" />
-          <p>{t("FetchingProviderData")}</p>
-        </div>
+        {banner}
+        <SurfaceEmpty isLoading={isRefreshing} onSettings={openSettings} />
       </main>
     );
   }
 
-  // Empty state
-  if (!isRefreshing && sorted.length === 0) {
-    return (
-      <main className="shell shell--tray-panel">
-        <TrayHeader
-          onRefresh={refresh}
-          isRefreshing={isRefreshing}
-          onSettings={openSettings}
-          onPopOut={openPopOut}
-        />
-        <UpdateBanner updateState={updateState} onCheck={checkNow} onDownload={download} onApply={apply} onDismiss={dismiss} onOpenRelease={openRelease} />
-        <div className="tray-empty">
-          <p>{t("NoProvidersConfigured")}</p>
-          <p className="tray-empty__hint">
-            {t("EnableProvidersHint")}
-          </p>
-          <button
-            className="tray-btn tray-btn--primary"
-            onClick={openSettings}
-            type="button"
-          >
-            {t("OpenSettingsButton")}
-          </button>
-        </div>
-      </main>
-    );
-  }
-
-  // Main list view
   return (
     <main className="shell shell--tray-panel">
-      <TrayHeader
+      <SurfaceHeader
         onRefresh={refresh}
         isRefreshing={isRefreshing}
-        onSettings={openSettings}
-        onPopOut={openPopOut}
+        actions={headerActions}
       />
-
-      <UpdateBanner updateState={updateState} onCheck={checkNow} onDownload={download} onApply={apply} onDismiss={dismiss} onOpenRelease={openRelease} />
-
-      <TraySummary
+      {banner}
+      <SurfaceSummary
         total={sorted.length}
         errorCount={errorCount}
         isRefreshing={isRefreshing}
         lastRefresh={lastRefresh}
       />
-
       <div className="tray-list">
         {sorted.map((p) => (
           <ProviderCard
@@ -148,82 +118,4 @@ export default function TrayPanel({
       </div>
     </main>
   );
-}
-
-// ── Header ───────────────────────────────────────────────────────────
-
-function TrayHeader({
-  onRefresh,
-  isRefreshing,
-  onSettings,
-  onPopOut,
-}: {
-  onRefresh: () => void;
-  isRefreshing: boolean;
-  onSettings: () => void;
-  onPopOut: () => void;
-}) {
-  const { t } = useLocale();
-  return (
-    <header className="tray-header">
-      <h1 className="tray-header__title">CodexBar</h1>
-      <div className="tray-header__actions">
-        <button
-          className="tray-icon-btn"
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          title={t("TooltipRefresh")}
-          type="button"
-        >
-          <span className={isRefreshing ? "spin" : ""}>↻</span>
-        </button>
-        <button
-          className="tray-icon-btn"
-          onClick={onSettings}
-          title={t("TooltipSettings")}
-          type="button"
-        >
-          ⚙
-        </button>
-        <button
-          className="tray-icon-btn"
-          onClick={onPopOut}
-          title={t("TooltipPopOut")}
-          type="button"
-        >
-          ⧉
-        </button>
-      </div>
-    </header>
-  );
-}
-
-// ── Summary strip ────────────────────────────────────────────────────
-
-function TraySummary({
-  total,
-  errorCount,
-  isRefreshing,
-  lastRefresh,
-}: {
-  total: number;
-  errorCount: number;
-  isRefreshing: boolean;
-  lastRefresh: { providerCount: number; errorCount: number } | null;
-}) {
-  const { t } = useLocale();
-  const parts: string[] = [];
-  parts.push(`${total} ${t("SummaryProvidersLabel")}`);
-  if (isRefreshing) {
-    parts.push(t("SummaryRefreshing"));
-  } else if (lastRefresh) {
-    if (lastRefresh.errorCount > 0) {
-      parts.push(`${lastRefresh.errorCount} ${t("SummaryFailed")}`);
-    }
-  }
-  if (!isRefreshing && errorCount > 0) {
-    parts.push(`${errorCount} ${t("SummaryWithErrors")}`);
-  }
-
-  return <div className="tray-summary">{parts.join(" · ")}</div>;
 }
