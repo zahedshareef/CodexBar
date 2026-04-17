@@ -928,27 +928,39 @@ body {
   padding: 8px 10px 12px;
 }
 
-/* header */
-.tray-header {
+/* spin animation for refresh */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  display: inline-block;
+  animation: spin 0.8s linear infinite;
+}
+
+/* ── Shared surface chrome ────────────────────────────────────────── */
+
+.surface-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
-.tray-header__title {
+.surface-header__title {
   margin: 0;
   font-size: 0.88rem;
   font-weight: 700;
   letter-spacing: 0.01em;
+  color: var(--text-primary);
 }
 
-.tray-header__actions {
+.surface-header__actions {
   display: flex;
-  gap: 4px;
+  gap: 3px;
 }
 
-.tray-icon-btn {
+.surface-action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -963,28 +975,17 @@ body {
   transition: background 0.12s, color 0.12s;
 }
 
-.tray-icon-btn:hover {
-  background: rgba(142, 163, 255, 0.12);
-  color: #eef2ff;
+.surface-action-btn:hover {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
 }
 
-.tray-icon-btn:disabled {
+.surface-action-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* spin animation for refresh */
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.spin {
-  display: inline-block;
-  animation: spin 0.8s linear infinite;
-}
-
-/* summary strip */
-.tray-summary {
+.surface-summary {
   padding: 4px 8px;
   margin-bottom: 8px;
   border-radius: 6px;
@@ -992,6 +993,36 @@ body {
   color: var(--text-eyebrow);
   font-size: 0.72rem;
   font-weight: 600;
+}
+
+.surface-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.surface-empty p {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.surface-empty__hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.surface-empty__spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--accent-muted);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
 /* provider card list */
@@ -1124,37 +1155,6 @@ body {
   color: #b7c0db;
   min-width: 30px;
   text-align: right;
-}
-
-/* empty / loading state */
-.tray-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 48px 20px;
-  text-align: center;
-  color: #8b95b0;
-}
-
-.tray-empty p {
-  margin: 0;
-  font-size: 0.88rem;
-}
-
-.tray-empty__hint {
-  font-size: 0.78rem;
-  color: #6b7494;
-}
-
-.tray-empty__spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid rgba(142, 163, 255, 0.15);
-  border-top-color: #5d87ff;
-  border-radius: 50%;
-  animation: spin 0.7s linear infinite;
 }
 
 .tray-btn {
@@ -1373,82 +1373,6 @@ body {
 .shell--popout {
   max-width: 100%;
   padding: 16px 20px 24px;
-}
-
-.popout-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.popout-header__title {
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.popout-header__actions {
-  display: flex;
-  gap: 6px;
-}
-
-.popout-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border: 1px solid rgba(142, 163, 255, 0.12);
-  border-radius: 8px;
-  background: rgba(17, 21, 34, 0.5);
-  color: #8b95b0;
-  font-size: 1.05rem;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-
-.popout-action-btn:hover {
-  background: rgba(142, 163, 255, 0.12);
-  border-color: rgba(142, 163, 255, 0.22);
-  color: #eef2ff;
-}
-
-.popout-action-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.popout-summary {
-  padding: 8px 12px;
-  margin-bottom: 14px;
-  border-radius: 10px;
-  background: rgba(93, 135, 255, 0.08);
-  color: #8ea3ff;
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.popout-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 56px 24px;
-  text-align: center;
-  color: #8b95b0;
-}
-
-.popout-empty p {
-  margin: 0;
-  font-size: 0.92rem;
-}
-
-.popout-empty__hint {
-  font-size: 0.82rem;
-  color: #6b7494;
 }
 
 .popout-body {
