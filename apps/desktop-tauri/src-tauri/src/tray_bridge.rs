@@ -389,9 +389,15 @@ pub fn update_tray_status_items(
 
 /// Update the tray icon pixels and tooltip text to reflect current provider usage.
 ///
-/// Icon shows the highest (worst-case) session usage as a fill bar, plus the
-/// highest weekly usage as a thinner second bar when secondary data is present.
-/// The tooltip lists every provider's current status in a compact multi-line format.
+/// Behaviour mirrors egui's `choose_tray_update_plan` (rust/src/native_ui/app.rs):
+/// - If `menu_bar_shows_highest_usage` is on OR `menu_bar_display_mode == "minimal"`,
+///   render the bar from the healthy provider with the highest session usage.
+/// - Otherwise render from the first enabled healthy provider (catalog order).
+/// - When any provider exposes a weekly/secondary window, the icon shows both
+///   bars from the same picked provider.
+/// - With zero healthy providers but at least one error, fall back to an
+///   error-styled icon using the last known max percentage so the tray
+///   still communicates "something is wrong".
 pub fn update_tray_icon_and_tooltip(
     app: &AppHandle,
     snapshots: &[crate::commands::ProviderUsageSnapshot],
@@ -404,23 +410,24 @@ pub fn update_tray_icon_and_tooltip(
     let ok_snapshots: Vec<_> = snapshots.iter().filter(|s| s.error.is_none()).collect();
     let all_error = ok_snapshots.is_empty() && !snapshots.is_empty();
 
-    // Worst-case primary usage across all healthy providers.
-    let session_pct = ok_snapshots
-        .iter()
-        .map(|s| s.primary.used_percent)
-        .fold(0.0_f64, f64::max);
+    let settings = Settings::load();
+    let prefer_highest = settings.menu_bar_shows_highest_usage
+        || settings.menu_bar_display_mode.as_str() == "minimal";
 
-    // Worst-case secondary usage (weekly), if any provider exposes it.
-    let weekly_pct: Option<f64> = {
-        let vals: Vec<f64> = ok_snapshots
-            .iter()
-            .filter_map(|s| s.secondary.as_ref().map(|w| w.used_percent))
-            .collect();
-        if vals.is_empty() {
-            None
-        } else {
-            Some(vals.into_iter().fold(0.0_f64, f64::max))
-        }
+    let picked = pick_tray_provider(&ok_snapshots, prefer_highest);
+
+    let (session_pct, weekly_pct) = match picked {
+        Some(s) => (
+            s.primary.used_percent,
+            s.secondary.as_ref().map(|w| w.used_percent),
+        ),
+        None => (
+            ok_snapshots
+                .iter()
+                .map(|s| s.primary.used_percent)
+                .fold(0.0_f64, f64::max),
+            None,
+        ),
     };
 
     let (rgba, w, h) = render_bar_icon_rgba(session_pct, weekly_pct, all_error);
@@ -430,6 +437,29 @@ pub fn update_tray_icon_and_tooltip(
     // ── Tooltip ───────────────────────────────────────────────────────────
     let tooltip = build_tooltip(snapshots);
     let _ = tray.set_tooltip(Some(tooltip));
+}
+
+/// Pick the provider whose usage the tray icon should render.
+///
+/// Exposed so that the unit tests can exercise both `highest` and `first`
+/// paths without needing a live Tauri app handle.
+fn pick_tray_provider<'a>(
+    ok_snapshots: &'a [&'a crate::commands::ProviderUsageSnapshot],
+    prefer_highest: bool,
+) -> Option<&'a crate::commands::ProviderUsageSnapshot> {
+    if ok_snapshots.is_empty() {
+        return None;
+    }
+    if prefer_highest {
+        ok_snapshots.iter().copied().max_by(|a, b| {
+            a.primary
+                .used_percent
+                .partial_cmp(&b.primary.used_percent)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+    } else {
+        Some(ok_snapshots[0])
+    }
 }
 
 /// Build a compact multi-line tooltip string from provider snapshots.
@@ -698,5 +728,66 @@ mod tests {
         );
 
         assert!(anchor.is_none());
+    }
+
+    fn fake_snapshot(
+        id: &str,
+        display: &str,
+        used_percent: f64,
+    ) -> crate::commands::ProviderUsageSnapshot {
+        crate::commands::ProviderUsageSnapshot {
+            provider_id: id.into(),
+            display_name: display.into(),
+            primary: crate::commands::RateWindowSnapshot {
+                used_percent,
+                remaining_percent: 100.0 - used_percent,
+                window_minutes: None,
+                resets_at: None,
+                reset_description: None,
+                is_exhausted: false,
+            },
+            secondary: None,
+            model_specific: None,
+            tertiary: None,
+            cost: None,
+            plan_name: None,
+            account_email: None,
+            source_label: String::new(),
+            updated_at: "2025-01-01T00:00:00Z".into(),
+            error: None,
+            pace: None,
+            account_organization: None,
+            tray_status_label: None,
+        }
+    }
+
+    #[test]
+    fn pick_tray_provider_highest_picks_max_primary() {
+        let a = fake_snapshot("codex", "Codex", 30.0);
+        let b = fake_snapshot("claude", "Claude", 72.5);
+        let c = fake_snapshot("gemini", "Gemini", 50.0);
+        let refs: Vec<&crate::commands::ProviderUsageSnapshot> = vec![&a, &b, &c];
+
+        let picked = pick_tray_provider(&refs, /* prefer_highest = */ true)
+            .expect("highest mode should pick a provider");
+        assert_eq!(picked.provider_id, "claude");
+    }
+
+    #[test]
+    fn pick_tray_provider_first_preserves_catalog_order() {
+        let a = fake_snapshot("codex", "Codex", 30.0);
+        let b = fake_snapshot("claude", "Claude", 72.5);
+        let refs: Vec<&crate::commands::ProviderUsageSnapshot> = vec![&a, &b];
+
+        let picked = pick_tray_provider(&refs, /* prefer_highest = */ false)
+            .expect("non-highest mode should still pick the first entry");
+        assert_eq!(picked.provider_id, "codex");
+    }
+
+    #[test]
+    fn pick_tray_provider_none_when_empty() {
+        let refs: Vec<&crate::commands::ProviderUsageSnapshot> = vec![];
+        assert!(pick_tray_provider(&refs, true).is_none());
+        assert!(pick_tray_provider(&refs, false).is_none());
     }
 }

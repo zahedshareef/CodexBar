@@ -1,6 +1,8 @@
 import type { ProviderUsageSnapshot } from "../../types/bridge";
 import { useLocale } from "../../hooks/useLocale";
 import UsageBar from "./UsageBar";
+import PaceBadge from "./PaceBadge";
+import { useResetCountdown } from "./useResetCountdown";
 
 interface ProviderCardProps {
   provider: ProviderUsageSnapshot;
@@ -8,18 +10,6 @@ interface ProviderCardProps {
   hideEmail: boolean;
   resetRelative: boolean;
   onSelect: () => void;
-}
-
-function resetText(
-  snap: ProviderUsageSnapshot,
-  relative: boolean,
-): string | null {
-  const desc = snap.primary.resetDescription;
-  if (!desc) return null;
-  if (relative && snap.primary.resetsAt) {
-    return `Resets ${desc}`;
-  }
-  return desc;
 }
 
 function maskEmail(email: string): string {
@@ -37,7 +27,13 @@ export default function ProviderCard({
 }: ProviderCardProps) {
   const { t } = useLocale();
   const hasError = provider.error !== null;
-  const reset = resetText(provider, resetRelative);
+  const countdown = useResetCountdown(
+    provider.primary.resetsAt,
+    provider.primary.resetDescription,
+  );
+  const reset = resetRelative && provider.primary.resetsAt
+    ? countdown
+    : provider.primary.resetDescription;
   const email = provider.accountEmail
     ? hideEmail
       ? maskEmail(provider.accountEmail)
@@ -57,11 +53,24 @@ export default function ProviderCard({
         )}
       </div>
 
-      <UsageBar window={provider.primary} compact />
+      <div className="tray-card__pace-row">
+        <UsageBar window={provider.primary} compact />
+        {provider.pace && <PaceBadge pace={provider.pace} />}
+      </div>
 
       <div className="tray-card__meta">
         {email && <span className="tray-card__email">{email}</span>}
-        {reset && <span className="tray-card__reset">{reset}</span>}
+        {reset && (
+          <span
+            className={
+              resetRelative && provider.primary.resetsAt
+                ? "tray-card__reset tray-card__reset--countdown"
+                : "tray-card__reset"
+            }
+          >
+            {reset}
+          </span>
+        )}
         {hasError && (
           <span className="tray-card__err" title={provider.error ?? ""}>
             ⚠ {t("TrayCardErrorBadge")}

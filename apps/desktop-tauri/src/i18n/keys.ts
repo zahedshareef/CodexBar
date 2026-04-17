@@ -483,6 +483,14 @@ export const ALL_LOCALE_KEYS = [
   "TokenAccountTabHint",
   "TokenAccountNoSupported",
   "TokenAccountInlineSummary",
+
+  // Phase 9 — Tray / pop-out pace badges + countdowns
+  "TrayPaceBadgeSlow",
+  "TrayPaceBadgeSteady",
+  "TrayPaceBadgeRacing",
+  "TrayPaceBadgeBurning",
+  "TrayResetsInLabel",
+  "TrayResetsDueNow",
 ] as const;
 
 export type LocaleKey = (typeof ALL_LOCALE_KEYS)[number];
