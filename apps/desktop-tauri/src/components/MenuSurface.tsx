@@ -38,7 +38,10 @@ export default function MenuSurface({
   return (
     <div className={`menu-surface menu-surface--${variant}`}>
       <header className="menu-surface__header">
-        <span className="menu-surface__title">CodexBar</span>
+        <div className="menu-surface__brand">
+          <span className="menu-surface__brand-icon" aria-hidden>◆</span>
+          <span className="menu-surface__title">CodexBar</span>
+        </div>
         <div className="menu-surface__actions">
           <button
             className="menu-surface__btn"

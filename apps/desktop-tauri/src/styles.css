@@ -327,21 +327,28 @@ body {
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.06);
   margin-bottom: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.settings-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .settings-tab {
-  flex: 1;
-  display: flex;
+  flex: 0 0 auto;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 5px 8px;
+  gap: 5px;
+  padding: 5px 12px;
   border: none;
   border-radius: 5px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 0.78rem;
   font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -1590,11 +1597,11 @@ body {
 }
 
 .mini-chart__label {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-eyebrow);
+  /* Match upstream `.font(.body).fontWeight(.medium)` — same weight as the
+     "Cost" / "Pace" group titles. Not uppercase, not eyebrow-tinted. */
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .mini-chart__empty-msg {
@@ -2696,6 +2703,30 @@ body {
   color: var(--text-secondary);
 }
 
+/* Wordmark cluster: small accent badge + "CodexBar" title.
+   Mirrors a menu-bar app brand glyph so the header isn't pure text. */
+.menu-surface__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.menu-surface__brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--surface);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 .menu-surface__actions {
   display: flex;
   gap: 2px;
@@ -2830,9 +2861,23 @@ body {
 
 .menu-card__title-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+/* Provider brand badge + display name cluster. Tauri-only addition that
+   gives each card a recognizable provider mark before the name. */
+.menu-card__name-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.menu-card__provider-icon {
+  flex-shrink: 0;
 }
 
 /* providerName: Font.headline + .semibold ≈ 13px / 600 */
