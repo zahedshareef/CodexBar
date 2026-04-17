@@ -349,6 +349,14 @@ pub struct Settings {
     #[serde(default)]
     pub provider_metrics: HashMap<String, MetricPreference>,
 
+    /// Preferred display order of provider IDs (CLI names).
+    ///
+    /// An empty list means "fall back to the canonical `ProviderId::all()`
+    /// order". Unknown or duplicated ids are filtered out on load; new
+    /// providers are appended in their canonical order.
+    #[serde(default)]
+    pub provider_order: Vec<String>,
+
     /// Global keyboard shortcut to open the menu (e.g., "Ctrl+Shift+U")
     #[serde(default = "default_global_shortcut")]
     pub global_shortcut: String,
@@ -504,6 +512,7 @@ impl Default for Settings {
             hide_personal_info: false, // Show personal info by default
             update_channel: UpdateChannel::default(), // Stable by default
             provider_metrics: HashMap::new(), // Empty = use Automatic for all
+            provider_order: Vec::new(), // Empty = canonical ProviderId::all() order
             global_shortcut: default_global_shortcut(), // Ctrl+Shift+U by default
             auto_download_updates: false, // Require explicit opt-in for background downloads
             install_updates_on_quit: false, // Don't auto-install on quit by default

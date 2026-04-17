@@ -513,6 +513,82 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
             id: "set_active_token_account",
             description: "Set the active token account for a provider.",
         },
+        BridgeCommandDescriptor {
+            id: "reorder_providers",
+            description: "Persist a new provider display order and return refreshed summaries.",
+        },
+        BridgeCommandDescriptor {
+            id: "set_provider_cookie_source",
+            description: "Set the preferred cookie/credential source for a provider.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_provider_cookie_source",
+            description: "Read the preferred cookie/credential source for a provider.",
+        },
+        BridgeCommandDescriptor {
+            id: "set_provider_region",
+            description: "Set the preferred API region for a provider (Alibaba, Z.ai, MiniMax).",
+        },
+        BridgeCommandDescriptor {
+            id: "get_provider_region",
+            description: "Read the preferred API region for a provider.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_gemini_cli_signed_in",
+            description: "Detect whether the Gemini CLI is signed in locally.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_vertexai_status",
+            description: "Detect VertexAI application default credentials.",
+        },
+        BridgeCommandDescriptor {
+            id: "list_jetbrains_detected_ides",
+            description: "List detected JetBrains/Google IDE config directories.",
+        },
+        BridgeCommandDescriptor {
+            id: "set_jetbrains_ide_path",
+            description: "Persist an explicit JetBrains IDE config path override.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_kiro_status",
+            description: "Detect availability of the Kiro CLI.",
+        },
+        BridgeCommandDescriptor {
+            id: "register_global_shortcut",
+            description: "Register a global keyboard shortcut that emits `global-shortcut-triggered` events.",
+        },
+        BridgeCommandDescriptor {
+            id: "unregister_global_shortcut",
+            description: "Unregister the currently-captured global shortcut.",
+        },
+        BridgeCommandDescriptor {
+            id: "is_remote_session",
+            description: "Return true when running inside an SSH or Windows Remote Desktop session.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_launch_block_reason",
+            description: "Return a user-facing reason when the native shell should not launch (SSH/RDP).",
+        },
+        BridgeCommandDescriptor {
+            id: "get_work_area_rect",
+            description: "Return the primary-monitor work area in physical pixels (excludes taskbar).",
+        },
+        BridgeCommandDescriptor {
+            id: "play_notification_sound",
+            description: "Play the short notification chime used after refreshes.",
+        },
+        BridgeCommandDescriptor {
+            id: "open_provider_dashboard",
+            description: "Open a provider's external dashboard URL in the default browser.",
+        },
+        BridgeCommandDescriptor {
+            id: "trigger_provider_login",
+            description: "Trigger a provider's login flow (CLI-based where available).",
+        },
+        BridgeCommandDescriptor {
+            id: "revoke_provider_credentials",
+            description: "Revoke or remove stored credentials (API keys + manual cookies) for a provider.",
+        },
     ]
 }
 
@@ -545,6 +621,10 @@ fn bridge_events() -> Vec<BridgeEventDescriptor> {
         BridgeEventDescriptor {
             id: "proof-state-changed",
             description: "Emitted when the proof harness updates menu evidence or visible shell state for parity capture.",
+        },
+        BridgeEventDescriptor {
+            id: "global-shortcut-triggered",
+            description: "Emitted when the user-registered global shortcut (via register_global_shortcut) fires.",
         },
     ]
 }
@@ -1798,11 +1878,461 @@ fn open_url_in_browser(url: &str) -> Result<(), String> {
     Ok(())
 }
 
+// ════════════════════════════════════════════════════════════════════════════════
+// PHASE 4 — Provider ordering, cookie source, region, credential detection,
+// global shortcut capture, session/environment introspection, quick actions.
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ── Provider summaries + ordering ─────────────────────────────────────
+
+/// Lightweight provider entry returned to the UI after a reorder.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSummary {
+    pub id: String,
+    pub display_name: String,
+    pub enabled: bool,
+    pub order: u32,
+}
+
+/// Canonicalise a requested provider order: keep requested ids that match a
+/// real `ProviderId`, drop duplicates, and append any canonical ids that were
+/// omitted (preserving their canonical order).
+fn apply_provider_order(requested: &[String]) -> Vec<String> {
+    let canonical: Vec<String> = ProviderId::all()
+        .iter()
+        .map(|p| p.cli_name().to_string())
+        .collect();
+    let valid: std::collections::HashSet<&str> = canonical.iter().map(|s| s.as_str()).collect();
+
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut out: Vec<String> = Vec::with_capacity(canonical.len());
+
+    for id in requested {
+        if valid.contains(id.as_str()) && seen.insert(id.clone()) {
+            out.push(id.clone());
+        }
+    }
+    for id in &canonical {
+        if seen.insert(id.clone()) {
+            out.push(id.clone());
+        }
+    }
+
+    out
+}
+
+/// Build `ProviderSummary` list honouring the persisted `provider_order`.
+fn build_provider_summaries(settings: &Settings) -> Vec<ProviderSummary> {
+    let order = if settings.provider_order.is_empty() {
+        apply_provider_order(&[])
+    } else {
+        apply_provider_order(&settings.provider_order)
+    };
+
+    let by_id: std::collections::HashMap<String, &ProviderId> = ProviderId::all()
+        .iter()
+        .map(|p| (p.cli_name().to_string(), p))
+        .collect();
+
+    order
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, id)| {
+            by_id.get(id).map(|p| ProviderSummary {
+                id: id.clone(),
+                display_name: p.display_name().to_string(),
+                enabled: settings.enabled_providers.contains(id),
+                order: idx as u32,
+            })
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn reorder_providers(ids: Vec<String>) -> Result<Vec<ProviderSummary>, String> {
+    let mut settings = Settings::load();
+    settings.provider_order = apply_provider_order(&ids);
+    settings.save().map_err(|e| e.to_string())?;
+    Ok(build_provider_summaries(&settings))
+}
+
+// ── Per-provider cookie source + region ───────────────────────────────
+
+/// Providers that expose a user-facing cookie-source picker, mapped to their
+/// corresponding `Settings` field accessor.
+fn provider_cookie_source_field<'a>(
+    settings: &'a mut Settings,
+    provider_id: &str,
+) -> Option<&'a mut String> {
+    match provider_id {
+        "codex" => Some(&mut settings.codex_cookie_source),
+        "claude" => Some(&mut settings.claude_cookie_source),
+        "cursor" => Some(&mut settings.cursor_cookie_source),
+        "opencode" => Some(&mut settings.opencode_cookie_source),
+        "factory" => Some(&mut settings.factory_cookie_source),
+        "alibaba" => Some(&mut settings.alibaba_cookie_source),
+        "kimi" | "kimik2" => Some(&mut settings.kimi_cookie_source),
+        "minimax" => Some(&mut settings.minimax_cookie_source),
+        "augment" => Some(&mut settings.augment_cookie_source),
+        "amp" => Some(&mut settings.amp_cookie_source),
+        "ollama" => Some(&mut settings.ollama_cookie_source),
+        _ => None,
+    }
+}
+
+fn provider_cookie_source_lookup(settings: &Settings, provider_id: &str) -> Option<String> {
+    let copy = match provider_id {
+        "codex" => &settings.codex_cookie_source,
+        "claude" => &settings.claude_cookie_source,
+        "cursor" => &settings.cursor_cookie_source,
+        "opencode" => &settings.opencode_cookie_source,
+        "factory" => &settings.factory_cookie_source,
+        "alibaba" => &settings.alibaba_cookie_source,
+        "kimi" | "kimik2" => &settings.kimi_cookie_source,
+        "minimax" => &settings.minimax_cookie_source,
+        "augment" => &settings.augment_cookie_source,
+        "amp" => &settings.amp_cookie_source,
+        "ollama" => &settings.ollama_cookie_source,
+        _ => return None,
+    };
+    Some(copy.clone())
+}
+
+fn provider_cookie_source_set(
+    settings: &mut Settings,
+    provider_id: &str,
+    source: String,
+) -> Result<(), String> {
+    let field = provider_cookie_source_field(settings, provider_id)
+        .ok_or_else(|| format!("Provider '{provider_id}' does not expose a cookie source"))?;
+    *field = source;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_provider_cookie_source(provider_id: String, source: String) -> Result<(), String> {
+    let mut settings = Settings::load();
+    provider_cookie_source_set(&mut settings, &provider_id, source)?;
+    settings.save().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_provider_cookie_source(provider_id: String) -> Result<Option<String>, String> {
+    Ok(provider_cookie_source_lookup(
+        &Settings::load(),
+        &provider_id,
+    ))
+}
+
+fn provider_region_field<'a>(
+    settings: &'a mut Settings,
+    provider_id: &str,
+) -> Option<&'a mut String> {
+    match provider_id {
+        "alibaba" => Some(&mut settings.alibaba_api_region),
+        "zai" => Some(&mut settings.zai_api_region),
+        "minimax" => Some(&mut settings.minimax_api_region),
+        _ => None,
+    }
+}
+
+fn provider_region_lookup(settings: &Settings, provider_id: &str) -> Option<String> {
+    let copy = match provider_id {
+        "alibaba" => &settings.alibaba_api_region,
+        "zai" => &settings.zai_api_region,
+        "minimax" => &settings.minimax_api_region,
+        _ => return None,
+    };
+    Some(copy.clone())
+}
+
+fn provider_region_set(
+    settings: &mut Settings,
+    provider_id: &str,
+    region: String,
+) -> Result<(), String> {
+    let field = provider_region_field(settings, provider_id)
+        .ok_or_else(|| format!("Provider '{provider_id}' does not have a region picker"))?;
+    *field = region;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_provider_region(provider_id: String, region: String) -> Result<(), String> {
+    let mut settings = Settings::load();
+    provider_region_set(&mut settings, &provider_id, region)?;
+    settings.save().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_provider_region(provider_id: String) -> Result<Option<String>, String> {
+    Ok(provider_region_lookup(&Settings::load(), &provider_id))
+}
+
+// ── Credential detection ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeminiCliStatus {
+    pub signed_in: bool,
+    pub credentials_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VertexAiStatus {
+    pub has_credentials: bool,
+    pub credentials_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JetbrainsIde {
+    pub id: String,
+    pub display_name: String,
+    pub path: String,
+    pub detected: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KiroStatus {
+    pub available: bool,
+    pub hint: Option<String>,
+}
+
+fn gemini_cli_credentials_path() -> Option<std::path::PathBuf> {
+    codexbar::host::session::gemini_cli_credentials_path()
+}
+
+fn vertexai_credentials_path_raw() -> Option<std::path::PathBuf> {
+    codexbar::host::session::vertexai_credentials_path()
+}
+
+fn jetbrains_detected_ide_paths() -> Vec<std::path::PathBuf> {
+    codexbar::host::session::jetbrains_detected_ide_paths()
+}
+
+#[tauri::command]
+pub fn get_gemini_cli_signed_in() -> Result<GeminiCliStatus, String> {
+    let path = gemini_cli_credentials_path();
+    let signed_in = path.as_ref().map(|p| p.exists()).unwrap_or(false);
+    Ok(GeminiCliStatus {
+        signed_in,
+        credentials_path: path.map(|p| p.to_string_lossy().into_owned()),
+    })
+}
+
+#[tauri::command]
+pub fn get_vertexai_status() -> Result<VertexAiStatus, String> {
+    let path = vertexai_credentials_path_raw();
+    let has = path.as_ref().map(|p| p.exists()).unwrap_or(false);
+    Ok(VertexAiStatus {
+        has_credentials: has,
+        credentials_path: path.map(|p| p.to_string_lossy().into_owned()),
+    })
+}
+
+#[tauri::command]
+pub fn list_jetbrains_detected_ides() -> Result<Vec<JetbrainsIde>, String> {
+    let settings = Settings::load();
+    let override_path = settings.jetbrains_ide_base_path.clone();
+
+    let mut entries: Vec<JetbrainsIde> = jetbrains_detected_ide_paths()
+        .into_iter()
+        .map(|p| {
+            let display = p
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| p.display().to_string());
+            JetbrainsIde {
+                id: display.to_lowercase(),
+                display_name: display,
+                path: p.to_string_lossy().into_owned(),
+                detected: true,
+            }
+        })
+        .collect();
+
+    // If the user has an override that isn't already in the detected list,
+    // surface it explicitly with `detected: false`.
+    if !override_path.is_empty() && !entries.iter().any(|e| e.path == override_path) {
+        let path_buf = std::path::PathBuf::from(&override_path);
+        let display = path_buf
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| override_path.clone());
+        entries.push(JetbrainsIde {
+            id: format!("override::{display}").to_lowercase(),
+            display_name: display,
+            path: override_path,
+            detected: false,
+        });
+    }
+
+    Ok(entries)
+}
+
+#[tauri::command]
+pub fn set_jetbrains_ide_path(path: String) -> Result<(), String> {
+    let mut settings = Settings::load();
+    settings.jetbrains_ide_base_path = path;
+    settings.save().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_kiro_status() -> Result<KiroStatus, String> {
+    if let Some(path) = codexbar::providers::kiro::find_kiro_cli() {
+        Ok(KiroStatus {
+            available: true,
+            hint: Some(path.to_string_lossy().into_owned()),
+        })
+    } else {
+        Ok(KiroStatus {
+            available: false,
+            hint: Some("kiro-cli: not found on PATH or known install locations".into()),
+        })
+    }
+}
+
+// ── Global shortcut capture (user-driven, emits events) ───────────────
+
+#[tauri::command]
+pub fn register_global_shortcut(app: tauri::AppHandle, accelerator: String) -> Result<(), String> {
+    use tauri::Emitter;
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+    let shortcut = crate::shortcut_bridge::parse_shortcut(&accelerator)
+        .ok_or_else(|| format!("Invalid shortcut \"{accelerator}\". Use e.g. Ctrl+Shift+U."))?;
+
+    // Best-effort cleanup of any prior capture registration.
+    let _ = app.global_shortcut().unregister(shortcut);
+
+    let accel_emit = accelerator.clone();
+    app.global_shortcut()
+        .on_shortcut(shortcut, move |app, _sc, event| {
+            if event.state == ShortcutState::Pressed {
+                let _ = app.emit("global-shortcut-triggered", accel_emit.clone());
+            }
+        })
+        .map_err(|e| format!("Failed to register shortcut \"{accelerator}\": {e}"))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn unregister_global_shortcut(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+    // We don't know which accelerator was registered — unregister_all is a
+    // too-wide hammer (it would also drop the persistent tray-toggle binding),
+    // so re-register that afterwards.
+    app.global_shortcut()
+        .unregister_all()
+        .map_err(|e| format!("Failed to clear shortcuts: {e}"))?;
+    crate::shortcut_bridge::register(&app);
+    Ok(())
+}
+
+// ── Session / environment ─────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkAreaRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+#[tauri::command]
+pub fn is_remote_session() -> Result<bool, String> {
+    Ok(codexbar::host::session::is_ssh_session() || codexbar::host::session::is_remote_session())
+}
+
+#[tauri::command]
+pub fn get_launch_block_reason() -> Result<Option<String>, String> {
+    Ok(codexbar::host::session::current_launch_block_reason().map(|s| s.to_string()))
+}
+
+#[tauri::command]
+pub fn get_work_area_rect() -> Result<WorkAreaRect, String> {
+    if let Some(area) = codexbar::host::session::primary_work_area_pixels() {
+        return Ok(WorkAreaRect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: area.height,
+        });
+    }
+    Err("Work area not available on this platform".into())
+}
+
+// ── Misc UX ────────────────────────────────────────────────────────────
+
+#[tauri::command]
+pub fn play_notification_sound() -> Result<(), String> {
+    // Use the shared sound helper, honouring the user's `sound_enabled` flag.
+    let settings = Settings::load();
+    codexbar::sound::play_alert(codexbar::sound::AlertSound::Success, &settings);
+    Ok(())
+}
+
+fn dashboard_url_for_provider(provider_id: &str) -> Option<String> {
+    codexbar::settings::get_api_key_providers()
+        .into_iter()
+        .find(|p| p.id.cli_name() == provider_id)
+        .and_then(|p| p.dashboard_url.map(|s| s.to_string()))
+}
+
+#[tauri::command]
+pub fn open_provider_dashboard(provider_id: String) -> Result<(), String> {
+    let url = dashboard_url_for_provider(&provider_id)
+        .ok_or_else(|| format!("No dashboard URL registered for provider '{provider_id}'"))?;
+    open_url_in_browser(&url)
+}
+
+#[tauri::command]
+pub fn trigger_provider_login(provider_id: String) -> Result<(), String> {
+    // The login runners live in `codexbar::login` but are async-oriented and
+    // tightly coupled to the egui UI's phase callbacks. For the Tauri shell
+    // we currently surface the dashboard URL — a full end-to-end login flow
+    // will be wired up in Phase 6b together with phase-event plumbing.
+    if let Some(url) = dashboard_url_for_provider(&provider_id) {
+        return open_url_in_browser(&url);
+    }
+    Err(format!(
+        "Login flow for '{provider_id}' is not yet wired through the Tauri shell"
+    ))
+}
+
+#[tauri::command]
+pub fn revoke_provider_credentials(provider_id: String) -> Result<(), String> {
+    // Best-effort: drop both a stored API key and any manual cookie so the
+    // caller can follow up with a fresh login or import. Missing entries are
+    // silently ignored; only I/O errors propagate.
+    let mut keys = ApiKeys::load();
+    keys.remove(&provider_id);
+    keys.save().map_err(|e| e.to_string())?;
+
+    let mut cookies = ManualCookies::load();
+    cookies.remove(&provider_id);
+    cookies.save().map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{bridge_commands, bridge_events, validate_surface_target};
+    use super::{
+        ProviderSummary, apply_provider_order, bridge_commands, bridge_events,
+        provider_cookie_source_lookup, provider_region_lookup, validate_surface_target,
+    };
     use crate::surface::SurfaceMode;
     use crate::surface_target::SurfaceTarget;
+    use codexbar::host::session::launch_block_reason;
+    use codexbar::settings::Settings;
 
     #[test]
     fn validate_surface_target_accepts_matching_target() {
@@ -1865,5 +2395,136 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert!(ids.contains(&"surface-mode-changed"));
+    }
+
+    #[test]
+    fn bootstrap_contract_lists_phase4_commands() {
+        let ids = bridge_commands()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+
+        for expected in [
+            "reorder_providers",
+            "set_provider_cookie_source",
+            "get_provider_cookie_source",
+            "set_provider_region",
+            "get_provider_region",
+            "get_gemini_cli_signed_in",
+            "get_vertexai_status",
+            "list_jetbrains_detected_ides",
+            "set_jetbrains_ide_path",
+            "get_kiro_status",
+            "register_global_shortcut",
+            "unregister_global_shortcut",
+            "is_remote_session",
+            "get_launch_block_reason",
+            "get_work_area_rect",
+            "play_notification_sound",
+            "open_provider_dashboard",
+            "trigger_provider_login",
+            "revoke_provider_credentials",
+        ] {
+            assert!(ids.contains(&expected), "missing command id: {expected}");
+        }
+    }
+
+    #[test]
+    fn bootstrap_contract_lists_global_shortcut_event() {
+        let ids = bridge_events()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+
+        assert!(ids.contains(&"global-shortcut-triggered"));
+    }
+
+    #[test]
+    fn apply_provider_order_dedupes_and_appends_unknown_canonical() {
+        // Request only "codex" and "claude" — remaining canonical ids should
+        // be appended after, preserving canonical order.
+        let order = apply_provider_order(&["codex".to_string(), "claude".to_string()]);
+        assert_eq!(order[0], "codex");
+        assert_eq!(order[1], "claude");
+        // Every canonical id appears exactly once.
+        let mut sorted = order.clone();
+        sorted.sort();
+        sorted.dedup();
+        assert_eq!(sorted.len(), order.len());
+        // Every canonical id is present.
+        let canonical = codexbar::core::ProviderId::all()
+            .iter()
+            .map(|p| p.cli_name().to_string())
+            .collect::<Vec<_>>();
+        for id in &canonical {
+            assert!(order.contains(id), "missing canonical id: {id}");
+        }
+    }
+
+    #[test]
+    fn apply_provider_order_ignores_unknown_ids() {
+        let order = apply_provider_order(&["not-a-provider".to_string(), "codex".to_string()]);
+        assert_eq!(order[0], "codex");
+        assert!(!order.iter().any(|id| id == "not-a-provider"));
+    }
+
+    #[test]
+    fn provider_summaries_reflect_settings_order() {
+        let canonical_len = codexbar::core::ProviderId::all().len();
+        let s = Settings::default();
+        let summaries: Vec<ProviderSummary> = super::build_provider_summaries(&s);
+        assert_eq!(summaries.len(), canonical_len);
+        // Index is assigned in emission order.
+        for (i, s) in summaries.iter().enumerate() {
+            assert_eq!(s.order, i as u32);
+        }
+    }
+
+    #[test]
+    fn provider_cookie_source_lookup_roundtrips_known_providers() {
+        let mut s = Settings::default();
+        super::provider_cookie_source_set(&mut s, "codex", "cli-config".to_string()).unwrap();
+        assert_eq!(
+            provider_cookie_source_lookup(&s, "codex").as_deref(),
+            Some("cli-config")
+        );
+        assert!(provider_cookie_source_lookup(&s, "unknown-provider").is_none());
+    }
+
+    #[test]
+    fn provider_region_lookup_roundtrips_known_providers() {
+        let mut s = Settings::default();
+        super::provider_region_set(&mut s, "alibaba", "china".to_string()).unwrap();
+        assert_eq!(
+            provider_region_lookup(&s, "alibaba").as_deref(),
+            Some("china")
+        );
+        // Non-regional providers return None.
+        assert!(provider_region_lookup(&s, "claude").is_none());
+    }
+
+    #[test]
+    fn provider_cookie_source_set_rejects_unknown_provider() {
+        let mut s = Settings::default();
+        let err = super::provider_cookie_source_set(&mut s, "nope", "x".into()).unwrap_err();
+        assert!(err.contains("nope"));
+    }
+
+    #[test]
+    fn provider_region_set_rejects_non_regional_provider() {
+        let mut s = Settings::default();
+        let err = super::provider_region_set(&mut s, "claude", "global".into()).unwrap_err();
+        assert!(err.contains("claude"));
+    }
+
+    #[test]
+    fn launch_block_reason_helper_returns_none_when_not_blocked() {
+        assert!(launch_block_reason(false, false).is_none());
+    }
+
+    #[test]
+    fn launch_block_reason_helper_prefers_ssh() {
+        let msg = launch_block_reason(true, true).unwrap();
+        assert!(msg.contains("SSH"));
     }
 }

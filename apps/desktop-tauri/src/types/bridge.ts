@@ -9,6 +9,24 @@ export type SettingsTabId =
   | "tokenAccounts"
   | "advanced"
   | "about";
+
+// ── Narrowed string-literal unions (persisted settings enums) ─────────
+
+export type TrayIconMode = "single" | "perProvider";
+
+export type MetricPreference =
+  | "automatic"
+  | "session"
+  | "weekly"
+  | "model"
+  | "credits"
+  | "average";
+
+export type Language = "english" | "chinese";
+
+export type UpdateChannel = "stable" | "beta";
+
+export type MenuBarDisplayMode = "minimal" | "compact" | "detailed";
 export type ProofProviderId =
   | "codex"
   | "claude"
@@ -116,7 +134,7 @@ export interface SettingsSnapshot {
   soundVolume: number;
   highUsageThreshold: number;
   criticalUsageThreshold: number;
-  trayIconMode: string;
+  trayIconMode: TrayIconMode;
   switcherShowsIcons: boolean;
   menuBarShowsHighestUsage: boolean;
   menuBarShowsPercent: boolean;
@@ -126,17 +144,17 @@ export interface SettingsSnapshot {
   surpriseAnimations: boolean;
   enableAnimations: boolean;
   resetTimeRelative: boolean;
-  menuBarDisplayMode: string;
+  menuBarDisplayMode: MenuBarDisplayMode;
   hidePersonalInfo: boolean;
-  updateChannel: string;
+  updateChannel: UpdateChannel;
   autoDownloadUpdates: boolean;
   installUpdatesOnQuit: boolean;
   globalShortcut: string;
-  uiLanguage: string;
+  uiLanguage: Language;
   claudeAvoidKeychainPrompts: boolean;
   disableKeychainAccess: boolean;
   showDebugSettings: boolean;
-  providerMetrics: Record<string, string>;
+  providerMetrics: Record<string, MetricPreference>;
 }
 
 /** Partial settings object — only include fields you want to change. */
@@ -150,7 +168,7 @@ export interface SettingsUpdate {
   soundVolume?: number;
   highUsageThreshold?: number;
   criticalUsageThreshold?: number;
-  trayIconMode?: string;
+  trayIconMode?: TrayIconMode;
   switcherShowsIcons?: boolean;
   menuBarShowsHighestUsage?: boolean;
   menuBarShowsPercent?: boolean;
@@ -160,18 +178,18 @@ export interface SettingsUpdate {
   surpriseAnimations?: boolean;
   enableAnimations?: boolean;
   resetTimeRelative?: boolean;
-  menuBarDisplayMode?: string;
+  menuBarDisplayMode?: MenuBarDisplayMode;
   hidePersonalInfo?: boolean;
-  updateChannel?: string;
+  updateChannel?: UpdateChannel;
   autoDownloadUpdates?: boolean;
   installUpdatesOnQuit?: boolean;
   globalShortcut?: string;
-  uiLanguage?: string;
+  uiLanguage?: Language;
   claudeAvoidKeychainPrompts?: boolean;
   disableKeychainAccess?: boolean;
   showDebugSettings?: boolean;
   /** Map of provider CLI name → metric preference label. */
-  providerMetrics?: Record<string, string>;
+  providerMetrics?: Record<string, MetricPreference>;
 }
 
 export interface BootstrapState {
@@ -344,3 +362,51 @@ export interface ProviderTokenAccountsBridge {
   accounts: TokenAccountBridge[];
   activeIndex: number;
 }
+
+// ── Phase 4 — provider ordering / cookie source / region ─────────────
+
+export interface ProviderSummary {
+  id: string;
+  displayName: string;
+  enabled: boolean;
+  order: number;
+}
+
+// ── Phase 4 — credential detection ───────────────────────────────────
+
+export interface GeminiCliStatus {
+  signedIn: boolean;
+  credentialsPath: string | null;
+}
+
+export interface VertexAiStatus {
+  hasCredentials: boolean;
+  credentialsPath: string | null;
+}
+
+export interface JetbrainsIde {
+  id: string;
+  displayName: string;
+  path: string;
+  detected: boolean;
+}
+
+export interface KiroStatus {
+  available: boolean;
+  hint: string | null;
+}
+
+// ── Phase 4 — session / environment ──────────────────────────────────
+
+export interface WorkAreaRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+// ── Phase 4 — event payloads ─────────────────────────────────────────
+
+/** Payload emitted for the `global-shortcut-triggered` event: the
+ *  accelerator string that fired, e.g. `"Ctrl+Shift+U"`. */
+export type GlobalShortcutTriggeredPayload = string;
