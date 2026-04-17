@@ -107,6 +107,7 @@ fn main() {
             commands::revoke_provider_credentials,
             commands::get_locale_strings,
             commands::set_ui_language,
+            commands::open_path,
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {

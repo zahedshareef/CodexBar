@@ -602,6 +602,39 @@ pub enum LocaleKey {
     ProviderStatusLoading,
     ProviderStatusDisabled,
     ProviderDetailPlaceholder,
+
+    // Tauri desktop shell — Phase 6d credential detection UIs
+    CredentialsSectionTitle,
+    CredsStatusAuthenticated,
+    CredsStatusNotSignedIn,
+    CredsStatusDetected,
+    CredsStatusNotDetected,
+    CredsStatusAvailable,
+    CredsStatusUnavailable,
+    CredsOpenFolderAction,
+    CredsRefreshDetectionAction,
+    CredsSavePathAction,
+    CredsBrowseAction,
+    CredsGeminiCliLabel,
+    CredsGeminiCliHelperPrefix,
+    CredsGeminiCliSetupAction,
+    CredsGeminiCliSetupHelp,
+    CredsVertexAiLabel,
+    CredsVertexAiHelperPrefix,
+    CredsVertexAiSetupAction,
+    CredsVertexAiSetupHelp,
+    CredsJetBrainsLabel,
+    CredsJetBrainsHelperDetectedPrefix,
+    CredsJetBrainsHelperCustomPrefix,
+    CredsJetBrainsHelperMissing,
+    CredsJetBrainsCustomPathLabel,
+    CredsJetBrainsCustomPathPlaceholder,
+    CredsJetBrainsSelectLabel,
+    CredsJetBrainsAutoDetectOption,
+    CredsKiroLabel,
+    CredsKiroHelperAvailablePrefix,
+    CredsKiroHelperMissing,
+    CredsOpenAiHistoryHelp,
 }
 
 impl LocaleKey {
@@ -1178,6 +1211,49 @@ impl LocaleKey {
             LocaleKey::ProviderStatusLoading => "Loading",
             LocaleKey::ProviderStatusDisabled => "Disabled",
             LocaleKey::ProviderDetailPlaceholder => "Detail pane arriving in Phase 6b",
+
+            // Phase 6d — credential detection
+            LocaleKey::CredentialsSectionTitle => "Credentials",
+            LocaleKey::CredsStatusAuthenticated => "Authenticated",
+            LocaleKey::CredsStatusNotSignedIn => "Not signed in",
+            LocaleKey::CredsStatusDetected => "Detected",
+            LocaleKey::CredsStatusNotDetected => "Not detected",
+            LocaleKey::CredsStatusAvailable => "Available",
+            LocaleKey::CredsStatusUnavailable => "Unavailable",
+            LocaleKey::CredsOpenFolderAction => "Open credentials folder",
+            LocaleKey::CredsRefreshDetectionAction => "Refresh detection",
+            LocaleKey::CredsSavePathAction => "Save path",
+            LocaleKey::CredsBrowseAction => "Browse…",
+            LocaleKey::CredsGeminiCliLabel => "Gemini CLI",
+            LocaleKey::CredsGeminiCliHelperPrefix => "Uses OAuth credentials from",
+            LocaleKey::CredsGeminiCliSetupAction => "Setup Gemini CLI",
+            LocaleKey::CredsGeminiCliSetupHelp => {
+                "Install the Gemini CLI and run `gemini auth login` to sign in."
+            }
+            LocaleKey::CredsVertexAiLabel => "Google Cloud",
+            LocaleKey::CredsVertexAiHelperPrefix => "Uses Google Cloud credentials from",
+            LocaleKey::CredsVertexAiSetupAction => "Setup Google Cloud Auth",
+            LocaleKey::CredsVertexAiSetupHelp => {
+                "Run `gcloud auth application-default login` to create credentials."
+            }
+            LocaleKey::CredsJetBrainsLabel => "JetBrains IDE",
+            LocaleKey::CredsJetBrainsHelperDetectedPrefix => "Using detected IDE config at",
+            LocaleKey::CredsJetBrainsHelperCustomPrefix => "Using custom IDE base path",
+            LocaleKey::CredsJetBrainsHelperMissing => {
+                "Install a JetBrains IDE with AI Assistant enabled, then refresh CodexBar."
+            }
+            LocaleKey::CredsJetBrainsCustomPathLabel => "Custom path",
+            LocaleKey::CredsJetBrainsCustomPathPlaceholder => "%APPDATA%/JetBrains/IntelliJIdea...",
+            LocaleKey::CredsJetBrainsSelectLabel => "Select the JetBrains IDE to monitor.",
+            LocaleKey::CredsJetBrainsAutoDetectOption => "Auto-detect",
+            LocaleKey::CredsKiroLabel => "Kiro CLI",
+            LocaleKey::CredsKiroHelperAvailablePrefix => "Detected at",
+            LocaleKey::CredsKiroHelperMissing => {
+                "kiro-cli: not found on PATH or known install locations."
+            }
+            LocaleKey::CredsOpenAiHistoryHelp => {
+                "Enable historical tracking to see usage over time."
+            }
         }
     }
 
@@ -1716,6 +1792,45 @@ impl LocaleKey {
             LocaleKey::ProviderStatusLoading => "加载中",
             LocaleKey::ProviderStatusDisabled => "已禁用",
             LocaleKey::ProviderDetailPlaceholder => "详细面板将在 6b 阶段推出",
+
+            // Phase 6d — credential detection
+            LocaleKey::CredentialsSectionTitle => "凭据",
+            LocaleKey::CredsStatusAuthenticated => "已认证",
+            LocaleKey::CredsStatusNotSignedIn => "未登录",
+            LocaleKey::CredsStatusDetected => "已检测到",
+            LocaleKey::CredsStatusNotDetected => "未检测到",
+            LocaleKey::CredsStatusAvailable => "可用",
+            LocaleKey::CredsStatusUnavailable => "不可用",
+            LocaleKey::CredsOpenFolderAction => "打开凭据文件夹",
+            LocaleKey::CredsRefreshDetectionAction => "刷新检测",
+            LocaleKey::CredsSavePathAction => "保存路径",
+            LocaleKey::CredsBrowseAction => "浏览…",
+            LocaleKey::CredsGeminiCliLabel => "Gemini CLI",
+            LocaleKey::CredsGeminiCliHelperPrefix => "使用的 OAuth 凭据来自",
+            LocaleKey::CredsGeminiCliSetupAction => "安装 Gemini CLI",
+            LocaleKey::CredsGeminiCliSetupHelp => {
+                "安装 Gemini CLI 并运行 `gemini auth login` 进行登录。"
+            }
+            LocaleKey::CredsVertexAiLabel => "Google Cloud",
+            LocaleKey::CredsVertexAiHelperPrefix => "使用的 Google Cloud 凭据来自",
+            LocaleKey::CredsVertexAiSetupAction => "配置 Google Cloud 身份",
+            LocaleKey::CredsVertexAiSetupHelp => {
+                "运行 `gcloud auth application-default login` 创建凭据。"
+            }
+            LocaleKey::CredsJetBrainsLabel => "JetBrains IDE",
+            LocaleKey::CredsJetBrainsHelperDetectedPrefix => "使用检测到的 IDE 配置：",
+            LocaleKey::CredsJetBrainsHelperCustomPrefix => "使用自定义 IDE 基础路径：",
+            LocaleKey::CredsJetBrainsHelperMissing => {
+                "请安装启用了 AI Assistant 的 JetBrains IDE，然后刷新 CodexBar。"
+            }
+            LocaleKey::CredsJetBrainsCustomPathLabel => "自定义路径",
+            LocaleKey::CredsJetBrainsCustomPathPlaceholder => "%APPDATA%/JetBrains/IntelliJIdea...",
+            LocaleKey::CredsJetBrainsSelectLabel => "选择要监控的 JetBrains IDE。",
+            LocaleKey::CredsJetBrainsAutoDetectOption => "自动检测",
+            LocaleKey::CredsKiroLabel => "Kiro CLI",
+            LocaleKey::CredsKiroHelperAvailablePrefix => "检测到于",
+            LocaleKey::CredsKiroHelperMissing => "kiro-cli：未在 PATH 或常见安装位置找到。",
+            LocaleKey::CredsOpenAiHistoryHelp => "启用历史跟踪以查看一段时间内的使用情况。",
         }
     }
 }
@@ -2368,6 +2483,86 @@ impl LocaleKey {
             LocaleKey::ProviderDetailPlaceholder,
             "ProviderDetailPlaceholder",
         ),
+        // Phase 6d — credential detection
+        (
+            LocaleKey::CredentialsSectionTitle,
+            "CredentialsSectionTitle",
+        ),
+        (
+            LocaleKey::CredsStatusAuthenticated,
+            "CredsStatusAuthenticated",
+        ),
+        (LocaleKey::CredsStatusNotSignedIn, "CredsStatusNotSignedIn"),
+        (LocaleKey::CredsStatusDetected, "CredsStatusDetected"),
+        (LocaleKey::CredsStatusNotDetected, "CredsStatusNotDetected"),
+        (LocaleKey::CredsStatusAvailable, "CredsStatusAvailable"),
+        (LocaleKey::CredsStatusUnavailable, "CredsStatusUnavailable"),
+        (LocaleKey::CredsOpenFolderAction, "CredsOpenFolderAction"),
+        (
+            LocaleKey::CredsRefreshDetectionAction,
+            "CredsRefreshDetectionAction",
+        ),
+        (LocaleKey::CredsSavePathAction, "CredsSavePathAction"),
+        (LocaleKey::CredsBrowseAction, "CredsBrowseAction"),
+        (LocaleKey::CredsGeminiCliLabel, "CredsGeminiCliLabel"),
+        (
+            LocaleKey::CredsGeminiCliHelperPrefix,
+            "CredsGeminiCliHelperPrefix",
+        ),
+        (
+            LocaleKey::CredsGeminiCliSetupAction,
+            "CredsGeminiCliSetupAction",
+        ),
+        (
+            LocaleKey::CredsGeminiCliSetupHelp,
+            "CredsGeminiCliSetupHelp",
+        ),
+        (LocaleKey::CredsVertexAiLabel, "CredsVertexAiLabel"),
+        (
+            LocaleKey::CredsVertexAiHelperPrefix,
+            "CredsVertexAiHelperPrefix",
+        ),
+        (
+            LocaleKey::CredsVertexAiSetupAction,
+            "CredsVertexAiSetupAction",
+        ),
+        (LocaleKey::CredsVertexAiSetupHelp, "CredsVertexAiSetupHelp"),
+        (LocaleKey::CredsJetBrainsLabel, "CredsJetBrainsLabel"),
+        (
+            LocaleKey::CredsJetBrainsHelperDetectedPrefix,
+            "CredsJetBrainsHelperDetectedPrefix",
+        ),
+        (
+            LocaleKey::CredsJetBrainsHelperCustomPrefix,
+            "CredsJetBrainsHelperCustomPrefix",
+        ),
+        (
+            LocaleKey::CredsJetBrainsHelperMissing,
+            "CredsJetBrainsHelperMissing",
+        ),
+        (
+            LocaleKey::CredsJetBrainsCustomPathLabel,
+            "CredsJetBrainsCustomPathLabel",
+        ),
+        (
+            LocaleKey::CredsJetBrainsCustomPathPlaceholder,
+            "CredsJetBrainsCustomPathPlaceholder",
+        ),
+        (
+            LocaleKey::CredsJetBrainsSelectLabel,
+            "CredsJetBrainsSelectLabel",
+        ),
+        (
+            LocaleKey::CredsJetBrainsAutoDetectOption,
+            "CredsJetBrainsAutoDetectOption",
+        ),
+        (LocaleKey::CredsKiroLabel, "CredsKiroLabel"),
+        (
+            LocaleKey::CredsKiroHelperAvailablePrefix,
+            "CredsKiroHelperAvailablePrefix",
+        ),
+        (LocaleKey::CredsKiroHelperMissing, "CredsKiroHelperMissing"),
+        (LocaleKey::CredsOpenAiHistoryHelp, "CredsOpenAiHistoryHelp"),
     ];
 }
 

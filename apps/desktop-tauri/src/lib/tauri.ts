@@ -249,3 +249,37 @@ export function openProviderStatusPage(providerId: string): Promise<void> {
 export function triggerProviderLogin(providerId: string): Promise<void> {
   return invoke<void>("trigger_provider_login", { providerId });
 }
+
+// ── Phase 6d — credential detection ──────────────────────────────────
+
+export function openPath(path: string): Promise<void> {
+  return invoke<void>("open_path", { path });
+}
+
+export function getGeminiCliSignedIn(): Promise<
+  import("../types/bridge").GeminiCliStatus
+> {
+  return invoke("get_gemini_cli_signed_in");
+}
+
+export function getVertexAiStatus(): Promise<
+  import("../types/bridge").VertexAiStatus
+> {
+  return invoke("get_vertexai_status");
+}
+
+export function listJetbrainsDetectedIdes(): Promise<
+  import("../types/bridge").JetbrainsIde[]
+> {
+  return invoke("list_jetbrains_detected_ides");
+}
+
+export function setJetbrainsIdePath(path: string): Promise<void> {
+  return invoke<void>("set_jetbrains_ide_path", { path });
+}
+
+export function getKiroStatus(): Promise<
+  import("../types/bridge").KiroStatus
+> {
+  return invoke("get_kiro_status");
+}

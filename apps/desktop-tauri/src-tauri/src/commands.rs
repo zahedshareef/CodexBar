@@ -607,6 +607,10 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
             id: "set_ui_language",
             description: "Persist the UI language and emit `locale-changed` so frontends can refetch strings.",
         },
+        BridgeCommandDescriptor {
+            id: "open_path",
+            description: "Open a filesystem path (file or folder) in the OS file manager.",
+        },
     ]
 }
 
@@ -2220,6 +2224,52 @@ pub fn get_kiro_status() -> Result<KiroStatus, String> {
     }
 }
 
+/// Open a filesystem path in the OS file manager (Finder / Explorer /
+/// xdg-open). Non-existent paths are rejected so the UI gets immediate
+/// feedback instead of a silent no-op shell launch.
+#[tauri::command]
+pub fn open_path(path: String) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Path is empty".into());
+    }
+    let pb = std::path::PathBuf::from(trimmed);
+    if !pb.exists() {
+        return Err(format!("Path not found: {trimmed}"));
+    }
+    // When given a file, open its parent directory so the file is highlighted
+    // in a useful way across platforms without needing per-OS --select flags.
+    let target = if pb.is_file() {
+        pb.parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| pb.clone())
+    } else {
+        pb.clone()
+    };
+    let target_str = target.to_string_lossy().into_owned();
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&target_str)
+            .spawn()
+            .map_err(|e| format!("Failed to open path: {e}"))?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let opener = if cfg!(target_os = "macos") {
+            "open"
+        } else {
+            "xdg-open"
+        };
+        std::process::Command::new(opener)
+            .arg(&target_str)
+            .spawn()
+            .map_err(|e| format!("Failed to open path: {e}"))?;
+    }
+    Ok(())
+}
+
 // ── Global shortcut capture (user-driven, emits events) ───────────────
 
 #[tauri::command]
@@ -2870,5 +2920,29 @@ mod tests {
         for expected in ["get_provider_detail", "open_provider_status_page"] {
             assert!(ids.contains(&expected), "missing command id: {expected}");
         }
+    }
+
+    // ── Phase 6d — credential detection UIs ────────────────────────
+
+    #[test]
+    fn bootstrap_contract_lists_phase6d_open_path() {
+        let ids = bridge_commands()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+        assert!(ids.contains(&"open_path"));
+    }
+
+    #[test]
+    fn open_path_rejects_empty_path() {
+        let err = super::open_path(String::new()).unwrap_err();
+        assert!(err.to_lowercase().contains("empty"));
+    }
+
+    #[test]
+    fn open_path_rejects_missing_path() {
+        let err =
+            super::open_path("/definitely/not/a/real/path/codexbar-phase6d".into()).unwrap_err();
+        assert!(err.contains("not found"));
     }
 }

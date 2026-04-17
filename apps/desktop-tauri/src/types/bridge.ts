@@ -462,3 +462,27 @@ export interface ProviderDetail {
 
   hasSnapshot: boolean;
 }
+
+// ── Phase 6d — credential detection ──────────────────────────────────
+
+export interface GeminiCliStatus {
+  signedIn: boolean;
+  credentialsPath: string | null;
+}
+
+export interface VertexAiStatus {
+  hasCredentials: boolean;
+  credentialsPath: string | null;
+}
+
+export interface JetbrainsIde {
+  id: string;
+  displayName: string;
+  path: string;
+  detected: boolean;
+}
+
+export interface KiroStatus {
+  available: boolean;
+  hint: string | null;
+}

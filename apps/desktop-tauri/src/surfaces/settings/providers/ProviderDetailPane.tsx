@@ -15,6 +15,12 @@ import { UsageSection } from "./sections/UsageSection";
 import { PaceSection } from "./sections/PaceSection";
 import { CostSection } from "./sections/CostSection";
 import { QuickActionsSection } from "./sections/QuickActionsSection";
+import { GeminiCliCreds } from "./sections/credentials/GeminiCliCreds";
+import { VertexAiCreds } from "./sections/credentials/VertexAiCreds";
+import { JetBrainsCreds } from "./sections/credentials/JetBrainsCreds";
+import { KiroCreds } from "./sections/credentials/KiroCreds";
+import { ClaudeCreds } from "./sections/credentials/ClaudeCreds";
+import { OpenAiExtras } from "./sections/credentials/OpenAiExtras";
 
 interface Props {
   providerId: string | null;
@@ -173,12 +179,7 @@ export function ProviderDetailPane({ providerId }: Props) {
       >
         Cookie source / region picker — Phase 6c
       </section>
-      <section
-        className="provider-detail-section provider-detail-section--deferred"
-        data-deferred="6d"
-      >
-        Credential detection (Gemini CLI / VertexAI / JetBrains / Kiro) — Phase 6d
-      </section>
+      <CredentialsDispatcher providerId={detail.id} t={t} />
       <section
         className="provider-detail-section provider-detail-section--deferred"
         data-deferred="6e"
@@ -233,4 +234,35 @@ function relativeAgo(iso: string): string | null {
   const hrs = Math.round(mins / 60);
   if (hrs < 24) return `${hrs}h`;
   return `${Math.round(hrs / 24)}d`;
+}
+
+/**
+ * Dispatch the appropriate Phase-6d credential component based on the
+ * current provider. Providers without a bespoke credentials UI render
+ * nothing. Mirrors the `provider_id == ProviderId::*` chain in
+ * `rust/src/native_ui/preferences.rs::render_provider_detail_panel`.
+ */
+function CredentialsDispatcher({
+  providerId,
+  t,
+}: {
+  providerId: string;
+  t: ReturnType<typeof useLocale>["t"];
+}) {
+  switch (providerId) {
+    case "gemini":
+      return <GeminiCliCreds providerId={providerId} t={t} />;
+    case "vertexai":
+      return <VertexAiCreds providerId={providerId} t={t} />;
+    case "jetbrains":
+      return <JetBrainsCreds t={t} />;
+    case "kiro":
+      return <KiroCreds t={t} />;
+    case "claude":
+      return <ClaudeCreds t={t} />;
+    case "codex":
+      return <OpenAiExtras t={t} />;
+    default:
+      return null;
+  }
 }
