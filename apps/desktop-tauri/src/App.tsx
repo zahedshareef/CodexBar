@@ -128,7 +128,7 @@ function SurfaceRouter({
 
 function SettingsLayout({ state }: { state: BootstrapState }) {
   return (
-    <main className="shell shell--settings">
+    <main className="settings-surface">
       <Settings state={state} />
     </main>
   );

@@ -224,6 +224,13 @@ body {
   padding: 16px 24px;
 }
 
+/* Preferences window container — compact, native-feeling, no hero framing. */
+.settings-surface {
+  margin: 0 auto;
+  max-width: 720px;
+  padding: 14px 18px 20px;
+}
+
 .grid {
   display: grid;
   gap: 18px;
