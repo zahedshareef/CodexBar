@@ -63,9 +63,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   ];
 
   const footerRows: MenuFooterRow[] = [
-    { icon: "⚙", label: t("TooltipSettings"), shortcut: "⌘,", onClick: openSettings },
+    { icon: "⚙", label: t("TooltipSettings"), onClick: openSettings },
     { icon: "ℹ", label: "About CodexBar", onClick: openAbout },
-    { icon: "✕", label: "Quit", shortcut: "⌘Q", onClick: quitApp },
+    { icon: "✕", label: "Quit", onClick: quitApp },
   ];
 
   const banner = (

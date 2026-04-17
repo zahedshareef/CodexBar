@@ -431,17 +431,17 @@ body {
   gap: 4px;
 }
 
-/* Section titles mirror upstream SwiftUI PreferencesView, which uses plain
-   `Text("System")` body text — not an eyebrow/uppercase caps treatment. */
+/* Section titles mirror upstream SwiftUI PreferencesView grouped form headers:
+   `.font(.caption)` `.foregroundStyle(.secondary)` `.textCase(.uppercase)`. */
 .settings-section__title {
   margin: 18px 0 6px;
   padding: 0;
   border-bottom: none;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
+  color: var(--text-secondary);
+  font-size: var(--font-caption);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .settings-section__title:first-child {
@@ -463,12 +463,12 @@ body {
   gap: 12px;
   padding: 6px 10px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.07);
   transition: background 0.12s;
 }
 
 .settings-field:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.09);
 }
 
 .settings-field__text {
@@ -3407,11 +3407,11 @@ body {
   gap: 2px;
   flex: 0 0 auto;
   min-width: 56px;
-  padding: 4px 8px;
+  padding: 6px 12px;
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 0.72rem;
+  font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -3472,10 +3472,10 @@ body {
 }
 .settings-section__title {
   margin: 0 4px 6px;
-  font-size: var(--font-footnote);
+  font-size: var(--font-caption);
   font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--text-secondary);
 }
 .settings-section__hint {
@@ -3490,14 +3490,14 @@ body {
   align-items: center;
   padding: 10px 14px;
   border-radius: 0;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.07);
   transition: none;
 }
 [data-theme="light"] .settings-field {
-  background: rgba(0, 0, 0, 0.025);
+  background: rgba(0, 0, 0, 0.04);
 }
 .settings-field:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.09);
 }
 [data-theme="light"] .settings-field:hover {
   background: rgba(0, 0, 0, 0.04);
@@ -3522,10 +3522,10 @@ body {
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--panel-border);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.07);
 }
 [data-theme="light"] .settings-section__group {
-  background: rgba(0, 0, 0, 0.025);
+  background: rgba(0, 0, 0, 0.04);
 }
 .settings-section__group > .settings-field {
   border: none;
@@ -3538,10 +3538,10 @@ body {
   border-top: 1px solid var(--panel-border);
 }
 .settings-section__group > .settings-field:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.05);
 }
 [data-theme="light"] .settings-section__group > .settings-field:hover {
-  background: rgba(0, 0, 0, 0.03);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 /* ── Form controls: native-feeling macOS look ─────────────────────── */
