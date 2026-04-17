@@ -2066,8 +2066,6 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 10px;
-  font-size: 0.72rem;
-  color: var(--provider-row-text-secondary);
 }
 
 .chart__legend-item {
@@ -2082,3 +2080,97 @@ body {
   border-radius: 2px;
   display: inline-block;
 }
+
+/* ── Phase 6d — credential detection UIs ────────────────────────── */
+
+.provider-detail-helper {
+  font-size: 0.78rem;
+  color: var(--provider-row-text-secondary);
+  margin: 4px 0 8px;
+  line-height: 1.4;
+}
+
+.provider-detail-grid__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  word-break: break-all;
+}
+
+.provider-detail-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.provider-detail-list__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--provider-icon-ring);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.provider-detail-list__main {
+  min-width: 0;
+}
+
+.provider-detail-list__meta {
+  font-size: 0.72rem;
+  color: var(--provider-row-text-secondary);
+}
+
+.provider-detail-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 10px;
+}
+
+.provider-detail-field__label {
+  font-size: 0.78rem;
+  color: var(--provider-row-text-secondary);
+}
+
+.provider-detail-field__input {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--provider-icon-ring);
+  background: var(--provider-row-bg);
+  color: var(--provider-row-text-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.provider-detail-toggle {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 4px 0 8px;
+  cursor: pointer;
+}
+
+.provider-detail-toggle input[type="checkbox"] {
+  margin-top: 2px;
+}
+
+.provider-detail-toggle__label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--provider-row-text-primary);
+}
+
+.provider-detail-toggle__helper {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--provider-row-text-secondary);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
