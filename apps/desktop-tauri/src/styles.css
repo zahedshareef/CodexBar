@@ -2243,3 +2243,99 @@ body {
 .token-accounts-standalone .token-accounts-list {
   margin-bottom: 12px;
 }
+
+/* ── Phase 7 — shortcut capture & test-sound row ───────────────────── */
+.shortcut-capture {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.shortcut-capture__chip {
+  min-width: 160px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--provider-row-bg);
+  border: 1px solid var(--provider-icon-ring);
+  color: var(--provider-row-text-primary);
+  font-size: 0.85rem;
+  font-family: ui-monospace, "JetBrains Mono", "Consolas", monospace;
+  text-align: center;
+  outline: none;
+}
+
+.shortcut-capture__chip--empty {
+  color: var(--provider-row-text-secondary);
+  font-style: italic;
+  font-family: inherit;
+}
+
+.shortcut-capture__chip--recording {
+  border-color: var(--provider-row-border-selected);
+  background: var(--provider-row-bg-selected);
+  color: var(--provider-row-text-primary);
+  outline: 2px solid var(--provider-row-accent-selected);
+  outline-offset: 1px;
+  animation: shortcut-capture-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes shortcut-capture-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--provider-row-drop-outline);
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--provider-row-drop-outline);
+  }
+}
+
+.shortcut-capture__actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.shortcut-capture__button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--provider-icon-ring);
+  background: var(--provider-row-bg);
+  color: var(--provider-row-text-primary);
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.shortcut-capture__button:hover:not(:disabled) {
+  background: var(--provider-row-bg-hover);
+  border-color: var(--provider-row-border-selected);
+}
+
+.shortcut-capture__button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.shortcut-capture__button--ghost {
+  background: transparent;
+}
+
+.sound-enabled-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-section__hint {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--provider-row-text-secondary);
+}
+
+.settings-section__error {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: #ff6b6b;
+}

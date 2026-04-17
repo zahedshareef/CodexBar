@@ -39,13 +39,17 @@ import {
   getTokenAccountProviders,
   importBrowserCookies,
   listDetectedBrowsers,
+  playNotificationSound,
+  registerGlobalShortcut,
   removeApiKey,
   removeManualCookie,
   reorderProviders,
   setApiKey,
   setManualCookie,
   setSurfaceMode,
+  unregisterGlobalShortcut,
 } from "../lib/tauri";
+import { ShortcutCapture } from "../components/ShortcutCapture";
 
 // ── tiny reusable controls ──────────────────────────────────────────
 
@@ -291,6 +295,41 @@ interface TabProps {
 
 function GeneralTab({ settings, set, saving }: TabProps) {
   const { t } = useLocale();
+  const [playingSound, setPlayingSound] = useState(false);
+  const [shortcutError, setShortcutError] = useState<string | null>(null);
+
+  const handleTestSound = useCallback(() => {
+    setPlayingSound(true);
+    void playNotificationSound().catch(() => {});
+    window.setTimeout(() => setPlayingSound(false), 1500);
+  }, []);
+
+  const commitShortcut = useCallback(
+    async (accelerator: string) => {
+      setShortcutError(null);
+      try {
+        // Best-effort capture registration (emits global-shortcut-triggered).
+        // Persisting via update_settings re-registers with the default
+        // window-toggle handler, which is what we ultimately want.
+        await registerGlobalShortcut(accelerator).catch(() => {});
+        set({ globalShortcut: accelerator });
+      } catch (err: unknown) {
+        setShortcutError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [set],
+  );
+
+  const clearShortcut = useCallback(async () => {
+    setShortcutError(null);
+    try {
+      await unregisterGlobalShortcut().catch(() => {});
+      set({ globalShortcut: "" });
+    } catch (err: unknown) {
+      setShortcutError(err instanceof Error ? err.message : String(err));
+    }
+  }, [set]);
+
   return (
     <section className="settings-section">
       <h3 className="settings-section__title">{t("StartupSettings")}</h3>
@@ -336,11 +375,23 @@ function GeneralTab({ settings, set, saving }: TabProps) {
         />
       </Field>
       <Field label={t("SoundEnabled")} description={t("SoundEnabledHelper")}>
-        <Toggle
-          checked={settings.soundEnabled}
-          disabled={saving}
-          onChange={(v) => set({ soundEnabled: v })}
-        />
+        <div className="sound-enabled-row">
+          <Toggle
+            checked={settings.soundEnabled}
+            disabled={saving}
+            onChange={(v) => set({ soundEnabled: v })}
+          />
+          <button
+            type="button"
+            className="shortcut-capture__button shortcut-capture__button--ghost"
+            disabled={saving || !settings.soundEnabled || playingSound}
+            onClick={handleTestSound}
+          >
+            {playingSound
+              ? t("NotificationTestSoundPlaying")
+              : t("NotificationTestSound")}
+          </button>
+        </div>
       </Field>
       {settings.soundEnabled && (
         <Field label={t("SoundVolume")} description={t("SoundVolumeHelper")}>
@@ -388,13 +439,17 @@ function GeneralTab({ settings, set, saving }: TabProps) {
         label={t("GlobalShortcutFieldLabel")}
         description={t("GlobalShortcutToggleHelper")}
       >
-        <TextInput
+        <ShortcutCapture
           value={settings.globalShortcut}
-          placeholder="Ctrl+Shift+U"
           disabled={saving}
-          onChange={(v) => set({ globalShortcut: v })}
+          onCommit={(accel) => void commitShortcut(accel)}
+          onClear={() => void clearShortcut()}
         />
       </Field>
+      {shortcutError && (
+        <p className="settings-section__error">{shortcutError}</p>
+      )}
+      <p className="settings-section__hint">{t("ShortcutRecordingHint")}</p>
     </section>
   );
 }

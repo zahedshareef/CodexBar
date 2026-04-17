@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { checkForUpdates, getBootstrapState } from "./lib/tauri";
+import { listen } from "@tauri-apps/api/event";
+import { checkForUpdates, getBootstrapState, setSurfaceMode } from "./lib/tauri";
 import { useSurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
 import Settings from "./surfaces/Settings";
 import TrayPanel from "./surfaces/TrayPanel";
@@ -39,8 +40,17 @@ function AppInner() {
     // Fire-and-forget initial update check; results flow via events.
     checkForUpdates().catch(() => {});
 
+    // Listen for user-registered global shortcut events from the
+    // `register_global_shortcut` command. The persistent shortcut (bound via
+    // shortcut_bridge::plugin) already toggles the tray panel natively, so
+    // this listener is a no-op fallback for ad-hoc capture-mode registrations.
+    const unlistenPromise = listen<string>("global-shortcut-triggered", () => {
+      void setSurfaceMode("trayPanel", { kind: "summary" }).catch(() => {});
+    });
+
     return () => {
       cancelled = true;
+      void unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
     };
   }, []);
 
