@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from "react";
 import type {
   BootstrapState,
   SettingsTabId,
@@ -22,21 +22,100 @@ import ProvidersTab from "./settings/tabs/ProvidersTab";
 
 type SettingsTab = SettingsTabId;
 
+// Inline monochrome SVG icons stand in for the upstream macOS SF Symbols
+// (gearshape / square.grid.2x2 / eye / key / book.closed / circle.hexagongrid /
+//  slider.horizontal.3 / info.circle). They render in `currentColor` so they
+//  pick up the same secondary/accent text color as the tab label.
+const ICON_SIZE = 16;
+
+function Svg({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      width={ICON_SIZE}
+      height={ICON_SIZE}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.4}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {children}
+    </svg>
+  );
+}
+
+const TabIcons: Record<SettingsTab, ReactElement> = {
+  general: (
+    <Svg>
+      <circle cx="8" cy="8" r="2" />
+      <path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" />
+    </Svg>
+  ),
+  providers: (
+    <Svg>
+      <rect x="2" y="2" width="5" height="5" rx="1" />
+      <rect x="9" y="2" width="5" height="5" rx="1" />
+      <rect x="2" y="9" width="5" height="5" rx="1" />
+      <rect x="9" y="9" width="5" height="5" rx="1" />
+    </Svg>
+  ),
+  display: (
+    <Svg>
+      <circle cx="8" cy="8" r="3.25" />
+      <path d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.5 3.5l1.05 1.05M11.45 11.45l1.05 1.05M3.5 12.5l1.05-1.05M11.45 4.55l1.05-1.05" />
+    </Svg>
+  ),
+  apiKeys: (
+    <Svg>
+      <circle cx="5.5" cy="8" r="2.5" />
+      <path d="M8 8h6M11.5 8v2M14 8v1.5" />
+    </Svg>
+  ),
+  cookies: (
+    <Svg>
+      <path d="M14.25 8.5a6.25 6.25 0 1 1-6.75-6.74 2.4 2.4 0 0 0 2.5 2.5 2.4 2.4 0 0 0 2.5 2.5 2.4 2.4 0 0 0 1.75 1.74Z" />
+      <circle cx="6" cy="8" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="9.5" cy="10.5" r="0.6" fill="currentColor" stroke="none" />
+      <circle cx="5.5" cy="11" r="0.6" fill="currentColor" stroke="none" />
+    </Svg>
+  ),
+  tokenAccounts: (
+    <Svg>
+      <path d="M8 1.5l5.5 3v7L8 14.5 2.5 11.5v-7Z" />
+      <path d="M2.5 4.5L8 7.5l5.5-3M8 7.5v7" />
+    </Svg>
+  ),
+  advanced: (
+    <Svg>
+      <path d="M2 4h8M2 8h5M2 12h10" />
+      <circle cx="11.5" cy="4" r="1.4" />
+      <circle cx="8.5" cy="8" r="1.4" />
+      <circle cx="13" cy="12" r="1.4" />
+    </Svg>
+  ),
+  about: (
+    <Svg>
+      <circle cx="8" cy="8" r="6.25" />
+      <path d="M8 7v4" />
+      <circle cx="8" cy="5" r="0.6" fill="currentColor" stroke="none" />
+    </Svg>
+  ),
+};
+
 // Tab order mirrors upstream PreferencesView (General, Providers, Display,
 // Advanced, About) with the Win-port-specific credential tabs grouped after
 // Providers so they remain reachable but don't push parity tabs out of view.
-// Glyph approximations stand in for the upstream SF Symbols
-// (gearshape / square.grid.2x2 / eye / key / book.closed / circle.hexagongrid /
-//  slider.horizontal.3 / info.circle).
-const TAB_META: { id: SettingsTab; labelKey: LocaleKey; icon: string }[] = [
-  { id: "general", labelKey: "TabGeneral", icon: "⚙" },
-  { id: "providers", labelKey: "TabProviders", icon: "▦" },
-  { id: "display", labelKey: "TabDisplay", icon: "◉" },
-  { id: "apiKeys", labelKey: "TabApiKeys", icon: "🔑" },
-  { id: "cookies", labelKey: "TabCookies", icon: "🍪" },
-  { id: "tokenAccounts", labelKey: "TabTokenAccounts", icon: "◈" },
-  { id: "advanced", labelKey: "TabAdvanced", icon: "⌥" },
-  { id: "about", labelKey: "TabAbout", icon: "ⓘ" },
+const TAB_META: { id: SettingsTab; labelKey: LocaleKey }[] = [
+  { id: "general", labelKey: "TabGeneral" },
+  { id: "providers", labelKey: "TabProviders" },
+  { id: "display", labelKey: "TabDisplay" },
+  { id: "apiKeys", labelKey: "TabApiKeys" },
+  { id: "cookies", labelKey: "TabCookies" },
+  { id: "tokenAccounts", labelKey: "TabTokenAccounts" },
+  { id: "advanced", labelKey: "TabAdvanced" },
+  { id: "about", labelKey: "TabAbout" },
 ];
 
 function isSettingsTab(value: string): value is SettingsTab {
@@ -80,7 +159,7 @@ export default function Settings({ state }: { state: BootstrapState }) {
             className={`settings-tab ${activeTab === tab.id ? "settings-tab--active" : ""}`}
             onClick={() => handleTabClick(tab.id)}
           >
-            <span className="settings-tab__icon">{tab.icon}</span>
+            <span className="settings-tab__icon">{TabIcons[tab.id]}</span>
             {t(tab.labelKey)}
           </button>
         ))}

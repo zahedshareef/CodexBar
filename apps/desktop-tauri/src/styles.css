@@ -2574,6 +2574,16 @@ body {
 
 .shortcut-capture__button--ghost {
   background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+  padding: 4px 8px;
+  font-weight: 500;
+}
+
+.shortcut-capture__button--ghost:hover:not(:disabled) {
+  background: rgba(10, 132, 255, 0.08);
+  border-color: transparent;
+  color: var(--accent);
 }
 
 .sound-enabled-row {
@@ -2718,6 +2728,7 @@ body {
   gap: 4px;
   padding: 4px 0;
   width: 310px;
+  height: 100vh;
   font-size: 13px;
   line-height: 1.30;
   color: var(--text-primary);
@@ -2807,7 +2818,9 @@ body {
 .menu-surface__body {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
 }
 
 .menu-surface__empty {
@@ -2864,7 +2877,9 @@ body {
   flex-direction: column;
   /* upstream MenuContent VStack(spacing: 8) */
   gap: 0;
-  max-height: calc(100vh - 80px);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
   overflow-y: auto;
 }
 
@@ -3248,6 +3263,7 @@ body {
   padding: 4px 6px 6px;
   margin-top: 2px;
   border-top: 1px solid var(--menu-popover-divider);
+  flex-shrink: 0;
 }
 .menu-surface__footer-row {
   display: flex;
