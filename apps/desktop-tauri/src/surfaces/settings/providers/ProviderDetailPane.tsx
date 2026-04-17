@@ -1,0 +1,236 @@
+import { useCallback, useEffect, useState } from "react";
+import type { ProviderDetail } from "../../../types/bridge";
+import { useLocale } from "../../../hooks/useLocale";
+import {
+  getProviderDetail,
+  openProviderDashboard,
+  openProviderStatusPage,
+  refreshProviders,
+  triggerProviderLogin,
+} from "../../../lib/tauri";
+import { listen } from "@tauri-apps/api/event";
+
+import { IdentitySection } from "./sections/IdentitySection";
+import { UsageSection } from "./sections/UsageSection";
+import { PaceSection } from "./sections/PaceSection";
+import { CostSection } from "./sections/CostSection";
+import { QuickActionsSection } from "./sections/QuickActionsSection";
+
+interface Props {
+  providerId: string | null;
+}
+
+/**
+ * Orchestrates the Settings → Providers right-hand detail pane.
+ *
+ * Top-level port of
+ * `rust/src/native_ui/preferences.rs::render_provider_detail_panel`
+ * (lines 4301–6698). Only the header, usage bars, pace, cost and the
+ * quick-action bar are implemented here. Cookie-source picker (6c),
+ * credential detection UIs (6d), inline token accounts (6e) and charts
+ * (6f) are left as `data-deferred` placeholders below.
+ */
+export function ProviderDetailPane({ providerId }: Props) {
+  const { t } = useLocale();
+  const [detail, setDetail] = useState<ProviderDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const next = await getProviderDetail(id);
+      setDetail(next);
+    } catch (e) {
+      setError(String(e));
+      setDetail(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!providerId) {
+      setDetail(null);
+      return;
+    }
+    void load(providerId);
+  }, [providerId, load]);
+
+  // Live-refresh when a new snapshot lands for this provider.
+  useEffect(() => {
+    if (!providerId) return;
+    const unlistenPromise = listen<{ providerId?: string }>(
+      "provider-updated",
+      (event) => {
+        const pid = event.payload?.providerId;
+        if (!pid || pid === providerId) {
+          void load(providerId);
+        }
+      },
+    );
+    return () => {
+      void unlistenPromise.then((fn) => fn());
+    };
+  }, [providerId, load]);
+
+  if (!providerId) {
+    return (
+      <div className="provider-detail">
+        <div className="provider-detail-empty">
+          {t("StateNoProviderSelected")}
+        </div>
+      </div>
+    );
+  }
+
+  if (loading && !detail) {
+    return (
+      <div className="provider-detail">
+        <div className="provider-detail-empty">
+          {t("StateLoadingProviders")}
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !detail) {
+    return (
+      <div className="provider-detail">
+        <div className="provider-detail-empty provider-detail-empty--error">
+          {t("StateError")}: {error}
+        </div>
+      </div>
+    );
+  }
+
+  if (!detail) return null;
+
+  const subtitle = buildSubtitle(detail, t);
+
+  const handleRefresh = async () => {
+    setBusy(true);
+    try {
+      await refreshProviders();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSwitchAccount = async () => {
+    setBusy(true);
+    try {
+      await triggerProviderLogin(detail.id);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleOpenDashboard = () => {
+    void openProviderDashboard(detail.id).catch((e) => setError(String(e)));
+  };
+
+  const handleOpenStatusPage = () => {
+    void openProviderStatusPage(detail.id).catch((e) => setError(String(e)));
+  };
+
+  const handleCopyError = () => {
+    if (detail.lastError && navigator.clipboard) {
+      void navigator.clipboard.writeText(detail.lastError);
+    }
+  };
+
+  const handleBuyCredits = () => {
+    if (detail.buyCreditsUrl) {
+      void openProviderDashboard(detail.id).catch((e) => setError(String(e)));
+    }
+  };
+
+  return (
+    <div className="provider-detail">
+      <IdentitySection provider={detail} subtitle={subtitle} t={t} />
+
+      {detail.lastError && (
+        <div className="provider-detail-error">
+          {t("ProviderLastFetchFailed")}: {detail.lastError}
+        </div>
+      )}
+
+      <UsageSection provider={detail} t={t} />
+      <PaceSection pace={detail.pace} t={t} />
+      <CostSection cost={detail.cost} t={t} />
+
+      {/* Deferred sub-sections — later phases replace these slots. */}
+      <section
+        className="provider-detail-section provider-detail-section--deferred"
+        data-deferred="6c"
+      >
+        Cookie source / region picker — Phase 6c
+      </section>
+      <section
+        className="provider-detail-section provider-detail-section--deferred"
+        data-deferred="6d"
+      >
+        Credential detection (Gemini CLI / VertexAI / JetBrains / Kiro) — Phase 6d
+      </section>
+      <section
+        className="provider-detail-section provider-detail-section--deferred"
+        data-deferred="6e"
+      >
+        Inline token accounts — Phase 6e
+      </section>
+      <section
+        className="provider-detail-section provider-detail-section--deferred"
+        data-deferred="6f"
+      >
+        Charts (cost / credits / usage breakdown) — Phase 6f
+      </section>
+
+      <QuickActionsSection
+        provider={detail}
+        busy={busy}
+        onRefresh={handleRefresh}
+        onSwitchAccount={handleSwitchAccount}
+        onOpenDashboard={handleOpenDashboard}
+        onOpenStatusPage={handleOpenStatusPage}
+        onCopyError={handleCopyError}
+        onBuyCredits={handleBuyCredits}
+        t={t}
+      />
+    </div>
+  );
+}
+
+function buildSubtitle(
+  detail: ProviderDetail,
+  t: (k: Parameters<ReturnType<typeof useLocale>["t"]>[0]) => string,
+): string {
+  const parts: string[] = [];
+  if (detail.sourceLabel) parts.push(detail.sourceLabel);
+  if (detail.lastUpdated) {
+    const ago = relativeAgo(detail.lastUpdated);
+    if (ago) parts.push(`${t("DetailUpdatedPrefix")} ${ago}`);
+  } else if (!detail.hasSnapshot) {
+    parts.push(t("ProviderUsageNotFetchedYet"));
+  }
+  return parts.join(" · ");
+}
+
+function relativeAgo(iso: string): string | null {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  const diff = Date.now() - t;
+  const secs = Math.round(Math.abs(diff) / 1000);
+  if (secs < 60) return `${secs}s`;
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  return `${Math.round(hrs / 24)}d`;
+}
