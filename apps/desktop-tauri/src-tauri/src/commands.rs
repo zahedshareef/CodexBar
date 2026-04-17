@@ -9,7 +9,8 @@ use codexbar::cost_scanner::get_daily_cost_history;
 use codexbar::locale;
 use codexbar::providers::*;
 use codexbar::settings::{
-    ApiKeys, Language, ManualCookies, MetricPreference, Settings, TrayIconMode, UpdateChannel,
+    ApiKeys, Language, ManualCookies, MetricPreference, Settings, ThemePreference, TrayIconMode,
+    UpdateChannel,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -271,6 +272,7 @@ pub struct SettingsSnapshot {
     install_updates_on_quit: bool,
     global_shortcut: String,
     ui_language: &'static str,
+    theme: &'static str,
     claude_avoid_keychain_prompts: bool,
     disable_keychain_access: bool,
     show_debug_settings: bool,
@@ -337,6 +339,7 @@ impl From<Settings> for SettingsSnapshot {
             install_updates_on_quit: settings.install_updates_on_quit,
             global_shortcut: settings.global_shortcut,
             ui_language: language_label(settings.ui_language),
+            theme: theme_label(settings.theme),
             claude_avoid_keychain_prompts: settings.claude_avoid_keychain_prompts,
             disable_keychain_access: settings.disable_keychain_access,
             show_debug_settings: settings.show_debug_settings,
@@ -684,6 +687,23 @@ fn language_label(language: Language) -> &'static str {
     }
 }
 
+fn theme_label(theme: ThemePreference) -> &'static str {
+    match theme {
+        ThemePreference::Auto => "auto",
+        ThemePreference::Light => "light",
+        ThemePreference::Dark => "dark",
+    }
+}
+
+fn parse_theme(s: &str) -> Option<ThemePreference> {
+    match s {
+        "auto" => Some(ThemePreference::Auto),
+        "light" => Some(ThemePreference::Light),
+        "dark" => Some(ThemePreference::Dark),
+        _ => None,
+    }
+}
+
 fn metric_preference_label(pref: MetricPreference) -> &'static str {
     match pref {
         MetricPreference::Automatic => "automatic",
@@ -740,6 +760,7 @@ pub struct SettingsUpdate {
     pub install_updates_on_quit: Option<bool>,
     pub global_shortcut: Option<String>,
     pub ui_language: Option<String>,
+    pub theme: Option<String>,
     pub claude_avoid_keychain_prompts: Option<bool>,
     pub disable_keychain_access: Option<bool>,
     pub show_debug_settings: Option<bool>,
@@ -834,6 +855,11 @@ pub fn update_settings(
     {
         settings.ui_language = lang;
         let _ = app.emit(events::LOCALE_CHANGED, language_label(lang));
+    }
+    if let Some(ref s) = patch.theme
+        && let Some(theme) = parse_theme(s)
+    {
+        settings.theme = theme;
     }
     if let Some(v) = patch.start_minimized {
         settings.start_minimized = v;

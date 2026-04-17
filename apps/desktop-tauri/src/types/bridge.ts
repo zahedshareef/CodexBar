@@ -26,6 +26,8 @@ export type Language = "english" | "chinese";
 
 export type UpdateChannel = "stable" | "beta";
 
+export type ThemePreference = "auto" | "light" | "dark";
+
 export type MenuBarDisplayMode = "minimal" | "compact" | "detailed";
 export type ProofProviderId =
   | "codex"
@@ -158,6 +160,7 @@ export interface SettingsSnapshot {
   installUpdatesOnQuit: boolean;
   globalShortcut: string;
   uiLanguage: Language;
+  theme: ThemePreference;
   claudeAvoidKeychainPrompts: boolean;
   disableKeychainAccess: boolean;
   showDebugSettings: boolean;
@@ -192,6 +195,7 @@ export interface SettingsUpdate {
   installUpdatesOnQuit?: boolean;
   globalShortcut?: string;
   uiLanguage?: Language;
+  theme?: ThemePreference;
   claudeAvoidKeychainPrompts?: boolean;
   disableKeychainAccess?: boolean;
   showDebugSettings?: boolean;

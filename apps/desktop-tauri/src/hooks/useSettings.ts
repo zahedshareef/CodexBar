@@ -44,6 +44,13 @@ export function useSettings(initial: SettingsSnapshot): UseSettingsReturn {
     try {
       const next = await updateSettings(patch);
       setSettings(next);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent<SettingsSnapshot>("codexbar:settings-updated", {
+            detail: next,
+          }),
+        );
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
