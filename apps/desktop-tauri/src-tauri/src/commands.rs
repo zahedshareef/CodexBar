@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 
 use codexbar::core::{
-    TokenAccount, TokenAccountStore, TokenAccountSupport,
     FetchContext, OpenAIDashboardCacheStore, Provider, ProviderFetchResult, ProviderId, RateWindow,
+    TokenAccount, TokenAccountStore, TokenAccountSupport,
 };
 use codexbar::cost_scanner::get_daily_cost_history;
 use codexbar::providers::*;
@@ -1261,12 +1261,17 @@ pub fn get_token_account_providers() -> Vec<TokenAccountSupportBridge> {
 pub fn get_token_accounts(provider_id: String) -> Result<ProviderTokenAccountsBridge, String> {
     let id = ProviderId::from_cli_name(&provider_id)
         .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
-    let support =
-        TokenAccountSupport::for_provider(id).ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
+    let support = TokenAccountSupport::for_provider(id)
+        .ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
     let store = TokenAccountStore::new();
     let data = store.load_provider(id).map_err(|e| e.to_string())?;
     let active = data.clamped_active_index();
-    Ok(build_provider_token_accounts(id, &support, data.accounts, active))
+    Ok(build_provider_token_accounts(
+        id,
+        &support,
+        data.accounts,
+        active,
+    ))
 }
 
 /// Add a token account for a provider.
@@ -1278,14 +1283,19 @@ pub fn add_token_account(
 ) -> Result<ProviderTokenAccountsBridge, String> {
     let id = ProviderId::from_cli_name(&provider_id)
         .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
-    let support =
-        TokenAccountSupport::for_provider(id).ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
+    let support = TokenAccountSupport::for_provider(id)
+        .ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
     let store = TokenAccountStore::new();
     let mut data = store.load_provider(id).map_err(|e| e.to_string())?;
     data.add_account(TokenAccount::new(label, token));
     store.save_provider(id, &data).map_err(|e| e.to_string())?;
     let active = data.clamped_active_index();
-    Ok(build_provider_token_accounts(id, &support, data.accounts, active))
+    Ok(build_provider_token_accounts(
+        id,
+        &support,
+        data.accounts,
+        active,
+    ))
 }
 
 /// Remove a token account by UUID string.
@@ -1296,15 +1306,20 @@ pub fn remove_token_account(
 ) -> Result<ProviderTokenAccountsBridge, String> {
     let id = ProviderId::from_cli_name(&provider_id)
         .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
-    let support =
-        TokenAccountSupport::for_provider(id).ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
+    let support = TokenAccountSupport::for_provider(id)
+        .ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
     let uuid = uuid::Uuid::parse_str(&account_id).map_err(|e| e.to_string())?;
     let store = TokenAccountStore::new();
     let mut data = store.load_provider(id).map_err(|e| e.to_string())?;
     data.remove_account(uuid);
     store.save_provider(id, &data).map_err(|e| e.to_string())?;
     let active = data.clamped_active_index();
-    Ok(build_provider_token_accounts(id, &support, data.accounts, active))
+    Ok(build_provider_token_accounts(
+        id,
+        &support,
+        data.accounts,
+        active,
+    ))
 }
 
 /// Set the active token account for a provider by UUID string.
@@ -1315,15 +1330,20 @@ pub fn set_active_token_account(
 ) -> Result<ProviderTokenAccountsBridge, String> {
     let id = ProviderId::from_cli_name(&provider_id)
         .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
-    let support =
-        TokenAccountSupport::for_provider(id).ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
+    let support = TokenAccountSupport::for_provider(id)
+        .ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
     let uuid = uuid::Uuid::parse_str(&account_id).map_err(|e| e.to_string())?;
     let store = TokenAccountStore::new();
     let mut data = store.load_provider(id).map_err(|e| e.to_string())?;
     data.set_active_by_id(uuid);
     store.save_provider(id, &data).map_err(|e| e.to_string())?;
     let active = data.clamped_active_index();
-    Ok(build_provider_token_accounts(id, &support, data.accounts, active))
+    Ok(build_provider_token_accounts(
+        id,
+        &support,
+        data.accounts,
+        active,
+    ))
 }
 
 // ── Browser cookie import commands ────────────────────────────────────

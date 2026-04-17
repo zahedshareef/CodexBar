@@ -72,8 +72,8 @@ pub fn render_bar_icon_rgba(
 
     match weekly_percent {
         Some(weekly) => {
-            draw_bar(8, 15, session_percent);  // session bar (top, thicker)
-            draw_bar(18, 23, weekly);          // weekly bar (bottom, thinner)
+            draw_bar(8, 15, session_percent); // session bar (top, thicker)
+            draw_bar(18, 23, weekly); // weekly bar (bottom, thinner)
         }
         None => {
             draw_bar(10, 22, session_percent); // single thick bar (centred)
@@ -130,7 +130,7 @@ mod tests {
         // In error mode all three channels at the filled bar pixel should be equal (grey)
         let idx = ((16 * 32 + 8) * 4) as usize;
         assert_ne!(normal[idx], normal[idx + 1]); // colour has distinct channels
-        assert_eq!(error[idx], error[idx + 1]);   // grey: R == G
+        assert_eq!(error[idx], error[idx + 1]); // grey: R == G
         assert_eq!(error[idx + 1], error[idx + 2]); // grey: G == B
     }
 }
