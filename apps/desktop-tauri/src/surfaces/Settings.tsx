@@ -10,6 +10,7 @@ import type {
   MenuBarDisplayMode,
   MetricPreference,
   ProviderCatalogEntry,
+  ThemePreference,
   TokenAccountSupportBridge,
   ProviderUsageSnapshot,
   RateWindowSnapshot,
@@ -974,6 +975,21 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
             { value: "chinese", label: t("LanguageChineseOption") },
           ]}
           onChange={(v) => set({ uiLanguage: v as Language })}
+        />
+      </Field>
+
+      {/* ── Appearance (Phase 12) ────────────────────────────────── */}
+      <h3 className="settings-section__title">{t("SectionTheme")}</h3>
+      <Field label={t("ThemeLabel")} description={t("ThemeHelper")}>
+        <Select
+          value={settings.theme}
+          disabled={saving}
+          options={[
+            { value: "auto", label: t("ThemeAutoOption") },
+            { value: "light", label: t("ThemeLightOption") },
+            { value: "dark", label: t("ThemeDarkOption") },
+          ]}
+          onChange={(v) => set({ theme: v as ThemePreference })}
         />
       </Field>
 

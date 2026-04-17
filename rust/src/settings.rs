@@ -40,6 +40,37 @@ impl Language {
     }
 }
 
+/// UI theme preference (Phase 12).
+///
+/// `Auto` resolves at runtime via `prefers-color-scheme` in the frontend;
+/// `Light` and `Dark` are explicit overrides.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemePreference {
+    #[default]
+    Auto,
+    Light,
+    Dark,
+}
+
+impl ThemePreference {
+    pub fn all() -> &'static [ThemePreference] {
+        &[
+            ThemePreference::Auto,
+            ThemePreference::Light,
+            ThemePreference::Dark,
+        ]
+    }
+
+    pub fn display_name(&self) -> &'static str {
+        match self {
+            ThemePreference::Auto => "Auto",
+            ThemePreference::Light => "Light",
+            ThemePreference::Dark => "Dark",
+        }
+    }
+}
+
 /// Update channel for receiving updates
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
@@ -372,6 +403,10 @@ pub struct Settings {
     /// UI language for the application (English default for backward compatibility)
     #[serde(default)]
     pub ui_language: Language,
+
+    /// UI theme preference (Phase 12). Defaults to Auto (prefers-color-scheme).
+    #[serde(default)]
+    pub theme: ThemePreference,
 }
 
 fn default_global_shortcut() -> String {
@@ -517,6 +552,7 @@ impl Default for Settings {
             auto_download_updates: false, // Require explicit opt-in for background downloads
             install_updates_on_quit: false, // Don't auto-install on quit by default
             ui_language: Language::default(), // English by default
+            theme: ThemePreference::default(), // Auto (follows prefers-color-scheme)
         }
     }
 }
@@ -1249,5 +1285,69 @@ mod tests {
 
         assert_eq!(english, Language::English);
         assert_eq!(chinese, Language::Chinese);
+    }
+
+    #[test]
+    fn test_theme_defaults_to_auto() {
+        let settings = Settings::default();
+        assert_eq!(settings.theme, ThemePreference::Auto);
+    }
+
+    #[test]
+    fn test_theme_all_variants_available() {
+        let themes = ThemePreference::all();
+        assert_eq!(themes.len(), 3);
+        assert!(themes.contains(&ThemePreference::Auto));
+        assert!(themes.contains(&ThemePreference::Light));
+        assert!(themes.contains(&ThemePreference::Dark));
+    }
+
+    #[test]
+    fn test_theme_serde_roundtrip() {
+        for variant in [
+            ThemePreference::Auto,
+            ThemePreference::Light,
+            ThemePreference::Dark,
+        ] {
+            let encoded = serde_json::to_string(&variant).unwrap();
+            let decoded: ThemePreference = serde_json::from_str(&encoded).unwrap();
+            assert_eq!(decoded, variant);
+        }
+        assert_eq!(
+            serde_json::to_string(&ThemePreference::Light).unwrap(),
+            "\"light\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ThemePreference::Dark).unwrap(),
+            "\"dark\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ThemePreference::Auto).unwrap(),
+            "\"auto\""
+        );
+    }
+
+    #[test]
+    fn test_settings_missing_theme_defaults_to_auto() {
+        // Legacy settings JSON without the theme field should still parse.
+        let legacy_json = r#"{
+            "enabled_providers": ["claude", "codex"],
+            "refresh_interval_secs": 300,
+            "ui_language": "english"
+        }"#;
+
+        let settings: Settings = serde_json::from_str(legacy_json).unwrap();
+        assert_eq!(settings.theme, ThemePreference::Auto);
+    }
+
+    #[test]
+    fn test_settings_roundtrip_with_theme() {
+        let settings = Settings {
+            theme: ThemePreference::Dark,
+            ..Settings::default()
+        };
+        let json = serde_json::to_string(&settings).unwrap();
+        let loaded: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.theme, ThemePreference::Dark);
     }
 }

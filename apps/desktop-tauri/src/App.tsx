@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { checkForUpdates, getBootstrapState, setSurfaceMode } from "./lib/tauri";
+import { checkForUpdates, getBootstrapState, getSettingsSnapshot, setSurfaceMode } from "./lib/tauri";
 import { useSurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
+import { useTheme } from "./hooks/useTheme";
 import Settings from "./surfaces/Settings";
 import TrayPanel from "./surfaces/TrayPanel";
 import PopOutPanel from "./surfaces/PopOutPanel";
 import { LocaleProvider, useLocale } from "./i18n/LocaleProvider";
-import type { BootstrapState } from "./types/bridge";
+import type { BootstrapState, ThemePreference } from "./types/bridge";
 import type { SurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
 
 export default function App() {
@@ -21,6 +22,9 @@ function AppInner() {
   const surface = useSurfaceSnapshot();
   const [state, setState] = useState<BootstrapState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [themePreference, setThemePreference] = useState<ThemePreference>("auto");
+
+  useTheme(themePreference);
 
   useEffect(() => {
     let cancelled = false;
@@ -29,6 +33,7 @@ function AppInner() {
       .then((bootstrap) => {
         if (!cancelled) {
           setState(bootstrap);
+          setThemePreference(bootstrap.settings.theme);
         }
       })
       .catch((cause: unknown) => {
@@ -48,9 +53,25 @@ function AppInner() {
       void setSurfaceMode("trayPanel", { kind: "summary" }).catch(() => {});
     });
 
+    // Keep the theme in sync when mutations happen inside other surfaces
+    // (e.g., Settings → Appearance). `useSettings` dispatches this event
+    // after every successful `updateSettings` call.
+    const onSettingsUpdated = (evt: Event) => {
+      const detail = (evt as CustomEvent<BootstrapState["settings"]>).detail;
+      if (detail) {
+        setThemePreference(detail.theme);
+      } else {
+        getSettingsSnapshot()
+          .then((fresh) => setThemePreference(fresh.theme))
+          .catch(() => {});
+      }
+    };
+    window.addEventListener("codexbar:settings-updated", onSettingsUpdated);
+
     return () => {
       cancelled = true;
       void unlistenPromise.then((unlisten) => unlisten()).catch(() => {});
+      window.removeEventListener("codexbar:settings-updated", onSettingsUpdated);
     };
   }, []);
 

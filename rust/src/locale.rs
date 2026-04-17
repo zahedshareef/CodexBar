@@ -544,6 +544,14 @@ pub enum LocaleKey {
     LanguageEnglishOption,
     LanguageChineseOption,
 
+    // Tauri desktop shell — Theme (Phase 12)
+    SectionTheme,
+    ThemeLabel,
+    ThemeHelper,
+    ThemeAutoOption,
+    ThemeLightOption,
+    ThemeDarkOption,
+
     // Tauri desktop shell — settings status / common
     SettingsStatusSaving,
     ApiKeysTabHint,
@@ -1178,6 +1186,16 @@ impl LocaleKey {
             LocaleKey::LanguageEnglishOption => "English",
             LocaleKey::LanguageChineseOption => "中文",
 
+            // Tauri desktop shell — Theme (Phase 12)
+            LocaleKey::SectionTheme => "Appearance",
+            LocaleKey::ThemeLabel => "Theme",
+            LocaleKey::ThemeHelper => {
+                "Auto follows your system color scheme. Light and Dark override it."
+            }
+            LocaleKey::ThemeAutoOption => "Auto (system)",
+            LocaleKey::ThemeLightOption => "Light",
+            LocaleKey::ThemeDarkOption => "Dark",
+
             // Tauri desktop shell — settings status / common
             LocaleKey::SettingsStatusSaving => "Saving…",
             LocaleKey::ApiKeysTabHint => {
@@ -1785,6 +1803,15 @@ impl LocaleKey {
             LocaleKey::ShowDebugSettingsHelper => "在界面中显示故障排查和开发者相关选项。",
             LocaleKey::LanguageEnglishOption => "English",
             LocaleKey::LanguageChineseOption => "中文",
+
+            // Tauri desktop shell — Theme (Phase 12)
+            // REVIEW-i18n: ZH translations for Phase 12 theme labels.
+            LocaleKey::SectionTheme => "外观",
+            LocaleKey::ThemeLabel => "主题",
+            LocaleKey::ThemeHelper => "自动跟随系统配色方案；浅色/深色可手动覆盖。",
+            LocaleKey::ThemeAutoOption => "自动（跟随系统）",
+            LocaleKey::ThemeLightOption => "浅色",
+            LocaleKey::ThemeDarkOption => "深色",
 
             // Tauri desktop shell — settings status / common
             LocaleKey::SettingsStatusSaving => "保存中…",
@@ -2481,6 +2508,12 @@ impl LocaleKey {
         ),
         (LocaleKey::LanguageEnglishOption, "LanguageEnglishOption"),
         (LocaleKey::LanguageChineseOption, "LanguageChineseOption"),
+        (LocaleKey::SectionTheme, "SectionTheme"),
+        (LocaleKey::ThemeLabel, "ThemeLabel"),
+        (LocaleKey::ThemeHelper, "ThemeHelper"),
+        (LocaleKey::ThemeAutoOption, "ThemeAutoOption"),
+        (LocaleKey::ThemeLightOption, "ThemeLightOption"),
+        (LocaleKey::ThemeDarkOption, "ThemeDarkOption"),
         (LocaleKey::SettingsStatusSaving, "SettingsStatusSaving"),
         (LocaleKey::ApiKeysTabHint, "ApiKeysTabHint"),
         (LocaleKey::FetchingProviderData, "FetchingProviderData"),

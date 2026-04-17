@@ -1,10 +1,39 @@
+/*
+ * Theme tokens (Phase 12).
+ *
+ * `:root` holds the dark defaults so legacy selectors that consume these
+ * custom properties keep working even before the app sets `data-theme`.
+ * `[data-theme="dark"]` mirrors `:root` so a dark override can be forced
+ * explicitly, and `[data-theme="light"]` provides a full light counterpart.
+ *
+ * Phase 10 (charts) MAY add new `--chart-*` tokens — keep them in their own
+ * grouping and remember to provide a light value here whenever a chart token
+ * gets added to either theme.
+ */
 :root {
   color-scheme: dark;
   font-family: Inter, "Segoe UI", sans-serif;
-  background: #0f1117;
-  color: #eef2ff;
+  background: var(--app-bg, #0f1117);
+  color: var(--text-primary, #eef2ff);
 
-  /* Provider sidebar tokens (Phase 6a). Light-mode overrides land in Phase 12. */
+  /* ── General surfaces / text ───────────────────────────────────── */
+  --app-bg: #0f1117;
+  --app-bg-gradient-top: rgba(93, 135, 255, 0.18);
+  --app-bg-gradient-from: #131725;
+  --app-bg-gradient-to: #0a0d16;
+  --panel-bg: rgba(17, 21, 34, 0.88);
+  --panel-border: rgba(142, 163, 255, 0.18);
+  --panel-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  --surface-elevated: rgba(255, 255, 255, 0.04);
+  --text-primary: #eef2ff;
+  --text-secondary: #b7c0db;
+  --text-muted: rgba(238, 242, 255, 0.62);
+  --text-eyebrow: #8ea3ff;
+  --accent: #5d87ff;
+  --accent-muted: rgba(86, 156, 214, 0.42);
+  --focus-ring: rgba(86, 156, 214, 0.6);
+
+  /* Provider sidebar tokens (Phase 6a). */
   --provider-row-bg: rgba(255, 255, 255, 0.02);
   --provider-row-bg-hover: rgba(255, 255, 255, 0.05);
   --provider-row-bg-selected: rgba(86, 156, 214, 0.14);
@@ -23,6 +52,80 @@
   --provider-icon-bg: rgba(255, 255, 255, 0.04);
 }
 
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --app-bg: #0f1117;
+  --app-bg-gradient-top: rgba(93, 135, 255, 0.18);
+  --app-bg-gradient-from: #131725;
+  --app-bg-gradient-to: #0a0d16;
+  --panel-bg: rgba(17, 21, 34, 0.88);
+  --panel-border: rgba(142, 163, 255, 0.18);
+  --panel-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  --surface-elevated: rgba(255, 255, 255, 0.04);
+  --text-primary: #eef2ff;
+  --text-secondary: #b7c0db;
+  --text-muted: rgba(238, 242, 255, 0.62);
+  --text-eyebrow: #8ea3ff;
+  --accent: #5d87ff;
+  --accent-muted: rgba(86, 156, 214, 0.42);
+  --focus-ring: rgba(86, 156, 214, 0.6);
+
+  --provider-row-bg: rgba(255, 255, 255, 0.02);
+  --provider-row-bg-hover: rgba(255, 255, 255, 0.05);
+  --provider-row-bg-selected: rgba(86, 156, 214, 0.14);
+  --provider-row-border-selected: rgba(86, 156, 214, 0.42);
+  --provider-row-accent-selected: rgba(86, 156, 214, 0.9);
+  --provider-row-text-primary: #eef2ff;
+  --provider-row-text-secondary: rgba(238, 242, 255, 0.62);
+  --provider-row-text-disabled: rgba(238, 242, 255, 0.38);
+  --provider-row-drop-outline: rgba(86, 156, 214, 0.6);
+  --provider-status-ok: #22c55e;
+  --provider-status-stale: #f59e0b;
+  --provider-status-error: #ef4444;
+  --provider-status-disabled: rgba(238, 242, 255, 0.28);
+  --provider-status-loading: #60a5fa;
+  --provider-icon-ring: rgba(255, 255, 255, 0.08);
+  --provider-icon-bg: rgba(255, 255, 255, 0.04);
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --app-bg: #f5f7fb;
+  --app-bg-gradient-top: rgba(93, 135, 255, 0.10);
+  --app-bg-gradient-from: #f7f9ff;
+  --app-bg-gradient-to: #e9edf6;
+  --panel-bg: rgba(255, 255, 255, 0.96);
+  --panel-border: rgba(86, 110, 180, 0.22);
+  --panel-shadow: 0 12px 34px rgba(15, 23, 42, 0.10);
+  --surface-elevated: rgba(15, 23, 42, 0.04);
+  --text-primary: #12172a;
+  --text-secondary: #4a5573;
+  --text-muted: rgba(18, 23, 42, 0.58);
+  --text-eyebrow: #3b58b8;
+  --accent: #3559d4;
+  --accent-muted: rgba(53, 89, 212, 0.32);
+  --focus-ring: rgba(53, 89, 212, 0.45);
+
+  --provider-row-bg: rgba(15, 23, 42, 0.02);
+  --provider-row-bg-hover: rgba(15, 23, 42, 0.05);
+  --provider-row-bg-selected: rgba(53, 89, 212, 0.12);
+  --provider-row-border-selected: rgba(53, 89, 212, 0.42);
+  --provider-row-accent-selected: rgba(53, 89, 212, 0.9);
+  --provider-row-text-primary: #12172a;
+  --provider-row-text-secondary: rgba(18, 23, 42, 0.62);
+  --provider-row-text-disabled: rgba(18, 23, 42, 0.38);
+  --provider-row-drop-outline: rgba(53, 89, 212, 0.55);
+  --provider-status-ok: #15803d;
+  --provider-status-stale: #b45309;
+  --provider-status-error: #b91c1c;
+  --provider-status-disabled: rgba(18, 23, 42, 0.28);
+  --provider-status-loading: #2563eb;
+  --provider-icon-ring: rgba(15, 23, 42, 0.10);
+  --provider-icon-bg: rgba(15, 23, 42, 0.04);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -31,8 +134,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top, rgba(93, 135, 255, 0.18), transparent 32%),
-    linear-gradient(180deg, #131725 0%, #0a0d16 100%);
+    radial-gradient(circle at top, var(--app-bg-gradient-top), transparent 32%),
+    linear-gradient(180deg, var(--app-bg-gradient-from) 0%, var(--app-bg-gradient-to) 100%);
+  color: var(--text-primary);
 }
 
 .shell {
