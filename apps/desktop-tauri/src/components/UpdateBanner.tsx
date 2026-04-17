@@ -1,4 +1,5 @@
 import type { UpdateStatePayload } from "../types/bridge";
+import { useLocale } from "../hooks/useLocale";
 
 interface UpdateBannerProps {
   updateState: UpdateStatePayload;
@@ -17,6 +18,7 @@ export default function UpdateBanner({
   onDismiss,
   onOpenRelease,
 }: UpdateBannerProps) {
+  const { t } = useLocale();
   if (updateState.status === "idle") return null;
 
   const cls = `update-banner update-banner--${updateState.status}`;
@@ -24,13 +26,13 @@ export default function UpdateBanner({
   return (
     <div className={cls}>
       {updateState.status === "checking" && (
-        <span>Checking for updates…</span>
+        <span>{t("BannerCheckingForUpdates")}</span>
       )}
 
       {updateState.status === "available" && (
         <>
           <span>
-            Update <strong>{updateState.version}</strong> available
+            {t("BannerUpdateAvailablePrefix")} <strong>{updateState.version}</strong>
           </span>
           <div className="update-banner__actions">
             {updateState.canDownload ? (
@@ -39,7 +41,7 @@ export default function UpdateBanner({
                 onClick={onDownload}
                 type="button"
               >
-                Download
+                {t("BannerDownloadButton")}
               </button>
             ) : (
               <button
@@ -47,13 +49,14 @@ export default function UpdateBanner({
                 onClick={onOpenRelease}
                 type="button"
               >
-                View Release
+                {t("BannerViewRelease")}
               </button>
             )}
             <button
               className="update-banner__action update-banner__action--dismiss"
               onClick={onDismiss}
               type="button"
+              title={t("BannerDismiss")}
             >
               ✕
             </button>
@@ -64,7 +67,7 @@ export default function UpdateBanner({
       {updateState.status === "downloading" && (
         <div className="update-banner__downloading">
           <span>
-            Downloading update
+            {t("BannerDownloadingPrefix")}
             {updateState.version && (
               <>
                 {" "}
@@ -90,14 +93,14 @@ export default function UpdateBanner({
       {updateState.status === "ready" && (
         <>
           <span>
-            Update
+            {t("BannerUpdateAvailablePrefix")}
             {updateState.version && (
               <>
                 {" "}
                 <strong>{updateState.version}</strong>
               </>
             )}{" "}
-            ready to install
+            {t("BannerReadyToInstallSuffix")}
           </span>
           <div className="update-banner__actions">
             {updateState.canApply ? (
@@ -106,7 +109,7 @@ export default function UpdateBanner({
                 onClick={onApply}
                 type="button"
               >
-                Install &amp; Restart
+                {t("BannerInstallRestart")}
               </button>
             ) : (
               <button
@@ -114,13 +117,14 @@ export default function UpdateBanner({
                 onClick={onOpenRelease}
                 type="button"
               >
-                View Release
+                {t("BannerViewRelease")}
               </button>
             )}
             <button
               className="update-banner__action update-banner__action--dismiss"
               onClick={onDismiss}
               type="button"
+              title={t("BannerDismiss")}
             >
               ✕
             </button>
@@ -130,19 +134,23 @@ export default function UpdateBanner({
 
       {updateState.status === "error" && (
         <>
-          <span>Update failed{updateState.error && <>: {updateState.error}</>}</span>
+          <span>
+            {t("BannerUpdateFailedPrefix")}
+            {updateState.error && <>: {updateState.error}</>}
+          </span>
           <div className="update-banner__actions">
             <button
               className="update-banner__action"
               onClick={onCheck}
               type="button"
             >
-              Retry
+              {t("BannerRetry")}
             </button>
             <button
               className="update-banner__action update-banner__action--dismiss"
               onClick={onDismiss}
               type="button"
+              title={t("BannerDismiss")}
             >
               ✕
             </button>

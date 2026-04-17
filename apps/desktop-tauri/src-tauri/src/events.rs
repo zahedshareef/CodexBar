@@ -19,6 +19,7 @@ pub const REFRESH_COMPLETE: &str = "refresh-complete";
 pub const UPDATE_STATE_CHANGED: &str = "update-state-changed";
 pub const LOGIN_PHASE_CHANGED: &str = "login-phase-changed";
 pub const PROOF_STATE_CHANGED: &str = "proof-state-changed";
+pub const LOCALE_CHANGED: &str = "locale-changed";
 
 // ── Payloads ─────────────────────────────────────────────────────────
 

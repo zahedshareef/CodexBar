@@ -9,6 +9,8 @@ import type {
   ProofStatePayload,
   CookieInfoBridge,
   DetectedBrowserBridge,
+  Language,
+  LocaleStrings,
   ProviderCatalogEntry,
   ProviderChartData,
   ProviderUsageSnapshot,
@@ -208,4 +210,18 @@ export function setActiveTokenAccount(
     providerId,
     accountId,
   });
+}
+
+// ── Phase 5 — i18n ────────────────────────────────────────────────────
+
+export function getLocaleStrings(
+  language?: Language | null,
+): Promise<LocaleStrings> {
+  return invoke<LocaleStrings>("get_locale_strings", {
+    language: language ?? null,
+  });
+}
+
+export function setUiLanguage(language: Language): Promise<void> {
+  return invoke<void>("set_ui_language", { language });
 }

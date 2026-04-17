@@ -7,6 +7,7 @@ import { setSurfaceMode } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
+import { useLocale } from "../hooks/useLocale";
 import ProviderCard from "./tray/ProviderCard";
 import ProviderDetail from "./tray/ProviderDetail";
 import UpdateBanner from "../components/UpdateBanner";
@@ -33,6 +34,7 @@ export default function PopOutPanel({
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
+  const { t } = useLocale();
   const [selectedId, setSelectedId] = useState<string | null>(
     providerId ?? null,
   );
@@ -94,7 +96,7 @@ export default function PopOutPanel({
         <UpdateBanner updateState={updateState} onCheck={checkNow} onDownload={download} onApply={apply} onDismiss={dismiss} onOpenRelease={openRelease} />
         <div className="popout-empty">
           <div className="tray-empty__spinner" />
-          <p>Fetching provider data…</p>
+          <p>{t("FetchingProviderData")}</p>
         </div>
       </main>
     );
@@ -112,16 +114,16 @@ export default function PopOutPanel({
         />
         <UpdateBanner updateState={updateState} onCheck={checkNow} onDownload={download} onApply={apply} onDismiss={dismiss} onOpenRelease={openRelease} />
         <div className="popout-empty">
-          <p>No providers configured.</p>
+          <p>{t("NoProvidersConfigured")}</p>
           <p className="popout-empty__hint">
-            Enable providers in Settings to see usage data.
+            {t("EnableProvidersHint")}
           </p>
           <button
             className="tray-btn tray-btn--primary"
             onClick={openSettings}
             type="button"
           >
-            Open Settings
+            {t("OpenSettingsButton")}
           </button>
         </div>
       </main>
@@ -189,6 +191,7 @@ function PopOutHeader({
   onSettings: () => void;
   onTray: () => void;
 }) {
+  const { t } = useLocale();
   return (
     <header className="popout-header">
       <h1 className="popout-header__title">CodexBar</h1>
@@ -197,7 +200,7 @@ function PopOutHeader({
           className="popout-action-btn"
           onClick={onRefresh}
           disabled={isRefreshing}
-          title="Refresh"
+          title={t("TooltipRefresh")}
           type="button"
         >
           <span className={isRefreshing ? "spin" : ""}>↻</span>
@@ -205,7 +208,7 @@ function PopOutHeader({
         <button
           className="popout-action-btn"
           onClick={onSettings}
-          title="Settings"
+          title={t("TooltipSettings")}
           type="button"
         >
           ⚙
@@ -213,7 +216,7 @@ function PopOutHeader({
         <button
           className="popout-action-btn"
           onClick={onTray}
-          title="Back to tray"
+          title={t("TooltipBackToTray")}
           type="button"
         >
           ⊟
@@ -236,15 +239,16 @@ function PopOutSummary({
   isRefreshing: boolean;
   lastRefresh: { providerCount: number; errorCount: number } | null;
 }) {
+  const { t } = useLocale();
   const parts: string[] = [];
-  parts.push(`${total} provider${total !== 1 ? "s" : ""}`);
+  parts.push(`${total} ${t("SummaryProvidersLabel")}`);
   if (isRefreshing) {
-    parts.push("refreshing…");
+    parts.push(t("SummaryRefreshing"));
   } else if (lastRefresh && lastRefresh.errorCount > 0) {
-    parts.push(`${lastRefresh.errorCount} failed`);
+    parts.push(`${lastRefresh.errorCount} ${t("SummaryFailed")}`);
   }
   if (!isRefreshing && errorCount > 0) {
-    parts.push(`${errorCount} with errors`);
+    parts.push(`${errorCount} ${t("SummaryWithErrors")}`);
   }
 
   return <div className="popout-summary">{parts.join(" · ")}</div>;

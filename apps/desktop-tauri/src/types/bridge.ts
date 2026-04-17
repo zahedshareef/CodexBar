@@ -410,3 +410,14 @@ export interface WorkAreaRect {
 /** Payload emitted for the `global-shortcut-triggered` event: the
  *  accelerator string that fired, e.g. `"Ctrl+Shift+U"`. */
 export type GlobalShortcutTriggeredPayload = string;
+
+// ── Phase 5 — i18n ────────────────────────────────────────────────────
+
+/** Snapshot returned by `get_locale_strings`. */
+export interface LocaleStrings {
+  language: Language;
+  entries: Record<string, string>;
+}
+
+/** Payload emitted for `locale-changed`: the persisted language label. */
+export type LocaleChangedPayload = Language;

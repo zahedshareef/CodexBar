@@ -4,10 +4,19 @@ import { useSurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
 import Settings from "./surfaces/Settings";
 import TrayPanel from "./surfaces/TrayPanel";
 import PopOutPanel from "./surfaces/PopOutPanel";
+import { LocaleProvider, useLocale } from "./i18n/LocaleProvider";
 import type { BootstrapState } from "./types/bridge";
 import type { SurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
 
 export default function App() {
+  return (
+    <LocaleProvider>
+      <AppInner />
+    </LocaleProvider>
+  );
+}
+
+function AppInner() {
   const surface = useSurfaceSnapshot();
   const [state, setState] = useState<BootstrapState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -87,11 +96,12 @@ function SurfaceRouter({
 }
 
 function SettingsLayout({ state }: { state: BootstrapState }) {
+  const { t } = useLocale();
   return (
     <main className="shell">
       <header className="hero">
-        <p className="eyebrow">Settings</p>
-        <h1>Preferences</h1>
+        <p className="eyebrow">{t("ActionSettings")}</p>
+        <h1>{t("ActionSettings")}</h1>
       </header>
       <Settings state={state} />
     </main>
