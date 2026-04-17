@@ -3462,25 +3462,6 @@ body {
   color: var(--text-muted);
   line-height: 1.4;
 }
-.settings-section > .settings-field + .settings-field,
-.settings-section > .sound-enabled-row + .settings-field {
-  border-top: 1px solid var(--panel-border);
-  border-radius: 0;
-}
-.settings-section > .settings-field:first-of-type {
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  border-top: 1px solid var(--panel-border);
-}
-.settings-section > .settings-field:last-of-type {
-  border-bottom-left-radius: 8px;
-  border-bottom-right-radius: 8px;
-  border-bottom: 1px solid var(--panel-border);
-}
-.settings-section > .settings-field {
-  border-left: 1px solid var(--panel-border);
-  border-right: 1px solid var(--panel-border);
-}
 .settings-field {
   display: flex;
   justify-content: space-between;
@@ -3510,13 +3491,35 @@ body {
   line-height: 1.35;
 }
 
-/* New header style emitted by the section-header rewrite — when a
-   section title precedes a grouped field stack, give the title the
-   Apple-style uppercase eyebrow look. */
+/* Grouped field stack: each logical settings section wraps its rows in
+   a `.settings-section__group` div so the rounded card outline matches
+   SwiftUI's `Form` with `.grouped` style. The group owns the border,
+   corner radius, and background; rows inside are transparent and only
+   draw a 1px divider between siblings. */
 .settings-section__group {
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+[data-theme="light"] .settings-section__group {
+  background: rgba(0, 0, 0, 0.025);
+}
+.settings-section__group > .settings-field {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.settings-section__group > .settings-field + .settings-field,
+.settings-section__group > .sound-enabled-row + .settings-field,
+.settings-section__group > .settings-field + .sound-enabled-row {
+  border-top: 1px solid var(--panel-border);
+}
+.settings-section__group > .settings-field:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+[data-theme="light"] .settings-section__group > .settings-field:hover {
+  background: rgba(0, 0, 0, 0.03);
 }
 
 /* ── Form controls: native-feeling macOS look ─────────────────────── */

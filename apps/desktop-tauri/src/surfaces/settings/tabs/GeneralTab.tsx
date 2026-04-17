@@ -47,113 +47,135 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
   }, [set]);
 
   return (
-    <section className="settings-section">
-      <h3 className="settings-section__title">{t("StartupSettings")}</h3>
-      <Field label={t("StartAtLogin")} description={t("StartAtLoginHelper")}>
-        <Toggle
-          checked={settings.startAtLogin}
-          disabled={saving}
-          onChange={(v) => set({ startAtLogin: v })}
-        />
-      </Field>
-      <Field label={t("StartMinimized")} description={t("StartMinimizedHelper")}>
-        <Toggle
-          checked={settings.startMinimized}
-          disabled={saving}
-          onChange={(v) => set({ startMinimized: v })}
-        />
-      </Field>
+    <>
+      <section className="settings-section">
+        <h3 className="settings-section__title">{t("StartupSettings")}</h3>
+        <div className="settings-section__group">
+          <Field label={t("StartAtLogin")} description={t("StartAtLoginHelper")}>
+            <Toggle
+              checked={settings.startAtLogin}
+              disabled={saving}
+              onChange={(v) => set({ startAtLogin: v })}
+            />
+          </Field>
+          <Field
+            label={t("StartMinimized")}
+            description={t("StartMinimizedHelper")}
+          >
+            <Toggle
+              checked={settings.startMinimized}
+              disabled={saving}
+              onChange={(v) => set({ startMinimized: v })}
+            />
+          </Field>
+        </div>
+      </section>
 
       {/* Refresh interval lives on the Advanced tab (Phase 8). */}
-      {/* TODO(Phase 7): General tab may need re-layout after Refresh move */}
 
-      <h3 className="settings-section__title">{t("SectionNotifications")}</h3>
-      <Field
-        label={t("ShowNotifications")}
-        description={t("ShowNotificationsHelper")}
-      >
-        <Toggle
-          checked={settings.showNotifications}
-          disabled={saving}
-          onChange={(v) => set({ showNotifications: v })}
-        />
-      </Field>
-      <Field label={t("SoundEnabled")} description={t("SoundEnabledHelper")}>
-        <div className="sound-enabled-row">
-          <Toggle
-            checked={settings.soundEnabled}
-            disabled={saving}
-            onChange={(v) => set({ soundEnabled: v })}
-          />
-          <button
-            type="button"
-            className="shortcut-capture__button shortcut-capture__button--ghost"
-            disabled={saving || !settings.soundEnabled || playingSound}
-            onClick={handleTestSound}
+      <section className="settings-section">
+        <h3 className="settings-section__title">
+          {t("SectionNotifications")}
+        </h3>
+        <div className="settings-section__group">
+          <Field
+            label={t("ShowNotifications")}
+            description={t("ShowNotificationsHelper")}
           >
-            {playingSound
-              ? t("NotificationTestSoundPlaying")
-              : t("NotificationTestSound")}
-          </button>
+            <Toggle
+              checked={settings.showNotifications}
+              disabled={saving}
+              onChange={(v) => set({ showNotifications: v })}
+            />
+          </Field>
+          <Field label={t("SoundEnabled")} description={t("SoundEnabledHelper")}>
+            <div className="sound-enabled-row">
+              <Toggle
+                checked={settings.soundEnabled}
+                disabled={saving}
+                onChange={(v) => set({ soundEnabled: v })}
+              />
+              <button
+                type="button"
+                className="shortcut-capture__button shortcut-capture__button--ghost"
+                disabled={saving || !settings.soundEnabled || playingSound}
+                onClick={handleTestSound}
+              >
+                {playingSound
+                  ? t("NotificationTestSoundPlaying")
+                  : t("NotificationTestSound")}
+              </button>
+            </div>
+          </Field>
+          {settings.soundEnabled && (
+            <Field label={t("SoundVolume")} description={t("SoundVolumeHelper")}>
+              <NumberInput
+                value={settings.soundVolume}
+                min={0}
+                max={100}
+                step={5}
+                disabled={saving}
+                onChange={(v) => set({ soundVolume: v })}
+              />
+            </Field>
+          )}
         </div>
-      </Field>
-      {settings.soundEnabled && (
-        <Field label={t("SoundVolume")} description={t("SoundVolumeHelper")}>
-          <NumberInput
-            value={settings.soundVolume}
-            min={0}
-            max={100}
-            step={5}
-            disabled={saving}
-            onChange={(v) => set({ soundVolume: v })}
-          />
-        </Field>
-      )}
+      </section>
 
-      <h3 className="settings-section__title">{t("SectionUsageThresholds")}</h3>
-      <Field
-        label={t("HighUsageAlert")}
-        description={t("HighUsageWarningHelper")}
-      >
-        <NumberInput
-          value={settings.highUsageThreshold}
-          min={0}
-          max={100}
-          step={5}
-          disabled={saving}
-          onChange={(v) => set({ highUsageThreshold: v })}
-        />
-      </Field>
-      <Field
-        label={t("CriticalUsageAlert")}
-        description={t("CriticalUsageWarningHelper")}
-      >
-        <NumberInput
-          value={settings.criticalUsageThreshold}
-          min={0}
-          max={100}
-          step={5}
-          disabled={saving}
-          onChange={(v) => set({ criticalUsageThreshold: v })}
-        />
-      </Field>
+      <section className="settings-section">
+        <h3 className="settings-section__title">
+          {t("SectionUsageThresholds")}
+        </h3>
+        <div className="settings-section__group">
+          <Field
+            label={t("HighUsageAlert")}
+            description={t("HighUsageWarningHelper")}
+          >
+            <NumberInput
+              value={settings.highUsageThreshold}
+              min={0}
+              max={100}
+              step={5}
+              disabled={saving}
+              onChange={(v) => set({ highUsageThreshold: v })}
+            />
+          </Field>
+          <Field
+            label={t("CriticalUsageAlert")}
+            description={t("CriticalUsageWarningHelper")}
+          >
+            <NumberInput
+              value={settings.criticalUsageThreshold}
+              min={0}
+              max={100}
+              step={5}
+              disabled={saving}
+              onChange={(v) => set({ criticalUsageThreshold: v })}
+            />
+          </Field>
+        </div>
+      </section>
 
-      <h3 className="settings-section__title">{t("SectionKeyboard")}</h3>
-      <Field
-        label={t("GlobalShortcutFieldLabel")}
-        description={t("GlobalShortcutToggleHelper")}
-      >
-        <ShortcutCapture
-          value={settings.globalShortcut}
-          disabled={saving}
-          onCommit={(accel) => void commitShortcut(accel)}
-          onClear={() => void clearShortcut()}
-        />
-      </Field>
-      {shortcutError && (
-        <p className="settings-section__error">{shortcutError}</p>
-      )}
-      <p className="settings-section__hint">{t("ShortcutRecordingHint")}</p>
-    </section>
+      <section className="settings-section">
+        <h3 className="settings-section__title">{t("SectionKeyboard")}</h3>
+        <div className="settings-section__group">
+          <Field
+            label={t("GlobalShortcutFieldLabel")}
+            description={t("GlobalShortcutToggleHelper")}
+          >
+            <ShortcutCapture
+              value={settings.globalShortcut}
+              disabled={saving}
+              onCommit={(accel) => void commitShortcut(accel)}
+              onClear={() => void clearShortcut()}
+            />
+          </Field>
+        </div>
+        {shortcutError && (
+          <p className="settings-section__error">{shortcutError}</p>
+        )}
+        <p className="settings-section__hint">{t("ShortcutRecordingHint")}</p>
+      </section>
+    </>
   );
 }

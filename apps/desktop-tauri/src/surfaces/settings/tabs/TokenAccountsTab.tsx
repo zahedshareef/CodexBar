@@ -32,30 +32,32 @@ export default function TokenAccountsTab() {
         <p className="credential-empty">{t("TokenAccountNoSupported")}</p>
       ) : (
         <>
-          <div className="settings-field">
-            <div className="settings-field__text">
-              <span className="settings-field__label">
-                {t("TokenAccountProviderLabel")}
-              </span>
-            </div>
-            <div className="settings-field__control">
-              <Select
-                value={selectedProviderId}
-                options={[
-                  {
-                    value: "",
-                    label: t("TokenAccountProviderPlaceholder"),
-                  },
-                  ...providers.map((p) => ({
-                    value: p.providerId,
-                    label: p.displayName,
-                  })),
-                ]}
-                onChange={(v) => {
-                  setSelectedProviderId(v);
-                  setError(null);
-                }}
-              />
+          <div className="settings-section__group">
+            <div className="settings-field">
+              <div className="settings-field__text">
+                <span className="settings-field__label">
+                  {t("TokenAccountProviderLabel")}
+                </span>
+              </div>
+              <div className="settings-field__control">
+                <Select
+                  value={selectedProviderId}
+                  options={[
+                    {
+                      value: "",
+                      label: t("TokenAccountProviderPlaceholder"),
+                    },
+                    ...providers.map((p) => ({
+                      value: p.providerId,
+                      label: p.displayName,
+                    })),
+                  ]}
+                  onChange={(v) => {
+                    setSelectedProviderId(v);
+                    setError(null);
+                  }}
+                />
+              </div>
             </div>
           </div>
 
