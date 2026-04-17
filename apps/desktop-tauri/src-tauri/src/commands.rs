@@ -581,7 +581,7 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
         },
         BridgeCommandDescriptor {
             id: "get_work_area_rect",
-            description: "Return the primary-monitor work area in physical pixels (excludes taskbar).",
+            description: "Return the current monitor's work area in physical pixels (excludes the taskbar / Dock / panel).",
         },
         BridgeCommandDescriptor {
             id: "play_notification_sound",
@@ -2611,7 +2611,12 @@ pub fn get_launch_block_reason() -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
-pub fn get_work_area_rect() -> Result<WorkAreaRect, String> {
+pub fn get_work_area_rect(app: tauri::AppHandle) -> Result<WorkAreaRect, String> {
+    use tauri::Manager;
+
+    // Prefer the OS-native probe on Windows because it reliably excludes the
+    // taskbar; Tauri's monitor API forwards to the same APIs but we keep the
+    // direct path to preserve parity with the egui build.
     if let Some(area) = codexbar::host::session::primary_work_area_pixels() {
         return Ok(WorkAreaRect {
             x: area.x,
@@ -2620,7 +2625,27 @@ pub fn get_work_area_rect() -> Result<WorkAreaRect, String> {
             height: area.height,
         });
     }
-    Err("Work area not available on this platform".into())
+
+    // Cross-platform fallback (macOS: NSScreen.visibleFrame; Linux: GTK /
+    // X11 work-area) via Tauri's monitor wrapper. Require a window so tao's
+    // screen backend is initialised.
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "Main window is not available".to_string())?;
+
+    let monitor = window
+        .current_monitor()
+        .map_err(|e| e.to_string())?
+        .or_else(|| window.primary_monitor().ok().flatten())
+        .ok_or_else(|| "No monitor detected".to_string())?;
+
+    let work_area = monitor.work_area();
+    Ok(WorkAreaRect {
+        x: work_area.position.x,
+        y: work_area.position.y,
+        width: work_area.size.width as i32,
+        height: work_area.size.height as i32,
+    })
 }
 
 // ── Misc UX ────────────────────────────────────────────────────────────
