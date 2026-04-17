@@ -124,6 +124,13 @@ export interface ProviderCatalogEntry {
   cookieDomain: string | null;
 }
 
+export interface ProviderSummary {
+  id: string;
+  displayName: string;
+  enabled: boolean;
+  order: number;
+}
+
 export interface SettingsSnapshot {
   enabledProviders: string[];
   refreshIntervalSecs: number;

@@ -13,6 +13,7 @@ import type {
   LocaleStrings,
   ProviderCatalogEntry,
   ProviderChartData,
+  ProviderSummary,
   ProviderUsageSnapshot,
   ProviderTokenAccountsBridge,
   TokenAccountSupportBridge,
@@ -30,6 +31,10 @@ export function getBootstrapState(): Promise<BootstrapState> {
 
 export function getProviderCatalog(): Promise<ProviderCatalogEntry[]> {
   return invoke<ProviderCatalogEntry[]>("get_provider_catalog");
+}
+
+export function reorderProviders(ids: string[]): Promise<ProviderSummary[]> {
+  return invoke<ProviderSummary[]>("reorder_providers", { ids });
 }
 
 export function getSettingsSnapshot(): Promise<SettingsSnapshot> {
