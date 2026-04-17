@@ -455,6 +455,20 @@ export const ALL_LOCALE_KEYS = [
   "CredsKiroHelperAvailablePrefix",
   "CredsKiroHelperMissing",
   "CredsOpenAiHistoryHelp",
+  // Phase 6e — Token accounts (review)
+  "TokenAccountActive",
+  "TokenAccountSetActive",
+  "TokenAccountRemove",
+  "TokenAccountAddButton",
+  "TokenAccountEmpty",
+  "TokenAccountLabelPlaceholder",
+  "TokenAccountProviderLabel",
+  "TokenAccountProviderPlaceholder",
+  "TokenAccountAddedPrefix",
+  "TokenAccountUsedPrefix",
+  "TokenAccountTabHint",
+  "TokenAccountNoSupported",
+  "TokenAccountInlineSummary",
 ] as const;
 
 export type LocaleKey = (typeof ALL_LOCALE_KEYS)[number];

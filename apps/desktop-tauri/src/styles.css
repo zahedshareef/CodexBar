@@ -2174,3 +2174,72 @@ body {
   line-height: 1.4;
 }
 
+
+/* ── Phase 6e: Token accounts (inline + standalone) ─────────────────── */
+
+.token-accounts-inline {
+  margin-bottom: 16px;
+}
+
+.token-accounts-inline__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--provider-row-text-primary);
+  user-select: none;
+}
+
+.token-accounts-inline__summary::-webkit-details-marker {
+  display: none;
+}
+
+.token-accounts-inline__summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 0.9em;
+  color: var(--provider-row-text-secondary);
+  transition: transform 0.12s;
+}
+
+.token-accounts-inline[open] > .token-accounts-inline__summary::before {
+  transform: rotate(90deg);
+}
+
+.token-accounts-inline__count {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--provider-row-text-secondary);
+}
+
+.token-accounts-inline__body {
+  padding: 8px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.token-accounts-inline .token-accounts-list {
+  gap: 4px;
+}
+
+.token-accounts-inline .token-accounts-card {
+  padding: 8px 10px;
+}
+
+.token-accounts-inline .token-accounts-add {
+  gap: 6px;
+}
+
+.token-accounts-standalone .token-accounts-list {
+  margin-bottom: 12px;
+}
