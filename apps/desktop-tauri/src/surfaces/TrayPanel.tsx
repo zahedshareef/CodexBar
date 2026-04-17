@@ -1,16 +1,12 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
 import { useLocale } from "../hooks/useLocale";
-import ProviderRow from "../components/ProviderRow";
 import MenuCard from "../components/MenuCard";
-import MenuSurface, {
-  MenuSummary,
-  MenuEmpty,
-} from "../components/MenuSurface";
+import MenuSurface, { MenuSummary, MenuEmpty } from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
 
 /** Sort: highest primary used% first, then alphabetical by name. */
@@ -24,19 +20,21 @@ function sortProviders(
   });
 }
 
+/**
+ * Tray popover surface — a vertical stack of full provider cards
+ * mirroring the upstream macOS `MenuContent` (which renders one
+ * `UsageMenuCardView` per enabled provider). No drill-in: every
+ * provider's full metrics, cost, pace, and charts are visible at once,
+ * separated by a 1pt divider, exactly like upstream.
+ */
 export default function TrayPanel({ state }: { state: BootstrapState }) {
   const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
   const { t } = useLocale();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
-  const selected = useMemo(
-    () => sorted.find((p) => p.providerId === selectedId) ?? null,
-    [sorted, selectedId],
-  );
   const errorCount = useMemo(
     () => sorted.filter((p) => p.error !== null).length,
     [sorted],
@@ -48,7 +46,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const openPopOut = useCallback(() => {
     setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
-  const handleBack = useCallback(() => setSelectedId(null), []);
 
   const headerActions = [
     { icon: "⚙", title: t("TooltipSettings"), onClick: openSettings },
@@ -65,24 +62,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       onOpenRelease={openRelease}
     />
   );
-
-  if (selected) {
-    return (
-      <MenuSurface
-        variant="tray"
-        onRefresh={refresh}
-        isRefreshing={isRefreshing}
-        actions={headerActions}
-        banner={banner}
-      >
-        <MenuCard
-          provider={selected}
-          hideEmail={settings.hidePersonalInfo}
-          onBack={handleBack}
-        />
-      </MenuSurface>
-    );
-  }
 
   if (sorted.length === 0) {
     return (
@@ -114,16 +93,12 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         />
       }
     >
-      <div className="menu-list">
-        {sorted.map((p) => (
-          <ProviderRow
-            key={p.providerId}
-            provider={p}
-            selected={selectedId === p.providerId}
-            hideEmail={settings.hidePersonalInfo}
-            resetRelative={settings.resetTimeRelative}
-            onSelect={() => setSelectedId(p.providerId)}
-          />
+      <div className="menu-stack">
+        {sorted.map((p, idx) => (
+          <div key={p.providerId} className="menu-stack__item">
+            {idx > 0 && <div className="menu-stack__sep" />}
+            <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />
+          </div>
         ))}
       </div>
     </MenuSurface>

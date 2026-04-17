@@ -8,17 +8,12 @@ import type {
 import { getProviderChartData } from "../lib/tauri";
 import { useLocale } from "../hooks/useLocale";
 import type { LocaleKey } from "../i18n/keys";
-import UsageBar from "../surfaces/tray/UsageBar";
-import PaceBadge from "../surfaces/tray/PaceBadge";
 import { paceCategory } from "../surfaces/tray/paceCategory";
 import { SimpleBarChart, StackedBarChart } from "./MiniBarChart";
 
 interface MenuCardProps {
   provider: ProviderUsageSnapshot;
   hideEmail: boolean;
-  /** Optional back handler. When omitted the card renders without a back row,
-   *  mirroring the full-card variant used by the pop-out split view. */
-  onBack?: () => void;
 }
 
 function maskEmail(email: string): string {
@@ -59,31 +54,72 @@ function paceStageKey(stage: PaceSnapshot["stage"]): LocaleKey {
   }
 }
 
+type UsageLevel = "normal" | "high" | "critical" | "exhausted";
+function levelOf(pct: number, exhausted: boolean): UsageLevel {
+  if (exhausted) return "exhausted";
+  if (pct >= 90) return "critical";
+  if (pct >= 70) return "high";
+  return "normal";
+}
+
 interface MetricEntry {
   labelKey: LocaleKey;
   snap: RateWindowSnapshot;
 }
 
 /**
- * Compact provider card mirroring the SwiftUI `UsageMenuCardView`.
- *
- * Layout, in order, matches the upstream reference:
- *   1. Header   — name · email (right)          /  source-updated · plan
- *   2. Divider
- *   3. Metrics  — label · usage bar · "N% used" · reset countdown
- *   4. Pace     — expected vs. actual bars + ETA
- *   5. Cost     — period header, used / limit / remaining rows
- *   6. Charts   — cost history, credits history, usage breakdown
- *   7. Footer   — source label + updated timestamp
- *
- * All provider data stays siloed per repo convention — nothing from other
- * providers is ever surfaced here.
+ * Single metric row inside the card — mirrors upstream `MetricRow`:
+ *   • title (body / medium)
+ *   • UsageProgressBar (capsule, 6pt)
+ *   • HStack: "N% used"  ··  reset countdown (right-aligned, secondary)
  */
-export default function MenuCard({
-  provider,
-  hideEmail,
-  onBack,
-}: MenuCardProps) {
+function MetricRow({
+  title,
+  snap,
+  exhaustedLabel,
+}: {
+  title: string;
+  snap: RateWindowSnapshot;
+  exhaustedLabel: string;
+}) {
+  const pct = Math.min(100, Math.max(0, snap.usedPercent));
+  const level = levelOf(pct, snap.isExhausted);
+  return (
+    <div className="menu-metric">
+      <div className="menu-metric__title">{title}</div>
+      <div className="menu-metric__bar">
+        <div className="menu-metric__bar-fill" data-level={level} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="menu-metric__row">
+        <span className="menu-metric__pct">{pct.toFixed(0)}% used</span>
+        {snap.resetDescription && (
+          <span className="menu-metric__reset">{snap.resetDescription}</span>
+        )}
+      </div>
+      {snap.isExhausted && (
+        <div className="menu-metric__exhausted">{exhaustedLabel}</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Provider card — direct mirror of SwiftUI `UsageMenuCardView`.
+ *
+ * Layout (top to bottom):
+ *   1. Header VStack(spacing: 3)
+ *        – HStack: providerName (headline/semibold)  ··  email (subheadline/secondary, right)
+ *        – HStack: subtitle "source · updated"        ··  plan (footnote/secondary, right)
+ *   2. Divider (1pt)
+ *   3. VStack(spacing: 12)
+ *        – Metrics group VStack(spacing: 12) of MetricRow
+ *        – (Divider) Cost group: title (body/medium) + session line + month line (footnote)
+ *        – (Divider) Pace group (Tauri-only addition; placed last)
+ *        – (Divider) Charts group (Tauri-only addition; placed last)
+ *
+ * Padding: horizontal 16, vertical 2 (matches upstream UsageMenuCardView).
+ */
+export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const { t } = useLocale();
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
 
@@ -124,22 +160,20 @@ export default function MenuCard({
   if (provider.tertiary)
     metrics.push({ labelKey: "DetailWindowTertiary", snap: provider.tertiary });
 
-  const hasCostHistory =
-    chartData !== null && chartData.costHistory.length > 0;
+  const hasCostHistory = chartData !== null && chartData.costHistory.length > 0;
   const hasCreditsHistory =
     chartData !== null && chartData.creditsHistory.length > 0;
   const hasUsageBreakdown =
     chartData !== null && chartData.usageBreakdown.length > 0;
   const hasCharts = hasCostHistory || hasCreditsHistory || hasUsageBreakdown;
+  const hasMetrics = metrics.length > 0;
+  const hasCost = !!provider.cost;
+  const hasPace = !!provider.pace;
+  const hasError = !!provider.error;
+  const hasDetails = hasMetrics || hasCost || hasPace || hasCharts || hasError;
 
   return (
     <article className="menu-card">
-      {onBack && (
-        <button className="menu-card__back" onClick={onBack} type="button">
-          ← {t("DetailBackButton")}
-        </button>
-      )}
-
       <header className="menu-card__header">
         <div className="menu-card__title-row">
           <span className="menu-card__name">{provider.displayName}</span>
@@ -155,188 +189,139 @@ export default function MenuCard({
             <span className="menu-card__plan">{provider.planName}</span>
           )}
         </div>
-        {provider.accountOrganization && (
-          <div className="menu-card__org">{provider.accountOrganization}</div>
-        )}
       </header>
 
-      {provider.error && (
+      {hasDetails && <div className="menu-card__divider" />}
+
+      {hasError && (
         <div className="menu-card__error" role="alert">
           <span aria-hidden>⚠</span> {provider.error}
         </div>
       )}
 
-      <div className="menu-card__divider" />
-
-      <section className="menu-card__metrics">
-        {metrics.map((m) => (
-          <div key={m.labelKey} className="menu-metric">
-            <UsageBar window={m.snap} label={t(m.labelKey)} />
-            {(m.snap.resetDescription ||
-              m.snap.windowMinutes != null ||
-              m.snap.isExhausted) && (
-              <div className="menu-metric__meta">
-                {m.snap.resetDescription && (
-                  <span>{m.snap.resetDescription}</span>
-                )}
-                {m.snap.windowMinutes != null && (
-                  <span>
-                    {m.snap.windowMinutes}
-                    {t("DetailWindowMinutesSuffix")}
-                  </span>
-                )}
-                {m.snap.isExhausted && (
-                  <span className="menu-metric__exhausted">
-                    {t("DetailWindowExhausted")}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-      </section>
-
-      {provider.pace && (
-        <>
-          <div className="menu-card__divider" />
-          <section className="menu-card__section menu-card__pace">
-            <div className="menu-card__pace-header">
-              <span className="menu-card__section-title">
-                {t("DetailPaceTitle")}
-              </span>
-              <span className="menu-card__pace-label-group">
-                <span
-                  className="menu-card__pace-label"
-                  data-pace={paceCategory(provider.pace.stage)}
-                >
-                  {t(paceStageKey(provider.pace.stage))} (
-                  {provider.pace.deltaPercent >= 0 ? "+" : ""}
-                  {provider.pace.deltaPercent.toFixed(1)}%)
-                </span>
-                <PaceBadge pace={provider.pace} showDelta={false} />
-              </span>
-            </div>
-            <div className="menu-card__pace-bars">
-              <div className="menu-card__pace-track">
-                <div
-                  className="menu-card__pace-fill menu-card__pace-fill--expected"
-                  style={{
-                    width: `${provider.pace.expectedUsedPercent.toFixed(1)}%`,
-                  }}
-                  title={`Expected: ${provider.pace.expectedUsedPercent.toFixed(1)}%`}
-                />
-              </div>
-              <div className="menu-card__pace-track">
-                <div
-                  className="menu-card__pace-fill"
-                  data-pace={paceCategory(provider.pace.stage)}
-                  style={{
-                    width: `${provider.pace.actualUsedPercent.toFixed(1)}%`,
-                  }}
-                  title={`Actual: ${provider.pace.actualUsedPercent.toFixed(1)}%`}
-                />
-              </div>
-            </div>
-            {provider.pace.etaSeconds != null &&
-              !provider.pace.willLastToReset && (
-                <span className="menu-card__pace-eta">
-                  ⚠{" "}
-                  {t("DetailPaceRunsOutIn").replace(
-                    "{}",
-                    String(Math.round(provider.pace.etaSeconds / 3600)),
-                  )}
-                </span>
-              )}
-            {provider.pace.willLastToReset && (
-              <span className="menu-card__pace-ok">
-                ✓ {t("DetailPaceWillLastToReset")}
-              </span>
-            )}
-          </section>
-        </>
+      {hasMetrics && (
+        <section className="menu-card__group menu-card__metrics">
+          {metrics.map((m) => (
+            <MetricRow
+              key={m.labelKey}
+              title={t(m.labelKey)}
+              snap={m.snap}
+              exhaustedLabel={t("DetailWindowExhausted")}
+            />
+          ))}
+        </section>
       )}
 
+      {hasMetrics && hasCost && <div className="menu-card__divider" />}
+
       {provider.cost && (
-        <>
-          <div className="menu-card__divider" />
-          <section className="menu-card__section menu-card__cost">
-            <div className="menu-card__section-title">
-              {t("DetailCostTitle")} — {provider.cost.period}
+        <section className="menu-card__group menu-card__cost">
+          <div className="menu-card__group-title">
+            {t("DetailCostTitle")} — {provider.cost.period}
+          </div>
+          <div className="menu-card__cost-line">
+            {t("DetailCostUsed")}:{" "}
+            {provider.cost.formattedUsed ||
+              formatCurrency(provider.cost.used, provider.cost.currencyCode)}
+            {provider.cost.limit != null && (
+              <>
+                {" / "}
+                {provider.cost.formattedLimit ||
+                  formatCurrency(provider.cost.limit, provider.cost.currencyCode)}
+              </>
+            )}
+          </div>
+          {provider.cost.remaining != null && (
+            <div className="menu-card__cost-line menu-card__cost-line--muted">
+              {t("DetailCostRemaining")}:{" "}
+              {formatCurrency(provider.cost.remaining, provider.cost.currencyCode)}
             </div>
-            <dl className="menu-card__rows">
-              <div className="menu-card__row">
-                <dt>{t("DetailCostUsed")}</dt>
-                <dd>
-                  {provider.cost.formattedUsed ||
-                    formatCurrency(
-                      provider.cost.used,
-                      provider.cost.currencyCode,
-                    )}
-                </dd>
-              </div>
-              {provider.cost.limit != null && (
-                <div className="menu-card__row">
-                  <dt>{t("DetailCostLimit")}</dt>
-                  <dd>
-                    {provider.cost.formattedLimit ||
-                      formatCurrency(
-                        provider.cost.limit,
-                        provider.cost.currencyCode,
-                      )}
-                  </dd>
-                </div>
+          )}
+          {provider.cost.resetsAt && (
+            <div className="menu-card__cost-line menu-card__cost-line--muted">
+              {t("DetailCostResets")}: {provider.cost.resetsAt}
+            </div>
+          )}
+        </section>
+      )}
+
+      {(hasMetrics || hasCost) && hasPace && <div className="menu-card__divider" />}
+
+      {provider.pace && (
+        <section className="menu-card__group menu-card__pace">
+          <div className="menu-card__pace-header">
+            <span className="menu-card__group-title">{t("DetailPaceTitle")}</span>
+            <span
+              className="menu-card__pace-label"
+              data-pace={paceCategory(provider.pace.stage)}
+            >
+              {t(paceStageKey(provider.pace.stage))} (
+              {provider.pace.deltaPercent >= 0 ? "+" : ""}
+              {provider.pace.deltaPercent.toFixed(1)}%)
+            </span>
+          </div>
+          <div className="menu-card__pace-bars">
+            <div className="menu-card__pace-track" title="Expected">
+              <div
+                className="menu-card__pace-fill menu-card__pace-fill--expected"
+                style={{ width: `${provider.pace.expectedUsedPercent.toFixed(1)}%` }}
+              />
+            </div>
+            <div className="menu-card__pace-track" title="Actual">
+              <div
+                className="menu-card__pace-fill"
+                data-pace={paceCategory(provider.pace.stage)}
+                style={{ width: `${provider.pace.actualUsedPercent.toFixed(1)}%` }}
+              />
+            </div>
+          </div>
+          {provider.pace.etaSeconds != null && !provider.pace.willLastToReset && (
+            <div className="menu-card__pace-eta">
+              ⚠{" "}
+              {t("DetailPaceRunsOutIn").replace(
+                "{}",
+                String(Math.round(provider.pace.etaSeconds / 3600)),
               )}
-              {provider.cost.remaining != null && (
-                <div className="menu-card__row">
-                  <dt>{t("DetailCostRemaining")}</dt>
-                  <dd>
-                    {formatCurrency(
-                      provider.cost.remaining,
-                      provider.cost.currencyCode,
-                    )}
-                  </dd>
-                </div>
-              )}
-              {provider.cost.resetsAt && (
-                <div className="menu-card__row">
-                  <dt>{t("DetailCostResets")}</dt>
-                  <dd>{provider.cost.resetsAt}</dd>
-                </div>
-              )}
-            </dl>
-          </section>
-        </>
+            </div>
+          )}
+          {provider.pace.willLastToReset && (
+            <div className="menu-card__pace-ok">
+              ✓ {t("DetailPaceWillLastToReset")}
+            </div>
+          )}
+        </section>
+      )}
+
+      {(hasMetrics || hasCost || hasPace) && hasCharts && (
+        <div className="menu-card__divider" />
       )}
 
       {hasCharts && (
-        <>
-          <div className="menu-card__divider" />
-          <section className="menu-card__section menu-card__charts">
-            {hasCostHistory && (
-              <SimpleBarChart
-                points={chartData!.costHistory}
-                label={t("DetailChartCost")}
-                color="var(--accent)"
-                formatValue={(v) => `$${v.toFixed(2)}`}
-              />
-            )}
-            {hasCreditsHistory && (
-              <SimpleBarChart
-                points={chartData!.creditsHistory}
-                label={t("DetailChartCredits")}
-                color="var(--provider-status-ok)"
-                formatValue={(v) => v.toFixed(1)}
-              />
-            )}
-            {hasUsageBreakdown && (
-              <StackedBarChart
-                points={chartData!.usageBreakdown}
-                label={t("DetailChartUsageBreakdown")}
-                height={56}
-              />
-            )}
-          </section>
-        </>
+        <section className="menu-card__group menu-card__charts">
+          {hasCostHistory && (
+            <SimpleBarChart
+              points={chartData!.costHistory}
+              label={t("DetailChartCost")}
+              color="var(--accent)"
+              formatValue={(v) => `$${v.toFixed(2)}`}
+            />
+          )}
+          {hasCreditsHistory && (
+            <SimpleBarChart
+              points={chartData!.creditsHistory}
+              label={t("DetailChartCredits")}
+              color="var(--provider-status-ok)"
+              formatValue={(v) => v.toFixed(1)}
+            />
+          )}
+          {hasUsageBreakdown && (
+            <StackedBarChart
+              points={chartData!.usageBreakdown}
+              label={t("DetailChartUsageBreakdown")}
+              height={56}
+            />
+          )}
+        </section>
       )}
     </article>
   );

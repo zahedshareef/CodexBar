@@ -1,16 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
 import { useLocale } from "../hooks/useLocale";
-import ProviderRow from "../components/ProviderRow";
 import MenuCard from "../components/MenuCard";
-import MenuSurface, {
-  MenuSummary,
-  MenuEmpty,
-} from "../components/MenuSurface";
+import MenuSurface, { MenuSummary, MenuEmpty } from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
 
 /** Sort: highest primary used% first, then alphabetical by name. */
@@ -24,6 +20,12 @@ function sortProviders(
   });
 }
 
+/**
+ * Pop-out window — same card stack as the tray (per upstream parity),
+ * just hosted in a detached resizable window with a slightly wider
+ * surface variant. If `providerId` is supplied (deep-link) we scroll
+ * that card into view, but every provider card is always rendered.
+ */
 export default function PopOutPanel({
   state,
   providerId,
@@ -36,22 +38,8 @@ export default function PopOutPanel({
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
   const { t } = useLocale();
-  const [selectedId, setSelectedId] = useState<string | null>(
-    providerId ?? null,
-  );
-
-  useEffect(() => {
-    setSelectedId((current) => {
-      const next = providerId ?? null;
-      return current === next ? current : next;
-    });
-  }, [providerId]);
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
-  const selected = useMemo(
-    () => sorted.find((p) => p.providerId === selectedId) ?? null,
-    [sorted, selectedId],
-  );
   const errorCount = useMemo(
     () => sorted.filter((p) => p.error !== null).length,
     [sorted],
@@ -62,25 +50,6 @@ export default function PopOutPanel({
   }, []);
   const goTray = useCallback(() => {
     setSurfaceMode("trayPanel", { kind: "summary" });
-  }, []);
-
-  const toggleSelect = useCallback(
-    (id: string) => {
-      const nextSelectedId = selectedId === id ? null : id;
-      setSelectedId(nextSelectedId);
-      void setSurfaceMode(
-        "popOut",
-        nextSelectedId === null
-          ? { kind: "dashboard" }
-          : { kind: "provider", providerId: id },
-      );
-    },
-    [selectedId],
-  );
-
-  const handleBack = useCallback(() => {
-    setSelectedId(null);
-    void setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
 
   const headerActions = [
@@ -129,30 +98,17 @@ export default function PopOutPanel({
         />
       }
     >
-      <div
-        className={`popout-split ${selected ? "popout-split--open" : ""}`}
-      >
-        <div className="menu-list popout-split__list">
-          {sorted.map((p) => (
-            <ProviderRow
-              key={p.providerId}
-              provider={p}
-              selected={selectedId === p.providerId}
-              hideEmail={settings.hidePersonalInfo}
-              resetRelative={settings.resetTimeRelative}
-              onSelect={() => toggleSelect(p.providerId)}
-            />
-          ))}
-        </div>
-        {selected && (
-          <div className="popout-split__detail">
-            <MenuCard
-              provider={selected}
-              hideEmail={settings.hidePersonalInfo}
-              onBack={handleBack}
-            />
+      <div className="menu-stack">
+        {sorted.map((p, idx) => (
+          <div
+            key={p.providerId}
+            className="menu-stack__item"
+            data-deeplinked={p.providerId === providerId || undefined}
+          >
+            {idx > 0 && <div className="menu-stack__sep" />}
+            <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />
           </div>
-        )}
+        ))}
       </div>
     </MenuSurface>
   );

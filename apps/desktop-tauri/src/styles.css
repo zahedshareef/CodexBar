@@ -159,6 +159,14 @@
   --chart-tooltip-bg: rgba(44, 44, 46, 0.96);
   --chart-tooltip-border: rgba(255, 255, 255, 0.12);
   --chart-tooltip-text: #f5f5f7;
+
+  /* Tray popover — approximates NSVisualEffectView "menu" material.
+     Real macOS uses a vibrant blur; we fall back to an opaque/elevated
+     surface plus a subtle hairline divider to stay flush with the
+     window edge like the upstream NSMenu. */
+  --menu-popover-bg: var(--app-bg);
+  --menu-popover-divider: rgba(255, 255, 255, 0.10);
+  --menu-popover-divider-strong: rgba(255, 255, 255, 0.16);
 }
 
 [data-theme="light"] {
@@ -200,6 +208,10 @@
   --chart-tooltip-bg: rgba(255, 255, 255, 0.96);
   --chart-tooltip-border: rgba(0, 0, 0, 0.12);
   --chart-tooltip-text: #1d1d1f;
+
+  --menu-popover-bg: var(--app-bg);
+  --menu-popover-divider: rgba(0, 0, 0, 0.10);
+  --menu-popover-divider-strong: rgba(0, 0, 0, 0.16);
 }
 
 * {
@@ -2626,40 +2638,54 @@ body {
   }
 }
 
+
 /* ──────────────────────────────────────────────────────────────────────
    Menu-bar popover surfaces (Tray + Pop-out)
 
-   Structural parity with the upstream SwiftUI `MenuContent` /
-   `UsageMenuCardView`: flush, narrow, compact. All tokens resolve
-   through the theme palette (`--bg`, `--text-*`, `--accent`, …) so the
-   dark/light overrides keep working without hard-coded hex values.
+   Structural parity with upstream SwiftUI `MenuContent` /
+   `UsageMenuCardView` (CodexBar/Sources/CodexBar/MenuCardView.swift).
+   Numbers below come straight from the Swift source:
+
+     • menuCardBaseWidth        310pt   → 310px outer card width
+     • UsageMenuCardView pad    H 16, V 2
+     • Outer VStack spacing     8       (between cards)
+     • Header VStack spacing    3
+     • Body VStack spacing      6 / 12  (between sections)
+     • UsageProgressBar height  6pt
+     • Divider                  1pt hairline (system separator)
+
+   Real macOS uses NSVisualEffectView (vibrant menu material). HTML
+   can't replicate that, so we render onto `--menu-popover-bg` with a
+   subtle hairline divider that reads similarly under both themes.
    ────────────────────────────────────────────────────────────────────── */
 
 .menu-surface {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 10px 10px;
-  min-width: 280px;
-  max-width: 360px;
+  padding: 6px 0;
+  width: 310px;
   font-size: 13px;
-  line-height: 1.35;
+  line-height: 1.30;
   color: var(--text-primary);
-  background: var(--app-bg);
+  background: var(--menu-popover-bg);
+  -webkit-font-smoothing: antialiased;
 }
 
 .menu-surface--popout {
-  min-width: 320px;
-  max-width: 760px;
-  padding: 10px 12px 12px;
+  width: 360px;
+  padding: 8px 0;
 }
 
+/* Header bar — small CodexBar wordmark + iconified actions
+   (refresh / settings / pop-out). Rendered in the upstream NSStatusItem
+   menu as a separate row; we keep it pinned to the top of the popover. */
 .menu-surface__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 0 2px;
+  padding: 0 16px;
   min-height: 22px;
 }
 
@@ -2668,7 +2694,6 @@ body {
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--text-secondary);
-  text-transform: none;
 }
 
 .menu-surface__actions {
@@ -2702,7 +2727,7 @@ body {
 }
 
 .menu-surface__summary {
-  padding: 2px 4px;
+  padding: 0 16px;
   font-size: 11px;
   font-weight: 500;
   color: var(--text-eyebrow);
@@ -2720,7 +2745,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 24px 12px;
+  padding: 24px 16px;
   text-align: center;
   color: var(--text-muted);
 }
@@ -2761,176 +2786,46 @@ body {
   filter: brightness(1.08);
 }
 
-/* ── Provider list + compact row ─────────────────────────────────────── */
+/* ── Card stack (one full UsageMenuCardView per provider) ───────────── */
 
-.menu-list {
+.menu-stack {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  max-height: calc(100vh - 110px);
+  /* upstream MenuContent VStack(spacing: 8) */
+  gap: 0;
+  max-height: calc(100vh - 80px);
   overflow-y: auto;
 }
 
-.menu-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  min-height: 36px;
-  padding: 5px 8px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
-}
-
-.menu-row:hover {
-  background: var(--surface-elevated);
-}
-
-.menu-row[data-selected] {
-  background: var(--accent-muted);
-  border-color: var(--accent);
-}
-
-.menu-row[data-error] .menu-row__dot {
-  background: var(--provider-status-error);
-}
-
-.menu-row__dot {
-  flex-shrink: 0;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--provider-status-ok);
-}
-
-.menu-row__dot[data-state="warn"] {
-  background: var(--provider-status-stale);
-}
-
-.menu-row__dot[data-state="critical"] {
-  background: var(--usage-bar-exhausted);
-}
-
-.menu-row__dot[data-state="error"] {
-  background: var(--provider-status-error);
-}
-
-.menu-row__body {
+.menu-stack__item {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  gap: 1px;
 }
 
-.menu-row__line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+/* Hairline separator between stacked cards — mirrors SwiftUI Divider()
+   used at the top level of MenuContent between sections. */
+.menu-stack__sep {
+  height: 1px;
+  margin: 8px 16px;
+  background: var(--menu-popover-divider);
 }
 
-.menu-row__line--primary {
-  justify-content: space-between;
-}
-
-.menu-row__line--secondary {
-  justify-content: space-between;
-}
-
-.menu-row__name {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.menu-row__meta {
-  flex: 1;
-  min-width: 0;
-  font-size: 11px;
-  color: var(--text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.menu-row__err {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--provider-status-error);
-  white-space: nowrap;
-}
-
-/* ── Usage badge (percent pill, right-aligned in a row) ──────────────── */
-
-.usage-badge {
-  flex-shrink: 0;
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--surface-elevated);
-  color: var(--text-secondary);
-  min-width: 38px;
-  text-align: center;
-}
-
-.usage-badge[data-level="high"] {
-  color: var(--usage-bar-high);
-}
-
-.usage-badge[data-level="critical"] {
-  color: var(--usage-bar-critical);
-}
-
-.usage-badge[data-level="exhausted"] {
-  color: var(--usage-bar-exhausted);
-}
-
-/* ── Menu card (provider drill-in detail, mirrors UsageMenuCardView) ─── */
+/* ── Provider card — direct mirror of UsageMenuCardView ─────────────── */
 
 .menu-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 4px 4px;
-  min-width: 0;
+  /* outer VStack(alignment:.leading, spacing: 6) */
+  gap: 6px;
+  /* .padding(.horizontal, 16) .padding(.top, 2) .padding(.bottom, 2) */
+  padding: 2px 16px;
 }
 
-.menu-card__back {
-  align-self: flex-start;
-  margin-bottom: 2px;
-  padding: 2px 8px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.menu-card__back:hover {
-  background: var(--surface-elevated);
-  color: var(--text-primary);
-}
-
+/* Header VStack(spacing: 3) with two HStacks */
 .menu-card__header {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .menu-card__title-row {
@@ -2940,6 +2835,7 @@ body {
   gap: 8px;
 }
 
+/* providerName: Font.headline + .semibold ≈ 13px / 600 */
 .menu-card__name {
   font-size: 13px;
   font-weight: 600;
@@ -2949,13 +2845,15 @@ body {
   text-overflow: ellipsis;
 }
 
+/* email: Font.subheadline secondary ≈ 12px */
 .menu-card__email {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 55%;
+  max-width: 60%;
+  text-align: right;
 }
 
 .menu-card__subtitle-row {
@@ -2965,26 +2863,22 @@ body {
   gap: 8px;
 }
 
+/* subtitle: Font.footnote secondary ≈ 11px */
 .menu-card__subtitle {
   flex: 1;
   min-width: 0;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* plan: Font.footnote secondary ≈ 11px, no special weight upstream */
 .menu-card__plan {
   font-size: 11px;
-  font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;
-}
-
-.menu-card__org {
-  font-size: 11px;
-  color: var(--text-muted);
 }
 
 .menu-card__error {
@@ -2996,104 +2890,108 @@ body {
   line-height: 1.35;
 }
 
+/* SwiftUI Divider() — single hairline using the system separator. */
 .menu-card__divider {
   height: 1px;
-  margin: 2px 0;
-  background: var(--panel-border);
+  margin: 0;
+  background: var(--menu-popover-divider);
+}
+
+/* Section group VStack — upstream uses spacing 12 between groups,
+   spacing 6 inside MetricRow / Cost / etc. */
+.menu-card__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.menu-card__group-title {
+  /* upstream: .font(.body).fontWeight(.medium) ≈ 13px / 500 */
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .menu-card__metrics {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  /* upstream MetricRow stack uses spacing 12 between rows */
+  gap: 12px;
 }
+
+/* ── Metric row ─────────────────────────────────────────────────────── */
 
 .menu-metric {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-}
-
-.menu-metric__meta {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-.menu-metric__exhausted {
-  color: var(--provider-status-error);
-  font-weight: 600;
-}
-
-/* Override UsageBar label sizing inside the menu card so the metric
-   rows keep a compact, single-line label like the upstream
-   `MetricRow`. */
-.menu-card .usage-bar {
+  /* upstream: VStack(alignment:.leading, spacing: 6) */
   gap: 6px;
 }
 
-.menu-card .usage-bar__label {
-  font-size: 11px;
-  font-weight: 600;
-  min-width: 64px;
-  color: var(--text-secondary);
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.menu-card .usage-bar__pct {
-  font-size: 11px;
-  color: var(--text-primary);
-  min-width: 30px;
-}
-
-/* ── Shared section chrome ──────────────────────────────────────────── */
-
-.menu-card__section {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.menu-card__section-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-eyebrow);
-}
-
-.menu-card__rows {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-}
-
-.menu-card__row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.menu-card__row dt {
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-.menu-card__row dd {
-  margin: 0;
-  color: var(--text-primary);
+.menu-metric__title {
+  /* upstream: .font(.body).fontWeight(.medium) */
+  font-size: 13px;
   font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* UsageProgressBar — Capsule track + Capsule fill, .frame(height: 6) */
+.menu-metric__bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--usage-bar-track);
+  overflow: hidden;
+}
+
+.menu-metric__bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--usage-bar-normal);
+  transition: width 0.3s ease;
+}
+
+.menu-metric__bar-fill[data-level="high"] { background: var(--usage-bar-high); }
+.menu-metric__bar-fill[data-level="critical"] { background: var(--usage-bar-critical); }
+.menu-metric__bar-fill[data-level="exhausted"] { background: var(--usage-bar-exhausted); }
+
+/* HStack(.firstTextBaseline) percent label — reset countdown */
+.menu-metric__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-metric__pct {
+  /* upstream: .font(.footnote) ≈ 11px primary */
+  font-size: 11px;
+  color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Pace section (expected vs actual) ──────────────────────────────── */
+.menu-metric__reset {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.menu-metric__exhausted {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--provider-status-error);
+}
+
+/* ── Cost section (upstream `tokenUsage` block) ─────────────────────── */
+
+.menu-card__cost-line {
+  font-size: 11px; /* upstream: .font(.footnote) */
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.menu-card__cost-line--muted {
+  color: var(--text-secondary);
+}
+
+/* ── Pace section (Tauri-only; sits below cost in the same card) ────── */
 
 .menu-card__pace {
   gap: 4px;
@@ -3103,12 +3001,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-}
-
-.menu-card__pace-label-group {
-  display: inline-flex;
-  align-items: center;
   gap: 6px;
 }
 
@@ -3167,32 +3059,8 @@ body {
   gap: 10px;
 }
 
-/* ── Pop-out split layout ────────────────────────────────────────────── */
-
-.popout-split {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-@media (min-width: 600px) {
-  .popout-split--open {
-    flex-direction: row;
-    align-items: stretch;
-  }
-
-  .popout-split--open .popout-split__list {
-    flex: 0 0 220px;
-    max-height: calc(100vh - 140px);
-  }
-
-  .popout-split--open .popout-split__detail {
-    flex: 1;
-    min-width: 0;
-    max-height: calc(100vh - 140px);
-    overflow-y: auto;
-    padding-left: 10px;
-    border-left: 1px solid var(--panel-border);
-  }
+/* Subtle outline for a deep-linked card in the pop-out window. */
+.menu-stack__item[data-deeplinked] .menu-card {
+  background: var(--surface-elevated);
+  border-radius: 6px;
 }
