@@ -177,7 +177,7 @@
   --provider-icon-bg: rgba(255, 255, 255, 0.04);
 
   /* Phase 9 — Tray / pop-out pace badges + usage bar tokens. */
-  --usage-bar-track: rgba(255, 255, 255, 0.08);
+  --usage-bar-track: rgba(255, 255, 255, 0.15);
   --usage-bar-normal: #0a84ff;
   --usage-bar-high: #ffd166;
   --usage-bar-critical: #ff9f43;
@@ -2935,10 +2935,10 @@ body {
   flex-shrink: 0;
 }
 
-/* providerName: Font.headline + .semibold ≈ 13px / 600 */
+/* providerName: Font.headline + .semibold — use 500 on Windows for parity */
 .menu-card__name {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -3006,9 +3006,9 @@ body {
 }
 
 .menu-card__group-title {
-  /* upstream: .font(.body).fontWeight(.medium) ≈ 13px / 500 */
+  /* upstream: .font(.body).fontWeight(.medium) — use 400 on Windows */
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-primary);
 }
 
@@ -3027,9 +3027,9 @@ body {
 }
 
 .menu-metric__title {
-  /* upstream: .font(.body).fontWeight(.medium) */
+  /* upstream: .font(.body).fontWeight(.medium) — 400 on Windows for visual parity */
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--text-primary);
 }
 
@@ -3311,7 +3311,8 @@ body {
 /* ── Menu card / metric row tightening ────────────────────────────── */
 .menu-card__name {
   font-size: var(--font-headline);
-  font-weight: 600;
+  /* upstream .semibold (600) renders too heavy on Windows; 500 is visually closer */
+  font-weight: 500;
   letter-spacing: -0.005em;
 }
 .menu-card__email,
@@ -3326,7 +3327,8 @@ body {
 .menu-card__group-title,
 .menu-metric__title {
   font-size: var(--font-body);
-  font-weight: 500;
+  /* Windows renders 500 heavier than macOS; 400 matches upstream .medium visually */
+  font-weight: 400;
 }
 .menu-metric__bar,
 .menu-card__pace-track {
