@@ -34,6 +34,9 @@ pub struct UpdateStatePayload {
     pub release_url: Option<String>,
     pub can_download: bool,
     pub can_apply: bool,
+    /// Unix-ms timestamp of the last completed update check (success or failure).
+    /// `None` means the app has never checked for updates during this session.
+    pub last_checked_at_ms: Option<i64>,
 }
 
 impl UpdateState {
@@ -47,6 +50,7 @@ impl UpdateState {
                 release_url: None,
                 can_download: false,
                 can_apply: false,
+                last_checked_at_ms: None,
             },
             Self::Checking => UpdateStatePayload {
                 status: "checking",
@@ -56,6 +60,7 @@ impl UpdateState {
                 release_url: None,
                 can_download: false,
                 can_apply: false,
+                last_checked_at_ms: None,
             },
             Self::Available(v) => UpdateStatePayload {
                 status: "available",
@@ -65,6 +70,7 @@ impl UpdateState {
                 release_url: None,
                 can_download: false,
                 can_apply: false,
+                last_checked_at_ms: None,
             },
             Self::Downloading(p) => UpdateStatePayload {
                 status: "downloading",
@@ -74,6 +80,7 @@ impl UpdateState {
                 release_url: None,
                 can_download: false,
                 can_apply: false,
+                last_checked_at_ms: None,
             },
             Self::Ready => UpdateStatePayload {
                 status: "ready",
@@ -83,6 +90,7 @@ impl UpdateState {
                 release_url: None,
                 can_download: false,
                 can_apply: false,
+                last_checked_at_ms: None,
             },
             Self::Error(e) => UpdateStatePayload {
                 status: "error",
@@ -92,6 +100,7 @@ impl UpdateState {
                 release_url: None,
                 can_download: false,
                 can_apply: false,
+                last_checked_at_ms: None,
             },
         }
     }
@@ -118,6 +127,8 @@ pub struct AppState {
     pub update_state: UpdateState,
     /// Full update metadata from the last successful check.
     pub update_info: Option<codexbar::updater::UpdateInfo>,
+    /// Unix-ms timestamp of the last completed update check.
+    pub last_update_check_ms: Option<i64>,
     /// Path to a downloaded installer ready to apply.
     pub installer_path: Option<PathBuf>,
     /// Proof-harness configuration (set when `CODEXBAR_PROOF_MODE` is active).
@@ -155,6 +166,7 @@ impl AppState {
             is_refreshing: false,
             update_state: UpdateState::Idle,
             update_info: None,
+            last_update_check_ms: None,
             installer_path: None,
             proof_config: None,
             notification_manager: codexbar::notifications::NotificationManager::new(),
@@ -196,6 +208,7 @@ impl AppState {
             p.can_download = info.supports_auto_download();
             p.can_apply = info.supports_auto_apply();
         }
+        p.last_checked_at_ms = self.last_update_check_ms;
         p
     }
 }

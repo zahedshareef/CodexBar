@@ -1630,6 +1630,7 @@ pub async fn check_for_updates(
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.update_state = new_state;
         guard.update_info = new_info;
+        guard.last_update_check_ms = Some(chrono::Utc::now().timestamp_millis());
         guard.update_payload()
     };
     events::emit_update_state_changed(&app, &payload);

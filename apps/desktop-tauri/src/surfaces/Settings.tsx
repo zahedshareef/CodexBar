@@ -22,6 +22,7 @@ import { useSettings } from "../hooks/useSettings";
 import { useSurfaceTarget } from "../hooks/useSurfaceMode";
 import { useUpdateState } from "../hooks/useUpdateState";
 import { useLocale } from "../hooks/useLocale";
+import { formatRelativeUpdated } from "../lib/relativeTime";
 import type { LocaleKey } from "../i18n/keys";
 import {
   ProvidersSidebar,
@@ -309,20 +310,8 @@ function GeneralTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">{t("SectionRefresh")}</h3>
-      <Field
-        label={t("RefreshIntervalLabel")}
-        description={t("RefreshIntervalHelper")}
-      >
-        <NumberInput
-          value={settings.refreshIntervalSecs}
-          min={0}
-          max={3600}
-          step={30}
-          disabled={saving}
-          onChange={(v) => set({ refreshIntervalSecs: v })}
-        />
-      </Field>
+      {/* Refresh interval lives on the Advanced tab (Phase 8). */}
+      {/* TODO(Phase 7): General tab may need re-layout after Refresh move */}
 
       <h3 className="settings-section__title">{t("SectionNotifications")}</h3>
       <Field
@@ -677,7 +666,63 @@ function DisplayTab({ settings, set, saving }: TabProps) {
   const { t } = useLocale();
   return (
     <section className="settings-section">
-      <h3 className="settings-section__title">{t("TrayIcon")}</h3>
+      <h3 className="settings-section__title">{t("SectionUsageRendering")}</h3>
+      <Field
+        label={t("ShowCreditsExtra")}
+        description={t("ShowCreditsExtraHelper")}
+      >
+        <Toggle
+          checked={settings.showCreditsExtraUsage}
+          disabled={saving}
+          onChange={(v) => set({ showCreditsExtraUsage: v })}
+        />
+      </Field>
+
+      <h3 className="settings-section__title">{t("PrivacyTitle")}</h3>
+      <Field
+        label={t("HidePersonalInfo")}
+        description={t("HidePersonalInfoHelper")}
+      >
+        <Toggle
+          checked={settings.hidePersonalInfo}
+          disabled={saving}
+          onChange={(v) => set({ hidePersonalInfo: v })}
+        />
+      </Field>
+    </section>
+  );
+}
+
+// ── Advanced ─────────────────────────────────────────────────────────
+
+function AdvancedTab({ settings, set, saving }: TabProps) {
+  const { t } = useLocale();
+  const { updateState, checkNow } = useUpdateState();
+  const lastCheckedDisplay = formatRelativeUpdated(
+    updateState.lastCheckedAt,
+    t,
+  );
+
+  return (
+    <section className="settings-section">
+      {/* ── Refresh ───────────────────────────────────────────────── */}
+      <h3 className="settings-section__title">{t("SectionRefresh")}</h3>
+      <Field
+        label={t("RefreshIntervalLabel")}
+        description={t("RefreshIntervalHelper")}
+      >
+        <NumberInput
+          value={settings.refreshIntervalSecs}
+          min={0}
+          max={3600}
+          step={30}
+          disabled={saving}
+          onChange={(v) => set({ refreshIntervalSecs: v })}
+        />
+      </Field>
+
+      {/* ── Menu Bar ──────────────────────────────────────────────── */}
+      <h3 className="settings-section__title">{t("MenuBar")}</h3>
       <Field
         label={t("TrayIconModeLabel")}
         description={t("TrayIconModeHelper")}
@@ -722,7 +767,6 @@ function DisplayTab({ settings, set, saving }: TabProps) {
           onChange={(v) => set({ menuBarShowsPercent: v })}
         />
       </Field>
-
       <Field label={t("DisplayModeLabel")} description={t("DisplayModeHelper")}>
         <Select
           value={settings.menuBarDisplayMode}
@@ -735,23 +779,11 @@ function DisplayTab({ settings, set, saving }: TabProps) {
           onChange={(v) => set({ menuBarDisplayMode: v as MenuBarDisplayMode })}
         />
       </Field>
-
-      <h3 className="settings-section__title">{t("SectionUsageRendering")}</h3>
       <Field label={t("ShowAsUsedLabel")} description={t("ShowAsUsedHelper")}>
         <Toggle
           checked={settings.showAsUsed}
           disabled={saving}
           onChange={(v) => set({ showAsUsed: v })}
-        />
-      </Field>
-      <Field
-        label={t("ShowCreditsExtra")}
-        description={t("ShowCreditsExtraHelper")}
-      >
-        <Toggle
-          checked={settings.showCreditsExtraUsage}
-          disabled={saving}
-          onChange={(v) => set({ showCreditsExtraUsage: v })}
         />
       </Field>
       <Field
@@ -765,7 +797,8 @@ function DisplayTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">{t("Animations")}</h3>
+      {/* ── Fun ───────────────────────────────────────────────────── */}
+      <h3 className="settings-section__title">{t("Fun")}</h3>
       <Field
         label={t("EnableAnimationsLabel")}
         description={t("EnableAnimationsHelper")}
@@ -787,28 +820,46 @@ function DisplayTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
-      <h3 className="settings-section__title">{t("PrivacyTitle")}</h3>
+      {/* ── Credentials & Security ───────────────────────────────── */}
+      <h3 className="settings-section__title">
+        {t("SectionCredentialsSecurity")}
+      </h3>
       <Field
-        label={t("HidePersonalInfo")}
-        description={t("HidePersonalInfoHelper")}
+        label={t("AvoidKeychainPromptsLabel")}
+        description={t("AvoidKeychainPromptsHelper")}
       >
         <Toggle
-          checked={settings.hidePersonalInfo}
-          disabled={saving}
-          onChange={(v) => set({ hidePersonalInfo: v })}
+          checked={settings.claudeAvoidKeychainPrompts}
+          disabled={saving || settings.disableKeychainAccess}
+          onChange={(v) => set({ claudeAvoidKeychainPrompts: v })}
         />
       </Field>
-    </section>
-  );
-}
+      <Field
+        label={t("DisableAllKeychainLabel")}
+        description={t("DisableAllKeychainHelper")}
+      >
+        <Toggle
+          checked={settings.disableKeychainAccess}
+          disabled={saving}
+          onChange={(v) => set({ disableKeychainAccess: v })}
+        />
+      </Field>
 
-// ── Advanced ─────────────────────────────────────────────────────────
+      {/* ── Debug ────────────────────────────────────────────────── */}
+      <h3 className="settings-section__title">{t("SectionDebug")}</h3>
+      <Field
+        label={t("ShowDebugSettingsLabel")}
+        description={t("ShowDebugSettingsHelper")}
+      >
+        <Toggle
+          checked={settings.showDebugSettings}
+          disabled={saving}
+          onChange={(v) => set({ showDebugSettings: v })}
+        />
+      </Field>
 
-function AdvancedTab({ settings, set, saving }: TabProps) {
-  const { t } = useLocale();
-  return (
-    <section className="settings-section">
-      <h3 className="settings-section__title">{t("UpdatesTitle")}</h3>
+      {/* ── Updates ──────────────────────────────────────────────── */}
+      <h3 className="settings-section__title">{t("Updates")}</h3>
       <Field
         label={t("UpdateChannelChoice")}
         description={t("UpdateChannelChoiceHelper")}
@@ -843,7 +894,21 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
           onChange={(v) => set({ installUpdatesOnQuit: v })}
         />
       </Field>
+      <Field label={t("LastUpdated")}>
+        <div className="settings-field__row">
+          <span className="settings-field__value">{lastCheckedDisplay}</span>
+          <button
+            type="button"
+            className="credential-btn"
+            disabled={updateState.status === "checking"}
+            onClick={() => checkNow()}
+          >
+            {t("TrayCheckForUpdates")}
+          </button>
+        </div>
+      </Field>
 
+      {/* ── Language ─────────────────────────────────────────────── */}
       <h3 className="settings-section__title">{t("SectionLanguage")}</h3>
       <Field label={t("InterfaceLanguage")}>
         <Select
@@ -857,6 +922,7 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
         />
       </Field>
 
+      {/* ── Time ─────────────────────────────────────────────────── */}
       <h3 className="settings-section__title">{t("SectionTime")}</h3>
       <Field
         label={t("ResetTimeRelative")}
@@ -866,40 +932,6 @@ function AdvancedTab({ settings, set, saving }: TabProps) {
           checked={settings.resetTimeRelative}
           disabled={saving}
           onChange={(v) => set({ resetTimeRelative: v })}
-        />
-      </Field>
-
-      <h3 className="settings-section__title">{t("SectionCredentialsSecurity")}</h3>
-      <Field
-        label={t("AvoidKeychainPromptsLabel")}
-        description={t("AvoidKeychainPromptsHelper")}
-      >
-        <Toggle
-          checked={settings.claudeAvoidKeychainPrompts}
-          disabled={saving || settings.disableKeychainAccess}
-          onChange={(v) => set({ claudeAvoidKeychainPrompts: v })}
-        />
-      </Field>
-      <Field
-        label={t("DisableAllKeychainLabel")}
-        description={t("DisableAllKeychainHelper")}
-      >
-        <Toggle
-          checked={settings.disableKeychainAccess}
-          disabled={saving}
-          onChange={(v) => set({ disableKeychainAccess: v })}
-        />
-      </Field>
-
-      <h3 className="settings-section__title">{t("SectionDebug")}</h3>
-      <Field
-        label={t("ShowDebugSettingsLabel")}
-        description={t("ShowDebugSettingsHelper")}
-      >
-        <Toggle
-          checked={settings.showDebugSettings}
-          disabled={saving}
-          onChange={(v) => set({ showDebugSettings: v })}
         />
       </Field>
     </section>

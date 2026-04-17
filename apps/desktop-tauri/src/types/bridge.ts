@@ -280,6 +280,9 @@ export interface UpdateStatePayload {
   releaseUrl: string | null;
   canDownload: boolean;
   canApply: boolean;
+  /** Unix-ms timestamp of the last completed update check, or `null`
+   *  if the app has not checked during this session. */
+  lastCheckedAt: number | null;
 }
 
 // ── Credential store types ───────────────────────────────────────────
