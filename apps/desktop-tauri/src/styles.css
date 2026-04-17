@@ -18,6 +18,11 @@
   font-family:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro",
     "Segoe UI Variable", Inter, "Segoe UI", system-ui, sans-serif;
+  /* Force macOS-style thin font rendering instead of Windows ClearType
+     heavy strokes. WebView2 (Chromium) respects this. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   background: var(--app-bg, #1c1c1e);
   color: var(--text-primary, #f5f5f7);
 
