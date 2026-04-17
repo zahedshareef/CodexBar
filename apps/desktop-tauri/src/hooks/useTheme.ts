@@ -15,7 +15,8 @@ function prefersLight(): boolean {
 export function resolveTheme(preference: ThemePreference): ResolvedTheme {
   if (preference === "light") return "light";
   if (preference === "dark") return "dark";
-  return prefersLight() ? "light" : "dark";
+  // Default to dark — the natural state of a menu-bar utility app.
+  return "dark";
 }
 
 function apply(theme: ResolvedTheme) {

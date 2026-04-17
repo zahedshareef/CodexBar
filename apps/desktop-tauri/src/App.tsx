@@ -22,7 +22,7 @@ function AppInner() {
   const surface = useSurfaceSnapshot();
   const [state, setState] = useState<BootstrapState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [themePreference, setThemePreference] = useState<ThemePreference>("auto");
+  const [themePreference, setThemePreference] = useState<ThemePreference>("dark");
 
   useTheme(themePreference);
 
