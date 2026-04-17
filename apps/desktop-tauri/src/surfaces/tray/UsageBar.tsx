@@ -6,16 +6,18 @@ interface UsageBarProps {
   compact?: boolean;
 }
 
-function barColor(pct: number, exhausted: boolean): string {
-  if (exhausted) return "#ff6c6c";
-  if (pct >= 90) return "#ff9f43";
-  if (pct >= 70) return "#ffd166";
-  return "#5d87ff";
+type UsageLevel = "normal" | "high" | "critical" | "exhausted";
+
+function usageLevel(pct: number, exhausted: boolean): UsageLevel {
+  if (exhausted) return "exhausted";
+  if (pct >= 90) return "critical";
+  if (pct >= 70) return "high";
+  return "normal";
 }
 
 export default function UsageBar({ window: w, label, compact }: UsageBarProps) {
   const pct = Math.min(100, Math.max(0, w.usedPercent));
-  const color = barColor(pct, w.isExhausted);
+  const level = usageLevel(pct, w.isExhausted);
 
   return (
     <div className={`usage-bar ${compact ? "usage-bar--compact" : ""}`}>
@@ -23,7 +25,8 @@ export default function UsageBar({ window: w, label, compact }: UsageBarProps) {
       <div className="usage-bar__track">
         <div
           className="usage-bar__fill"
-          style={{ width: `${pct}%`, background: color }}
+          data-level={level}
+          style={{ width: `${pct}%` }}
         />
       </div>
       <span className="usage-bar__pct">{pct.toFixed(0)}%</span>

@@ -659,6 +659,14 @@ pub enum LocaleKey {
     TokenAccountTabHint,
     TokenAccountNoSupported,
     TokenAccountInlineSummary,
+
+    // Phase 9 - Tray / pop-out pace badges + countdowns
+    TrayPaceBadgeSlow,
+    TrayPaceBadgeSteady,
+    TrayPaceBadgeRacing,
+    TrayPaceBadgeBurning,
+    TrayResetsInLabel,
+    TrayResetsDueNow,
 }
 
 impl LocaleKey {
@@ -1307,6 +1315,14 @@ impl LocaleKey {
             }
             LocaleKey::TokenAccountNoSupported => "No providers currently support token accounts.",
             LocaleKey::TokenAccountInlineSummary => "Token accounts",
+
+            // Phase 9 - Tray / pop-out pace badges + countdowns
+            LocaleKey::TrayPaceBadgeSlow => "Slow",
+            LocaleKey::TrayPaceBadgeSteady => "Steady",
+            LocaleKey::TrayPaceBadgeRacing => "Racing",
+            LocaleKey::TrayPaceBadgeBurning => "Burning",
+            LocaleKey::TrayResetsInLabel => "Resets in {}",
+            LocaleKey::TrayResetsDueNow => "Resetting…",
         }
     }
 
@@ -1911,6 +1927,15 @@ impl LocaleKey {
             }
             LocaleKey::TokenAccountNoSupported => "当前没有支持令牌账户的服务商。",
             LocaleKey::TokenAccountInlineSummary => "令牌账户",
+
+            // Phase 9 - Tray / pop-out pace badges + countdowns
+            // REVIEW-i18n: short badge labels for usage pace categories
+            LocaleKey::TrayPaceBadgeSlow => "缓慢",
+            LocaleKey::TrayPaceBadgeSteady => "稳定",
+            LocaleKey::TrayPaceBadgeRacing => "加速",
+            LocaleKey::TrayPaceBadgeBurning => "超速",
+            LocaleKey::TrayResetsInLabel => "{} 后重置",
+            LocaleKey::TrayResetsDueNow => "正在重置…",
         }
     }
 }
@@ -2690,6 +2715,13 @@ impl LocaleKey {
             LocaleKey::TokenAccountInlineSummary,
             "TokenAccountInlineSummary",
         ),
+        // Phase 9 - Tray / pop-out pace badges + countdowns
+        (LocaleKey::TrayPaceBadgeSlow, "TrayPaceBadgeSlow"),
+        (LocaleKey::TrayPaceBadgeSteady, "TrayPaceBadgeSteady"),
+        (LocaleKey::TrayPaceBadgeRacing, "TrayPaceBadgeRacing"),
+        (LocaleKey::TrayPaceBadgeBurning, "TrayPaceBadgeBurning"),
+        (LocaleKey::TrayResetsInLabel, "TrayResetsInLabel"),
+        (LocaleKey::TrayResetsDueNow, "TrayResetsDueNow"),
     ];
 }
 

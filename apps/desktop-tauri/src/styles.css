@@ -21,6 +21,28 @@
   --provider-status-loading: #60a5fa;
   --provider-icon-ring: rgba(255, 255, 255, 0.08);
   --provider-icon-bg: rgba(255, 255, 255, 0.04);
+
+  /* Phase 9 — Tray / pop-out pace badges + usage bar tokens.
+   * Phase 12 will introduce light-mode overrides; keep hex colours
+   * out of component files. */
+  --usage-bar-track: rgba(255, 255, 255, 0.1);
+  --usage-bar-normal: #5d87ff;
+  --usage-bar-high: #ffd166;
+  --usage-bar-critical: #ff9f43;
+  --usage-bar-exhausted: #ff6c6c;
+
+  --pace-slow-bg: rgba(96, 165, 250, 0.16);
+  --pace-slow-fg: #60a5fa;
+  --pace-steady-bg: rgba(34, 197, 94, 0.14);
+  --pace-steady-fg: #22c55e;
+  --pace-racing-bg: rgba(251, 146, 60, 0.18);
+  --pace-racing-fg: #fb923c;
+  --pace-burning-bg: rgba(239, 71, 111, 0.18);
+  --pace-burning-fg: #ef476f;
+
+  --pace-track-expected-fg: rgba(143, 170, 255, 0.55);
+  --chart-cost-fg: #5d87ff;
+  --chart-credits-fg: #06d6a0;
 }
 
 * {
@@ -916,7 +938,7 @@ body {
   flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: rgba(142, 163, 255, 0.1);
+  background: var(--usage-bar-track);
   overflow: hidden;
 }
 
@@ -928,6 +950,17 @@ body {
   height: 100%;
   border-radius: 3px;
   transition: width 0.3s ease;
+  background: var(--usage-bar-normal);
+}
+
+.usage-bar__fill[data-level="high"] {
+  background: var(--usage-bar-high);
+}
+.usage-bar__fill[data-level="critical"] {
+  background: var(--usage-bar-critical);
+}
+.usage-bar__fill[data-level="exhausted"] {
+  background: var(--usage-bar-exhausted);
 }
 
 .usage-bar__pct {
@@ -1358,12 +1391,89 @@ body {
 .tray-detail__pace-fill {
   height: 100%;
   border-radius: 3px;
-  background: #5d87ff;
+  background: var(--usage-bar-normal);
   transition: width 0.3s ease;
 }
 
+.tray-detail__pace-fill[data-pace="slow"] {
+  background: var(--pace-slow-fg);
+}
+.tray-detail__pace-fill[data-pace="steady"] {
+  background: var(--pace-steady-fg);
+}
+.tray-detail__pace-fill[data-pace="racing"] {
+  background: var(--pace-racing-fg);
+}
+.tray-detail__pace-fill[data-pace="burning"] {
+  background: var(--pace-burning-fg);
+}
+
 .tray-detail__pace-fill--expected {
-  background: rgba(142, 163, 255, 0.35);
+  background: var(--pace-track-expected-fg) !important;
+}
+
+.tray-detail__pace-label[data-pace="slow"] {
+  color: var(--pace-slow-fg);
+}
+.tray-detail__pace-label[data-pace="steady"] {
+  color: var(--pace-steady-fg);
+}
+.tray-detail__pace-label[data-pace="racing"] {
+  color: var(--pace-racing-fg);
+}
+.tray-detail__pace-label[data-pace="burning"] {
+  color: var(--pace-burning-fg);
+}
+
+/* ── Pop-out / tray card: pace badge pill ──────────────────────────── */
+
+.tray-pace-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.tray-pace-badge[data-pace="slow"] {
+  background: var(--pace-slow-bg);
+  color: var(--pace-slow-fg);
+}
+.tray-pace-badge[data-pace="steady"] {
+  background: var(--pace-steady-bg);
+  color: var(--pace-steady-fg);
+}
+.tray-pace-badge[data-pace="racing"] {
+  background: var(--pace-racing-bg);
+  color: var(--pace-racing-fg);
+}
+.tray-pace-badge[data-pace="burning"] {
+  background: var(--pace-burning-bg);
+  color: var(--pace-burning-fg);
+}
+
+.tray-pace-badge__delta {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.tray-card__pace-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tray-card__pace-row .usage-bar {
+  flex: 1;
+  min-width: 0;
+}
+
+.tray-card__reset--countdown {
+  font-variant-numeric: tabular-nums;
+  color: var(--provider-row-text-secondary);
 }
 
 .tray-detail__pace-eta {

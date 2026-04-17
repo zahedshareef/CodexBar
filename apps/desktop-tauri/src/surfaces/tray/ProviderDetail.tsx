@@ -3,6 +3,8 @@ import type { PaceSnapshot, ProviderChartData, ProviderUsageSnapshot } from "../
 import { getProviderChartData } from "../../lib/tauri";
 import { useLocale } from "../../hooks/useLocale";
 import UsageBar from "./UsageBar";
+import PaceBadge from "./PaceBadge";
+import { paceCategory } from "./paceCategory";
 import {
   SimpleBarChart,
   StackedBarChart,
@@ -51,26 +53,6 @@ function paceStageKey(stage: PaceSnapshot["stage"]): LocaleKey {
       return "DetailPaceFarBehind";
     default:
       return "DetailPaceOnTrack";
-  }
-}
-
-function paceColor(stage: PaceSnapshot["stage"]): string {
-  switch (stage) {
-    case "on_track":
-      return "#06d6a0";
-    case "slightly_ahead":
-    case "ahead":
-      return "#5d87ff";
-    case "far_ahead":
-      return "#a78bfa";
-    case "slightly_behind":
-      return "#ffd166";
-    case "behind":
-      return "#fb923c";
-    case "far_behind":
-      return "#ef476f";
-    default:
-      return "#8b95b0";
   }
 }
 
@@ -163,12 +145,15 @@ export default function ProviderDetail({
         <div className="tray-detail__pace">
           <div className="tray-detail__pace-header">
             <span className="tray-detail__pace-title">{t("DetailPaceTitle")}</span>
-            <span
-              className="tray-detail__pace-label"
-              style={{ color: paceColor(provider.pace.stage) }}
-            >
-              {t(paceStageKey(provider.pace.stage))} ({provider.pace.deltaPercent >= 0 ? "+" : ""}
-              {provider.pace.deltaPercent.toFixed(1)}%)
+            <span className="tray-detail__pace-label-group">
+              <span
+                className="tray-detail__pace-label"
+                data-pace={paceCategory(provider.pace.stage)}
+              >
+                {t(paceStageKey(provider.pace.stage))} ({provider.pace.deltaPercent >= 0 ? "+" : ""}
+                {provider.pace.deltaPercent.toFixed(1)}%)
+              </span>
+              <PaceBadge pace={provider.pace} showDelta={false} />
             </span>
           </div>
           <div className="tray-detail__pace-bars">
@@ -182,10 +167,8 @@ export default function ProviderDetail({
             <div className="tray-detail__pace-track">
               <div
                 className="tray-detail__pace-fill"
-                style={{
-                  width: `${provider.pace.actualUsedPercent.toFixed(1)}%`,
-                  background: paceColor(provider.pace.stage),
-                }}
+                data-pace={paceCategory(provider.pace.stage)}
+                style={{ width: `${provider.pace.actualUsedPercent.toFixed(1)}%` }}
                 title={`Actual: ${provider.pace.actualUsedPercent.toFixed(1)}%`}
               />
             </div>
