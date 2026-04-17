@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { useLocale } from "../hooks/useLocale";
+import codexbarIcon from "../assets/codexbar-icon.png";
 
 export interface MenuSurfaceAction {
   icon: string;
@@ -52,7 +53,7 @@ export default function MenuSurface({
     <div className={`menu-surface menu-surface--${variant}`}>
       <header className="menu-surface__header">
         <div className="menu-surface__brand">
-          <span className="menu-surface__brand-icon" aria-hidden>◆</span>
+          <img className="menu-surface__brand-icon" src={codexbarIcon} alt="" width="20" height="20" />
           <span className="menu-surface__title">CodexBar</span>
         </div>
         <div className="menu-surface__actions">

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useUpdateState } from "../../../hooks/useUpdateState";
 import { getAppInfo } from "../../../lib/tauri";
 import type { AppInfoBridge } from "../../../types/bridge";
+import codexbarIcon from "../../../assets/codexbar-icon.png";
 
 export default function AboutTab() {
   const [appInfo, setAppInfo] = useState<AppInfoBridge | null>(null);
@@ -33,7 +34,7 @@ export default function AboutTab() {
   return (
     <section className="settings-section about-section">
       <div className="about-header">
-        <div className="about-icon">⬡</div>
+        <img className="about-icon" src={codexbarIcon} alt="CodexBar" />
         <div className="about-title-block">
           <h2 className="about-title">{appInfo.name}</h2>
           <p className="about-version">
