@@ -338,9 +338,9 @@ body {
 .summary dt {
   color: var(--text-eyebrow);
   font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .summary dd {
@@ -714,9 +714,9 @@ body {
   padding: 1px 6px;
   border-radius: 4px;
   font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .credential-card__badge--set {
@@ -1327,9 +1327,9 @@ body {
   margin: 0 0 8px;
   font-size: 0.82rem;
   color: var(--text-eyebrow);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 .tray-detail__cost-row {
@@ -1493,9 +1493,9 @@ body {
 
 .tray-detail__pace-title {
   font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-eyebrow);
 }
 
@@ -1825,10 +1825,10 @@ body {
 
 .provider-detail-section h4 {
   margin: 0 0 6px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--text-eyebrow);
 }
 
@@ -1895,15 +1895,16 @@ body {
 }
 
 .provider-icon--svg svg {
-  width: 72%;
-  height: 72%;
+  width: 84%;
+  height: 84%;
+  display: block;
 }
 
 .provider-icon--letter {
   font-weight: 700;
   font-size: 0.78rem;
   color: var(--provider-brand, var(--accent));
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 /* ── Providers sidebar (Phase 6a) ─────────────────────────────────── */
@@ -2438,10 +2439,10 @@ body {
   gap: 8px;
   cursor: pointer;
   padding: 6px 0;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--provider-row-text-primary);
   user-select: none;
 }
@@ -3374,15 +3375,17 @@ body {
 }
 .settings-tabs {
   display: flex;
-  gap: 4px;
-  padding: 8px 12px;
+  gap: 2px;
+  padding: 6px 12px;
   margin: 0 0 4px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
   border-bottom: 1px solid var(--panel-border);
   border-radius: 0;
-  justify-content: center;
+  justify-content: flex-start;
   overflow-x: auto;
+  scrollbar-width: none;
 }
+.settings-tabs::-webkit-scrollbar { display: none; }
 [data-theme="light"] .settings-tabs {
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0));
 }
@@ -3392,19 +3395,22 @@ body {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  min-width: 64px;
-  padding: 6px 10px;
+  flex: 0 0 auto;
+  min-width: 56px;
+  padding: 4px 8px;
   border-radius: 6px;
   background: transparent;
   color: var(--text-secondary);
-  font-size: var(--font-caption);
+  font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
   transition: background 0.12s ease, color 0.12s ease;
+  border: none;
+  cursor: pointer;
 }
 .settings-tab__icon {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
 }
 .settings-tab:hover {
@@ -3437,17 +3443,17 @@ body {
 
 /* ── Grouped form (SwiftUI Form .grouped) ─────────────────────────── */
 .settings-section {
-  margin: 0 0 22px;
+  margin: 0 0 16px;
   padding: 0;
   background: transparent;
   gap: 0;
 }
 .settings-section__title {
-  margin: 0 4px 8px;
-  font-size: var(--font-caption);
+  margin: 0 4px 6px;
+  font-size: 0.82rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--text-secondary);
 }
 .settings-section__hint {
@@ -3464,12 +3470,20 @@ body {
 .settings-section > .settings-field:first-of-type {
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
+  border-top: 1px solid var(--panel-border);
 }
 .settings-section > .settings-field:last-of-type {
   border-bottom-left-radius: 8px;
   border-bottom-right-radius: 8px;
+  border-bottom: 1px solid var(--panel-border);
+}
+.settings-section > .settings-field {
+  border-left: 1px solid var(--panel-border);
+  border-right: 1px solid var(--panel-border);
 }
 .settings-field {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
   border-radius: 0;

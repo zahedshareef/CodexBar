@@ -34,6 +34,25 @@ function formatCurrency(amount: number, code: string): string {
   }
 }
 
+/**
+ * Format a backend `updatedAt` timestamp as a short relative string
+ * ("just now", "2m ago", "3h ago", "5d ago"). If the value isn't a parseable
+ * ISO datetime, return it unchanged so manual / preformatted strings still
+ * render verbatim.
+ */
+function formatRelative(updatedAt: string): string {
+  const ts = Date.parse(updatedAt);
+  if (Number.isNaN(ts)) return updatedAt;
+  const diffSec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.round(diffHr / 24);
+  return `${diffDay}d ago`;
+}
+
 function paceStageKey(stage: PaceSnapshot["stage"]): LocaleKey {
   switch (stage) {
     case "on_track":
@@ -191,7 +210,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
           <span className="menu-card__subtitle">
             {provider.sourceLabel}
             {" · "}
-            {t("DetailUpdatedPrefix")} {provider.updatedAt}
+            {t("DetailUpdatedPrefix")} {formatRelative(provider.updatedAt)}
           </span>
           {provider.planName && (
             <span className="menu-card__plan">{provider.planName}</span>

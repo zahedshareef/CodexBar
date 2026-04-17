@@ -27,6 +27,19 @@ import vertexai from "./icons/ProviderIcon-vertexai.svg?raw";
 import warp from "./icons/ProviderIcon-warp.svg?raw";
 import zai from "./icons/ProviderIcon-zai.svg?raw";
 
+/**
+ * Replace hard-coded fills/strokes in the bundled brand SVGs with
+ * `currentColor` so the icon picks up the brand color via CSS, making each
+ * provider visually distinct in compact tray rows.
+ */
+function tint(raw: string): string {
+  return raw
+    .replace(/fill="white"/gi, 'fill="currentColor"')
+    .replace(/fill="#fff"/gi, 'fill="currentColor"')
+    .replace(/fill="#ffffff"/gi, 'fill="currentColor"')
+    .replace(/stroke="white"/gi, 'stroke="currentColor"');
+}
+
 export interface ProviderIcon {
   /** CLI-style provider id (lowercase, normalized). */
   id: string;
@@ -39,30 +52,30 @@ export interface ProviderIcon {
 }
 
 const RAW: Record<string, string> = {
-  alibaba,
-  amp,
-  antigravity,
-  augment,
-  claude,
-  codex,
-  copilot,
-  cursor,
-  factory,
-  gemini,
-  jetbrains,
-  kilo,
-  kimi,
-  kiro,
-  minimax,
-  ollama,
-  opencode,
-  opencodego,
-  openrouter,
-  perplexity,
-  synthetic,
-  vertexai,
-  warp,
-  zai,
+  alibaba: tint(alibaba),
+  amp: tint(amp),
+  antigravity: tint(antigravity),
+  augment: tint(augment),
+  claude: tint(claude),
+  codex: tint(codex),
+  copilot: tint(copilot),
+  cursor: tint(cursor),
+  factory: tint(factory),
+  gemini: tint(gemini),
+  jetbrains: tint(jetbrains),
+  kilo: tint(kilo),
+  kimi: tint(kimi),
+  kiro: tint(kiro),
+  minimax: tint(minimax),
+  ollama: tint(ollama),
+  opencode: tint(opencode),
+  opencodego: tint(opencodego),
+  openrouter: tint(openrouter),
+  perplexity: tint(perplexity),
+  synthetic: tint(synthetic),
+  vertexai: tint(vertexai),
+  warp: tint(warp),
+  zai: tint(zai),
 };
 
 /**
