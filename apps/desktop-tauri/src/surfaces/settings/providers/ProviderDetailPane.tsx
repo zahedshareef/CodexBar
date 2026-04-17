@@ -9,6 +9,7 @@ import {
   getProviderCookieSourceOptions,
   getProviderDetail,
   getProviderRegionOptions,
+  getTokenAccountProviders,
   openProviderDashboard,
   openProviderStatusPage,
   refreshProviders,
@@ -30,6 +31,7 @@ import { JetBrainsCreds } from "./sections/credentials/JetBrainsCreds";
 import { KiroCreds } from "./sections/credentials/KiroCreds";
 import { ClaudeCreds } from "./sections/credentials/ClaudeCreds";
 import { OpenAiExtras } from "./sections/credentials/OpenAiExtras";
+import { TokenAccountsPanel } from "../tokens/TokenAccountsPanel";
 
 interface Props {
   providerId: string | null;
@@ -43,16 +45,36 @@ interface Props {
  * (lines 4301–6698). Only the header, usage bars, pace, cost and the
  * quick-action bar are implemented here. Cookie-source picker (6c),
  * credential detection UIs (6d), inline token accounts (6e) and charts
- * (6f) are left as `data-deferred` placeholders below.
+ * (6f) are wired in as sub-sections below.
  */
 export function ProviderDetailPane({ providerId }: Props) {
   const { t } = useLocale();
   const [detail, setDetail] = useState<ProviderDetail | null>(null);
   const [cookieOptions, setCookieOptions] = useState<CookieSourceOption[]>([]);
   const [regionOptions, setRegionOptions] = useState<RegionOption[]>([]);
+  const [tokenProviderIds, setTokenProviderIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Load the set of providers that support token accounts once.
+  useEffect(() => {
+    let cancelled = false;
+    void getTokenAccountProviders()
+      .then((list) => {
+        if (!cancelled) {
+          setTokenProviderIds(new Set(list.map((p) => p.providerId)));
+        }
+      })
+      .catch(() => {
+        // Non-fatal: inline token section will simply not render.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const load = useCallback(async (id: string) => {
     setLoading(true);
@@ -209,12 +231,9 @@ export function ProviderDetailPane({ providerId }: Props) {
         onChanged={() => void load(detail.id)}
       />
       <CredentialsDispatcher providerId={detail.id} t={t} />
-      <section
-        className="provider-detail-section provider-detail-section--deferred"
-        data-deferred="6e"
-      >
-        Inline token accounts — Phase 6e
-      </section>
+      {tokenProviderIds.has(detail.id) && (
+        <TokenAccountsPanel providerId={detail.id} compact />
+      )}
       <ChartsSection
         providerId={detail.id}
         accountEmail={detail.email}

@@ -637,6 +637,21 @@ pub enum LocaleKey {
     CredsKiroHelperAvailablePrefix,
     CredsKiroHelperMissing,
     CredsOpenAiHistoryHelp,
+
+    // Tauri desktop shell — Token accounts (Phase 6e, review)
+    TokenAccountActive,
+    TokenAccountSetActive,
+    TokenAccountRemove,
+    TokenAccountAddButton,
+    TokenAccountEmpty,
+    TokenAccountLabelPlaceholder,
+    TokenAccountProviderLabel,
+    TokenAccountProviderPlaceholder,
+    TokenAccountAddedPrefix,
+    TokenAccountUsedPrefix,
+    TokenAccountTabHint,
+    TokenAccountNoSupported,
+    TokenAccountInlineSummary,
 }
 
 impl LocaleKey {
@@ -1258,6 +1273,23 @@ impl LocaleKey {
             LocaleKey::CredsOpenAiHistoryHelp => {
                 "Enable historical tracking to see usage over time."
             }
+
+            // Tauri desktop shell — Token accounts (Phase 6e, review)
+            LocaleKey::TokenAccountActive => "Active",
+            LocaleKey::TokenAccountSetActive => "Set Active",
+            LocaleKey::TokenAccountRemove => "Remove",
+            LocaleKey::TokenAccountAddButton => "Add Account",
+            LocaleKey::TokenAccountEmpty => "No accounts saved for this provider.",
+            LocaleKey::TokenAccountLabelPlaceholder => "Label (e.g. Work, Personal)…",
+            LocaleKey::TokenAccountProviderLabel => "Provider",
+            LocaleKey::TokenAccountProviderPlaceholder => "Select provider…",
+            LocaleKey::TokenAccountAddedPrefix => "Added",
+            LocaleKey::TokenAccountUsedPrefix => "Used",
+            LocaleKey::TokenAccountTabHint => {
+                "Manage multiple session tokens or API tokens per provider. The active account is used for all fetches. Only providers that require manual tokens appear here."
+            }
+            LocaleKey::TokenAccountNoSupported => "No providers currently support token accounts.",
+            LocaleKey::TokenAccountInlineSummary => "Token accounts",
         }
     }
 
@@ -1837,6 +1869,23 @@ impl LocaleKey {
             LocaleKey::CredsKiroHelperAvailablePrefix => "检测到于",
             LocaleKey::CredsKiroHelperMissing => "kiro-cli：未在 PATH 或常见安装位置找到。",
             LocaleKey::CredsOpenAiHistoryHelp => "启用历史跟踪以查看一段时间内的使用情况。",
+
+            // Tauri desktop shell — Token accounts (Phase 6e, review)
+            LocaleKey::TokenAccountActive => "活动",
+            LocaleKey::TokenAccountSetActive => "设为活动",
+            LocaleKey::TokenAccountRemove => "移除",
+            LocaleKey::TokenAccountAddButton => "添加账户",
+            LocaleKey::TokenAccountEmpty => "该服务商尚未保存任何账户。",
+            LocaleKey::TokenAccountLabelPlaceholder => "标签（如工作、个人）…",
+            LocaleKey::TokenAccountProviderLabel => "服务商",
+            LocaleKey::TokenAccountProviderPlaceholder => "选择服务商…",
+            LocaleKey::TokenAccountAddedPrefix => "添加于",
+            LocaleKey::TokenAccountUsedPrefix => "上次使用",
+            LocaleKey::TokenAccountTabHint => {
+                "按服务商管理多个会话令牌或 API 令牌。所有数据拉取都会使用活动账户。仅需要手动令牌的服务商会显示在此处。"
+            }
+            LocaleKey::TokenAccountNoSupported => "当前没有支持令牌账户的服务商。",
+            LocaleKey::TokenAccountInlineSummary => "令牌账户",
         }
     }
 }
@@ -2571,6 +2620,38 @@ impl LocaleKey {
         ),
         (LocaleKey::CredsKiroHelperMissing, "CredsKiroHelperMissing"),
         (LocaleKey::CredsOpenAiHistoryHelp, "CredsOpenAiHistoryHelp"),
+        // Phase 6e — Token accounts (review)
+        (LocaleKey::TokenAccountActive, "TokenAccountActive"),
+        (LocaleKey::TokenAccountSetActive, "TokenAccountSetActive"),
+        (LocaleKey::TokenAccountRemove, "TokenAccountRemove"),
+        (LocaleKey::TokenAccountAddButton, "TokenAccountAddButton"),
+        (LocaleKey::TokenAccountEmpty, "TokenAccountEmpty"),
+        (
+            LocaleKey::TokenAccountLabelPlaceholder,
+            "TokenAccountLabelPlaceholder",
+        ),
+        (
+            LocaleKey::TokenAccountProviderLabel,
+            "TokenAccountProviderLabel",
+        ),
+        (
+            LocaleKey::TokenAccountProviderPlaceholder,
+            "TokenAccountProviderPlaceholder",
+        ),
+        (
+            LocaleKey::TokenAccountAddedPrefix,
+            "TokenAccountAddedPrefix",
+        ),
+        (LocaleKey::TokenAccountUsedPrefix, "TokenAccountUsedPrefix"),
+        (LocaleKey::TokenAccountTabHint, "TokenAccountTabHint"),
+        (
+            LocaleKey::TokenAccountNoSupported,
+            "TokenAccountNoSupported",
+        ),
+        (
+            LocaleKey::TokenAccountInlineSummary,
+            "TokenAccountInlineSummary",
+        ),
     ];
 }
 
