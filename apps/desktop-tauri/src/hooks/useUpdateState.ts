@@ -33,6 +33,7 @@ const IDLE_PAYLOAD: UpdateStatePayload = {
   releaseUrl: null,
   canDownload: false,
   canApply: false,
+  lastCheckedAt: null,
 };
 
 /**

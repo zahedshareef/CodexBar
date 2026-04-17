@@ -267,6 +267,17 @@ body {
   flex-shrink: 0;
 }
 
+.settings-field__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.settings-field__value {
+  font-size: 0.85rem;
+  color: var(--provider-row-text-secondary);
+}
+
 /* toggle switch */
 .toggle {
   position: relative;
