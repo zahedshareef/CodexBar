@@ -5,12 +5,13 @@ import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
 import { useLocale } from "../hooks/useLocale";
-import ProviderCard from "./tray/ProviderCard";
-import ProviderDetail from "./tray/ProviderDetail";
+import ProviderRow from "../components/ProviderRow";
+import MenuCard from "../components/MenuCard";
+import MenuSurface, {
+  MenuSummary,
+  MenuEmpty,
+} from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
-import SurfaceHeader from "./shared/SurfaceHeader";
-import SurfaceSummary from "./shared/SurfaceSummary";
-import SurfaceEmpty from "./shared/SurfaceEmpty";
 
 /** Sort: highest primary used% first, then alphabetical by name. */
 function sortProviders(
@@ -100,36 +101,40 @@ export default function PopOutPanel({
 
   if (sorted.length === 0) {
     return (
-      <main className="shell shell--popout">
-        <SurfaceHeader
-          onRefresh={refresh}
-          isRefreshing={isRefreshing}
-          actions={headerActions}
-        />
-        {banner}
-        <SurfaceEmpty isLoading={isRefreshing} onSettings={openSettings} />
-      </main>
+      <MenuSurface
+        variant="popout"
+        onRefresh={refresh}
+        isRefreshing={isRefreshing}
+        actions={headerActions}
+        banner={banner}
+      >
+        <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
+      </MenuSurface>
     );
   }
 
   return (
-    <main className="shell shell--popout">
-      <SurfaceHeader
-        onRefresh={refresh}
-        isRefreshing={isRefreshing}
-        actions={headerActions}
-      />
-      {banner}
-      <SurfaceSummary
-        total={sorted.length}
-        errorCount={errorCount}
-        isRefreshing={isRefreshing}
-        lastRefresh={lastRefresh}
-      />
-      <div className={`popout-body ${selected ? "popout-body--split" : ""}`}>
-        <div className="popout-list">
+    <MenuSurface
+      variant="popout"
+      onRefresh={refresh}
+      isRefreshing={isRefreshing}
+      actions={headerActions}
+      banner={banner}
+      summary={
+        <MenuSummary
+          total={sorted.length}
+          errorCount={errorCount}
+          isRefreshing={isRefreshing}
+          lastRefresh={lastRefresh}
+        />
+      }
+    >
+      <div
+        className={`popout-split ${selected ? "popout-split--open" : ""}`}
+      >
+        <div className="menu-list popout-split__list">
           {sorted.map((p) => (
-            <ProviderCard
+            <ProviderRow
               key={p.providerId}
               provider={p}
               selected={selectedId === p.providerId}
@@ -140,16 +145,15 @@ export default function PopOutPanel({
           ))}
         </div>
         {selected && (
-          <div className="popout-detail">
-            <ProviderDetail
+          <div className="popout-split__detail">
+            <MenuCard
               provider={selected}
               hideEmail={settings.hidePersonalInfo}
-              resetRelative={settings.resetTimeRelative}
               onBack={handleBack}
             />
           </div>
         )}
       </div>
-    </main>
+    </MenuSurface>
   );
 }

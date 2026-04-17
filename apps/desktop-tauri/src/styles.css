@@ -2625,3 +2625,574 @@ body {
     transition: none !important;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   Menu-bar popover surfaces (Tray + Pop-out)
+
+   Structural parity with the upstream SwiftUI `MenuContent` /
+   `UsageMenuCardView`: flush, narrow, compact. All tokens resolve
+   through the theme palette (`--bg`, `--text-*`, `--accent`, …) so the
+   dark/light overrides keep working without hard-coded hex values.
+   ────────────────────────────────────────────────────────────────────── */
+
+.menu-surface {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px 10px;
+  min-width: 280px;
+  max-width: 360px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-primary);
+  background: var(--app-bg);
+}
+
+.menu-surface--popout {
+  min-width: 320px;
+  max-width: 760px;
+  padding: 10px 12px 12px;
+}
+
+.menu-surface__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 2px;
+  min-height: 22px;
+}
+
+.menu-surface__title {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-secondary);
+  text-transform: none;
+}
+
+.menu-surface__actions {
+  display: flex;
+  gap: 2px;
+}
+
+.menu-surface__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.menu-surface__btn:hover {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+.menu-surface__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.menu-surface__summary {
+  padding: 2px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-eyebrow);
+}
+
+.menu-surface__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.menu-surface__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.menu-surface__empty p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.menu-surface__hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.menu-surface__spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--accent-muted);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.menu-surface__primary-btn {
+  margin-top: 4px;
+  padding: 5px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.12s;
+}
+
+.menu-surface__primary-btn:hover {
+  filter: brightness(1.08);
+}
+
+/* ── Provider list + compact row ─────────────────────────────────────── */
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
+}
+
+.menu-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.menu-row:hover {
+  background: var(--surface-elevated);
+}
+
+.menu-row[data-selected] {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+}
+
+.menu-row[data-error] .menu-row__dot {
+  background: var(--provider-status-error);
+}
+
+.menu-row__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--provider-status-ok);
+}
+
+.menu-row__dot[data-state="warn"] {
+  background: var(--provider-status-stale);
+}
+
+.menu-row__dot[data-state="critical"] {
+  background: var(--usage-bar-exhausted);
+}
+
+.menu-row__dot[data-state="error"] {
+  background: var(--provider-status-error);
+}
+
+.menu-row__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+
+.menu-row__line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.menu-row__line--primary {
+  justify-content: space-between;
+}
+
+.menu-row__line--secondary {
+  justify-content: space-between;
+}
+
+.menu-row__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-row__meta {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-row__err {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--provider-status-error);
+  white-space: nowrap;
+}
+
+/* ── Usage badge (percent pill, right-aligned in a row) ──────────────── */
+
+.usage-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface-elevated);
+  color: var(--text-secondary);
+  min-width: 38px;
+  text-align: center;
+}
+
+.usage-badge[data-level="high"] {
+  color: var(--usage-bar-high);
+}
+
+.usage-badge[data-level="critical"] {
+  color: var(--usage-bar-critical);
+}
+
+.usage-badge[data-level="exhausted"] {
+  color: var(--usage-bar-exhausted);
+}
+
+/* ── Menu card (provider drill-in detail, mirrors UsageMenuCardView) ─── */
+
+.menu-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 4px 4px;
+  min-width: 0;
+}
+
+.menu-card__back {
+  align-self: flex-start;
+  margin-bottom: 2px;
+  padding: 2px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.menu-card__back:hover {
+  background: var(--surface-elevated);
+  color: var(--text-primary);
+}
+
+.menu-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.menu-card__title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-card__email {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 55%;
+}
+
+.menu-card__subtitle-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.menu-card__subtitle {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.menu-card__plan {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.menu-card__org {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.menu-card__error {
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--surface-elevated);
+  color: var(--provider-status-error);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.menu-card__divider {
+  height: 1px;
+  margin: 2px 0;
+  background: var(--panel-border);
+}
+
+.menu-card__metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.menu-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.menu-metric__meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.menu-metric__exhausted {
+  color: var(--provider-status-error);
+  font-weight: 600;
+}
+
+/* Override UsageBar label sizing inside the menu card so the metric
+   rows keep a compact, single-line label like the upstream
+   `MetricRow`. */
+.menu-card .usage-bar {
+  gap: 6px;
+}
+
+.menu-card .usage-bar__label {
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 64px;
+  color: var(--text-secondary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.menu-card .usage-bar__pct {
+  font-size: 11px;
+  color: var(--text-primary);
+  min-width: 30px;
+}
+
+/* ── Shared section chrome ──────────────────────────────────────────── */
+
+.menu-card__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.menu-card__section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-eyebrow);
+}
+
+.menu-card__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+}
+
+.menu-card__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.menu-card__row dt {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.menu-card__row dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Pace section (expected vs actual) ──────────────────────────────── */
+
+.menu-card__pace {
+  gap: 4px;
+}
+
+.menu-card__pace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.menu-card__pace-label-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.menu-card__pace-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.menu-card__pace-label[data-pace="slow"] { color: var(--pace-slow-fg); }
+.menu-card__pace-label[data-pace="steady"] { color: var(--pace-steady-fg); }
+.menu-card__pace-label[data-pace="racing"] { color: var(--pace-racing-fg); }
+.menu-card__pace-label[data-pace="burning"] { color: var(--pace-burning-fg); }
+
+.menu-card__pace-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.menu-card__pace-track {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--usage-bar-track);
+  overflow: hidden;
+}
+
+.menu-card__pace-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--usage-bar-normal);
+  transition: width 0.3s ease;
+}
+
+.menu-card__pace-fill[data-pace="slow"] { background: var(--pace-slow-fg); }
+.menu-card__pace-fill[data-pace="steady"] { background: var(--pace-steady-fg); }
+.menu-card__pace-fill[data-pace="racing"] { background: var(--pace-racing-fg); }
+.menu-card__pace-fill[data-pace="burning"] { background: var(--pace-burning-fg); }
+
+.menu-card__pace-fill--expected {
+  background: var(--pace-track-expected-fg) !important;
+}
+
+.menu-card__pace-eta {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pace-racing-fg);
+}
+
+.menu-card__pace-ok {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--pace-steady-fg);
+}
+
+.menu-card__charts {
+  gap: 10px;
+}
+
+/* ── Pop-out split layout ────────────────────────────────────────────── */
+
+.popout-split {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+@media (min-width: 600px) {
+  .popout-split--open {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .popout-split--open .popout-split__list {
+    flex: 0 0 220px;
+    max-height: calc(100vh - 140px);
+  }
+
+  .popout-split--open .popout-split__detail {
+    flex: 1;
+    min-width: 0;
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+    padding-left: 10px;
+    border-left: 1px solid var(--panel-border);
+  }
+}

@@ -5,15 +5,18 @@ import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
 import { useLocale } from "../hooks/useLocale";
-import ProviderCard from "./tray/ProviderCard";
-import ProviderDetail from "./tray/ProviderDetail";
+import ProviderRow from "../components/ProviderRow";
+import MenuCard from "../components/MenuCard";
+import MenuSurface, {
+  MenuSummary,
+  MenuEmpty,
+} from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
-import SurfaceHeader from "./shared/SurfaceHeader";
-import SurfaceSummary from "./shared/SurfaceSummary";
-import SurfaceEmpty from "./shared/SurfaceEmpty";
 
 /** Sort: highest primary used% first, then alphabetical by name. */
-function sortProviders(list: ProviderUsageSnapshot[]): ProviderUsageSnapshot[] {
+function sortProviders(
+  list: ProviderUsageSnapshot[],
+): ProviderUsageSnapshot[] {
   return [...list].sort((a, b) => {
     const diff = b.primary.usedPercent - a.primary.usedPercent;
     if (Math.abs(diff) > 0.01) return diff;
@@ -47,19 +50,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, []);
   const handleBack = useCallback(() => setSelectedId(null), []);
 
-  if (selected) {
-    return (
-      <main className="shell shell--tray-panel">
-        <ProviderDetail
-          provider={selected}
-          hideEmail={settings.hidePersonalInfo}
-          resetRelative={settings.resetTimeRelative}
-          onBack={handleBack}
-        />
-      </main>
-    );
-  }
-
   const headerActions = [
     { icon: "⚙", title: t("TooltipSettings"), onClick: openSettings },
     { icon: "⧉", title: t("TooltipPopOut"), onClick: openPopOut },
@@ -76,37 +66,57 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     />
   );
 
+  if (selected) {
+    return (
+      <MenuSurface
+        variant="tray"
+        onRefresh={refresh}
+        isRefreshing={isRefreshing}
+        actions={headerActions}
+        banner={banner}
+      >
+        <MenuCard
+          provider={selected}
+          hideEmail={settings.hidePersonalInfo}
+          onBack={handleBack}
+        />
+      </MenuSurface>
+    );
+  }
+
   if (sorted.length === 0) {
     return (
-      <main className="shell shell--tray-panel">
-        <SurfaceHeader
-          onRefresh={refresh}
-          isRefreshing={isRefreshing}
-          actions={headerActions}
-        />
-        {banner}
-        <SurfaceEmpty isLoading={isRefreshing} onSettings={openSettings} />
-      </main>
+      <MenuSurface
+        variant="tray"
+        onRefresh={refresh}
+        isRefreshing={isRefreshing}
+        actions={headerActions}
+        banner={banner}
+      >
+        <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
+      </MenuSurface>
     );
   }
 
   return (
-    <main className="shell shell--tray-panel">
-      <SurfaceHeader
-        onRefresh={refresh}
-        isRefreshing={isRefreshing}
-        actions={headerActions}
-      />
-      {banner}
-      <SurfaceSummary
-        total={sorted.length}
-        errorCount={errorCount}
-        isRefreshing={isRefreshing}
-        lastRefresh={lastRefresh}
-      />
-      <div className="tray-list">
+    <MenuSurface
+      variant="tray"
+      onRefresh={refresh}
+      isRefreshing={isRefreshing}
+      actions={headerActions}
+      banner={banner}
+      summary={
+        <MenuSummary
+          total={sorted.length}
+          errorCount={errorCount}
+          isRefreshing={isRefreshing}
+          lastRefresh={lastRefresh}
+        />
+      }
+    >
+      <div className="menu-list">
         {sorted.map((p) => (
-          <ProviderCard
+          <ProviderRow
             key={p.providerId}
             provider={p}
             selected={selectedId === p.providerId}
@@ -116,6 +126,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           />
         ))}
       </div>
-    </main>
+    </MenuSurface>
   );
 }
