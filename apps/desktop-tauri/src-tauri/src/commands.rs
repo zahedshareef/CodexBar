@@ -536,6 +536,14 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
             description: "Read the preferred API region for a provider.",
         },
         BridgeCommandDescriptor {
+            id: "get_provider_cookie_source_options",
+            description: "List supported cookie/credential source options for a provider.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_provider_region_options",
+            description: "List supported API region options for a provider (empty if none).",
+        },
+        BridgeCommandDescriptor {
             id: "get_gemini_cli_signed_in",
             description: "Detect whether the Gemini CLI is signed in locally.",
         },
@@ -2094,6 +2102,277 @@ pub fn get_provider_region(provider_id: String) -> Result<Option<String>, String
     Ok(provider_region_lookup(&Settings::load(), &provider_id))
 }
 
+// ── Phase 6c — cookie source & region option catalogs ────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CookieSourceOption {
+    pub value: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RegionOption {
+    pub value: String,
+    pub label: String,
+}
+
+fn cookie_option(
+    lang: Language,
+    value: &str,
+    auto_desc: &str,
+    manual_desc: &str,
+    off_desc: Option<&str>,
+) -> CookieSourceOption {
+    let (label, description) = match value {
+        "auto" => (
+            locale::get_text(lang, locale::LocaleKey::Automatic).to_string(),
+            auto_desc.to_string(),
+        ),
+        "manual" => (
+            locale::get_text(lang, locale::LocaleKey::CookieSourceManual).to_string(),
+            manual_desc.to_string(),
+        ),
+        "off" => (
+            locale::get_text(lang, locale::LocaleKey::ProviderDisabled).to_string(),
+            off_desc.unwrap_or("").to_string(),
+        ),
+        other => (other.to_string(), String::new()),
+    };
+    CookieSourceOption {
+        value: value.to_string(),
+        label,
+        description: if description.is_empty() {
+            None
+        } else {
+            Some(description)
+        },
+    }
+}
+
+/// Returns the catalog of cookie source options for a given provider,
+/// mirroring the `egui` ComboBox choices in `preferences.rs`.
+/// Empty vec means the provider does not expose a cookie-source picker.
+pub fn cookie_source_options_for(provider_id: &str, lang: Language) -> Vec<CookieSourceOption> {
+    match provider_id {
+        "codex" => vec![
+            cookie_option(
+                lang,
+                "auto",
+                locale::get_text(lang, locale::LocaleKey::ProviderCodexAutoImportHelp),
+                "Paste a Cookie header from a chatgpt.com request.",
+                Some("Disable OpenAI dashboard cookie usage."),
+            ),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from a chatgpt.com request.",
+                None,
+            ),
+            cookie_option(
+                lang,
+                "off",
+                "",
+                "",
+                Some("Disable OpenAI dashboard cookie usage."),
+            ),
+        ],
+        "claude" => vec![
+            cookie_option(
+                lang,
+                "auto",
+                locale::get_text(lang, locale::LocaleKey::ProviderClaudeCookiesHelp),
+                "",
+                None,
+            ),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                locale::get_text(lang, locale::LocaleKey::ProviderClaudeCookiesHelp),
+                None,
+            ),
+        ],
+        "cursor" => vec![
+            cookie_option(
+                lang,
+                "auto",
+                locale::get_text(lang, locale::LocaleKey::ProviderCursorCookieSourceHelp),
+                "",
+                None,
+            ),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from a cursor.com request.",
+                None,
+            ),
+        ],
+        "opencode" => vec![
+            cookie_option(
+                lang,
+                "auto",
+                "Automatic imports browser cookies from opencode.ai.",
+                "",
+                None,
+            ),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from the billing page.",
+                None,
+            ),
+        ],
+        "factory" => vec![
+            cookie_option(
+                lang,
+                "auto",
+                "Automatic imports browser cookies and WorkOS sessions.",
+                "",
+                None,
+            ),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from Factory.",
+                None,
+            ),
+        ],
+        "alibaba" => vec![
+            cookie_option(
+                lang,
+                "auto",
+                "Automatic imports browser cookies from Model Studio / Bailian.",
+                "",
+                None,
+            ),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from Model Studio or Bailian.",
+                None,
+            ),
+        ],
+        "kimi" | "kimik2" => vec![
+            cookie_option(lang, "auto", "Automatic imports browser cookies.", "", None),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a cookie header or the kimi-auth token value.",
+                None,
+            ),
+            cookie_option(lang, "off", "", "", Some("Kimi cookies are disabled.")),
+        ],
+        "minimax" => vec![
+            cookie_option(
+                lang,
+                "auto",
+                "Automatic imports browser cookies and Coding Plan tokens.",
+                "",
+                None,
+            ),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from the Coding Plan page.",
+                None,
+            ),
+        ],
+        "augment" => vec![
+            cookie_option(lang, "auto", "Automatic imports browser cookies.", "", None),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from the Augment dashboard.",
+                None,
+            ),
+        ],
+        "amp" => vec![
+            cookie_option(lang, "auto", "Automatic imports browser cookies.", "", None),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from Amp settings.",
+                None,
+            ),
+        ],
+        "ollama" => vec![
+            cookie_option(lang, "auto", "Automatic imports browser cookies.", "", None),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from Ollama settings.",
+                None,
+            ),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// Returns the API region options for a given provider.
+/// Empty vec means the provider has no region picker.
+pub fn region_options_for(provider_id: &str) -> Vec<RegionOption> {
+    match provider_id {
+        "alibaba" => vec![
+            RegionOption {
+                value: "intl".to_string(),
+                label: "International (Model Studio)".to_string(),
+            },
+            RegionOption {
+                value: "cn".to_string(),
+                label: "China Mainland (Bailian)".to_string(),
+            },
+        ],
+        "zai" => vec![
+            RegionOption {
+                value: "global".to_string(),
+                label: "Global".to_string(),
+            },
+            RegionOption {
+                value: "china".to_string(),
+                label: "China Mainland (BigModel)".to_string(),
+            },
+        ],
+        "minimax" => vec![
+            RegionOption {
+                value: "global".to_string(),
+                label: "Global (.io)".to_string(),
+            },
+            RegionOption {
+                value: "china".to_string(),
+                label: "China Mainland (.com)".to_string(),
+            },
+        ],
+        _ => Vec::new(),
+    }
+}
+
+#[tauri::command]
+pub fn get_provider_cookie_source_options(
+    provider_id: String,
+) -> Result<Vec<CookieSourceOption>, String> {
+    let lang = Settings::load().ui_language;
+    Ok(cookie_source_options_for(&provider_id, lang))
+}
+
+#[tauri::command]
+pub fn get_provider_region_options(provider_id: String) -> Result<Vec<RegionOption>, String> {
+    Ok(region_options_for(&provider_id))
+}
+
 // ── Credential detection ──────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
@@ -2382,6 +2661,12 @@ pub struct ProviderDetail {
 
     // True if the shared backend has produced any snapshot yet.
     pub has_snapshot: bool,
+
+    // Phase 6c — currently-persisted cookie source & region for round-tripping
+    // into the settings UI pickers. `None` for providers that do not support
+    // one of the pickers.
+    pub cookie_source: Option<String>,
+    pub region: Option<String>,
 }
 
 fn build_provider_detail(provider_id: &str) -> Result<ProviderDetail, String> {
@@ -2424,6 +2709,8 @@ fn build_provider_detail(provider_id: &str) -> Result<ProviderDetail, String> {
             None
         },
         has_snapshot: false,
+        cookie_source: provider_cookie_source_lookup(&settings, id.cli_name()),
+        region: provider_region_lookup(&settings, id.cli_name()),
     })
 }
 
@@ -2616,7 +2903,7 @@ mod tests {
     use crate::surface::SurfaceMode;
     use crate::surface_target::SurfaceTarget;
     use codexbar::host::session::launch_block_reason;
-    use codexbar::settings::Settings;
+    use codexbar::settings::{Language, Settings};
 
     #[test]
     fn validate_surface_target_accepts_matching_target() {
@@ -2969,5 +3256,72 @@ mod tests {
         assert_eq!(data.provider_id, "codex");
         assert!(data.credits_history.is_empty());
         assert!(data.usage_breakdown.is_empty());
+    }
+
+    #[test]
+    fn bootstrap_contract_lists_phase6c_commands() {
+        let ids = bridge_commands()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+
+        for expected in [
+            "get_provider_cookie_source_options",
+            "get_provider_region_options",
+        ] {
+            assert!(ids.contains(&expected), "missing command id: {expected}");
+        }
+    }
+
+    #[test]
+    fn cookie_options_for_cookie_supporting_provider() {
+        let opts = super::cookie_source_options_for("codex", Language::English);
+        let values: Vec<_> = opts.iter().map(|o| o.value.as_str()).collect();
+        assert_eq!(values, vec!["auto", "manual", "off"]);
+        assert!(opts.iter().any(|o| o.label == "Automatic"));
+        assert!(opts.iter().any(|o| o.label == "Manual"));
+        assert!(opts.iter().any(|o| o.label == "Disabled"));
+    }
+
+    #[test]
+    fn cookie_options_empty_for_providers_without_picker() {
+        assert!(super::cookie_source_options_for("anthropic", Language::English).is_empty());
+        assert!(super::cookie_source_options_for("unknown", Language::English).is_empty());
+    }
+
+    #[test]
+    fn region_options_for_regional_provider() {
+        let opts = super::region_options_for("alibaba");
+        let values: Vec<_> = opts.iter().map(|o| o.value.as_str()).collect();
+        assert_eq!(values, vec!["intl", "cn"]);
+    }
+
+    #[test]
+    fn region_options_empty_for_non_regional_provider() {
+        assert!(super::region_options_for("claude").is_empty());
+        assert!(super::region_options_for("codex").is_empty());
+    }
+
+    #[test]
+    fn cookie_source_option_roundtrips_serde() {
+        let opt = super::CookieSourceOption {
+            value: "auto".to_string(),
+            label: "Automatic".to_string(),
+            description: Some("Imports browser cookies.".to_string()),
+        };
+        let json = serde_json::to_string(&opt).unwrap();
+        let back: super::CookieSourceOption = serde_json::from_str(&json).unwrap();
+        assert_eq!(opt, back);
+    }
+
+    #[test]
+    fn region_option_roundtrips_serde() {
+        let opt = super::RegionOption {
+            value: "intl".to_string(),
+            label: "International".to_string(),
+        };
+        let json = serde_json::to_string(&opt).unwrap();
+        let back: super::RegionOption = serde_json::from_str(&json).unwrap();
+        assert_eq!(opt, back);
     }
 }

@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import type { ProviderDetail } from "../../../types/bridge";
+import type {
+  CookieSourceOption,
+  ProviderDetail,
+  RegionOption,
+} from "../../../types/bridge";
 import { useLocale } from "../../../hooks/useLocale";
 import {
+  getProviderCookieSourceOptions,
   getProviderDetail,
+  getProviderRegionOptions,
   openProviderDashboard,
   openProviderStatusPage,
   refreshProviders,
@@ -16,6 +22,8 @@ import { PaceSection } from "./sections/PaceSection";
 import { CostSection } from "./sections/CostSection";
 import { QuickActionsSection } from "./sections/QuickActionsSection";
 import { ChartsSection } from "./sections/charts/ChartsSection";
+import { CookieSourceSection } from "./sections/CookieSourceSection";
+import { RegionSection } from "./sections/RegionSection";
 
 interface Props {
   providerId: string | null;
@@ -34,6 +42,8 @@ interface Props {
 export function ProviderDetailPane({ providerId }: Props) {
   const { t } = useLocale();
   const [detail, setDetail] = useState<ProviderDetail | null>(null);
+  const [cookieOptions, setCookieOptions] = useState<CookieSourceOption[]>([]);
+  const [regionOptions, setRegionOptions] = useState<RegionOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,11 +52,19 @@ export function ProviderDetailPane({ providerId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const next = await getProviderDetail(id);
+      const [next, cookieOpts, regionOpts] = await Promise.all([
+        getProviderDetail(id),
+        getProviderCookieSourceOptions(id),
+        getProviderRegionOptions(id),
+      ]);
       setDetail(next);
+      setCookieOptions(cookieOpts);
+      setRegionOptions(regionOpts);
     } catch (e) {
       setError(String(e));
       setDetail(null);
+      setCookieOptions([]);
+      setRegionOptions([]);
     } finally {
       setLoading(false);
     }
@@ -55,6 +73,8 @@ export function ProviderDetailPane({ providerId }: Props) {
   useEffect(() => {
     if (!providerId) {
       setDetail(null);
+      setCookieOptions([]);
+      setRegionOptions([]);
       return;
     }
     void load(providerId);
@@ -168,12 +188,20 @@ export function ProviderDetailPane({ providerId }: Props) {
       <CostSection cost={detail.cost} t={t} />
 
       {/* Deferred sub-sections — later phases replace these slots. */}
-      <section
-        className="provider-detail-section provider-detail-section--deferred"
-        data-deferred="6c"
-      >
-        Cookie source / region picker — Phase 6c
-      </section>
+      <CookieSourceSection
+        providerId={detail.id}
+        currentValue={detail.cookieSource}
+        options={cookieOptions}
+        t={t}
+        onChanged={() => void load(detail.id)}
+      />
+      <RegionSection
+        providerId={detail.id}
+        currentValue={detail.region}
+        options={regionOptions}
+        t={t}
+        onChanged={() => void load(detail.id)}
+      />
       <section
         className="provider-detail-section provider-detail-section--deferred"
         data-deferred="6d"

@@ -382,6 +382,8 @@ pub enum LocaleKey {
     ProviderCodexLastFetchFailedTitle,
     ProviderCodexNotRunningHelp,
     ProviderCookieSource,
+    CookieSourceManual,
+    ProviderRegion,
     ProviderClaudeCookies,
     ProviderClaudeCookiesHelp,
     ProviderClaudeAvoidKeychainPrompts,
@@ -922,6 +924,8 @@ impl LocaleKey {
                 "Codex not running. Try running a Codex command first."
             }
             LocaleKey::ProviderCookieSource => "Cookie source",
+            LocaleKey::CookieSourceManual => "Manual",
+            LocaleKey::ProviderRegion => "Region",
             LocaleKey::ProviderClaudeCookies => "Claude cookies",
             LocaleKey::ProviderClaudeCookiesHelp => {
                 "Automatic imports browser cookies for the web API."
@@ -1490,6 +1494,8 @@ impl LocaleKey {
             LocaleKey::ProviderCodexLastFetchFailedTitle => "上次 Codex 获取失败：",
             LocaleKey::ProviderCodexNotRunningHelp => "Codex 未运行。先运行一次 Codex 命令再试。",
             LocaleKey::ProviderCookieSource => "Cookie 来源",
+            LocaleKey::CookieSourceManual => "手动",
+            LocaleKey::ProviderRegion => "地区",
             LocaleKey::ProviderClaudeCookies => "Claude Cookie",
             LocaleKey::ProviderClaudeCookiesHelp => "自动导入浏览器 Cookie 用于网页 API。",
             LocaleKey::ProviderClaudeAvoidKeychainPrompts => "避免钥匙串提示",
@@ -2049,6 +2055,8 @@ impl LocaleKey {
             "ProviderCodexNotRunningHelp",
         ),
         (LocaleKey::ProviderCookieSource, "ProviderCookieSource"),
+        (LocaleKey::CookieSourceManual, "CookieSourceManual"),
+        (LocaleKey::ProviderRegion, "ProviderRegion"),
         (LocaleKey::ProviderClaudeCookies, "ProviderClaudeCookies"),
         (
             LocaleKey::ProviderClaudeCookiesHelp,
