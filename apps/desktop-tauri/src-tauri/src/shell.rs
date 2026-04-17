@@ -837,8 +837,79 @@ pub fn default_surface_position(app: &AppHandle, mode: SurfaceMode) -> Option<(i
         SurfaceMode::TrayPanel => tray_panel_position(app)
             .or_else(|| inferred_tray_panel_position(app))
             .or_else(|| shortcut_panel_position(app)),
-        SurfaceMode::PopOut | SurfaceMode::Settings => visible_surface_position_for_mode(app, mode),
+        SurfaceMode::PopOut => visible_surface_position_for_mode(app, mode),
+        SurfaceMode::Settings => remembered_settings_position(app)
+            .or_else(|| visible_surface_position_for_mode(app, mode)),
     }
+}
+
+/// Load persisted Settings geometry and clamp it into the current monitor's
+/// work area so a monitor layout change can't leave the window off-screen.
+fn remembered_settings_position(app: &AppHandle) -> Option<(i32, i32)> {
+    let stored = crate::geometry_store::load(SurfaceMode::Settings)?;
+    let window = app.get_webview_window("main")?;
+    let monitors = window.available_monitors().ok()?;
+
+    // Pick the monitor that contains the stored top-left; otherwise fall back
+    // to the primary monitor's work area so the window remains reachable.
+    let placement = monitors
+        .iter()
+        .find(|m| {
+            let wa = m.work_area();
+            let x = wa.position.x;
+            let y = wa.position.y;
+            let w = wa.size.width as i32;
+            let h = wa.size.height as i32;
+            stored.x >= x && stored.x < x + w && stored.y >= y && stored.y < y + h
+        })
+        .map(monitor_placement)
+        .or_else(|| {
+            window
+                .primary_monitor()
+                .ok()
+                .flatten()
+                .map(|m| monitor_placement(&m))
+        })?;
+
+    let panel_size = surface_panel_size(SurfaceMode::Settings);
+    Some(window_positioner::clamp_position_to_work_area(
+        stored.x,
+        stored.y,
+        &placement.work_area,
+        &panel_size,
+        placement.scale_factor,
+    ))
+}
+
+/// Persist the current position (and size, when resizable) of the main window
+/// when it is hosting the Settings surface. Called from the Tauri window-event
+/// pump so user drags are captured even without an explicit close.
+pub fn remember_current_geometry_if_settings(window: &tauri::Window) {
+    let app = window.app_handle();
+    let Some(st) = app.try_state::<Mutex<AppState>>() else {
+        return;
+    };
+    let current_mode = {
+        let guard = st.lock().unwrap();
+        guard.surface_machine.current()
+    };
+    if !crate::geometry_store::should_remember(current_mode) {
+        return;
+    }
+
+    let Ok(pos) = window.outer_position() else {
+        return;
+    };
+    let size = window.outer_size().ok();
+    crate::geometry_store::save(
+        current_mode,
+        crate::geometry_store::StoredGeometry {
+            x: pos.x,
+            y: pos.y,
+            width: size.map(|s| s.width),
+            height: size.map(|s| s.height),
+        },
+    );
 }
 
 /// Calculate panel position anchored to the saved tray icon rectangle.

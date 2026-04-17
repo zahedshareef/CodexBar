@@ -4,6 +4,7 @@ use std::time::Duration;
 
 mod commands;
 mod events;
+mod geometry_store;
 mod proof_harness;
 mod shell;
 mod shortcut_bridge;
@@ -147,6 +148,12 @@ fn main() {
                 let _ = shell::hide_to_tray_if_current(window.app_handle(), |mode| {
                     mode == SurfaceMode::TrayPanel
                 });
+            }
+            tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                // Capture geometry for surfaces eligible for persistence
+                // (currently only Settings). The helper is a no-op when the
+                // current surface is not eligible.
+                shell::remember_current_geometry_if_settings(window);
             }
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 // Close visible shell surfaces → hide instead of quitting.
