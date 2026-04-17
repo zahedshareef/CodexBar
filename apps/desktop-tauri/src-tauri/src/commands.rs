@@ -3004,6 +3004,7 @@ mod tests {
     };
     use crate::surface::SurfaceMode;
     use crate::surface_target::SurfaceTarget;
+    use codexbar::core::ProviderId;
     use codexbar::host::session::launch_block_reason;
     use codexbar::settings::{Language, Settings};
 
@@ -3434,5 +3435,54 @@ mod tests {
         let err =
             super::open_path("/definitely/not/a/real/path/codexbar-phase6d".into()).unwrap_err();
         assert!(err.contains("not found"));
+    }
+
+    // ── Phase 13 — E2E IPC harness ─────────────────────────────────
+    //
+    // Build the full bootstrap payload and prove that every shared
+    // `ProviderId` variant ends up in the provider catalog with a
+    // non-empty id + display name. If a new provider is added to the
+    // enum but never wired through the desktop catalog, this test will
+    // fail with `missing provider in bootstrap catalog: <id>`.
+
+    #[test]
+    fn bootstrap_payload_exposes_every_provider_variant() {
+        let payload = super::get_bootstrap_state();
+
+        let catalog_ids: std::collections::HashSet<String> = payload
+            .providers
+            .iter()
+            .map(|entry| entry.id.clone())
+            .collect();
+
+        for entry in &payload.providers {
+            assert!(!entry.id.is_empty(), "provider entry has empty id");
+            assert!(
+                !entry.display_name.is_empty(),
+                "provider {} has empty display_name",
+                entry.id
+            );
+        }
+
+        for provider in ProviderId::all() {
+            let expected = provider.cli_name().to_string();
+            assert!(
+                catalog_ids.contains(&expected),
+                "missing provider in bootstrap catalog: {expected}"
+            );
+        }
+
+        assert_eq!(
+            catalog_ids.len(),
+            ProviderId::all().len(),
+            "bootstrap catalog size drifted from ProviderId::all()"
+        );
+
+        // Sanity — payload must also round-trip through JSON cleanly so
+        // the TypeScript bridge never sees a partially-populated record.
+        let encoded = serde_json::to_string(&payload).expect("serialize bootstrap");
+        assert!(encoded.contains("contractVersion"));
+        assert!(encoded.contains("\"providers\""));
+        assert!(encoded.contains("\"settings\""));
     }
 }

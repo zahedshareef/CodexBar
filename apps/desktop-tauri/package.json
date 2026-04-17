@@ -5,8 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "check-locale": "node scripts/check-locale-drift.mjs",
+    "prebuild": "npm run check-locale",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build --no-bundle",
     "tauri:build:debug": "tauri build --debug --no-bundle"
@@ -18,10 +22,14 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "2.10.1",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.1.0",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.7.0",
+    "jsdom": "25.0.1",
     "typescript": "5.6.3",
-    "vite": "6.4.2"
+    "vite": "6.4.2",
+    "vitest": "3.2.4"
   }
 }
