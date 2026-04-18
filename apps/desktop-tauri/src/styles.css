@@ -514,8 +514,8 @@ body {
 .toggle {
   appearance: none;
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 3px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.06);
@@ -540,10 +540,10 @@ body {
 .toggle:checked::after {
   content: "";
   position: absolute;
-  left: 3px;
-  top: 0px;
-  width: 4px;
-  height: 8px;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
   border: solid #fff;
   border-width: 0 1.6px 1.6px 0;
   transform: rotate(45deg);
@@ -567,9 +567,9 @@ body {
 .toggle-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: var(--font-body, 0.82rem);
   color: var(--text-primary);
 }
 
@@ -3419,15 +3419,31 @@ body {
   background: var(--app-bg);
   min-height: 100vh;
 }
+.settings-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  background: transparent;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+}
+.settings-titlebar__title {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  -webkit-app-region: drag;
+}
 .settings-tabs {
   display: flex;
   gap: 2px;
   padding: 6px 12px;
   margin: 0 0 4px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
-  border-bottom: 1px solid var(--panel-border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0;
-  justify-content: flex-start;
+  justify-content: center;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -3504,7 +3520,7 @@ body {
   margin: 0 0 0;
   padding: 0 0 16px;
   background: transparent;
-  gap: 0;
+  gap: 4px;
   border-bottom: 1px solid var(--panel-border);
 }
 .settings-section:last-child {
@@ -3542,10 +3558,10 @@ body {
   background: transparent;
 }
 .settings-field:hover {
-  background: rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.03);
 }
 [data-theme="light"] .settings-field:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.02);
 }
 .settings-field__label {
   font-size: var(--font-body);
@@ -3562,7 +3578,9 @@ body {
    section. No card container, just a 1px divider between sibling
    fields (the divider rule below). */
 .settings-section__group {
-  /* intentionally flat: no border, background, or rounded corners */
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 .settings-section__group > .settings-field {
   border: none;
