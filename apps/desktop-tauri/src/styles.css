@@ -2765,7 +2765,6 @@ body {
   padding: 6px 10px;
   width: 100%;
   min-width: 260px;
-  height: 100vh;
   font-size: 13px;
   line-height: 1.30;
   color: var(--text-primary);
@@ -2921,6 +2920,9 @@ body {
 }
 
 /* Hide scrollbar on tray variant — upstream macOS NSMenu has none. */
+.menu-surface--tray {
+  min-height: 100vh;
+}
 .menu-surface--tray .menu-stack {
   scrollbar-width: none;
 }
@@ -3317,7 +3319,6 @@ body {
   flex-direction: column;
   gap: 0;
   padding: 4px 0 0;
-  margin-top: auto;
   border-top: 1px solid var(--menu-popover-divider);
   flex-shrink: 0;
 }
@@ -3358,11 +3359,11 @@ body {
   flex-direction: column;
   gap: 0;
   padding: 4px 0 0;
-  margin-top: auto;
+  margin-top: 0;
   border-top: 1px solid var(--menu-popover-divider);
   flex-shrink: 0;
 }
-/* When footer follows action rows, actions already pushed to bottom */
+/* When footer follows action rows, no extra divider needed */
 .menu-actions + .menu-surface__footer {
   margin-top: 0;
 }
