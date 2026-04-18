@@ -4953,7 +4953,9 @@ fn render_provider_detail_panel(
             if let Ok(mut state) = shared_state.lock()
                 && state.settings.codex_cookie_source() != codex_cookie_source
             {
-                state.settings.set_codex_cookie_source(codex_cookie_source.clone());
+                state
+                    .settings
+                    .set_codex_cookie_source(codex_cookie_source.clone());
                 state.settings_changed = true;
             }
 
@@ -5006,7 +5008,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.cursor_cookie_source() != cursor_cookie_source
         {
-            state.settings.set_cursor_cookie_source(cursor_cookie_source.clone());
+            state
+                .settings
+                .set_cursor_cookie_source(cursor_cookie_source.clone());
             state.settings_changed = true;
         }
 
@@ -5056,7 +5060,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.opencode_cookie_source() != opencode_cookie_source
         {
-            state.settings.set_opencode_cookie_source(opencode_cookie_source.clone());
+            state
+                .settings
+                .set_opencode_cookie_source(opencode_cookie_source.clone());
             state.settings_changed = true;
         }
 
@@ -5150,7 +5156,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.minimax_cookie_source() != minimax_cookie_source
         {
-            state.settings.set_minimax_cookie_source(minimax_cookie_source.clone());
+            state
+                .settings
+                .set_minimax_cookie_source(minimax_cookie_source.clone());
             state.settings_changed = true;
         }
 
@@ -5186,7 +5194,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.minimax_api_region() != minimax_api_region
         {
-            state.settings.set_minimax_api_region(minimax_api_region.clone());
+            state
+                .settings
+                .set_minimax_api_region(minimax_api_region.clone());
             state.settings_changed = true;
         }
 
@@ -5212,7 +5222,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.minimax_api_token() != minimax_api_token
         {
-            state.settings.set_minimax_api_token(minimax_api_token.clone());
+            state
+                .settings
+                .set_minimax_api_token(minimax_api_token.clone());
             state.settings_changed = true;
         }
 
@@ -5248,7 +5260,9 @@ fn render_provider_detail_panel(
             if let Ok(mut state) = shared_state.lock()
                 && state.settings.minimax_cookie_header() != minimax_cookie_header
             {
-                state.settings.set_minimax_cookie_header(minimax_cookie_header);
+                state
+                    .settings
+                    .set_minimax_cookie_header(minimax_cookie_header);
                 state.settings_changed = true;
             }
 
@@ -5303,7 +5317,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.factory_cookie_source() != factory_cookie_source
         {
-            state.settings.set_factory_cookie_source(factory_cookie_source.clone());
+            state
+                .settings
+                .set_factory_cookie_source(factory_cookie_source.clone());
             state.settings_changed = true;
         }
 
@@ -5370,7 +5386,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.alibaba_cookie_source() != alibaba_cookie_source
         {
-            state.settings.set_alibaba_cookie_source(alibaba_cookie_source.clone());
+            state
+                .settings
+                .set_alibaba_cookie_source(alibaba_cookie_source.clone());
             state.settings_changed = true;
         }
 
@@ -5406,7 +5424,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.alibaba_api_region() != alibaba_api_region
         {
-            state.settings.set_alibaba_api_region(alibaba_api_region.clone());
+            state
+                .settings
+                .set_alibaba_api_region(alibaba_api_region.clone());
             state.settings_changed = true;
         }
 
@@ -5472,7 +5492,9 @@ fn render_provider_detail_panel(
             if let Ok(mut state) = shared_state.lock()
                 && state.settings.alibaba_cookie_header() != alibaba_cookie_header
             {
-                state.settings.set_alibaba_cookie_header(alibaba_cookie_header);
+                state
+                    .settings
+                    .set_alibaba_cookie_header(alibaba_cookie_header);
                 state.settings_changed = true;
             }
 
@@ -5524,7 +5546,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.kimi_cookie_source() != kimi_cookie_source
         {
-            state.settings.set_kimi_cookie_source(kimi_cookie_source.clone());
+            state
+                .settings
+                .set_kimi_cookie_source(kimi_cookie_source.clone());
             state.settings_changed = true;
         }
 
@@ -5557,7 +5581,9 @@ fn render_provider_detail_panel(
             if let Ok(mut state) = shared_state.lock()
                 && state.settings.kimi_manual_cookie_header() != manual_cookie_header
             {
-                state.settings.set_kimi_manual_cookie_header(manual_cookie_header);
+                state
+                    .settings
+                    .set_kimi_manual_cookie_header(manual_cookie_header);
                 state.settings_changed = true;
             }
 
@@ -5715,7 +5741,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.augment_cookie_source() != augment_cookie_source
         {
-            state.settings.set_augment_cookie_source(augment_cookie_source.clone());
+            state
+                .settings
+                .set_augment_cookie_source(augment_cookie_source.clone());
             state.settings_changed = true;
         }
 
@@ -5749,7 +5777,9 @@ fn render_provider_detail_panel(
             if let Ok(mut state) = shared_state.lock()
                 && state.settings.augment_cookie_header() != augment_cookie_header
             {
-                state.settings.set_augment_cookie_header(augment_cookie_header);
+                state
+                    .settings
+                    .set_augment_cookie_header(augment_cookie_header);
                 state.settings_changed = true;
             }
 
@@ -5807,7 +5837,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.amp_cookie_source() != amp_cookie_source
         {
-            state.settings.set_amp_cookie_source(amp_cookie_source.clone());
+            state
+                .settings
+                .set_amp_cookie_source(amp_cookie_source.clone());
             state.settings_changed = true;
         }
 
@@ -5890,7 +5922,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.ollama_cookie_source() != ollama_cookie_source
         {
-            state.settings.set_ollama_cookie_source(ollama_cookie_source.clone());
+            state
+                .settings
+                .set_ollama_cookie_source(ollama_cookie_source.clone());
             state.settings_changed = true;
         }
 
@@ -5917,7 +5951,9 @@ fn render_provider_detail_panel(
             if let Ok(mut state) = shared_state.lock()
                 && state.settings.ollama_cookie_header() != ollama_cookie_header
             {
-                state.settings.set_ollama_cookie_header(ollama_cookie_header);
+                state
+                    .settings
+                    .set_ollama_cookie_header(ollama_cookie_header);
                 state.settings_changed = true;
             }
 
@@ -6381,7 +6417,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.jetbrains_ide_base_path() != ide_base_path
         {
-            state.settings.set_jetbrains_ide_base_path(ide_base_path.clone());
+            state
+                .settings
+                .set_jetbrains_ide_base_path(ide_base_path.clone());
             state.settings_changed = true;
         }
 
@@ -6528,7 +6566,9 @@ fn render_provider_detail_panel(
         if let Ok(mut state) = shared_state.lock()
             && state.settings.claude_cookie_source() != claude_cookie_source
         {
-            state.settings.set_claude_cookie_source(claude_cookie_source);
+            state
+                .settings
+                .set_claude_cookie_source(claude_cookie_source);
             state.settings_changed = true;
         }
 
@@ -6636,7 +6676,9 @@ fn render_provider_detail_panel(
             true,
         ) && let Ok(mut state) = shared_state.lock()
         {
-            state.settings.set_codex_historical_tracking(historical_tracking_enabled);
+            state
+                .settings
+                .set_codex_historical_tracking(historical_tracking_enabled);
             state.settings_changed = true;
         }
 
@@ -6682,7 +6724,9 @@ fn render_provider_detail_panel(
             true,
         ) && let Ok(mut state) = shared_state.lock()
         {
-            state.settings.set_claude_avoid_keychain_prompts(avoid_keychain_prompts);
+            state
+                .settings
+                .set_claude_avoid_keychain_prompts(avoid_keychain_prompts);
             state.settings_changed = true;
         }
     }
@@ -8520,7 +8564,9 @@ fn render_advanced_tab(ui: &mut egui::Ui, shared_state: &Arc<Mutex<PreferencesSh
             ) && let Ok(mut state) = shared_state.lock()
             {
                 state.settings.disable_keychain_access = disable_keychain_access;
-                state.settings.set_claude_avoid_keychain_prompts(disable_keychain_access);
+                state
+                    .settings
+                    .set_claude_avoid_keychain_prompts(disable_keychain_access);
                 state.settings_changed = true;
             }
         });

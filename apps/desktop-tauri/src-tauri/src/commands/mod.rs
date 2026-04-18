@@ -308,6 +308,8 @@ pub fn get_settings_snapshot() -> SettingsSnapshot {
 
 impl From<Settings> for SettingsSnapshot {
     fn from(settings: Settings) -> Self {
+        let avoid_keychain_prompts = settings.claude_avoid_keychain_prompts();
+
         let mut enabled_providers = settings.enabled_providers.into_iter().collect::<Vec<_>>();
         enabled_providers.sort();
 
@@ -345,7 +347,7 @@ impl From<Settings> for SettingsSnapshot {
             global_shortcut: settings.global_shortcut,
             ui_language: language_label(settings.ui_language),
             theme: theme_label(settings.theme),
-            claude_avoid_keychain_prompts: settings.claude_avoid_keychain_prompts(),
+            claude_avoid_keychain_prompts: avoid_keychain_prompts,
             disable_keychain_access: settings.disable_keychain_access,
             show_debug_settings: settings.show_debug_settings,
             provider_metrics,
@@ -902,7 +904,7 @@ pub fn update_settings(
     if let Some(v) = patch.install_updates_on_quit {
         settings.install_updates_on_quit = v;
     }
-    if let Some(v) = patch.claude_avoid_keychain_prompts() {
+    if let Some(v) = patch.claude_avoid_keychain_prompts {
         settings.set_claude_avoid_keychain_prompts(v);
     }
     if let Some(v) = patch.disable_keychain_access {
@@ -1500,44 +1502,28 @@ pub fn reorder_providers(ids: Vec<String>) -> Result<Vec<ProviderSummary>, Strin
 
 // ── Per-provider cookie source + region ───────────────────────────────
 
-/// Providers that expose a user-facing cookie-source picker, mapped to their
-/// corresponding `Settings` field accessor.
-fn provider_cookie_source_field<'a>(
-    settings: &'a mut Settings,
-    provider_id: &str,
-) -> Option<&'a mut String> {
-    match provider_id {
-        "codex" => Some(&mut settings.codex_cookie_source()),
-        "claude" => Some(&mut settings.claude_cookie_source()),
-        "cursor" => Some(&mut settings.cursor_cookie_source()),
-        "opencode" => Some(&mut settings.opencode_cookie_source()),
-        "factory" => Some(&mut settings.factory_cookie_source()),
-        "alibaba" => Some(&mut settings.alibaba_cookie_source()),
-        "kimi" | "kimik2" => Some(&mut settings.kimi_cookie_source()),
-        "minimax" => Some(&mut settings.minimax_cookie_source()),
-        "augment" => Some(&mut settings.augment_cookie_source()),
-        "amp" => Some(&mut settings.amp_cookie_source()),
-        "ollama" => Some(&mut settings.ollama_cookie_source()),
-        _ => None,
-    }
+/// Map a CLI-name string to a `ProviderId` whose cookie source is exposed in
+/// the UI. Returns `None` for providers without a user-facing cookie source.
+fn cookie_source_provider(provider_id: &str) -> Option<codexbar::core::ProviderId> {
+    use codexbar::core::ProviderId;
+    Some(match provider_id {
+        "codex" => ProviderId::Codex,
+        "claude" => ProviderId::Claude,
+        "cursor" => ProviderId::Cursor,
+        "opencode" => ProviderId::OpenCode,
+        "factory" => ProviderId::Factory,
+        "alibaba" => ProviderId::Alibaba,
+        "kimi" | "kimik2" => ProviderId::Kimi,
+        "minimax" => ProviderId::MiniMax,
+        "augment" => ProviderId::Augment,
+        "amp" => ProviderId::Amp,
+        "ollama" => ProviderId::Ollama,
+        _ => return None,
+    })
 }
 
 fn provider_cookie_source_lookup(settings: &Settings, provider_id: &str) -> Option<String> {
-    let copy = match provider_id {
-        "codex" => &settings.codex_cookie_source(),
-        "claude" => &settings.claude_cookie_source(),
-        "cursor" => &settings.cursor_cookie_source(),
-        "opencode" => &settings.opencode_cookie_source(),
-        "factory" => &settings.factory_cookie_source(),
-        "alibaba" => &settings.alibaba_cookie_source(),
-        "kimi" | "kimik2" => &settings.kimi_cookie_source(),
-        "minimax" => &settings.minimax_cookie_source(),
-        "augment" => &settings.augment_cookie_source(),
-        "amp" => &settings.amp_cookie_source(),
-        "ollama" => &settings.ollama_cookie_source(),
-        _ => return None,
-    };
-    Some(copy.clone())
+    cookie_source_provider(provider_id).map(|id| settings.cookie_source(id).to_string())
 }
 
 fn provider_cookie_source_set(
@@ -1545,9 +1531,9 @@ fn provider_cookie_source_set(
     provider_id: &str,
     source: String,
 ) -> Result<(), String> {
-    let field = provider_cookie_source_field(settings, provider_id)
+    let id = cookie_source_provider(provider_id)
         .ok_or_else(|| format!("Provider '{provider_id}' does not expose a cookie source"))?;
-    *field = source;
+    settings.set_cookie_source(id, source);
     Ok(())
 }
 
@@ -1566,26 +1552,18 @@ pub fn get_provider_cookie_source(provider_id: String) -> Result<Option<String>,
     ))
 }
 
-fn provider_region_field<'a>(
-    settings: &'a mut Settings,
-    provider_id: &str,
-) -> Option<&'a mut String> {
-    match provider_id {
-        "alibaba" => Some(&mut settings.alibaba_api_region()),
-        "zai" => Some(&mut settings.zai_api_region()),
-        "minimax" => Some(&mut settings.minimax_api_region()),
-        _ => None,
-    }
+fn region_provider(provider_id: &str) -> Option<codexbar::core::ProviderId> {
+    use codexbar::core::ProviderId;
+    Some(match provider_id {
+        "alibaba" => ProviderId::Alibaba,
+        "zai" => ProviderId::Zai,
+        "minimax" => ProviderId::MiniMax,
+        _ => return None,
+    })
 }
 
 fn provider_region_lookup(settings: &Settings, provider_id: &str) -> Option<String> {
-    let copy = match provider_id {
-        "alibaba" => &settings.alibaba_api_region(),
-        "zai" => &settings.zai_api_region(),
-        "minimax" => &settings.minimax_api_region(),
-        _ => return None,
-    };
-    Some(copy.clone())
+    region_provider(provider_id).map(|id| settings.api_region(id).to_string())
 }
 
 fn provider_region_set(
@@ -1593,9 +1571,9 @@ fn provider_region_set(
     provider_id: &str,
     region: String,
 ) -> Result<(), String> {
-    let field = provider_region_field(settings, provider_id)
+    let id = region_provider(provider_id)
         .ok_or_else(|| format!("Provider '{provider_id}' does not have a region picker"))?;
-    *field = region;
+    settings.set_api_region(id, region);
     Ok(())
 }
 

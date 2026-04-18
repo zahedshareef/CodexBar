@@ -596,31 +596,115 @@ impl From<RawSettings> for Settings {
             }
         }
 
-        set_cookie_source(&mut provider_configs, ProviderId::Codex, raw.codex_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::Claude, raw.claude_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::Cursor, raw.cursor_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::OpenCode, raw.opencode_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::Factory, raw.factory_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::Alibaba, raw.alibaba_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::Kimi, raw.kimi_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::MiniMax, raw.minimax_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::Augment, raw.augment_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::Amp, raw.amp_cookie_source);
-        set_cookie_source(&mut provider_configs, ProviderId::Ollama, raw.ollama_cookie_source);
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::Codex,
+            raw.codex_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::Claude,
+            raw.claude_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::Cursor,
+            raw.cursor_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::OpenCode,
+            raw.opencode_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::Factory,
+            raw.factory_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::Alibaba,
+            raw.alibaba_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::Kimi,
+            raw.kimi_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::MiniMax,
+            raw.minimax_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::Augment,
+            raw.augment_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::Amp,
+            raw.amp_cookie_source,
+        );
+        set_cookie_source(
+            &mut provider_configs,
+            ProviderId::Ollama,
+            raw.ollama_cookie_source,
+        );
 
-        set_usage_source(&mut provider_configs, ProviderId::Claude, raw.claude_usage_source);
-        set_usage_source(&mut provider_configs, ProviderId::Codex, raw.codex_usage_source);
+        set_usage_source(
+            &mut provider_configs,
+            ProviderId::Claude,
+            raw.claude_usage_source,
+        );
+        set_usage_source(
+            &mut provider_configs,
+            ProviderId::Codex,
+            raw.codex_usage_source,
+        );
 
-        set_region(&mut provider_configs, ProviderId::Alibaba, raw.alibaba_api_region);
+        set_region(
+            &mut provider_configs,
+            ProviderId::Alibaba,
+            raw.alibaba_api_region,
+        );
         set_region(&mut provider_configs, ProviderId::Zai, raw.zai_api_region);
-        set_region(&mut provider_configs, ProviderId::MiniMax, raw.minimax_api_region);
+        set_region(
+            &mut provider_configs,
+            ProviderId::MiniMax,
+            raw.minimax_api_region,
+        );
 
-        set_header(&mut provider_configs, ProviderId::Alibaba, raw.alibaba_cookie_header);
-        set_header(&mut provider_configs, ProviderId::Kimi, raw.kimi_manual_cookie_header);
-        set_header(&mut provider_configs, ProviderId::Augment, raw.augment_cookie_header);
-        set_header(&mut provider_configs, ProviderId::Amp, raw.amp_cookie_header);
-        set_header(&mut provider_configs, ProviderId::Ollama, raw.ollama_cookie_header);
-        set_header(&mut provider_configs, ProviderId::MiniMax, raw.minimax_cookie_header);
+        set_header(
+            &mut provider_configs,
+            ProviderId::Alibaba,
+            raw.alibaba_cookie_header,
+        );
+        set_header(
+            &mut provider_configs,
+            ProviderId::Kimi,
+            raw.kimi_manual_cookie_header,
+        );
+        set_header(
+            &mut provider_configs,
+            ProviderId::Augment,
+            raw.augment_cookie_header,
+        );
+        set_header(
+            &mut provider_configs,
+            ProviderId::Amp,
+            raw.amp_cookie_header,
+        );
+        set_header(
+            &mut provider_configs,
+            ProviderId::Ollama,
+            raw.ollama_cookie_header,
+        );
+        set_header(
+            &mut provider_configs,
+            ProviderId::MiniMax,
+            raw.minimax_cookie_header,
+        );
 
         if let Some(v) = raw.opencode_workspace_id {
             let entry = provider_configs.entry(ProviderId::OpenCode).or_default();
@@ -1055,116 +1139,170 @@ impl Settings {
     // `set_` prefix (write). New code should prefer the typed accessors
     // above.
 
-    pub fn codex_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Codex) }
+    pub fn codex_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::Codex)
+    }
     pub fn set_codex_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::Codex, v)
     }
-    pub fn claude_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Claude) }
+    pub fn claude_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::Claude)
+    }
     pub fn set_claude_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::Claude, v)
     }
-    pub fn cursor_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Cursor) }
+    pub fn cursor_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::Cursor)
+    }
     pub fn set_cursor_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::Cursor, v)
     }
-    pub fn opencode_cookie_source(&self) -> &str { self.cookie_source(ProviderId::OpenCode) }
+    pub fn opencode_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::OpenCode)
+    }
     pub fn set_opencode_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::OpenCode, v)
     }
-    pub fn factory_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Factory) }
+    pub fn factory_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::Factory)
+    }
     pub fn set_factory_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::Factory, v)
     }
-    pub fn alibaba_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Alibaba) }
+    pub fn alibaba_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::Alibaba)
+    }
     pub fn set_alibaba_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::Alibaba, v)
     }
-    pub fn kimi_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Kimi) }
+    pub fn kimi_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::Kimi)
+    }
     pub fn set_kimi_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::Kimi, v)
     }
-    pub fn minimax_cookie_source(&self) -> &str { self.cookie_source(ProviderId::MiniMax) }
+    pub fn minimax_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::MiniMax)
+    }
     pub fn set_minimax_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::MiniMax, v)
     }
-    pub fn augment_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Augment) }
+    pub fn augment_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::Augment)
+    }
     pub fn set_augment_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::Augment, v)
     }
-    pub fn amp_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Amp) }
+    pub fn amp_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::Amp)
+    }
     pub fn set_amp_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::Amp, v)
     }
-    pub fn ollama_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Ollama) }
+    pub fn ollama_cookie_source(&self) -> &str {
+        self.cookie_source(ProviderId::Ollama)
+    }
     pub fn set_ollama_cookie_source(&mut self, v: impl Into<String>) {
         self.set_cookie_source(ProviderId::Ollama, v)
     }
 
-    pub fn claude_usage_source(&self) -> &str { self.usage_source(ProviderId::Claude) }
+    pub fn claude_usage_source(&self) -> &str {
+        self.usage_source(ProviderId::Claude)
+    }
     pub fn set_claude_usage_source(&mut self, v: impl Into<String>) {
         self.set_usage_source(ProviderId::Claude, v)
     }
-    pub fn codex_usage_source(&self) -> &str { self.usage_source(ProviderId::Codex) }
+    pub fn codex_usage_source(&self) -> &str {
+        self.usage_source(ProviderId::Codex)
+    }
     pub fn set_codex_usage_source(&mut self, v: impl Into<String>) {
         self.set_usage_source(ProviderId::Codex, v)
     }
 
-    pub fn alibaba_api_region(&self) -> &str { self.api_region(ProviderId::Alibaba) }
+    pub fn alibaba_api_region(&self) -> &str {
+        self.api_region(ProviderId::Alibaba)
+    }
     pub fn set_alibaba_api_region(&mut self, v: impl Into<String>) {
         self.set_api_region(ProviderId::Alibaba, v)
     }
-    pub fn zai_api_region(&self) -> &str { self.api_region(ProviderId::Zai) }
+    pub fn zai_api_region(&self) -> &str {
+        self.api_region(ProviderId::Zai)
+    }
     pub fn set_zai_api_region(&mut self, v: impl Into<String>) {
         self.set_api_region(ProviderId::Zai, v)
     }
-    pub fn minimax_api_region(&self) -> &str { self.api_region(ProviderId::MiniMax) }
+    pub fn minimax_api_region(&self) -> &str {
+        self.api_region(ProviderId::MiniMax)
+    }
     pub fn set_minimax_api_region(&mut self, v: impl Into<String>) {
         self.set_api_region(ProviderId::MiniMax, v)
     }
 
-    pub fn alibaba_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Alibaba) }
+    pub fn alibaba_cookie_header(&self) -> &str {
+        self.manual_cookie_header(ProviderId::Alibaba)
+    }
     pub fn set_alibaba_cookie_header(&mut self, v: impl Into<String>) {
         self.set_manual_cookie_header(ProviderId::Alibaba, v)
     }
-    pub fn kimi_manual_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Kimi) }
+    pub fn kimi_manual_cookie_header(&self) -> &str {
+        self.manual_cookie_header(ProviderId::Kimi)
+    }
     pub fn set_kimi_manual_cookie_header(&mut self, v: impl Into<String>) {
         self.set_manual_cookie_header(ProviderId::Kimi, v)
     }
-    pub fn augment_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Augment) }
+    pub fn augment_cookie_header(&self) -> &str {
+        self.manual_cookie_header(ProviderId::Augment)
+    }
     pub fn set_augment_cookie_header(&mut self, v: impl Into<String>) {
         self.set_manual_cookie_header(ProviderId::Augment, v)
     }
-    pub fn amp_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Amp) }
+    pub fn amp_cookie_header(&self) -> &str {
+        self.manual_cookie_header(ProviderId::Amp)
+    }
     pub fn set_amp_cookie_header(&mut self, v: impl Into<String>) {
         self.set_manual_cookie_header(ProviderId::Amp, v)
     }
-    pub fn ollama_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Ollama) }
+    pub fn ollama_cookie_header(&self) -> &str {
+        self.manual_cookie_header(ProviderId::Ollama)
+    }
     pub fn set_ollama_cookie_header(&mut self, v: impl Into<String>) {
         self.set_manual_cookie_header(ProviderId::Ollama, v)
     }
-    pub fn minimax_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::MiniMax) }
+    pub fn minimax_cookie_header(&self) -> &str {
+        self.manual_cookie_header(ProviderId::MiniMax)
+    }
     pub fn set_minimax_cookie_header(&mut self, v: impl Into<String>) {
         self.set_manual_cookie_header(ProviderId::MiniMax, v)
     }
 
-    pub fn opencode_workspace_id(&self) -> &str { self.workspace_id(ProviderId::OpenCode) }
+    pub fn opencode_workspace_id(&self) -> &str {
+        self.workspace_id(ProviderId::OpenCode)
+    }
     pub fn set_opencode_workspace_id(&mut self, v: impl Into<String>) {
         self.set_workspace_id(ProviderId::OpenCode, v)
     }
-    pub fn minimax_api_token(&self) -> &str { self.api_token(ProviderId::MiniMax) }
+    pub fn minimax_api_token(&self) -> &str {
+        self.api_token(ProviderId::MiniMax)
+    }
     pub fn set_minimax_api_token(&mut self, v: impl Into<String>) {
         self.set_api_token(ProviderId::MiniMax, v)
     }
-    pub fn jetbrains_ide_base_path(&self) -> &str { self.ide_base_path(ProviderId::JetBrains) }
+    pub fn jetbrains_ide_base_path(&self) -> &str {
+        self.ide_base_path(ProviderId::JetBrains)
+    }
     pub fn set_jetbrains_ide_base_path(&mut self, v: impl Into<String>) {
         self.set_ide_base_path(ProviderId::JetBrains, v)
     }
 
-    pub fn codex_openai_web_extras(&self) -> bool { self.openai_web_extras(ProviderId::Codex) }
+    pub fn codex_openai_web_extras(&self) -> bool {
+        self.openai_web_extras(ProviderId::Codex)
+    }
     pub fn set_codex_openai_web_extras(&mut self, v: bool) {
         self.set_openai_web_extras(ProviderId::Codex, v)
     }
-    pub fn codex_historical_tracking(&self) -> bool { self.historical_tracking(ProviderId::Codex) }
+    pub fn codex_historical_tracking(&self) -> bool {
+        self.historical_tracking(ProviderId::Codex)
+    }
     pub fn set_codex_historical_tracking(&mut self, v: bool) {
         self.set_historical_tracking(ProviderId::Codex, v)
     }
@@ -1804,5 +1942,182 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         let loaded: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(loaded.theme, ThemePreference::Dark);
+    }
+
+    // ── Phase 3: provider_configs migration tests ───────────────────────
+
+    /// Loading a legacy `settings.json` (with flat per-provider fields)
+    /// must populate `provider_configs` and surface every value through the
+    /// per-provider accessors.
+    #[test]
+    fn test_legacy_per_provider_fields_migrate_into_provider_configs() {
+        // NOTE: placeholder values only — no real cookies/tokens.
+        let legacy_json = r#"{
+            "enabled_providers": ["claude", "codex"],
+            "refresh_interval_secs": 300,
+            "codex_cookie_source": "manual",
+            "claude_cookie_source": "browser",
+            "cursor_cookie_source": "manual",
+            "alibaba_cookie_source": "manual",
+            "alibaba_cookie_header": "ali=PLACEHOLDER",
+            "alibaba_api_region": "cn",
+            "zai_api_region": "cn",
+            "minimax_api_region": "cn",
+            "minimax_api_token": "TOK_PLACEHOLDER",
+            "claude_usage_source": "ccusage",
+            "codex_usage_source": "manual",
+            "codex_openai_web_extras": false,
+            "codex_historical_tracking": true,
+            "claude_avoid_keychain_prompts": true,
+            "opencode_workspace_id": "ws_placeholder",
+            "jetbrains_ide_base_path": "C:/JB"
+        }"#;
+
+        let settings: Settings = serde_json::from_str(legacy_json).unwrap();
+
+        // Cookie sources
+        assert_eq!(settings.cookie_source(ProviderId::Codex), "manual");
+        assert_eq!(settings.cookie_source(ProviderId::Claude), "browser");
+        assert_eq!(settings.cookie_source(ProviderId::Cursor), "manual");
+        assert_eq!(settings.cookie_source(ProviderId::Alibaba), "manual");
+        // Untouched providers fall through to the default "auto"
+        assert_eq!(settings.cookie_source(ProviderId::Amp), "auto");
+
+        // Manual cookie headers + api regions
+        assert_eq!(
+            settings.manual_cookie_header(ProviderId::Alibaba),
+            "ali=PLACEHOLDER"
+        );
+        assert_eq!(settings.api_region(ProviderId::Alibaba), "cn");
+        assert_eq!(settings.api_region(ProviderId::Zai), "cn");
+        assert_eq!(settings.api_region(ProviderId::MiniMax), "cn");
+
+        // Usage sources
+        assert_eq!(settings.usage_source(ProviderId::Claude), "ccusage");
+        assert_eq!(settings.usage_source(ProviderId::Codex), "manual");
+
+        // Codex booleans
+        assert!(!settings.openai_web_extras(ProviderId::Codex));
+        assert!(settings.historical_tracking(ProviderId::Codex));
+
+        // Claude per-provider boolean
+        assert!(settings.avoid_keychain_prompts(ProviderId::Claude));
+
+        // Misc per-provider strings
+        assert_eq!(
+            settings.workspace_id(ProviderId::OpenCode),
+            "ws_placeholder"
+        );
+        assert_eq!(settings.api_token(ProviderId::MiniMax), "TOK_PLACEHOLDER");
+        assert_eq!(settings.ide_base_path(ProviderId::JetBrains), "C:/JB");
+
+        // Legacy field-name aliases agree with typed accessors.
+        assert_eq!(settings.codex_cookie_source(), "manual");
+        assert_eq!(settings.alibaba_api_region(), "cn");
+        assert!(settings.codex_historical_tracking());
+        assert!(!settings.codex_openai_web_extras());
+        assert!(settings.claude_avoid_keychain_prompts());
+    }
+
+    /// Round-trip: build a `Settings` programmatically via the new map +
+    /// accessors, serialize, parse back, and assert equality of every
+    /// per-provider field.
+    #[test]
+    fn test_provider_configs_roundtrip() {
+        let mut settings = Settings::default();
+        settings.set_cookie_source(ProviderId::Codex, "manual");
+        settings.set_cookie_source(ProviderId::Claude, "browser");
+        settings.set_usage_source(ProviderId::Claude, "ccusage");
+        settings.set_api_region(ProviderId::Alibaba, "cn");
+        settings.set_api_region(ProviderId::Zai, "cn");
+        settings.set_manual_cookie_header(ProviderId::Amp, "amp=PLACEHOLDER");
+        settings.set_api_token(ProviderId::MiniMax, "TOK_PLACEHOLDER");
+        settings.set_workspace_id(ProviderId::OpenCode, "ws_placeholder");
+        settings.set_ide_base_path(ProviderId::JetBrains, "C:/JB");
+        settings.set_openai_web_extras(ProviderId::Codex, false);
+        settings.set_historical_tracking(ProviderId::Codex, true);
+        settings.set_avoid_keychain_prompts(ProviderId::Claude, true);
+
+        let json = serde_json::to_string(&settings).unwrap();
+        // The legacy flat fields must NOT appear in serialized output.
+        assert!(!json.contains("\"codex_cookie_source\""), "json: {json}");
+        assert!(!json.contains("\"alibaba_api_region\""), "json: {json}");
+        assert!(
+            !json.contains("\"claude_avoid_keychain_prompts\""),
+            "json: {json}"
+        );
+        assert!(json.contains("\"provider_configs\""), "json: {json}");
+
+        let loaded: Settings = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.cookie_source(ProviderId::Codex), "manual");
+        assert_eq!(loaded.cookie_source(ProviderId::Claude), "browser");
+        assert_eq!(loaded.usage_source(ProviderId::Claude), "ccusage");
+        assert_eq!(loaded.api_region(ProviderId::Alibaba), "cn");
+        assert_eq!(loaded.api_region(ProviderId::Zai), "cn");
+        assert_eq!(
+            loaded.manual_cookie_header(ProviderId::Amp),
+            "amp=PLACEHOLDER"
+        );
+        assert_eq!(loaded.api_token(ProviderId::MiniMax), "TOK_PLACEHOLDER");
+        assert_eq!(loaded.workspace_id(ProviderId::OpenCode), "ws_placeholder");
+        assert_eq!(loaded.ide_base_path(ProviderId::JetBrains), "C:/JB");
+        assert!(!loaded.openai_web_extras(ProviderId::Codex));
+        assert!(loaded.historical_tracking(ProviderId::Codex));
+        assert!(loaded.avoid_keychain_prompts(ProviderId::Claude));
+        assert_eq!(
+            loaded.provider_configs.get(&ProviderId::Codex),
+            settings.provider_configs.get(&ProviderId::Codex)
+        );
+    }
+
+    /// New-format files (no legacy flat fields, only `provider_configs`)
+    /// must load identically.
+    #[test]
+    fn test_new_format_provider_configs_only() {
+        let json = r#"{
+            "enabled_providers": ["claude"],
+            "refresh_interval_secs": 300,
+            "provider_configs": {
+                "codex": { "cookie_source": "manual", "openai_web_extras": false },
+                "alibaba": { "api_region": "cn", "manual_cookie_header": "ali=PLACEHOLDER" }
+            }
+        }"#;
+
+        let settings: Settings = serde_json::from_str(json).unwrap();
+        assert_eq!(settings.cookie_source(ProviderId::Codex), "manual");
+        assert!(!settings.openai_web_extras(ProviderId::Codex));
+        assert_eq!(settings.api_region(ProviderId::Alibaba), "cn");
+        assert_eq!(
+            settings.manual_cookie_header(ProviderId::Alibaba),
+            "ali=PLACEHOLDER"
+        );
+        // Untouched providers still get their defaults.
+        assert_eq!(settings.cookie_source(ProviderId::Claude), "auto");
+        assert_eq!(settings.api_region(ProviderId::Zai), "global");
+    }
+
+    /// Default `Settings` should serialize WITHOUT a `provider_configs`
+    /// field (empty map skipped).
+    #[test]
+    fn test_default_settings_skip_empty_provider_configs() {
+        let settings = Settings::default();
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(
+            !json.contains("\"provider_configs\""),
+            "empty map should be skipped, json: {json}"
+        );
+    }
+
+    /// Per-provider defaults are applied even when the entry is absent.
+    #[test]
+    fn test_per_provider_defaults_applied() {
+        let settings = Settings::default();
+        assert_eq!(settings.cookie_source(ProviderId::Codex), "auto");
+        assert_eq!(settings.api_region(ProviderId::Alibaba), "intl");
+        assert_eq!(settings.api_region(ProviderId::Zai), "global");
+        assert_eq!(settings.api_region(ProviderId::MiniMax), "global");
+        assert!(settings.openai_web_extras(ProviderId::Codex));
+        assert!(!settings.historical_tracking(ProviderId::Codex));
+        assert!(!settings.avoid_keychain_prompts(ProviderId::Claude));
     }
 }
