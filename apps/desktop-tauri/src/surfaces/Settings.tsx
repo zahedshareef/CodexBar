@@ -12,9 +12,6 @@ import { setSurfaceMode } from "../lib/tauri";
 import GeneralTab from "./settings/tabs/GeneralTab";
 import DisplayTab from "./settings/tabs/DisplayTab";
 import AdvancedTab from "./settings/tabs/AdvancedTab";
-import ApiKeysTab from "./settings/tabs/ApiKeysTab";
-import CookiesTab from "./settings/tabs/CookiesTab";
-import TokenAccountsTab from "./settings/tabs/TokenAccountsTab";
 import AboutTab from "./settings/tabs/AboutTab";
 import ProvidersTab from "./settings/tabs/ProvidersTab";
 
@@ -23,9 +20,9 @@ import ProvidersTab from "./settings/tabs/ProvidersTab";
 type SettingsTab = SettingsTabId;
 
 // Inline monochrome SVG icons stand in for the upstream macOS SF Symbols
-// (gearshape / square.grid.2x2 / eye / key / book.closed / circle.hexagongrid /
-//  slider.horizontal.3 / info.circle). They render in `currentColor` so they
-//  pick up the same secondary/accent text color as the tab label.
+// (gearshape / square.grid.2x2 / eye / slider.horizontal.3 / info.circle).
+// They render in `currentColor` so they pick up the same secondary/accent
+// text color as the tab label.
 const ICON_SIZE = 16;
 
 function Svg({ children }: { children: ReactNode }) {
@@ -63,28 +60,8 @@ const TabIcons: Record<SettingsTab, ReactElement> = {
   ),
   display: (
     <Svg>
-      <circle cx="8" cy="8" r="3.25" />
-      <path d="M8 1.75v1.5M8 12.75v1.5M1.75 8h1.5M12.75 8h1.5M3.5 3.5l1.05 1.05M11.45 11.45l1.05 1.05M3.5 12.5l1.05-1.05M11.45 4.55l1.05-1.05" />
-    </Svg>
-  ),
-  apiKeys: (
-    <Svg>
-      <circle cx="5.5" cy="8" r="2.5" />
-      <path d="M8 8h6M11.5 8v2M14 8v1.5" />
-    </Svg>
-  ),
-  cookies: (
-    <Svg>
-      <path d="M14.25 8.5a6.25 6.25 0 1 1-6.75-6.74 2.4 2.4 0 0 0 2.5 2.5 2.4 2.4 0 0 0 2.5 2.5 2.4 2.4 0 0 0 1.75 1.74Z" />
-      <circle cx="6" cy="8" r="0.6" fill="currentColor" stroke="none" />
-      <circle cx="9.5" cy="10.5" r="0.6" fill="currentColor" stroke="none" />
-      <circle cx="5.5" cy="11" r="0.6" fill="currentColor" stroke="none" />
-    </Svg>
-  ),
-  tokenAccounts: (
-    <Svg>
-      <path d="M8 1.5l5.5 3v7L8 14.5 2.5 11.5v-7Z" />
-      <path d="M2.5 4.5L8 7.5l5.5-3M8 7.5v7" />
+      <path d="M1.5 8c1.6-3 4-4.5 6.5-4.5S13 5 14.5 8c-1.5 3-4 4.5-6.5 4.5S3.1 11 1.5 8Z" />
+      <circle cx="8" cy="8" r="2" />
     </Svg>
   ),
   advanced: (
@@ -105,15 +82,12 @@ const TabIcons: Record<SettingsTab, ReactElement> = {
 };
 
 // Tab order mirrors upstream PreferencesView (General, Providers, Display,
-// Advanced, About) with the Win-port-specific credential tabs grouped after
-// Providers so they remain reachable but don't push parity tabs out of view.
+// Advanced, About). Per-provider credential management (API keys, cookies,
+// token accounts) is handled inside the Providers tab.
 const TAB_META: { id: SettingsTab; labelKey: LocaleKey }[] = [
   { id: "general", labelKey: "TabGeneral" },
   { id: "providers", labelKey: "TabProviders" },
   { id: "display", labelKey: "TabDisplay" },
-  { id: "apiKeys", labelKey: "TabApiKeys" },
-  { id: "cookies", labelKey: "TabCookies" },
-  { id: "tokenAccounts", labelKey: "TabTokenAccounts" },
   { id: "advanced", labelKey: "TabAdvanced" },
   { id: "about", labelKey: "TabAbout" },
 ];
@@ -193,9 +167,6 @@ export default function Settings({ state }: { state: BootstrapState }) {
         {activeTab === "advanced" && (
           <AdvancedTab settings={settings} set={set} saving={saving} />
         )}
-        {activeTab === "apiKeys" && <ApiKeysTab providers={state.providers} />}
-        {activeTab === "cookies" && <CookiesTab providers={state.providers} />}
-        {activeTab === "tokenAccounts" && <TokenAccountsTab />}
         {activeTab === "about" && <AboutTab />}
       </div>
     </div>

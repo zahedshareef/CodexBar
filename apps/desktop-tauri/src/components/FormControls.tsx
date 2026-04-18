@@ -5,21 +5,32 @@ import type React from "react";
 export function Toggle({
   checked,
   onChange,
+  label,
   disabled,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
+  label?: string;
   disabled?: boolean;
 }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      className={`toggle ${checked ? "toggle--on" : ""}`}
+  const input = (
+    <input
+      type="checkbox"
+      className="toggle"
+      checked={checked}
       disabled={disabled}
-      onClick={() => onChange(!checked)}
+      onChange={(e) => onChange(e.target.checked)}
     />
   );
+  if (label) {
+    return (
+      <label className={`toggle-label ${disabled ? "toggle-label--disabled" : ""}`}>
+        {input}
+        <span>{label}</span>
+      </label>
+    );
+  }
+  return input;
 }
 
 export function Select({

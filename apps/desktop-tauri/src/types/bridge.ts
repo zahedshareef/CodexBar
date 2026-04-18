@@ -4,9 +4,6 @@ export type SettingsTabId =
   | "general"
   | "providers"
   | "display"
-  | "apiKeys"
-  | "cookies"
-  | "tokenAccounts"
   | "advanced"
   | "about";
 

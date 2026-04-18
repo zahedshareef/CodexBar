@@ -3,9 +3,7 @@ import { useUpdateState } from "../../../hooks/useUpdateState";
 import { formatRelativeUpdated } from "../../../lib/relativeTime";
 import { Field, NumberInput, Select, Toggle } from "../../../components/FormControls";
 import type {
-  Language,
   MenuBarDisplayMode,
-  ThemePreference,
   TrayIconMode,
   UpdateChannel,
 } from "../../../types/bridge";
@@ -251,43 +249,6 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
                 {t("TrayCheckForUpdates")}
               </button>
             </div>
-          </Field>
-        </div>
-      </section>
-
-      {/* ── Language ─────────────────────────────────────────────── */}
-      <section className="settings-section">
-        <h3 className="settings-section__title">{t("SectionLanguage")}</h3>
-        <div className="settings-section__group">
-          <Field label={t("InterfaceLanguage")}>
-            <Select
-              value={settings.uiLanguage}
-              disabled={saving}
-              options={[
-                { value: "english", label: t("LanguageEnglishOption") },
-                { value: "chinese", label: t("LanguageChineseOption") },
-              ]}
-              onChange={(v) => set({ uiLanguage: v as Language })}
-            />
-          </Field>
-        </div>
-      </section>
-
-      {/* ── Appearance (Phase 12) ────────────────────────────────── */}
-      <section className="settings-section">
-        <h3 className="settings-section__title">{t("SectionTheme")}</h3>
-        <div className="settings-section__group">
-          <Field label={t("ThemeLabel")} description={t("ThemeHelper")}>
-            <Select
-              value={settings.theme}
-              disabled={saving}
-              options={[
-                { value: "auto", label: t("ThemeAutoOption") },
-                { value: "light", label: t("ThemeLightOption") },
-                { value: "dark", label: t("ThemeDarkOption") },
-              ]}
-              onChange={(v) => set({ theme: v as ThemePreference })}
-            />
           </Field>
         </div>
       </section>
