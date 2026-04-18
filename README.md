@@ -100,7 +100,7 @@ When running inside WSL, CodexBar:
 Download the latest release from [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases).
 
 - Recommended installer: `CodexBar-<version>-Setup.exe`
-- Portable build: `codexbar.exe`
+- Portable build: `codexbar-desktop-tauri.exe` (from `target/release/`)
 
 ### Manual Build
 

@@ -85,6 +85,14 @@ session1-*.txt
 # Throwaway launch scripts
 launch-cb-nossh.cmd
 launch-cb.cmd
+launch-cb*.ps1
+run-cb.ps1
+check_windows.ps1
+
+# Stray Windows binaries (artifacts of cargo build, not source)
+codexbar.exe
+codexbar-desktop-tauri.exe
+/*.exe
 
 # Local git worktrees
 .worktrees/

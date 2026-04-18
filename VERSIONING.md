@@ -96,7 +96,7 @@ git push origin main --tags
 
 # 4. Create GitHub release with binary
 gh release create vX.Y.Z \
-  rust/target/x86_64-pc-windows-gnu/release/codexbar.exe \
+  target/release/codexbar-desktop-tauri.exe \
   --title "vX.Y.Z - Release Title" \
   --notes-file release-notes.md
 ```

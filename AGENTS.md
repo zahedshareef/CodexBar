@@ -9,24 +9,32 @@
   in `rust/src`.
 
 ## Project Structure & Modules
-- `rust/src`: Main application code (CLI, providers, tray, native UI, browser cookie extraction, settings).
+- `apps/desktop-tauri/`: Tauri desktop shell (default UI). React frontend in `apps/desktop-tauri/src/`,
+  Rust backend + tray bridge in `apps/desktop-tauri/src-tauri/src/`.
+- `rust/src`: Shared backend crate + CLI (`codexbar` binary). Houses providers, settings, login,
+  status, sound, shortcuts, browser cookie extraction, and the shared tray-icon renderer.
 - `rust/src/providers`: Provider-specific fetch/parsing/auth logic. Keep provider boundaries clean.
-- `rust/src/native_ui` and `rust/src/tray`: egui UI and tray integration.
+- `rust/src/tray` (shared): `icon.rs` + `render.rs` — pixel-level tray-icon rendering used by the Tauri shell.
 - `rust/src/browser`: Browser detection + cookie extraction for Windows.
+- `rust/src/core`: Shared provider-construction (`instantiate_provider`) and provider IDs.
+- `rust/legacy/`: Retired egui menubar shell (native_ui, single_instance, egui-only tray submodules).
+  Compiled but not wired into any binary; see `rust/legacy/README.md`.
 - `rust/assets`, `rust/icons`, `rust/gen`, `rust/wix`: UI assets, generated schemas, installer packaging.
 - `docs`: Mixed documentation (Windows port docs plus upstream/macOS references). Update only the relevant docs.
 
 ## Build, Test, Run
-- Desktop shell work usually starts at the repo root; use `cd rust` for backend-only tasks.
-- Build the default desktop shell: `cargo build` (debug) or `cargo build --release`.
-- Build the desktop shell explicitly: `cargo build --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml`.
-- Test: `cargo test`.
+- Default desktop work runs from the repo root; `cd rust` is for backend/CLI-only tasks.
+- Build the desktop shell (preferred): `cd apps/desktop-tauri && npm run tauri:build` (or `tauri:build:debug`).
+  Raw `cargo build --release` on the Tauri crate produces an exe that still points at the dev URL.
+- Build the CLI: `cargo build -p codexbar`.
+- Test: `cargo test --manifest-path rust/Cargo.toml` and
+  `cargo test --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml`.
 - Run CLI locally: `cargo run -p codexbar -- --help`, `cargo run -p codexbar -- usage -p claude`,
-  `cargo run -p codexbar -- cost`.
+  `cargo run -p codexbar -- cost`. The CLI no longer launches a GUI when run with no subcommand.
 - Run the desktop shell through Tauri's build/dev flow: `.\dev.ps1`, `./dev.sh`, or
   `cd apps/desktop-tauri && npm run tauri:dev`.
 - Format/lint before handoff when code changed: `cargo fmt --all` and `cargo clippy --all-targets -- -D warnings`
-  (or explain why not run).
+  on both manifests (or explain why not run).
 - There is no active root-level `Scripts/` build pipeline in this port. Do not rely on legacy `Scripts/*.sh` commands.
 
 ## Coding Style & Naming
@@ -53,7 +61,10 @@
   - Linked issue/reference when relevant
 
 ## Agent Notes
-- The default desktop app path in this branch is the Tauri shell; the Rust crate still owns shared backend logic and CLI.
+- The default desktop app is the Tauri shell in `apps/desktop-tauri/`. The Rust crate owns shared backend logic
+  and the CLI; the egui menubar shell has been retired to `rust/legacy/`.
+- New provider construction goes through `codexbar::core::instantiate_provider` — do not duplicate provider
+  factories in shells or commands.
 - Keep provider data siloed: never show identity/plan/email fields from provider A in provider B UI.
 - Claude CLI output is user-configurable; do not depend on a customizable status line for usage parsing.
 - Cookie import UX uses explicit browser selection in Preferences. Do not assume Chrome-only in general UI flows.
