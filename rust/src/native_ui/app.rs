@@ -22,15 +22,14 @@ use super::provider_icons::ProviderIconCache;
 use super::theme::{FontSize, Radius, Spacing, Theme, provider_color, status_color};
 use crate::browser::cookies::get_cookie_header;
 use crate::core::{
-    FetchContext, OpenAIDashboardCacheStore, PersonalInfoRedactor, Provider, ProviderFetchResult,
-    ProviderId, RateWindow,
+    FetchContext, OpenAIDashboardCacheStore, PersonalInfoRedactor, ProviderFetchResult, ProviderId,
+    RateWindow, instantiate_provider,
 };
 use crate::core::{TokenAccountStore, TokenAccountSupport};
 use crate::cost_scanner::get_daily_cost_history;
 use crate::locale::{LocaleKey, get_text as locale_text};
 use crate::login::LoginPhase;
 use crate::notifications::NotificationManager;
-use crate::providers::*;
 use crate::settings::{ApiKeys, Language, ManualCookies, Settings, TrayIconMode, UpdateChannel};
 use crate::shortcuts::{ShortcutManager, parse_shortcut};
 use crate::status::{StatusLevel, fetch_provider_status, get_status_page_url};
@@ -2448,7 +2447,7 @@ impl CodexBarApp {
                         };
                         let state = Arc::clone(&state);
                         tokio::spawn(async move {
-                            let provider = create_provider(id);
+                            let provider = instantiate_provider(id);
                             let metadata = provider.metadata().clone();
                             let provider_name = id.cli_name().to_string();
 
@@ -2624,35 +2623,6 @@ fn work_area_rect(ctx: &egui::Context) -> Option<Rect> {
             .monitor_size
             .map(|size| Rect::from_min_size(egui::pos2(0.0, 0.0), size))
     })
-}
-
-fn create_provider(id: ProviderId) -> Box<dyn Provider> {
-    match id {
-        ProviderId::Claude => Box::new(ClaudeProvider::new()),
-        ProviderId::Codex => Box::new(CodexProvider::new()),
-        ProviderId::Cursor => Box::new(CursorProvider::new()),
-        ProviderId::Gemini => Box::new(GeminiProvider::new()),
-        ProviderId::Copilot => Box::new(CopilotProvider::new()),
-        ProviderId::Antigravity => Box::new(AntigravityProvider::new()),
-        ProviderId::Factory => Box::new(FactoryProvider::new()),
-        ProviderId::Zai => Box::new(ZaiProvider::new()),
-        ProviderId::Kiro => Box::new(KiroProvider::new()),
-        ProviderId::VertexAI => Box::new(VertexAIProvider::new()),
-        ProviderId::Augment => Box::new(AugmentProvider::new()),
-        ProviderId::MiniMax => Box::new(MiniMaxProvider::new()),
-        ProviderId::OpenCode => Box::new(OpenCodeProvider::new()),
-        ProviderId::Kimi => Box::new(KimiProvider::new()),
-        ProviderId::KimiK2 => Box::new(KimiK2Provider::new()),
-        ProviderId::Amp => Box::new(AmpProvider::new()),
-        ProviderId::Warp => Box::new(WarpProvider::new()),
-        ProviderId::Ollama => Box::new(OllamaProvider::new()),
-        ProviderId::OpenRouter => Box::new(OpenRouterProvider::new()),
-        ProviderId::Synthetic => Box::new(SyntheticProvider::new()),
-        ProviderId::JetBrains => Box::new(JetBrainsProvider::new()),
-        ProviderId::Alibaba => Box::new(AlibabaProvider::new()),
-        ProviderId::NanoGPT => Box::new(NanoGPTProvider::new()),
-        ProviderId::Infini => Box::new(InfiniProvider::default()),
-    }
 }
 
 impl eframe::App for CodexBarApp {

@@ -1,9 +1,8 @@
-//! Provider trait and registry - defines the interface all providers must implement
+//! Provider trait - defines the interface all providers must implement
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{LazyLock, RwLock};
 use thiserror::Error;
 
 use super::ProviderFetchResult;
@@ -346,52 +345,6 @@ pub trait Provider: Send + Sync {
         None
     }
 }
-
-/// Registry of all available providers
-pub struct ProviderRegistry {
-    providers: RwLock<HashMap<ProviderId, Box<dyn Provider>>>,
-}
-
-impl ProviderRegistry {
-    /// Create a new empty registry
-    pub fn new() -> Self {
-        Self {
-            providers: RwLock::new(HashMap::new()),
-        }
-    }
-
-    /// Register a provider
-    pub fn register(&self, provider: Box<dyn Provider>) {
-        let id = provider.id();
-        let mut providers = self.providers.write().unwrap();
-        providers.insert(id, provider);
-    }
-
-    /// Get a provider by ID
-    pub fn get(&self, id: ProviderId) -> Option<Box<dyn Provider>> {
-        let providers = self.providers.read().unwrap();
-        // We need to clone here, but since Provider is not Clone, we'll return None for now
-        // In practice, we'll use Arc<dyn Provider> instead
-        providers
-            .get(&id)
-            .map(|_| todo!("Use Arc<dyn Provider> instead"))
-    }
-
-    /// Get all registered provider IDs
-    pub fn all_ids(&self) -> Vec<ProviderId> {
-        let providers = self.providers.read().unwrap();
-        providers.keys().copied().collect()
-    }
-}
-
-impl Default for ProviderRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Global provider registry
-pub static REGISTRY: LazyLock<ProviderRegistry> = LazyLock::new(ProviderRegistry::new);
 
 /// Get the CLI name map for argument parsing
 pub fn cli_name_map() -> HashMap<&'static str, ProviderId> {

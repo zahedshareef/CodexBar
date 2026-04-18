@@ -3,13 +3,8 @@
 use clap::Args;
 use serde::Serialize;
 
-use crate::core::{FetchContext, Provider, ProviderFetchResult, ProviderId, SourceMode};
-use crate::providers::{
-    AlibabaProvider, AmpProvider, AntigravityProvider, AugmentProvider, ClaudeProvider,
-    CodexProvider, CopilotProvider, CursorProvider, FactoryProvider, GeminiProvider,
-    InfiniProvider, JetBrainsProvider, KimiK2Provider, KimiProvider, KiroProvider, MiniMaxProvider,
-    NanoGPTProvider, OllamaProvider, OpenCodeProvider, OpenRouterProvider, SyntheticProvider,
-    VertexAIProvider, WarpProvider, ZaiProvider,
+use crate::core::{
+    FetchContext, ProviderFetchResult, ProviderId, SourceMode, instantiate_provider,
 };
 use crate::status::{ProviderStatus as StatusInfo, StatusLevel, fetch_provider_status};
 
@@ -137,36 +132,6 @@ struct ErrorPayload {
     error: String,
 }
 
-/// Create a provider instance by ID
-fn create_provider(id: ProviderId) -> Box<dyn Provider> {
-    match id {
-        ProviderId::Claude => Box::new(ClaudeProvider::new()),
-        ProviderId::Codex => Box::new(CodexProvider::new()),
-        ProviderId::Cursor => Box::new(CursorProvider::new()),
-        ProviderId::Gemini => Box::new(GeminiProvider::new()),
-        ProviderId::Copilot => Box::new(CopilotProvider::new()),
-        ProviderId::Antigravity => Box::new(AntigravityProvider::new()),
-        ProviderId::Factory => Box::new(FactoryProvider::new()),
-        ProviderId::Zai => Box::new(ZaiProvider::new()),
-        ProviderId::Kiro => Box::new(KiroProvider::new()),
-        ProviderId::VertexAI => Box::new(VertexAIProvider::new()),
-        ProviderId::Augment => Box::new(AugmentProvider::new()),
-        ProviderId::MiniMax => Box::new(MiniMaxProvider::new()),
-        ProviderId::OpenCode => Box::new(OpenCodeProvider::new()),
-        ProviderId::Kimi => Box::new(KimiProvider::new()),
-        ProviderId::KimiK2 => Box::new(KimiK2Provider::new()),
-        ProviderId::Amp => Box::new(AmpProvider::new()),
-        ProviderId::Warp => Box::new(WarpProvider::new()),
-        ProviderId::Ollama => Box::new(OllamaProvider::new()),
-        ProviderId::OpenRouter => Box::new(OpenRouterProvider::new()),
-        ProviderId::Synthetic => Box::new(SyntheticProvider::new()),
-        ProviderId::JetBrains => Box::new(JetBrainsProvider::new()),
-        ProviderId::Alibaba => Box::new(AlibabaProvider::new()),
-        ProviderId::NanoGPT => Box::new(NanoGPTProvider::new()),
-        ProviderId::Infini => Box::new(InfiniProvider::default()),
-    }
-}
-
 /// Run the usage command
 pub async fn run(args: UsageArgs) -> anyhow::Result<()> {
     let format = if args.json {
@@ -201,7 +166,7 @@ pub async fn run(args: UsageArgs) -> anyhow::Result<()> {
     let mut text_sections: Vec<String> = Vec::new();
 
     for provider_id in providers.as_list() {
-        let provider = create_provider(provider_id);
+        let provider = instantiate_provider(provider_id);
 
         // Optionally fetch status in parallel with usage
         let status_future = if fetch_status {
@@ -293,7 +258,7 @@ pub fn render_text_with_status(
     use_color: bool,
 ) -> String {
     let mut lines = Vec::new();
-    let metadata = create_provider(provider).metadata().clone();
+    let metadata = instantiate_provider(provider).metadata().clone();
 
     // Header with optional status indicator
     let status_indicator = if let Some(s) = status {

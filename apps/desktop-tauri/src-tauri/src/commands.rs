@@ -2,12 +2,11 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 
 use codexbar::core::{
-    FetchContext, OpenAIDashboardCacheStore, Provider, ProviderFetchResult, ProviderId, RateWindow,
-    TokenAccount, TokenAccountStore, TokenAccountSupport,
+    FetchContext, OpenAIDashboardCacheStore, ProviderFetchResult, ProviderId, RateWindow,
+    TokenAccount, TokenAccountStore, TokenAccountSupport, instantiate_provider,
 };
 use codexbar::cost_scanner::get_daily_cost_history;
 use codexbar::locale;
-use codexbar::providers::*;
 use codexbar::settings::{
     ApiKeys, Language, ManualCookies, MetricPreference, Settings, ThemePreference, TrayIconMode,
     UpdateChannel,
@@ -1003,36 +1002,6 @@ fn target_label(target: &SurfaceTarget) -> String {
 
 // ── Provider refresh commands ────────────────────────────────────────
 
-/// Instantiate the concrete provider for a given ID.
-fn create_provider(id: ProviderId) -> Box<dyn Provider> {
-    match id {
-        ProviderId::Claude => Box::new(ClaudeProvider::new()),
-        ProviderId::Codex => Box::new(CodexProvider::new()),
-        ProviderId::Cursor => Box::new(CursorProvider::new()),
-        ProviderId::Gemini => Box::new(GeminiProvider::new()),
-        ProviderId::Copilot => Box::new(CopilotProvider::new()),
-        ProviderId::Antigravity => Box::new(AntigravityProvider::new()),
-        ProviderId::Factory => Box::new(FactoryProvider::new()),
-        ProviderId::Zai => Box::new(ZaiProvider::new()),
-        ProviderId::Kiro => Box::new(KiroProvider::new()),
-        ProviderId::VertexAI => Box::new(VertexAIProvider::new()),
-        ProviderId::Augment => Box::new(AugmentProvider::new()),
-        ProviderId::MiniMax => Box::new(MiniMaxProvider::new()),
-        ProviderId::OpenCode => Box::new(OpenCodeProvider::new()),
-        ProviderId::Kimi => Box::new(KimiProvider::new()),
-        ProviderId::KimiK2 => Box::new(KimiK2Provider::new()),
-        ProviderId::Amp => Box::new(AmpProvider::new()),
-        ProviderId::Warp => Box::new(WarpProvider::new()),
-        ProviderId::Ollama => Box::new(OllamaProvider::new()),
-        ProviderId::OpenRouter => Box::new(OpenRouterProvider::new()),
-        ProviderId::Synthetic => Box::new(SyntheticProvider::new()),
-        ProviderId::JetBrains => Box::new(JetBrainsProvider::new()),
-        ProviderId::Alibaba => Box::new(AlibabaProvider::new()),
-        ProviderId::NanoGPT => Box::new(NanoGPTProvider::new()),
-        ProviderId::Infini => Box::new(InfiniProvider::default()),
-    }
-}
-
 /// Build a `FetchContext` for a provider using persisted cookies/keys.
 fn build_fetch_context(
     id: ProviderId,
@@ -1092,7 +1061,7 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
         let ctx = build_fetch_context(id, &manual_cookies, &api_keys);
 
         handles.push(tokio::spawn(async move {
-            let provider = create_provider(id);
+            let provider = instantiate_provider(id);
 
             let snapshot = match tokio::time::timeout(
                 PROVIDER_FETCH_TIMEOUT,
@@ -2698,7 +2667,7 @@ fn dashboard_url_for_provider(provider_id: &str) -> Option<String> {
 
 fn status_page_url_for_provider(provider_id: &str) -> Option<String> {
     let id = ProviderId::from_cli_name(provider_id)?;
-    let provider = create_provider(id);
+    let provider = instantiate_provider(id);
     provider.metadata().status_page_url.map(|s| s.to_string())
 }
 
@@ -2786,7 +2755,7 @@ fn build_provider_detail(provider_id: &str) -> Result<ProviderDetail, String> {
         .iter()
         .any(|p| p == id.cli_name());
 
-    let provider = create_provider(id);
+    let provider = instantiate_provider(id);
     let metadata = provider.metadata();
 
     Ok(ProviderDetail {
