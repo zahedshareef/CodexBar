@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
+import { useLocale } from "../../../hooks/useLocale";
 import { useUpdateState } from "../../../hooks/useUpdateState";
 import { getAppInfo } from "../../../lib/tauri";
-import type { AppInfoBridge } from "../../../types/bridge";
+import { Field, Select, Toggle } from "../../../components/FormControls";
+import type { AppInfoBridge, UpdateChannel } from "../../../types/bridge";
+import type { TabProps } from "../../Settings";
 import codexbarIcon from "../../../assets/codexbar-icon.png";
 
-export default function AboutTab() {
+export default function AboutTab({ settings, set, saving }: TabProps) {
+  const { t } = useLocale();
   const [appInfo, setAppInfo] = useState<AppInfoBridge | null>(null);
   const { updateState, checkNow, download, apply, openRelease } =
     useUpdateState();
@@ -65,6 +69,46 @@ export default function AboutTab() {
       </div>
 
       <div className="about-divider" />
+
+      <div className="about-update-controls">
+        <Field
+          label={t("AutoDownloadUpdates")}
+          description={t("AutoDownloadUpdatesHelper")}
+          leading
+        >
+          <Toggle
+            checked={settings.autoDownloadUpdates}
+            disabled={saving}
+            onChange={(v) => set({ autoDownloadUpdates: v })}
+          />
+        </Field>
+
+        <div className="about-channel-row">
+          <Field label={t("UpdateChannelChoice")}>
+            <Select
+              value={settings.updateChannel}
+              disabled={saving}
+              options={[
+                { value: "stable", label: t("UpdateChannelStableOption") },
+                { value: "beta", label: t("UpdateChannelBetaOption") },
+              ]}
+              onChange={(v) => set({ updateChannel: v as UpdateChannel })}
+            />
+          </Field>
+        </div>
+
+        <Field
+          label={t("InstallUpdatesOnQuit")}
+          description={t("InstallUpdatesOnQuitHelper")}
+          leading
+        >
+          <Toggle
+            checked={settings.installUpdatesOnQuit}
+            disabled={saving}
+            onChange={(v) => set({ installUpdatesOnQuit: v })}
+          />
+        </Field>
+      </div>
 
       <div className="about-actions">
         <button

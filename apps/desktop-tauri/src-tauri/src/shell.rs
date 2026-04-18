@@ -1185,7 +1185,7 @@ mod tests {
             1.0,
         );
 
-        assert_eq!(reclamped, (1392, 472));
+        assert_eq!(reclamped, (1416, 492));
     }
 
     #[test]

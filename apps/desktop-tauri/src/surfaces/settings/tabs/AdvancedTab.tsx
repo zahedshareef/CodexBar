@@ -1,53 +1,77 @@
+import { useCallback, useState } from "react";
 import { useLocale } from "../../../hooks/useLocale";
-import { useUpdateState } from "../../../hooks/useUpdateState";
-import { formatRelativeUpdated } from "../../../lib/relativeTime";
-import { Field, NumberInput, Select, Toggle } from "../../../components/FormControls";
-import type { UpdateChannel } from "../../../types/bridge";
+import {
+  registerGlobalShortcut,
+  unregisterGlobalShortcut,
+} from "../../../lib/tauri";
+import { ShortcutCapture } from "../../../components/ShortcutCapture";
+import { Field, Toggle } from "../../../components/FormControls";
 import type { TabProps } from "../../Settings";
 
 export default function AdvancedTab({ settings, set, saving }: TabProps) {
   const { t } = useLocale();
-  const { updateState, checkNow } = useUpdateState();
-  const lastCheckedDisplay = formatRelativeUpdated(
-    updateState.lastCheckedAt,
-    t,
+  const [shortcutError, setShortcutError] = useState<string | null>(null);
+
+  const commitShortcut = useCallback(
+    async (accelerator: string) => {
+      setShortcutError(null);
+      try {
+        await registerGlobalShortcut(accelerator).catch(() => {});
+        set({ globalShortcut: accelerator });
+      } catch (err: unknown) {
+        setShortcutError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [set],
   );
+
+  const clearShortcut = useCallback(async () => {
+    setShortcutError(null);
+    try {
+      await unregisterGlobalShortcut().catch(() => {});
+      set({ globalShortcut: "" });
+    } catch (err: unknown) {
+      setShortcutError(err instanceof Error ? err.message : String(err));
+    }
+  }, [set]);
 
   return (
     <>
-      {/* ── Refresh ───────────────────────────────────────────────── */}
+      {/* ── Keyboard shortcut ────────────────────────────────────── */}
       <section className="settings-section">
-        <h3 className="settings-section__title">{t("SectionRefresh")}</h3>
+        <h3 className="settings-section__title">{t("SectionKeyboard")}</h3>
         <div className="settings-section__group">
           <Field
-            label={t("RefreshIntervalLabel")}
-            description={t("RefreshIntervalHelper")}
+            label={t("GlobalShortcutFieldLabel")}
+            description={t("GlobalShortcutToggleHelper")}
           >
-            <NumberInput
-              value={settings.refreshIntervalSecs}
-              min={0}
-              max={3600}
-              step={30}
+            <ShortcutCapture
+              value={settings.globalShortcut}
               disabled={saving}
-              onChange={(v) => set({ refreshIntervalSecs: v })}
+              onCommit={(accel) => void commitShortcut(accel)}
+              onClear={() => void clearShortcut()}
             />
           </Field>
         </div>
+        {shortcutError && (
+          <p className="settings-section__error">{shortcutError}</p>
+        )}
+        <p className="settings-section__hint">{t("ShortcutRecordingHint")}</p>
       </section>
 
-      {/* ── Fun ───────────────────────────────────────────────────── */}
+      {/* ── Debug ────────────────────────────────────────────────── */}
       <section className="settings-section">
-        <h3 className="settings-section__title">{t("Fun")}</h3>
+        <h3 className="settings-section__title">{t("SectionDebug")}</h3>
         <div className="settings-section__group">
           <Field
-            label={t("EnableAnimationsLabel")}
-            description={t("EnableAnimationsHelper")}
+            label={t("ShowDebugSettingsLabel")}
+            description={t("ShowDebugSettingsHelper")}
             leading
           >
             <Toggle
-              checked={settings.enableAnimations}
+              checked={settings.showDebugSettings}
               disabled={saving}
-              onChange={(v) => set({ enableAnimations: v })}
+              onChange={(v) => set({ showDebugSettings: v })}
             />
           </Field>
           <Field
@@ -59,6 +83,17 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
               checked={settings.surpriseAnimations}
               disabled={saving}
               onChange={(v) => set({ surpriseAnimations: v })}
+            />
+          </Field>
+          <Field
+            label={t("EnableAnimationsLabel")}
+            description={t("EnableAnimationsHelper")}
+            leading
+          >
+            <Toggle
+              checked={settings.enableAnimations}
+              disabled={saving}
+              onChange={(v) => set({ enableAnimations: v })}
             />
           </Field>
         </div>
@@ -82,23 +117,16 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
         </div>
       </section>
 
-      {/* ── Credentials & Security ───────────────────────────────── */}
+      {/* ── Keychain access ──────────────────────────────────────── */}
       <section className="settings-section">
-        <h3 className="settings-section__title">
-          {t("SectionCredentialsSecurity")}
+        <h3 className="settings-section__title settings-section__title--bold">
+          Keychain access
         </h3>
+        <p className="settings-section__caption">
+          Disable all Keychain reads and writes. Browser cookie import is
+          unavailable; paste Cookie headers manually in Providers.
+        </p>
         <div className="settings-section__group">
-          <Field
-            label={t("AvoidKeychainPromptsLabel")}
-            description={t("AvoidKeychainPromptsHelper")}
-            leading
-          >
-            <Toggle
-              checked={settings.claudeAvoidKeychainPrompts}
-              disabled={saving || settings.disableKeychainAccess}
-              onChange={(v) => set({ claudeAvoidKeychainPrompts: v })}
-            />
-          </Field>
           <Field
             label={t("DisableAllKeychainLabel")}
             description={t("DisableAllKeychainHelper")}
@@ -110,81 +138,16 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
               onChange={(v) => set({ disableKeychainAccess: v })}
             />
           </Field>
-        </div>
-      </section>
-
-      {/* ── Debug ────────────────────────────────────────────────── */}
-      <section className="settings-section">
-        <h3 className="settings-section__title">{t("SectionDebug")}</h3>
-        <div className="settings-section__group">
           <Field
-            label={t("ShowDebugSettingsLabel")}
-            description={t("ShowDebugSettingsHelper")}
+            label={t("AvoidKeychainPromptsLabel")}
+            description={t("AvoidKeychainPromptsHelper")}
             leading
           >
             <Toggle
-              checked={settings.showDebugSettings}
-              disabled={saving}
-              onChange={(v) => set({ showDebugSettings: v })}
+              checked={settings.claudeAvoidKeychainPrompts}
+              disabled={saving || settings.disableKeychainAccess}
+              onChange={(v) => set({ claudeAvoidKeychainPrompts: v })}
             />
-          </Field>
-        </div>
-      </section>
-
-      {/* ── Updates ──────────────────────────────────────────────── */}
-      <section className="settings-section">
-        <h3 className="settings-section__title">{t("Updates")}</h3>
-        <div className="settings-section__group">
-          <Field
-            label={t("UpdateChannelChoice")}
-            description={t("UpdateChannelChoiceHelper")}
-          >
-            <Select
-              value={settings.updateChannel}
-              disabled={saving}
-              options={[
-                { value: "stable", label: t("UpdateChannelStableOption") },
-                { value: "beta", label: t("UpdateChannelBetaOption") },
-              ]}
-              onChange={(v) => set({ updateChannel: v as UpdateChannel })}
-            />
-          </Field>
-          <Field
-            label={t("AutoDownloadUpdates")}
-            description={t("AutoDownloadUpdatesHelper")}
-            leading
-          >
-            <Toggle
-              checked={settings.autoDownloadUpdates}
-              disabled={saving}
-              onChange={(v) => set({ autoDownloadUpdates: v })}
-            />
-          </Field>
-          <Field
-            label={t("InstallUpdatesOnQuit")}
-            description={t("InstallUpdatesOnQuitHelper")}
-            leading
-          >
-            <Toggle
-              checked={settings.installUpdatesOnQuit}
-              disabled={saving}
-              onChange={(v) => set({ installUpdatesOnQuit: v })}
-            />
-          </Field>
-          <Field label={t("LastUpdated")}>
-            <div className="settings-field__row">
-              <span className="settings-field__value">
-                {lastCheckedDisplay}
-              </span>
-              <button
-                type="button"
-                className="credential-btn"
-                disabled={updateState.status === "checking"}
-                onClick={() => checkNow()}
-              >
-                {t("TrayCheckForUpdates")}
-              </button>
-            </div>
           </Field>
         </div>
       </section>

@@ -122,7 +122,9 @@ export default function Settings({ state }: { state: BootstrapState }) {
   }, []);
 
   return (
-    <div className="settings">
+    <div
+      className={`settings${activeTab === "providers" ? " settings--providers-active" : ""}`}
+    >
       {/* tab bar */}
       <nav className="settings-tabs" role="tablist">
         {TAB_META.map((tab) => (
@@ -167,7 +169,9 @@ export default function Settings({ state }: { state: BootstrapState }) {
         {activeTab === "advanced" && (
           <AdvancedTab settings={settings} set={set} saving={saving} />
         )}
-        {activeTab === "about" && <AboutTab />}
+        {activeTab === "about" && (
+          <AboutTab settings={settings} set={set} saving={saving} />
+        )}
       </div>
     </div>
   );

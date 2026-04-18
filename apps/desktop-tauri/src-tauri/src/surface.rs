@@ -70,9 +70,9 @@ impl SurfaceMode {
             Self::Settings => WindowProperties {
                 visible: true,
                 decorations: true,
-                resizable: false,
-                width: 520.0,
-                height: 600.0,
+                resizable: true,
+                width: 496.0,
+                height: 580.0,
                 min_width: None,
                 min_height: None,
                 always_on_top: false,
@@ -200,7 +200,7 @@ mod tests {
         assert_eq!(t.from, SurfaceMode::PopOut);
         assert_eq!(t.to, SurfaceMode::Settings);
         assert!(t.properties.decorations);
-        assert!(!t.properties.resizable);
+        assert!(t.properties.resizable);
     }
 
     #[test]
@@ -252,8 +252,8 @@ mod tests {
     #[test]
     fn settings_properties() {
         let props = SurfaceMode::Settings.window_properties();
-        assert_eq!(props.width, 520.0);
-        assert_eq!(props.height, 600.0);
+        assert_eq!(props.width, 496.0);
+        assert_eq!(props.height, 580.0);
     }
 
     #[test]

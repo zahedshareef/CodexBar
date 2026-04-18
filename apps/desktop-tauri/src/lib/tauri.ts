@@ -321,3 +321,7 @@ export function unregisterGlobalShortcut(): Promise<void> {
 export function playNotificationSound(): Promise<void> {
   return invoke<void>("play_notification_sound");
 }
+
+export function quitApp(): Promise<void> {
+  return invoke<void>("quit_app");
+}

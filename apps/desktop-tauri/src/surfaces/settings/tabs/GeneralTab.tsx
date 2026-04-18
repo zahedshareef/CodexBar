@@ -1,18 +1,12 @@
 import { useCallback, useState } from "react";
 import { useLocale } from "../../../hooks/useLocale";
-import {
-  playNotificationSound,
-  registerGlobalShortcut,
-  unregisterGlobalShortcut,
-} from "../../../lib/tauri";
-import { ShortcutCapture } from "../../../components/ShortcutCapture";
+import { playNotificationSound, quitApp } from "../../../lib/tauri";
 import { Field, NumberInput, Toggle } from "../../../components/FormControls";
 import type { TabProps } from "../../Settings";
 
 export default function GeneralTab({ settings, set, saving }: TabProps) {
   const { t } = useLocale();
   const [playingSound, setPlayingSound] = useState(false);
-  const [shortcutError, setShortcutError] = useState<string | null>(null);
 
   const handleTestSound = useCallback(() => {
     setPlayingSound(true);
@@ -20,31 +14,9 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
     window.setTimeout(() => setPlayingSound(false), 1500);
   }, []);
 
-  const commitShortcut = useCallback(
-    async (accelerator: string) => {
-      setShortcutError(null);
-      try {
-        // Best-effort capture registration (emits global-shortcut-triggered).
-        // Persisting via update_settings re-registers with the default
-        // window-toggle handler, which is what we ultimately want.
-        await registerGlobalShortcut(accelerator).catch(() => {});
-        set({ globalShortcut: accelerator });
-      } catch (err: unknown) {
-        setShortcutError(err instanceof Error ? err.message : String(err));
-      }
-    },
-    [set],
-  );
-
-  const clearShortcut = useCallback(async () => {
-    setShortcutError(null);
-    try {
-      await unregisterGlobalShortcut().catch(() => {});
-      set({ globalShortcut: "" });
-    } catch (err: unknown) {
-      setShortcutError(err instanceof Error ? err.message : String(err));
-    }
-  }, [set]);
+  const handleQuit = useCallback(() => {
+    void quitApp().catch(() => window.close());
+  }, []);
 
   return (
     <>
@@ -71,8 +43,6 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
           </Field>
         </div>
       </section>
-
-      {/* Refresh interval lives on the Advanced tab (Phase 8). */}
 
       <section className="settings-section">
         <h3 className="settings-section__title">
@@ -158,25 +128,37 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
         </div>
       </section>
 
+      {/* ── Automation ───────────────────────────────────────────── */}
       <section className="settings-section">
-        <h3 className="settings-section__title">{t("SectionKeyboard")}</h3>
+        <h3 className="settings-section__title">{t("SectionRefresh")}</h3>
         <div className="settings-section__group">
           <Field
-            label={t("GlobalShortcutFieldLabel")}
-            description={t("GlobalShortcutToggleHelper")}
+            label={t("RefreshIntervalLabel")}
+            description={t("RefreshIntervalHelper")}
           >
-            <ShortcutCapture
-              value={settings.globalShortcut}
+            <NumberInput
+              value={settings.refreshIntervalSecs}
+              min={0}
+              max={3600}
+              step={30}
               disabled={saving}
-              onCommit={(accel) => void commitShortcut(accel)}
-              onClear={() => void clearShortcut()}
+              onChange={(v) => set({ refreshIntervalSecs: v })}
             />
           </Field>
         </div>
-        {shortcutError && (
-          <p className="settings-section__error">{shortcutError}</p>
-        )}
-        <p className="settings-section__hint">{t("ShortcutRecordingHint")}</p>
+      </section>
+
+      {/* ── Quit ─────────────────────────────────────────────────── */}
+      <section className="settings-section">
+        <div className="settings-quit-row">
+          <button
+            type="button"
+            className="credential-btn credential-btn--primary"
+            onClick={handleQuit}
+          >
+            {t("TrayQuit")}
+          </button>
+        </div>
       </section>
     </>
   );

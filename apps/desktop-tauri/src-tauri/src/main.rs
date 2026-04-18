@@ -103,6 +103,7 @@ fn main() {
             commands::get_launch_block_reason,
             commands::get_work_area_rect,
             commands::play_notification_sound,
+            commands::quit_app,
             commands::open_provider_dashboard,
             commands::open_provider_status_page,
             commands::get_provider_detail,

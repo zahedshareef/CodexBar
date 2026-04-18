@@ -2684,6 +2684,11 @@ pub fn play_notification_sound() -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 fn dashboard_url_for_provider(provider_id: &str) -> Option<String> {
     codexbar::settings::get_api_key_providers()
         .into_iter()
