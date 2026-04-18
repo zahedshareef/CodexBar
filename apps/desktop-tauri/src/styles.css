@@ -3260,13 +3260,14 @@ body {
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
-/* ── Menu surface: flat NSMenu-style panel (no shadow / radius) ───── */
+/* ── Menu surface: rounded NSMenu-style panel matching macOS popover ── */
 .menu-surface {
   width: 100%;
   min-width: 260px;
   background: var(--menu-popover-bg);
   border: none;
-  border-radius: 0;
+  border-radius: 10px;
+  overflow: hidden;
   box-shadow: none;
   font-size: var(--font-body);
   line-height: var(--line-tight);
@@ -3383,8 +3384,8 @@ body {
 .menu-card__group-title,
 .menu-metric__title {
   font-size: var(--font-body);
-  /* Windows renders 500 heavier than macOS; 400 matches upstream .medium visually */
-  font-weight: 400;
+  /* upstream uses .fontWeight(.medium) — 500 matches */
+  font-weight: 500;
 }
 .menu-metric__bar,
 .menu-card__pace-track {
@@ -3404,13 +3405,13 @@ body {
    chart palette covers) but the menu defaults to a green-when-healthy
    gradient based on usage threshold — green → yellow → orange → red. */
 :root {
-  --usage-bar-normal: #34c759;     /* macOS systemGreen  */
+  --usage-bar-normal: #0a84ff;     /* macOS systemBlue — matches upstream provider accent default */
   --usage-bar-high: #ffd60a;       /* macOS systemYellow */
   --usage-bar-critical: #ff9f0a;   /* macOS systemOrange */
   --usage-bar-exhausted: #ff453a;  /* macOS systemRed    */
 }
 [data-theme="light"] {
-  --usage-bar-normal: #30d158;
+  --usage-bar-normal: #007aff;
   --usage-bar-high: #ffcc00;
   --usage-bar-critical: #ff9500;
   --usage-bar-exhausted: #ff3b30;
@@ -3845,4 +3846,32 @@ body {
   font-size: 11px;
   color: var(--text-secondary, rgba(255, 255, 255, 0.55));
   text-align: center;
+}
+
+/* ── macOS parity: inline error subtitle, divider spacing, footer icon
+      opacity, and card bottom padding (final overlay) ─────────────────── */
+.menu-card__subtitle--error {
+  color: var(--provider-status-error);
+  line-height: 1.4;
+  white-space: normal;
+  -webkit-line-clamp: 4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.menu-card__divider {
+  margin: 4px 0;
+}
+
+.menu-card__content {
+  padding-bottom: 6px;
+}
+
+.menu-surface__footer-icon {
+  opacity: 0.5;
+}
+.menu-surface__footer-row:hover .menu-surface__footer-icon,
+.menu-surface__footer-row:focus-visible .menu-surface__footer-icon {
+  opacity: 0.8;
 }

@@ -189,8 +189,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const hasMetrics = metrics.length > 0;
   const hasCost = !!provider.cost;
   const hasPace = !!provider.pace;
-  const hasError = !!provider.error;
-  const hasDetails = hasMetrics || hasCost || hasPace || hasCharts || hasError;
+  const hasDetails = hasMetrics || hasCost || hasPace || hasCharts;
 
   return (
     <article className="menu-card">
@@ -207,12 +206,18 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
           {email && <span className="menu-card__email">{email}</span>}
         </div>
         <div className="menu-card__subtitle-row">
-          <span className="menu-card__subtitle">
-            {provider.sourceLabel}
-            {" · "}
-            {t("DetailUpdatedPrefix")} {formatRelative(provider.updatedAt)}
-          </span>
-          {provider.planName && (
+          {provider.error ? (
+            <span className="menu-card__subtitle menu-card__subtitle--error">
+              {provider.error}
+            </span>
+          ) : (
+            <span className="menu-card__subtitle">
+              {provider.sourceLabel}
+              {" · "}
+              {t("DetailUpdatedPrefix")} {formatRelative(provider.updatedAt)}
+            </span>
+          )}
+          {!provider.error && provider.planName && (
             <span className="menu-card__plan">{provider.planName}</span>
           )}
         </div>
@@ -222,12 +227,6 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
 
       {hasDetails && (
         <div className="menu-card__content">
-          {hasError && (
-            <div className="menu-card__error" role="alert">
-              <span aria-hidden>⚠</span> {provider.error}
-            </div>
-          )}
-
           {hasMetrics && (
             <section className="menu-card__group menu-card__metrics">
               {metrics.map((m) => (
