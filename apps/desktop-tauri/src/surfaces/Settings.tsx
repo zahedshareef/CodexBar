@@ -123,9 +123,6 @@ export default function Settings({ state }: { state: BootstrapState }) {
 
   return (
     <div className="settings">
-      <div className="settings-titlebar" data-tauri-drag-region>
-        <span className="settings-titlebar__title">CodexBar Settings</span>
-      </div>
       {/* tab bar */}
       <nav className="settings-tabs" role="tablist">
         {TAB_META.map((tab) => (

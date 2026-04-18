@@ -3419,22 +3419,6 @@ body {
   background: var(--app-bg);
   min-height: 100vh;
 }
-.settings-titlebar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
-  background: transparent;
-  -webkit-app-region: drag;
-  user-select: none;
-  flex-shrink: 0;
-}
-.settings-titlebar__title {
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  -webkit-app-region: drag;
-}
 .settings-tabs {
   display: flex;
   gap: 2px;
