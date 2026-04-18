@@ -53,8 +53,8 @@
   /* macOS layout / sizing tokens */
   --bar-height: 6px;
   --bar-radius: 3px;
-  --menu-width: 310px;
-  --popout-width: 360px;
+  --menu-width: 280px;
+  --popout-width: 340px;
   --sidebar-width: 200px;
   --icon-menu: 16px;
   --icon-sidebar: 20px;
@@ -2759,9 +2759,12 @@ body {
 .menu-surface {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 4px 0;
-  width: 310px;
+  /* upstream MenuContent VStack(spacing: 8) */
+  gap: 8px;
+  /* upstream .padding(.horizontal, 10) .padding(.vertical, 6) */
+  padding: 6px 10px;
+  width: 280px;
+  min-width: 260px;
   height: 100vh;
   font-size: 13px;
   line-height: 1.30;
@@ -2771,8 +2774,8 @@ body {
 }
 
 .menu-surface--popout {
-  width: 360px;
-  padding: 6px 0;
+  width: 340px;
+  padding: 6px 10px;
 }
 
 /* Header bar — small CodexBar wordmark + iconified actions
@@ -2784,8 +2787,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 0 12px;
-  min-height: 28px;
+  padding: 0;
+  min-height: 24px;
 }
 
 .menu-surface__title {
@@ -2843,7 +2846,7 @@ body {
 }
 
 .menu-surface__summary {
-  padding: 0 12px;
+  padding: 0;
   font-size: 11px;
   font-weight: 500;
   color: var(--text-eyebrow);
@@ -3051,6 +3054,15 @@ body {
   gap: 12px;
 }
 
+/* Inner content VStack(spacing: 12) — mirrors UsageMenuCardView's
+   second VStack that holds metrics / cost / credits / etc. The outer
+   `.menu-card` keeps its 6px gap (header → divider → content). */
+.menu-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 /* ── Metric row ─────────────────────────────────────────────────────── */
 
 .menu-metric {
@@ -3240,17 +3252,14 @@ body {
   scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
-/* ── Menu surface: NSMenu vibrancy approximation ──────────────────── */
+/* ── Menu surface: flat NSMenu-style panel (no shadow / radius) ───── */
 .menu-surface {
   width: var(--menu-width);
-  background: rgba(36, 36, 38, 0.92);
-  backdrop-filter: saturate(180%) blur(28px);
-  -webkit-backdrop-filter: saturate(180%) blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 8px;
-  box-shadow:
-    0 0 0 0.5px rgba(0, 0, 0, 0.45),
-    0 16px 36px rgba(0, 0, 0, 0.45);
+  min-width: 260px;
+  background: var(--menu-popover-bg);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
   font-size: var(--font-body);
   line-height: var(--line-tight);
 }
@@ -3258,16 +3267,14 @@ body {
   width: var(--popout-width);
 }
 [data-theme="light"] .menu-surface {
-  background: rgba(246, 246, 246, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow:
-    0 0 0 0.5px rgba(0, 0, 0, 0.18),
-    0 16px 36px rgba(0, 0, 0, 0.18);
+  background: var(--menu-popover-bg);
+  border: none;
+  box-shadow: none;
 }
 
 .menu-surface__header {
-  min-height: 30px;
-  padding: 4px 10px 2px;
+  min-height: 24px;
+  padding: 0;
 }
 .menu-surface__title {
   font-size: var(--font-footnote);
@@ -3289,13 +3296,15 @@ body {
   font-size: 13px;
 }
 
-/* Footer of native-style menu rows (Settings… / About / Pop-out / Quit) */
+/* Footer of native-style menu rows (Settings… / About / Quit).
+   Sits flush with the surface's 10/6 padding and reads like an NSMenu
+   item: full-width row, 18px icon column, subtle hover highlight. */
 .menu-surface__footer {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 4px 6px 6px;
-  margin-top: 2px;
+  padding: 4px 0 0;
+  margin-top: 0;
   border-top: 1px solid var(--menu-popover-divider);
   flex-shrink: 0;
 }
@@ -3304,7 +3313,7 @@ body {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 5px 10px;
+  padding: 4px 6px;
   border: 0;
   border-radius: 4px;
   background: transparent;
@@ -3317,9 +3326,13 @@ body {
 }
 .menu-surface__footer-row:hover,
 .menu-surface__footer-row:focus-visible {
-  background: var(--accent);
-  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-primary);
   outline: none;
+}
+[data-theme="light"] .menu-surface__footer-row:hover,
+[data-theme="light"] .menu-surface__footer-row:focus-visible {
+  background: rgba(0, 0, 0, 0.06);
 }
 .menu-surface__footer-row .menu-surface__footer-icon {
   width: 18px;
@@ -3330,7 +3343,7 @@ body {
 }
 .menu-surface__footer-row:hover .menu-surface__footer-icon,
 .menu-surface__footer-row:focus-visible .menu-surface__footer-icon {
-  color: #fff;
+  color: var(--text-primary);
 }
 .menu-surface__footer-shortcut {
   margin-left: auto;
@@ -3338,8 +3351,9 @@ body {
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
-.menu-surface__footer-row:hover .menu-surface__footer-shortcut {
-  color: rgba(255, 255, 255, 0.7);
+.menu-surface__footer-row:hover .menu-surface__footer-shortcut,
+.menu-surface__footer-row:focus-visible .menu-surface__footer-shortcut {
+  color: var(--text-secondary);
 }
 
 /* ── Menu card / metric row tightening ────────────────────────────── */
@@ -3407,7 +3421,7 @@ body {
 
 /* ── Card stack: align separator inset with upstream Divider() ───── */
 .menu-stack__sep {
-  margin: 6px 16px;
+  margin: 8px 0;
 }
 
 /* ── Settings: macOS toolbar-style tab bar ────────────────────────── */

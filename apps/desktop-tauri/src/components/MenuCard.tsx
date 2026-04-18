@@ -220,135 +220,139 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
 
       {hasDetails && <div className="menu-card__divider" />}
 
-      {hasError && (
-        <div className="menu-card__error" role="alert">
-          <span aria-hidden>⚠</span> {provider.error}
-        </div>
-      )}
-
-      {hasMetrics && (
-        <section className="menu-card__group menu-card__metrics">
-          {metrics.map((m) => (
-            <MetricRow
-              key={m.labelKey}
-              title={t(m.labelKey)}
-              snap={m.snap}
-              exhaustedLabel={t("DetailWindowExhausted")}
-            />
-          ))}
-        </section>
-      )}
-
-      {hasMetrics && hasCost && <div className="menu-card__divider" />}
-
-      {provider.cost && (
-        <section className="menu-card__group menu-card__cost">
-          <div className="menu-card__group-title">
-            {t("DetailCostTitle")} — {provider.cost.period}
-          </div>
-          <div className="menu-card__cost-line">
-            {t("DetailCostUsed")}:{" "}
-            {provider.cost.formattedUsed ||
-              formatCurrency(provider.cost.used, provider.cost.currencyCode)}
-            {provider.cost.limit != null && (
-              <>
-                {" / "}
-                {provider.cost.formattedLimit ||
-                  formatCurrency(provider.cost.limit, provider.cost.currencyCode)}
-              </>
-            )}
-          </div>
-          {provider.cost.remaining != null && (
-            <div className="menu-card__cost-line menu-card__cost-line--muted">
-              {t("DetailCostRemaining")}:{" "}
-              {formatCurrency(provider.cost.remaining, provider.cost.currencyCode)}
+      {hasDetails && (
+        <div className="menu-card__content">
+          {hasError && (
+            <div className="menu-card__error" role="alert">
+              <span aria-hidden>⚠</span> {provider.error}
             </div>
           )}
-          {provider.cost.resetsAt && (
-            <div className="menu-card__cost-line menu-card__cost-line--muted">
-              {t("DetailCostResets")}: {provider.cost.resetsAt}
-            </div>
+
+          {hasMetrics && (
+            <section className="menu-card__group menu-card__metrics">
+              {metrics.map((m) => (
+                <MetricRow
+                  key={m.labelKey}
+                  title={t(m.labelKey)}
+                  snap={m.snap}
+                  exhaustedLabel={t("DetailWindowExhausted")}
+                />
+              ))}
+            </section>
           )}
-        </section>
-      )}
 
-      {(hasMetrics || hasCost) && hasPace && <div className="menu-card__divider" />}
+          {hasMetrics && hasCost && <div className="menu-card__divider" />}
 
-      {provider.pace && (
-        <section className="menu-card__group menu-card__pace">
-          <div className="menu-card__pace-header">
-            <span className="menu-card__group-title">{t("DetailPaceTitle")}</span>
-            <span
-              className="menu-card__pace-label"
-              data-pace={paceCategory(provider.pace.stage)}
-            >
-              {t(paceStageKey(provider.pace.stage))} (
-              {provider.pace.deltaPercent >= 0 ? "+" : ""}
-              {provider.pace.deltaPercent.toFixed(1)}%)
-            </span>
-          </div>
-          <div className="menu-card__pace-bars">
-            <div className="menu-card__pace-track" title="Expected">
-              <div
-                className="menu-card__pace-fill menu-card__pace-fill--expected"
-                style={{ width: `${provider.pace.expectedUsedPercent.toFixed(1)}%` }}
-              />
-            </div>
-            <div className="menu-card__pace-track" title="Actual">
-              <div
-                className="menu-card__pace-fill"
-                data-pace={paceCategory(provider.pace.stage)}
-                style={{ width: `${provider.pace.actualUsedPercent.toFixed(1)}%` }}
-              />
-            </div>
-          </div>
-          {provider.pace.etaSeconds != null && !provider.pace.willLastToReset && (
-            <div className="menu-card__pace-eta">
-              ⚠{" "}
-              {t("DetailPaceRunsOutIn").replace(
-                "{}",
-                String(Math.round(provider.pace.etaSeconds / 3600)),
+          {provider.cost && (
+            <section className="menu-card__group menu-card__cost">
+              <div className="menu-card__group-title">
+                {t("DetailCostTitle")} — {provider.cost.period}
+              </div>
+              <div className="menu-card__cost-line">
+                {t("DetailCostUsed")}:{" "}
+                {provider.cost.formattedUsed ||
+                  formatCurrency(provider.cost.used, provider.cost.currencyCode)}
+                {provider.cost.limit != null && (
+                  <>
+                    {" / "}
+                    {provider.cost.formattedLimit ||
+                      formatCurrency(provider.cost.limit, provider.cost.currencyCode)}
+                  </>
+                )}
+              </div>
+              {provider.cost.remaining != null && (
+                <div className="menu-card__cost-line menu-card__cost-line--muted">
+                  {t("DetailCostRemaining")}:{" "}
+                  {formatCurrency(provider.cost.remaining, provider.cost.currencyCode)}
+                </div>
               )}
-            </div>
+              {provider.cost.resetsAt && (
+                <div className="menu-card__cost-line menu-card__cost-line--muted">
+                  {t("DetailCostResets")}: {provider.cost.resetsAt}
+                </div>
+              )}
+            </section>
           )}
-          {provider.pace.willLastToReset && (
-            <div className="menu-card__pace-ok">
-              ✓ {t("DetailPaceWillLastToReset")}
-            </div>
-          )}
-        </section>
-      )}
 
-      {(hasMetrics || hasCost || hasPace) && hasCharts && (
-        <div className="menu-card__divider" />
-      )}
+          {(hasMetrics || hasCost) && hasPace && <div className="menu-card__divider" />}
 
-      {hasCharts && (
-        <section className="menu-card__group menu-card__charts">
-          {hasCostHistory && (
-            <SimpleBarChart
-              points={chartData!.costHistory}
-              label={t("DetailChartCost")}
-              color="var(--accent)"
-              formatValue={(v) => `$${v.toFixed(2)}`}
-            />
+          {provider.pace && (
+            <section className="menu-card__group menu-card__pace">
+              <div className="menu-card__pace-header">
+                <span className="menu-card__group-title">{t("DetailPaceTitle")}</span>
+                <span
+                  className="menu-card__pace-label"
+                  data-pace={paceCategory(provider.pace.stage)}
+                >
+                  {t(paceStageKey(provider.pace.stage))} (
+                  {provider.pace.deltaPercent >= 0 ? "+" : ""}
+                  {provider.pace.deltaPercent.toFixed(1)}%)
+                </span>
+              </div>
+              <div className="menu-card__pace-bars">
+                <div className="menu-card__pace-track" title="Expected">
+                  <div
+                    className="menu-card__pace-fill menu-card__pace-fill--expected"
+                    style={{ width: `${provider.pace.expectedUsedPercent.toFixed(1)}%` }}
+                  />
+                </div>
+                <div className="menu-card__pace-track" title="Actual">
+                  <div
+                    className="menu-card__pace-fill"
+                    data-pace={paceCategory(provider.pace.stage)}
+                    style={{ width: `${provider.pace.actualUsedPercent.toFixed(1)}%` }}
+                  />
+                </div>
+              </div>
+              {provider.pace.etaSeconds != null && !provider.pace.willLastToReset && (
+                <div className="menu-card__pace-eta">
+                  ⚠{" "}
+                  {t("DetailPaceRunsOutIn").replace(
+                    "{}",
+                    String(Math.round(provider.pace.etaSeconds / 3600)),
+                  )}
+                </div>
+              )}
+              {provider.pace.willLastToReset && (
+                <div className="menu-card__pace-ok">
+                  ✓ {t("DetailPaceWillLastToReset")}
+                </div>
+              )}
+            </section>
           )}
-          {hasCreditsHistory && (
-            <SimpleBarChart
-              points={chartData!.creditsHistory}
-              label={t("DetailChartCredits")}
-              color="var(--provider-status-ok)"
-              formatValue={(v) => v.toFixed(1)}
-            />
+
+          {(hasMetrics || hasCost || hasPace) && hasCharts && (
+            <div className="menu-card__divider" />
           )}
-          {hasUsageBreakdown && (
-            <StackedBarChart
-              points={chartData!.usageBreakdown}
-              label={t("DetailChartUsageBreakdown")}
-              height={56}
-            />
+
+          {hasCharts && (
+            <section className="menu-card__group menu-card__charts">
+              {hasCostHistory && (
+                <SimpleBarChart
+                  points={chartData!.costHistory}
+                  label={t("DetailChartCost")}
+                  color="var(--accent)"
+                  formatValue={(v) => `$${v.toFixed(2)}`}
+                />
+              )}
+              {hasCreditsHistory && (
+                <SimpleBarChart
+                  points={chartData!.creditsHistory}
+                  label={t("DetailChartCredits")}
+                  color="var(--provider-status-ok)"
+                  formatValue={(v) => v.toFixed(1)}
+                />
+              )}
+              {hasUsageBreakdown && (
+                <StackedBarChart
+                  points={chartData!.usageBreakdown}
+                  label={t("DetailChartUsageBreakdown")}
+                  height={56}
+                />
+              )}
+            </section>
           )}
-        </section>
+        </div>
       )}
     </article>
   );
