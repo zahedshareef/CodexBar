@@ -194,8 +194,13 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
     <article className="menu-card">
       <header className="menu-card__header">
         <div className="menu-card__title-row">
-          <span className="menu-card__name">{provider.displayName}</span>
-          {email && <span className="menu-card__email">{email}</span>}
+          <div className="menu-card__name-group">
+            <span className="menu-card__name">{provider.displayName}</span>
+            {email && <span className="menu-card__email">{email}</span>}
+          </div>
+          {provider.planName && (
+            <span className="menu-card__plan-badge">{provider.planName}</span>
+          )}
         </div>
         <div className="menu-card__subtitle-row">
           {provider.error ? (
@@ -204,13 +209,8 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
             </span>
           ) : (
             <span className="menu-card__subtitle">
-              {provider.sourceLabel}
-              {" · "}
               {t("DetailUpdatedPrefix")} {formatRelative(provider.updatedAt)}
             </span>
-          )}
-          {!provider.error && provider.planName && (
-            <span className="menu-card__plan">{provider.planName}</span>
           )}
         </div>
       </header>

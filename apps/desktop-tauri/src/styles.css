@@ -3999,3 +3999,60 @@ body {
 .menu-surface__footer-row:focus-visible .menu-surface__footer-icon {
   opacity: 0.8;
 }
+
+/* ── Provider tab status dots ───────────────────────────────────────── */
+.provider-tabs__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.provider-tabs__dot[data-status="ok"] {
+  background: #34c759; /* macOS systemGreen */
+}
+.provider-tabs__dot[data-status="warning"] {
+  background: #ffd60a; /* macOS systemYellow */
+}
+.provider-tabs__dot[data-status="exhausted"] {
+  background: #ff9f0a; /* macOS systemOrange */
+}
+.provider-tabs__dot[data-status="error"] {
+  background: #ff453a; /* macOS systemRed */
+}
+/* On active (blue) tab, make dots stand out with a subtle white ring */
+.provider-tabs__tab--active .provider-tabs__dot {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+/* ── Plan badge pill ────────────────────────────────────────────────── */
+.menu-card__plan-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+[data-theme="light"] .menu-card__plan-badge {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+/* ── Card header: name + badge on same row ──────────────────────────── */
+.menu-card__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.menu-card__name-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}

@@ -14,6 +14,15 @@ import MenuSurface, {
 import UpdateBanner from "../components/UpdateBanner";
 import { ProviderIcon } from "../components/providers/ProviderIcon";
 
+function getProviderStatus(
+  p: ProviderUsageSnapshot,
+): "ok" | "warning" | "exhausted" | "error" {
+  if (p.error) return "error";
+  if (p.primary.isExhausted) return "exhausted";
+  if (p.primary.usedPercent > 80) return "warning";
+  return "ok";
+}
+
 /** Sort: highest primary used% first, then alphabetical by name. */
 function sortProviders(
   list: ProviderUsageSnapshot[],
@@ -123,6 +132,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
             >
               <ProviderIcon providerId={p.providerId} size={22} />
               <span className="provider-tabs__label">{p.displayName}</span>
+              <span className="provider-tabs__dot" data-status={getProviderStatus(p)} />
             </button>
           ))}
         </div>
