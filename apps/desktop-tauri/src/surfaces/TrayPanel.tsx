@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useMemo, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
-import { setSurfaceMode, openProviderStatusPage } from "../lib/tauri";
+import { setSurfaceMode } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
@@ -10,7 +10,6 @@ import MenuCard from "../components/MenuCard";
 import MenuSurface, {
   MenuEmpty,
   type MenuFooterRow,
-  type MenuActionRow,
 } from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
 import { ProviderIcon } from "../components/providers/ProviderIcon";
@@ -36,14 +35,13 @@ function sortProviders(
 }
 
 /**
- * Tray popover surface — a vertical stack of full provider cards
- * mirroring the upstream macOS `MenuContent` (which renders one
- * `UsageMenuCardView` per enabled provider). No drill-in: every
- * provider's full metrics, cost, pace, and charts are visible at once,
- * separated by a 1pt divider, exactly like upstream.
+ * Tray popover surface — provider icon grid at top, with all provider
+ * cards stacked vertically below. Mirrors the upstream macOS CodexBar
+ * popover: the grid is for quick scanning + scrolling, while every
+ * provider's full card is rendered in sequence separated by dividers.
  */
 export default function TrayPanel({ state }: { state: BootstrapState }) {
-  const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
+  const { providers, isRefreshing, refresh } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
@@ -52,7 +50,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const sorted = useMemo(() => sortProviders(providers), [providers]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const activeIdx = Math.min(selectedIdx, Math.max(0, sorted.length - 1));
-  const activeProvider = sorted[activeIdx] ?? null;
 
   const openSettings = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "general" });
@@ -63,9 +60,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const openAbout = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "about" });
   }, []);
-  const openProviders = useCallback(() => {
-    setSurfaceMode("settings", { kind: "settings", tab: "providers" });
-  }, []);
   const quitApp = useCallback(() => {
     void getCurrentWindow().close();
   }, []);
@@ -75,19 +69,19 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   ];
 
   const footerRows: MenuFooterRow[] = [
+    { icon: "↻", label: "Refresh", onClick: refresh },
     { icon: "", label: "Settings…", onClick: openSettings },
     { icon: "", label: "About CodexBar", onClick: openAbout },
     { icon: "", label: "Quit", onClick: quitApp },
   ];
 
-  // Provider-specific action rows (mirrors upstream MenuDescriptor)
-  const actionRows: MenuActionRow[] = activeProvider ? [
-    { icon: "", label: "Add Account…", onClick: openProviders },
-    { icon: "", label: "Usage Dashboard", onClick: openPopOut },
-    { icon: "", label: "Status Page", onClick: () => {
-      void openProviderStatusPage(activeProvider.providerId);
-    }},
-  ] : [];
+  const handleGridClick = useCallback((idx: number, providerId: string) => {
+    setSelectedIdx(idx);
+    const el = document.getElementById(`card-${providerId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
 
   const banner = (
     <UpdateBanner
@@ -122,36 +116,36 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       isRefreshing={isRefreshing}
       actions={headerActions}
       banner={banner}
-      actionRows={actionRows}
       footerRows={footerRows}
     >
-      {sorted.length > 1 && (
-        <div className="provider-tabs">
-          {sorted.map((p, idx) => (
-            <button
-              key={p.providerId}
-              type="button"
-              className={`provider-tabs__tab${idx === activeIdx ? " provider-tabs__tab--active" : ""}`}
-              onClick={() => setSelectedIdx(idx)}
-              title={p.displayName}
-            >
-              <ProviderIcon providerId={p.providerId} size={22} />
-              <span className="provider-tabs__label">{p.displayName}</span>
-              <span className="provider-tabs__dot" data-status={getProviderStatus(p)} />
-            </button>
-          ))}
-        </div>
-      )}
-      {activeProvider && (
-        <div className="menu-stack">
-          <div className="menu-stack__item">
-            <MenuCard
-              provider={activeProvider}
-              hideEmail={settings.hidePersonalInfo}
+      <div className="provider-grid">
+        {sorted.map((p, idx) => (
+          <button
+            key={p.providerId}
+            type="button"
+            className={`provider-grid__item${idx === activeIdx ? " provider-grid__item--active" : ""}`}
+            onClick={() => handleGridClick(idx, p.providerId)}
+            title={p.displayName}
+          >
+            <ProviderIcon providerId={p.providerId} size={28} />
+            <span className="provider-grid__label">{p.displayName}</span>
+            <span
+              className="provider-grid__dot"
+              data-status={getProviderStatus(p)}
             />
-          </div>
-        </div>
-      )}
+          </button>
+        ))}
+      </div>
+      <div className="menu-stack">
+        {sorted.map((p, idx) => (
+          <Fragment key={p.providerId}>
+            {idx > 0 && <div className="menu-stack__sep" />}
+            <div className="menu-stack__item" id={`card-${p.providerId}`}>
+              <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />
+            </div>
+          </Fragment>
+        ))}
+      </div>
     </MenuSurface>
   );
 }

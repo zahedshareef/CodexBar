@@ -2924,10 +2924,10 @@ body {
   min-height: 100vh;
 }
 .menu-surface--tray .menu-stack {
-  scrollbar-width: none;
+  scrollbar-width: thin;
 }
 .menu-surface--tray .menu-stack::-webkit-scrollbar {
-  display: none;
+  width: 6px;
 }
 
 .menu-stack__item {
@@ -3311,46 +3311,6 @@ body {
   font-size: 13px;
 }
 
-/* Provider action rows (Add Account, Usage Dashboard, Status Page).
-   Mirrors upstream MenuDescriptor SF-Symbol action items between the
-   card content and the Settings/About/Quit footer. */
-.menu-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 4px 0 0;
-  border-top: 1px solid var(--menu-popover-divider);
-  flex-shrink: 0;
-}
-.menu-actions__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 4px 6px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--text-primary);
-  font-size: var(--font-body);
-  cursor: pointer;
-  text-align: left;
-}
-.menu-actions__row:hover,
-.menu-actions__row:focus-visible {
-  background: rgba(255, 255, 255, 0.08);
-}
-[data-theme="light"] .menu-actions__row:hover,
-[data-theme="light"] .menu-actions__row:focus-visible {
-  background: rgba(0, 0, 0, 0.06);
-}
-.menu-actions__icon {
-  width: 18px;
-  text-align: center;
-  font-size: 13px;
-  flex-shrink: 0;
-}
-
 /* Footer of native-style menu rows (Settings… / About / Quit).
    Sits flush with the surface's 10/6 padding and reads like an NSMenu
    item: full-width row, 18px icon column, subtle hover highlight. */
@@ -3362,10 +3322,6 @@ body {
   margin-top: 0;
   border-top: 1px solid var(--menu-popover-divider);
   flex-shrink: 0;
-}
-/* When footer follows action rows, no extra divider needed */
-.menu-actions + .menu-surface__footer {
-  margin-top: 0;
 }
 .menu-surface__footer-row {
   display: flex;
@@ -3415,53 +3371,50 @@ body {
   color: var(--text-secondary);
 }
 
-/* ── Provider tab switcher ────────────────────────────────────────────
-   Mirrors the upstream macOS provider icon switcher at the top of the
-   menu popover. Each tab shows icon + label; the active tab gets a
-   highlighted pill background. Tabs flex to fill the available width. */
-.provider-tabs {
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  gap: 2px;
-  padding: 4px 6px;
+/* ── Provider icon grid ──────────────────────────────────────────────
+   Mirrors the upstream macOS provider icon grid at the top of the
+   menu popover. Each cell shows icon + tiny label + status dot.
+   7-column grid wrapping to rows. Active provider gets blue pill. */
+.provider-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px 0;
+  padding: 6px 4px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--menu-popover-divider);
 }
 
-.provider-tabs__tab {
+.provider-grid__item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 2px;
-  flex: 0 0 auto;
-  min-width: 0;
-  height: auto;
-  padding: 6px 16px 5px;
+  justify-content: flex-start;
+  gap: 1px;
+  padding: 4px 2px 3px;
   border: none;
   border-radius: 8px;
   background: transparent;
   cursor: pointer;
   transition: background 0.12s ease;
+  min-width: 0;
 }
 
-.provider-tabs__tab:hover {
+.provider-grid__item:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.provider-tabs__tab--active {
+.provider-grid__item--active {
   background: var(--accent, #0a84ff);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
-.provider-tabs__tab--active:hover {
+.provider-grid__item--active:hover {
   background: var(--accent, #0a84ff);
   filter: brightness(1.1);
 }
 
-.provider-tabs__label {
-  font-size: 10px;
+.provider-grid__label {
+  font-size: 8px;
   font-weight: 500;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -3469,31 +3422,51 @@ body {
   text-overflow: ellipsis;
   max-width: 100%;
   line-height: 1.1;
+  text-align: center;
 }
 
-.provider-tabs__tab--active .provider-tabs__label {
+.provider-grid__item--active .provider-grid__label {
   color: #fff;
 }
 
-/* Provider icon inside tabs — ensure consistent sizing */
-.provider-tabs__tab .provider-icon {
-  width: 22px !important;
-  height: 22px !important;
+/* Provider icon inside grid — ensure consistent sizing */
+.provider-grid__item .provider-icon {
+  width: 28px !important;
+  height: 28px !important;
 }
 
-[data-theme="light"] .provider-tabs__tab:hover {
+.provider-grid__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.provider-grid__dot[data-status="ok"] {
+  background: #34c759;
+}
+.provider-grid__dot[data-status="warning"] {
+  background: #ffd60a;
+}
+.provider-grid__dot[data-status="exhausted"] {
+  background: #ff9f0a;
+}
+.provider-grid__dot[data-status="error"] {
+  background: #ff453a;
+}
+.provider-grid__item--active .provider-grid__dot {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="light"] .provider-grid__item:hover {
   background: rgba(0, 0, 0, 0.06);
 }
-
-[data-theme="light"] .provider-tabs__tab--active {
+[data-theme="light"] .provider-grid__item--active {
   background: var(--accent, #007aff);
 }
-
-[data-theme="light"] .provider-tabs__label {
+[data-theme="light"] .provider-grid__label {
   color: var(--text-secondary);
 }
-
-[data-theme="light"] .provider-tabs__tab--active .provider-tabs__label {
+[data-theme="light"] .provider-grid__item--active .provider-grid__label {
   color: #fff;
 }
 
@@ -4009,30 +3982,7 @@ body {
   opacity: 0.8;
 }
 
-/* ── Provider tab status dots ───────────────────────────────────────── */
-.provider-tabs__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-.provider-tabs__dot[data-status="ok"] {
-  background: #34c759; /* macOS systemGreen */
-}
-.provider-tabs__dot[data-status="warning"] {
-  background: #ffd60a; /* macOS systemYellow */
-}
-.provider-tabs__dot[data-status="exhausted"] {
-  background: #ff9f0a; /* macOS systemOrange */
-}
-.provider-tabs__dot[data-status="error"] {
-  background: #ff453a; /* macOS systemRed */
-}
-/* On active (blue) tab, make dots stand out with a subtle white ring */
-.provider-tabs__tab--active .provider-tabs__dot {
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
-}
+/* ── Provider tab status dots removed (replaced by .provider-grid__dot) */
 
 /* ── Plan badge pill ────────────────────────────────────────────────── */
 .menu-card__plan-badge {
