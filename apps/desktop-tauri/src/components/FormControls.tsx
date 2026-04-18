@@ -121,20 +121,23 @@ export function Field({
   label,
   description,
   children,
+  leading,
 }: {
   label: string;
   description?: string;
   children: React.ReactNode;
+  leading?: boolean;
 }) {
   return (
-    <div className="settings-field">
+    <div className={`settings-field${leading ? " settings-field--leading" : ""}`}>
+      {leading && <div className="settings-field__control">{children}</div>}
       <div className="settings-field__text">
         <span className="settings-field__label">{label}</span>
         {description && (
           <span className="settings-field__desc">{description}</span>
         )}
       </div>
-      <div className="settings-field__control">{children}</div>
+      {!leading && <div className="settings-field__control">{children}</div>}
     </div>
   );
 }

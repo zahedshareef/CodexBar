@@ -60,7 +60,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("ShowProviderIcons")}
             description={t("ShowProviderIconsHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.switcherShowsIcons}
               disabled={saving}
@@ -70,7 +70,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("PreferHighestUsage")}
             description={t("PreferHighestUsageHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.menuBarShowsHighestUsage}
               disabled={saving}
@@ -80,7 +80,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("ShowPercentInTray")}
             description={t("ShowPercentInTrayHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.menuBarShowsPercent}
               disabled={saving}
@@ -104,7 +104,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
               }
             />
           </Field>
-          <Field label={t("ShowAsUsedLabel")} description={t("ShowAsUsedHelper")}>
+          <Field label={t("ShowAsUsedLabel")} description={t("ShowAsUsedHelper")} leading>
             <Toggle
               checked={settings.showAsUsed}
               disabled={saving}
@@ -114,7 +114,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("ShowAllTokenAccountsLabel")}
             description={t("ShowAllTokenAccountsHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.showAllTokenAccountsInMenu}
               disabled={saving}
@@ -131,7 +131,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("EnableAnimationsLabel")}
             description={t("EnableAnimationsHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.enableAnimations}
               disabled={saving}
@@ -141,7 +141,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("SurpriseAnimationsLabel")}
             description={t("SurpriseAnimationsHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.surpriseAnimations}
               disabled={saving}
@@ -160,7 +160,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("AvoidKeychainPromptsLabel")}
             description={t("AvoidKeychainPromptsHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.claudeAvoidKeychainPrompts}
               disabled={saving || settings.disableKeychainAccess}
@@ -170,7 +170,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("DisableAllKeychainLabel")}
             description={t("DisableAllKeychainHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.disableKeychainAccess}
               disabled={saving}
@@ -187,7 +187,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("ShowDebugSettingsLabel")}
             description={t("ShowDebugSettingsHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.showDebugSettings}
               disabled={saving}
@@ -218,7 +218,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("AutoDownloadUpdates")}
             description={t("AutoDownloadUpdatesHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.autoDownloadUpdates}
               disabled={saving}
@@ -228,7 +228,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("InstallUpdatesOnQuit")}
             description={t("InstallUpdatesOnQuitHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.installUpdatesOnQuit}
               disabled={saving}
@@ -260,7 +260,7 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("ResetTimeRelative")}
             description={t("ResetTimeRelativeHelper")}
-          >
+           leading>
             <Toggle
               checked={settings.resetTimeRelative}
               disabled={saving}

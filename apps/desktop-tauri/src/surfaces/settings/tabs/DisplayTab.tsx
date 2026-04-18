@@ -18,6 +18,7 @@ export default function DisplayTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("ShowCreditsExtra")}
             description={t("ShowCreditsExtraHelper")}
+            leading
           >
             <Toggle
               checked={settings.showCreditsExtraUsage}
@@ -34,6 +35,7 @@ export default function DisplayTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("HidePersonalInfo")}
             description={t("HidePersonalInfoHelper")}
+            leading
           >
             <Toggle
               checked={settings.hidePersonalInfo}

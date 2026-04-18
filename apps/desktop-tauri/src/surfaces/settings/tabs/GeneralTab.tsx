@@ -51,7 +51,7 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
       <section className="settings-section">
         <h3 className="settings-section__title">{t("StartupSettings")}</h3>
         <div className="settings-section__group">
-          <Field label={t("StartAtLogin")} description={t("StartAtLoginHelper")}>
+          <Field label={t("StartAtLogin")} description={t("StartAtLoginHelper")} leading>
             <Toggle
               checked={settings.startAtLogin}
               disabled={saving}
@@ -61,6 +61,7 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("StartMinimized")}
             description={t("StartMinimizedHelper")}
+            leading
           >
             <Toggle
               checked={settings.startMinimized}
@@ -81,6 +82,7 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("ShowNotifications")}
             description={t("ShowNotificationsHelper")}
+            leading
           >
             <Toggle
               checked={settings.showNotifications}
@@ -88,7 +90,7 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
               onChange={(v) => set({ showNotifications: v })}
             />
           </Field>
-          <Field label={t("SoundEnabled")} description={t("SoundEnabledHelper")}>
+          <Field label={t("SoundEnabled")} description={t("SoundEnabledHelper")} leading>
             <div className="sound-enabled-row">
               <Toggle
                 checked={settings.soundEnabled}

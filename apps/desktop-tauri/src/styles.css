@@ -3501,10 +3501,15 @@ body {
 
 /* ── Grouped form (SwiftUI Form .grouped) ─────────────────────────── */
 .settings-section {
-  margin: 0 0 16px;
-  padding: 0;
+  margin: 0 0 0;
+  padding: 0 0 16px;
   background: transparent;
   gap: 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+.settings-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 .settings-section__title {
   margin: 0 4px 6px;
@@ -3526,11 +3531,15 @@ body {
   align-items: center;
   padding: 10px 14px;
   border-radius: 0;
-  background: rgba(255, 255, 255, 0.07);
+  background: transparent;
   transition: none;
 }
+.settings-field--leading {
+  justify-content: flex-start;
+  gap: 10px;
+}
 [data-theme="light"] .settings-field {
-  background: rgba(0, 0, 0, 0.04);
+  background: transparent;
 }
 .settings-field:hover {
   background: rgba(255, 255, 255, 0.09);
