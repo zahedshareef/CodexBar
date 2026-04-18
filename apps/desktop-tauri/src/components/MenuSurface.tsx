@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { useLocale } from "../hooks/useLocale";
-import codexbarIcon from "../assets/codexbar-icon.png";
 
 export interface MenuSurfaceAction {
   icon: string;
@@ -48,34 +47,8 @@ export default function MenuSurface({
   footerRows,
   children,
 }: MenuSurfaceProps) {
-  const { t } = useLocale();
   return (
     <div className={`menu-surface menu-surface--${variant}`}>
-      <header className="menu-surface__header">
-        <span className="menu-surface__title">CodexBar</span>
-        <div className="menu-surface__actions">
-          <button
-            className="menu-surface__btn"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            title={t("TooltipRefresh")}
-            type="button"
-          >
-            <span className={isRefreshing ? "spin" : ""}>↻</span>
-          </button>
-          {actions.map((action) => (
-            <button
-              key={action.title}
-              className="menu-surface__btn"
-              onClick={action.onClick}
-              title={action.title}
-              type="button"
-            >
-              {action.icon}
-            </button>
-          ))}
-        </div>
-      </header>
       {banner}
       {summary}
       <div className="menu-surface__body">{children}</div>
@@ -88,9 +61,11 @@ export default function MenuSurface({
               className="menu-surface__footer-row"
               onClick={row.onClick}
             >
-              <span className="menu-surface__footer-icon" aria-hidden>
-                {row.icon}
-              </span>
+              {row.icon && (
+                <span className="menu-surface__footer-icon" aria-hidden>
+                  {row.icon}
+                </span>
+              )}
               <span>{row.label}</span>
               {row.shortcut && (
                 <span className="menu-surface__footer-shortcut">{row.shortcut}</span>

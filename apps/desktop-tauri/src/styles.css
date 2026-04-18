@@ -183,7 +183,7 @@
 
   /* Phase 9 — Tray / pop-out pace badges + usage bar tokens. */
   --usage-bar-track: rgba(255, 255, 255, 0.15);
-  --usage-bar-normal: #0a84ff;
+  --usage-bar-normal: #f0883e;
   --usage-bar-high: #ffd166;
   --usage-bar-critical: #ff9f43;
   --usage-bar-exhausted: #ff6c6c;
@@ -3369,33 +3369,33 @@ body {
   color: var(--text-secondary);
 }
 
-/* ── Provider tab switcher (horizontal icon row) ─────────────────────
+/* ── Provider tab switcher ────────────────────────────────────────────
    Mirrors the upstream macOS provider icon switcher at the top of the
-   menu popover. Each tab is a small provider badge; the active tab has
-   a highlighted pill background. */
+   menu popover. Each tab shows icon + label; the active tab gets a
+   highlighted pill background. Tabs flex to fill the available width. */
 .provider-tabs {
   display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 4px;
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
+  align-items: stretch;
+  gap: 0;
+  padding: 4px 6px 0;
   flex-shrink: 0;
 }
 
 .provider-tabs__tab {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 28px;
+  gap: 2px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: auto;
+  padding: 6px 4px 5px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   cursor: pointer;
   transition: background 0.12s ease;
-  padding: 0;
-  flex-shrink: 0;
 }
 
 .provider-tabs__tab:hover {
@@ -3404,7 +3404,7 @@ body {
 
 .provider-tabs__tab--active {
   background: var(--accent, #0a84ff);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
 
 .provider-tabs__tab--active:hover {
@@ -3412,14 +3412,25 @@ body {
   filter: brightness(1.1);
 }
 
-/* Provider icon inside tabs — ensure consistent sizing */
-.provider-tabs__tab .provider-icon {
-  width: 20px !important;
-  height: 20px !important;
+.provider-tabs__label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  line-height: 1.1;
 }
 
-[data-theme="light"] .provider-tabs {
-  background: rgba(0, 0, 0, 0.06);
+.provider-tabs__tab--active .provider-tabs__label {
+  color: #fff;
+}
+
+/* Provider icon inside tabs — ensure consistent sizing */
+.provider-tabs__tab .provider-icon {
+  width: 22px !important;
+  height: 22px !important;
 }
 
 [data-theme="light"] .provider-tabs__tab:hover {
@@ -3428,6 +3439,14 @@ body {
 
 [data-theme="light"] .provider-tabs__tab--active {
   background: var(--accent, #007aff);
+}
+
+[data-theme="light"] .provider-tabs__label {
+  color: var(--text-secondary);
+}
+
+[data-theme="light"] .provider-tabs__tab--active .provider-tabs__label {
+  color: #fff;
 }
 
 /* ── Menu card / metric row tightening ────────────────────────────── */
@@ -3470,13 +3489,13 @@ body {
    chart palette covers) but the menu defaults to a green-when-healthy
    gradient based on usage threshold — green → yellow → orange → red. */
 :root {
-  --usage-bar-normal: #0a84ff;     /* macOS systemBlue — matches upstream provider accent default */
+  --usage-bar-normal: #f0883e;     /* upstream provider brand amber/orange */
   --usage-bar-high: #ffd60a;       /* macOS systemYellow */
   --usage-bar-critical: #ff9f0a;   /* macOS systemOrange */
   --usage-bar-exhausted: #ff453a;  /* macOS systemRed    */
 }
 [data-theme="light"] {
-  --usage-bar-normal: #007aff;
+  --usage-bar-normal: #e8772e;
   --usage-bar-high: #ffcc00;
   --usage-bar-critical: #ff9500;
   --usage-bar-exhausted: #ff3b30;

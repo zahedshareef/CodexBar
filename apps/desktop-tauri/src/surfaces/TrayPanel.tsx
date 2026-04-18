@@ -62,9 +62,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   ];
 
   const footerRows: MenuFooterRow[] = [
-    { icon: "⚙", label: t("TooltipSettings"), onClick: openSettings },
-    { icon: "ℹ", label: "About CodexBar", onClick: openAbout },
-    { icon: "✕", label: "Quit", onClick: quitApp },
+    { icon: "", label: "Settings…", onClick: openSettings },
+    { icon: "", label: "About CodexBar", onClick: openAbout },
+    { icon: "", label: "Quit", onClick: quitApp },
   ];
 
   const banner = (
@@ -112,7 +112,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
               onClick={() => setSelectedIdx(idx)}
               title={p.displayName}
             >
-              <ProviderIcon providerId={p.providerId} size={20} />
+              <ProviderIcon providerId={p.providerId} size={22} />
+              <span className="provider-tabs__label">{p.displayName}</span>
             </button>
           ))}
         </div>
