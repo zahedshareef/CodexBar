@@ -3317,6 +3317,7 @@ body {
   flex-direction: column;
   gap: 0;
   padding: 4px 0 0;
+  margin-top: auto;
   border-top: 1px solid var(--menu-popover-divider);
   flex-shrink: 0;
 }
@@ -3360,6 +3361,10 @@ body {
   margin-top: auto;
   border-top: 1px solid var(--menu-popover-divider);
   flex-shrink: 0;
+}
+/* When footer follows action rows, actions already pushed to bottom */
+.menu-actions + .menu-surface__footer {
+  margin-top: 0;
 }
 .menu-surface__footer-row {
   display: flex;
