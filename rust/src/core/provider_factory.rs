@@ -9,9 +9,9 @@ use super::{Provider, ProviderId};
 use crate::providers::{
     AlibabaProvider, AmpProvider, AntigravityProvider, AugmentProvider, ClaudeProvider,
     CodexProvider, CopilotProvider, CursorProvider, FactoryProvider, GeminiProvider,
-    InfiniProvider, JetBrainsProvider, KimiK2Provider, KimiProvider, KiroProvider,
-    MiniMaxProvider, NanoGPTProvider, OllamaProvider, OpenCodeProvider, OpenRouterProvider,
-    SyntheticProvider, VertexAIProvider, WarpProvider, ZaiProvider,
+    InfiniProvider, JetBrainsProvider, KimiK2Provider, KimiProvider, KiroProvider, MiniMaxProvider,
+    NanoGPTProvider, OllamaProvider, OpenCodeProvider, OpenRouterProvider, SyntheticProvider,
+    VertexAIProvider, WarpProvider, ZaiProvider,
 };
 
 /// Instantiate the concrete [`Provider`] implementation for a given [`ProviderId`].

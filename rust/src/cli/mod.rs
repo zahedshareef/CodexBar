@@ -24,12 +24,13 @@ pub mod exit_codes {
     pub const PROVIDER_MISSING: i32 = 2;
     pub const PARSE_ERROR: i32 = 3;
     pub const CLI_TIMEOUT: i32 = 4;
+    pub const USAGE_ERROR: i32 = 64;
 }
 
 /// CodexBar - Monitor AI provider usage limits
 ///
-/// A utility to track usage limits across multiple AI providers.
-/// Defaults to the menubar GUI when no subcommand is given.
+/// CLI for inspecting provider usage and managing local config. The desktop
+/// menubar shell now lives in `apps/desktop-tauri/`; this binary is CLI-only.
 #[derive(Parser, Debug)]
 #[command(name = "codexbar")]
 #[command(author, version, about, long_about = None)]
@@ -102,9 +103,6 @@ pub enum Commands {
 
     /// Print local token cost usage (Claude + Codex) without web/CLI access
     Cost(cost::CostArgs),
-
-    /// Launch the menu bar GUI application
-    Menubar,
 
     /// Manage auto-start on Windows boot
     Autostart(autostart::AutostartArgs),

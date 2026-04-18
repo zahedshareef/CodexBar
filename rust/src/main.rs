@@ -1,9 +1,7 @@
-#![cfg_attr(windows, windows_subsystem = "windows")]
-
 use clap::Parser;
 use codexbar::{
     cli::{self, Cli, Commands, exit_codes},
-    logging, native_ui, single_instance, wsl,
+    logging, wsl,
 };
 
 /// Redact sensitive CLI arguments (tokens, keys, cookies) from log output
@@ -111,52 +109,6 @@ fn run() -> i32 {
                 }
             }
         }),
-        Some(Commands::Menubar) => {
-            #[cfg(windows)]
-            hide_console_window();
-
-            let log_path = std::env::temp_dir().join("codexbar_launch.log");
-            let _ = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&log_path)
-                .and_then(|mut f| {
-                    use std::io::Write;
-                    writeln!(f, "Launching native_ui::run() from menubar")
-                });
-
-            if wsl::is_wsl() {
-                tracing::info!(
-                    "Running in WSL — GUI requires WSLg or an X server. \
-                     If the window doesn't appear, use CLI commands instead: \
-                     codexbar usage -p <provider>"
-                );
-            }
-
-            // Check for existing instance
-            let _guard = match single_instance::SingleInstanceGuard::try_acquire() {
-                Some(guard) => guard,
-                None => {
-                    // Can't print to console anymore, just exit
-                    return exit_codes::SUCCESS;
-                }
-            };
-
-            match native_ui::run() {
-                Ok(()) => exit_codes::SUCCESS,
-                Err(e) => {
-                    let _ = std::fs::OpenOptions::new()
-                        .create(true)
-                        .append(true)
-                        .open(&log_path)
-                        .and_then(|mut f| {
-                            use std::io::Write;
-                            writeln!(f, "native_ui error: {:?}", e)
-                        });
-                    exit_codes::UNEXPECTED_FAILURE
-                }
-            }
-        }
         Some(Commands::Autostart(args)) => rt.block_on(async {
             match cli::autostart::run(args).await {
                 Ok(()) => exit_codes::SUCCESS,
@@ -185,30 +137,14 @@ fn run() -> i32 {
             }
         }),
         None => {
-            // Default: launch menubar GUI
-            // Log to file since we can't see console output
-            let log_path = std::env::temp_dir().join("codexbar_launch.log");
-            let _ = std::fs::write(
-                &log_path,
-                format!("Starting at {:?}\n", std::time::SystemTime::now()),
+            // The egui menubar shell has been retired; the desktop UI lives in
+            // apps/desktop-tauri. The CLI binary now requires an explicit subcommand.
+            eprintln!(
+                "codexbar is now CLI-only. Run a subcommand (e.g. `codexbar usage -p claude`) \
+                 or launch the Tauri desktop shell via `apps/desktop-tauri`.\n\
+                 Use `codexbar --help` for the full list of subcommands."
             );
-
-            let _guard = match single_instance::SingleInstanceGuard::try_acquire() {
-                Some(guard) => guard,
-                None => {
-                    let _ = std::fs::write(&log_path, "Already running, exiting\n");
-                    return exit_codes::SUCCESS;
-                }
-            };
-
-            let _ = std::fs::write(&log_path, "Launching native_ui::run()\n");
-            match native_ui::run() {
-                Ok(()) => exit_codes::SUCCESS,
-                Err(e) => {
-                    let _ = std::fs::write(&log_path, format!("native_ui error: {:?}\n", e));
-                    exit_codes::UNEXPECTED_FAILURE
-                }
-            }
+            exit_codes::USAGE_ERROR
         }
     }
 }
@@ -225,19 +161,5 @@ fn categorize_error(e: &anyhow::Error) -> i32 {
         exit_codes::CLI_TIMEOUT
     } else {
         exit_codes::UNEXPECTED_FAILURE
-    }
-}
-
-/// Hide the console window on Windows (for GUI mode)
-#[cfg(windows)]
-fn hide_console_window() {
-    use windows::Win32::System::Console::GetConsoleWindow;
-    use windows::Win32::UI::WindowsAndMessaging::{SW_HIDE, ShowWindow};
-
-    unsafe {
-        let console = GetConsoleWindow();
-        if !console.is_invalid() {
-            let _ = ShowWindow(console, SW_HIDE);
-        }
     }
 }

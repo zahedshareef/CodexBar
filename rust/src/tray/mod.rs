@@ -4,12 +4,20 @@
 
 #![allow(unused_imports)]
 
-pub mod blink;
 pub mod icon;
-pub mod icon_twist;
-pub mod manager;
-pub mod menu_invalidation;
 pub mod render;
+
+// Legacy egui-shell submodules live under rust/legacy/tray/.
+// They remain compiled so the existing API surface keeps working.
+#[path = "../../legacy/tray/blink.rs"]
+pub mod blink;
+#[path = "../../legacy/tray/icon_twist.rs"]
+pub mod icon_twist;
+#[path = "../../legacy/tray/manager.rs"]
+pub mod manager;
+#[path = "../../legacy/tray/menu_invalidation.rs"]
+pub mod menu_invalidation;
+#[path = "../../legacy/tray/weekly_indicator.rs"]
 pub mod weekly_indicator;
 
 pub use blink::{BlinkConfig, BlinkOutput, BlinkState, EyeBlinkSystem, MotionEffect};
