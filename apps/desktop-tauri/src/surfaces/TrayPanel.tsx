@@ -10,6 +10,7 @@ import MenuCard from "../components/MenuCard";
 import MenuSurface, {
   MenuEmpty,
   type MenuFooterRow,
+  type MenuActionRow,
 } from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
 import { ProviderIcon } from "../components/providers/ProviderIcon";
@@ -80,7 +81,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   ];
 
   // Provider-specific action rows (mirrors upstream MenuDescriptor)
-  const actionRows = activeProvider ? [
+  const actionRows: MenuActionRow[] = activeProvider ? [
     { icon: "🔑", label: "Add Account…", onClick: openProviders },
     { icon: "📊", label: "Usage Dashboard", onClick: openPopOut },
   ] : [];
@@ -118,6 +119,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       isRefreshing={isRefreshing}
       actions={headerActions}
       banner={banner}
+      actionRows={actionRows}
       footerRows={footerRows}
     >
       {sorted.length > 1 && (
@@ -146,21 +148,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
             />
           </div>
         </div>
-      )}
-      {actionRows.length > 0 && (
-        <nav className="menu-actions" aria-label="Provider actions">
-          {actionRows.map((row) => (
-            <button
-              key={row.label}
-              type="button"
-              className="menu-actions__row"
-              onClick={row.onClick}
-            >
-              <span className="menu-actions__icon" aria-hidden>{row.icon}</span>
-              <span>{row.label}</span>
-            </button>
-          ))}
-        </nav>
       )}
     </MenuSurface>
   );

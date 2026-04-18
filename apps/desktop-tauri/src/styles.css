@@ -2855,7 +2855,7 @@ body {
 .menu-surface__body {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
 }
@@ -3357,7 +3357,7 @@ body {
   flex-direction: column;
   gap: 0;
   padding: 4px 0 0;
-  margin-top: 0;
+  margin-top: auto;
   border-top: 1px solid var(--menu-popover-divider);
   flex-shrink: 0;
 }

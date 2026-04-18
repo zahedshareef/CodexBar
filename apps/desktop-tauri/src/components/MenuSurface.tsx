@@ -14,6 +14,12 @@ export interface MenuFooterRow {
   onClick: () => void;
 }
 
+export interface MenuActionRow {
+  icon: string;
+  label: string;
+  onClick: () => void;
+}
+
 interface MenuSurfaceProps {
   variant: "tray" | "popout";
   onRefresh: () => void;
@@ -21,10 +27,7 @@ interface MenuSurfaceProps {
   actions: MenuSurfaceAction[];
   summary?: ReactNode;
   banner?: ReactNode;
-  /**
-   * Native-style footer rows rendered like NSMenu items at the bottom of
-   * the popover (mirrors the upstream "Settings… / About / Quit" trio).
-   */
+  actionRows?: MenuActionRow[];
   footerRows?: MenuFooterRow[];
   children: ReactNode;
 }
@@ -44,6 +47,7 @@ export default function MenuSurface({
   actions,
   summary,
   banner,
+  actionRows,
   footerRows,
   children,
 }: MenuSurfaceProps) {
@@ -52,6 +56,23 @@ export default function MenuSurface({
       {banner}
       {summary}
       <div className="menu-surface__body">{children}</div>
+      {actionRows && actionRows.length > 0 && (
+        <nav className="menu-actions" aria-label="Provider actions">
+          {actionRows.map((row) => (
+            <button
+              key={row.label}
+              type="button"
+              className="menu-actions__row"
+              onClick={row.onClick}
+            >
+              {row.icon && (
+                <span className="menu-actions__icon" aria-hidden>{row.icon}</span>
+              )}
+              <span>{row.label}</span>
+            </button>
+          ))}
+        </nav>
+      )}
       {footerRows && footerRows.length > 0 && (
         <nav className="menu-surface__footer" aria-label="Menu">
           {footerRows.map((row) => (
