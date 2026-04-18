@@ -49,7 +49,7 @@ impl SurfaceMode {
                 visible: true,
                 decorations: false,
                 resizable: false,
-                width: 420.0,
+                width: 300.0,
                 height: 680.0,
                 min_width: None,
                 min_height: None,
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn tray_panel_properties() {
         let props = SurfaceMode::TrayPanel.window_properties();
-        assert_eq!(props.width, 420.0);
+        assert_eq!(props.width, 300.0);
         assert_eq!(props.height, 680.0);
     }
 

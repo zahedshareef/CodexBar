@@ -2763,7 +2763,7 @@ body {
   gap: 8px;
   /* upstream .padding(.horizontal, 10) .padding(.vertical, 6) */
   padding: 6px 10px;
-  width: 280px;
+  width: 100%;
   min-width: 260px;
   height: 100vh;
   font-size: 13px;
@@ -2774,7 +2774,7 @@ body {
 }
 
 .menu-surface--popout {
-  width: 340px;
+  width: 100%;
   padding: 6px 10px;
 }
 
@@ -2918,6 +2918,14 @@ body {
   min-height: 0;
   max-height: 100%;
   overflow-y: auto;
+}
+
+/* Hide scrollbar on tray variant — upstream macOS NSMenu has none. */
+.menu-surface--tray .menu-stack {
+  scrollbar-width: none;
+}
+.menu-surface--tray .menu-stack::-webkit-scrollbar {
+  display: none;
 }
 
 .menu-stack__item {
@@ -3254,7 +3262,7 @@ body {
 
 /* ── Menu surface: flat NSMenu-style panel (no shadow / radius) ───── */
 .menu-surface {
-  width: var(--menu-width);
+  width: 100%;
   min-width: 260px;
   background: var(--menu-popover-bg);
   border: none;
@@ -3264,7 +3272,7 @@ body {
   line-height: var(--line-tight);
 }
 .menu-surface--popout {
-  width: var(--popout-width);
+  width: 100%;
 }
 [data-theme="light"] .menu-surface {
   background: var(--menu-popover-bg);
