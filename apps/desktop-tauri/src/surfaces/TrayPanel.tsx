@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
-import { setSurfaceMode } from "../lib/tauri";
+import { setSurfaceMode, openProviderStatusPage } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
@@ -84,6 +84,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const actionRows: MenuActionRow[] = activeProvider ? [
     { icon: "🔑", label: "Add Account…", onClick: openProviders },
     { icon: "📊", label: "Usage Dashboard", onClick: openPopOut },
+    { icon: "⚡", label: "Status Page", onClick: () => {
+      void openProviderStatusPage(activeProvider.providerId);
+    }},
   ] : [];
 
   const banner = (
