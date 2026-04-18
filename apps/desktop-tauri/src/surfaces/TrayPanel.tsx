@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useMemo, useState } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
@@ -50,6 +50,20 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const sorted = useMemo(() => sortProviders(providers), [providers]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const activeIdx = Math.min(selectedIdx, Math.max(0, sorted.length - 1));
+  const surfaceRef = useRef<HTMLDivElement>(null);
+
+  // Auto-resize the Tauri window to fit content (max 660px like macOS)
+  useEffect(() => {
+    const el = surfaceRef.current;
+    if (!el) return;
+    const TRAY_WIDTH = 300;
+    const MAX_HEIGHT = 660;
+    const frame = requestAnimationFrame(() => {
+      const contentHeight = Math.min(MAX_HEIGHT, Math.max(180, el.scrollHeight));
+      void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, contentHeight));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [sorted, isRefreshing]);
 
   const openSettings = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "general" });
@@ -96,6 +110,23 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
   if (sorted.length === 0) {
     return (
+      <div ref={surfaceRef}>
+        <MenuSurface
+          variant="tray"
+          onRefresh={refresh}
+          isRefreshing={isRefreshing}
+          actions={headerActions}
+          banner={banner}
+          footerRows={footerRows}
+        >
+          <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
+        </MenuSurface>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={surfaceRef}>
       <MenuSurface
         variant="tray"
         onRefresh={refresh}
@@ -104,20 +135,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         banner={banner}
         footerRows={footerRows}
       >
-        <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
-      </MenuSurface>
-    );
-  }
-
-  return (
-    <MenuSurface
-      variant="tray"
-      onRefresh={refresh}
-      isRefreshing={isRefreshing}
-      actions={headerActions}
-      banner={banner}
-      footerRows={footerRows}
-    >
       <div className="provider-grid">
         {sorted.map((p, idx) => (
           <button
@@ -146,6 +163,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           </Fragment>
         ))}
       </div>
-    </MenuSurface>
+      </MenuSurface>
+    </div>
   );
 }

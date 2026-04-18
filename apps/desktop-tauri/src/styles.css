@@ -2919,9 +2919,9 @@ body {
   overflow-y: auto;
 }
 
-/* Hide scrollbar on tray variant — upstream macOS NSMenu has none. */
+/* Tray variant — auto-sized by JS, no forced min-height. */
 .menu-surface--tray {
-  min-height: 100vh;
+  min-height: 0;
 }
 .menu-surface--tray .menu-stack {
   scrollbar-width: thin;
