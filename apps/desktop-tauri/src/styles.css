@@ -2931,7 +2931,7 @@ html {
   border-radius: 0;
   border: none;
   box-shadow: none;
-  padding: 6px 6px; /* tighter than default 6px 10px for narrow tray */
+  padding: 6px 10px; /* match upstream .padding(.horizontal, 10) */
 }
 .menu-surface--tray,
 .menu-surface--tray * {
@@ -2942,6 +2942,29 @@ html {
 }
 .menu-surface--tray .menu-stack::-webkit-scrollbar {
   display: none;
+}
+
+/* Tray cards — blend with panel bg like macOS (no visible card containers) */
+.menu-surface--tray .menu-stack__item {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 4px 0;
+}
+/* Tray separators — subtle hairline like macOS */
+.menu-surface--tray .menu-stack__sep {
+  height: 1px;
+  margin: 2px 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] .menu-surface--tray .menu-stack__sep {
+  background: rgba(0, 0, 0, 0.1);
+}
+/* Tray grid — minimal container */
+.menu-surface--tray .provider-grid {
+  background: rgba(255, 255, 255, 0.03);
+  border: none;
+  border-radius: 8px;
 }
 
 .menu-stack__item {
@@ -3995,10 +4018,8 @@ html {
   color: var(--provider-status-error);
   line-height: 1.3;
   white-space: normal;
-  -webkit-line-clamp: 2;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  overflow: visible;
+  text-overflow: unset;
   font-size: 11px;
 }
 
