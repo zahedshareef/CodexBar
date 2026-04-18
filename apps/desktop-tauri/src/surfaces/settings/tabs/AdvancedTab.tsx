@@ -2,11 +2,7 @@ import { useLocale } from "../../../hooks/useLocale";
 import { useUpdateState } from "../../../hooks/useUpdateState";
 import { formatRelativeUpdated } from "../../../lib/relativeTime";
 import { Field, NumberInput, Select, Toggle } from "../../../components/FormControls";
-import type {
-  MenuBarDisplayMode,
-  TrayIconMode,
-  UpdateChannel,
-} from "../../../types/bridge";
+import type { UpdateChannel } from "../../../types/bridge";
 import type { TabProps } from "../../Settings";
 
 export default function AdvancedTab({ settings, set, saving }: TabProps) {
@@ -39,91 +35,6 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
         </div>
       </section>
 
-      {/* ── Menu Bar ──────────────────────────────────────────────── */}
-      <section className="settings-section">
-        <h3 className="settings-section__title">{t("MenuBar")}</h3>
-        <div className="settings-section__group">
-          <Field
-            label={t("TrayIconModeLabel")}
-            description={t("TrayIconModeHelper")}
-          >
-            <Select
-              value={settings.trayIconMode}
-              disabled={saving}
-              options={[
-                { value: "single", label: t("TrayIconModeSingle") },
-                { value: "perProvider", label: t("TrayIconModePerProvider") },
-              ]}
-              onChange={(v) => set({ trayIconMode: v as TrayIconMode })}
-            />
-          </Field>
-          <Field
-            label={t("ShowProviderIcons")}
-            description={t("ShowProviderIconsHelper")}
-           leading>
-            <Toggle
-              checked={settings.switcherShowsIcons}
-              disabled={saving}
-              onChange={(v) => set({ switcherShowsIcons: v })}
-            />
-          </Field>
-          <Field
-            label={t("PreferHighestUsage")}
-            description={t("PreferHighestUsageHelper")}
-           leading>
-            <Toggle
-              checked={settings.menuBarShowsHighestUsage}
-              disabled={saving}
-              onChange={(v) => set({ menuBarShowsHighestUsage: v })}
-            />
-          </Field>
-          <Field
-            label={t("ShowPercentInTray")}
-            description={t("ShowPercentInTrayHelper")}
-           leading>
-            <Toggle
-              checked={settings.menuBarShowsPercent}
-              disabled={saving}
-              onChange={(v) => set({ menuBarShowsPercent: v })}
-            />
-          </Field>
-          <Field
-            label={t("DisplayModeLabel")}
-            description={t("DisplayModeHelper")}
-          >
-            <Select
-              value={settings.menuBarDisplayMode}
-              disabled={saving}
-              options={[
-                { value: "detailed", label: t("DisplayModeDetailed") },
-                { value: "compact", label: t("DisplayModeCompact") },
-                { value: "minimal", label: t("DisplayModeMinimal") },
-              ]}
-              onChange={(v) =>
-                set({ menuBarDisplayMode: v as MenuBarDisplayMode })
-              }
-            />
-          </Field>
-          <Field label={t("ShowAsUsedLabel")} description={t("ShowAsUsedHelper")} leading>
-            <Toggle
-              checked={settings.showAsUsed}
-              disabled={saving}
-              onChange={(v) => set({ showAsUsed: v })}
-            />
-          </Field>
-          <Field
-            label={t("ShowAllTokenAccountsLabel")}
-            description={t("ShowAllTokenAccountsHelper")}
-           leading>
-            <Toggle
-              checked={settings.showAllTokenAccountsInMenu}
-              disabled={saving}
-              onChange={(v) => set({ showAllTokenAccountsInMenu: v })}
-            />
-          </Field>
-        </div>
-      </section>
-
       {/* ── Fun ───────────────────────────────────────────────────── */}
       <section className="settings-section">
         <h3 className="settings-section__title">{t("Fun")}</h3>
@@ -131,7 +42,8 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("EnableAnimationsLabel")}
             description={t("EnableAnimationsHelper")}
-           leading>
+            leading
+          >
             <Toggle
               checked={settings.enableAnimations}
               disabled={saving}
@@ -141,11 +53,30 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("SurpriseAnimationsLabel")}
             description={t("SurpriseAnimationsHelper")}
-           leading>
+            leading
+          >
             <Toggle
               checked={settings.surpriseAnimations}
               disabled={saving}
               onChange={(v) => set({ surpriseAnimations: v })}
+            />
+          </Field>
+        </div>
+      </section>
+
+      {/* ── Privacy ──────────────────────────────────────────────── */}
+      <section className="settings-section">
+        <h3 className="settings-section__title">{t("PrivacyTitle")}</h3>
+        <div className="settings-section__group">
+          <Field
+            label={t("HidePersonalInfo")}
+            description={t("HidePersonalInfoHelper")}
+            leading
+          >
+            <Toggle
+              checked={settings.hidePersonalInfo}
+              disabled={saving}
+              onChange={(v) => set({ hidePersonalInfo: v })}
             />
           </Field>
         </div>
@@ -160,7 +91,8 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("AvoidKeychainPromptsLabel")}
             description={t("AvoidKeychainPromptsHelper")}
-           leading>
+            leading
+          >
             <Toggle
               checked={settings.claudeAvoidKeychainPrompts}
               disabled={saving || settings.disableKeychainAccess}
@@ -170,7 +102,8 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("DisableAllKeychainLabel")}
             description={t("DisableAllKeychainHelper")}
-           leading>
+            leading
+          >
             <Toggle
               checked={settings.disableKeychainAccess}
               disabled={saving}
@@ -187,7 +120,8 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("ShowDebugSettingsLabel")}
             description={t("ShowDebugSettingsHelper")}
-           leading>
+            leading
+          >
             <Toggle
               checked={settings.showDebugSettings}
               disabled={saving}
@@ -218,7 +152,8 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("AutoDownloadUpdates")}
             description={t("AutoDownloadUpdatesHelper")}
-           leading>
+            leading
+          >
             <Toggle
               checked={settings.autoDownloadUpdates}
               disabled={saving}
@@ -228,7 +163,8 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           <Field
             label={t("InstallUpdatesOnQuit")}
             description={t("InstallUpdatesOnQuitHelper")}
-           leading>
+            leading
+          >
             <Toggle
               checked={settings.installUpdatesOnQuit}
               disabled={saving}
@@ -249,23 +185,6 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
                 {t("TrayCheckForUpdates")}
               </button>
             </div>
-          </Field>
-        </div>
-      </section>
-
-      {/* ── Time ─────────────────────────────────────────────────── */}
-      <section className="settings-section">
-        <h3 className="settings-section__title">{t("SectionTime")}</h3>
-        <div className="settings-section__group">
-          <Field
-            label={t("ResetTimeRelative")}
-            description={t("ResetTimeRelativeHelper")}
-           leading>
-            <Toggle
-              checked={settings.resetTimeRelative}
-              disabled={saving}
-              onChange={(v) => set({ resetTimeRelative: v })}
-            />
           </Field>
         </div>
       </section>
