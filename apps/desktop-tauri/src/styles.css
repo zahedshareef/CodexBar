@@ -2939,6 +2939,7 @@ html {
 }
 .menu-surface--tray .menu-stack {
   overflow-y: hidden; /* auto-resize handles height; no scroll needed */
+  gap: 2px; /* macOS cards are tightly packed */
 }
 .menu-surface--tray .menu-stack::-webkit-scrollbar {
   display: none;
@@ -2965,6 +2966,21 @@ html {
   background: rgba(255, 255, 255, 0.03);
   border: none;
   border-radius: 8px;
+}
+/* Tray card compactness — match macOS density */
+.menu-surface--tray .menu-card {
+  gap: 3px;
+}
+/* Tray name-group — row layout like macOS (name left, email right on same line) */
+.menu-surface--tray .menu-card__name-group {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.menu-surface--tray .menu-card__email {
+  flex: 0 1 auto;
+  text-align: right;
+  max-width: 55%;
 }
 
 .menu-stack__item {
@@ -3445,7 +3461,7 @@ html {
   align-items: center;
   justify-content: flex-start;
   gap: 1px;
-  padding: 4px 2px 3px;
+  padding: 3px 2px 2px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -3486,8 +3502,8 @@ html {
 
 /* Provider icon inside grid — ensure consistent sizing + visibility */
 .provider-grid__item .provider-icon {
-  width: 32px !important;
-  height: 32px !important;
+  width: 24px !important;
+  height: 24px !important;
   background: rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
