@@ -2950,16 +2950,16 @@ html {
   background: transparent;
   border: none;
   border-radius: 0;
-  padding: 4px 0;
+  padding: 2px 0;
 }
 /* Tray separators — subtle hairline like macOS */
 .menu-surface--tray .menu-stack__sep {
   height: 1px;
-  margin: 2px 0;
-  background: rgba(255, 255, 255, 0.08);
+  margin: 1px 0;
+  background: rgba(255, 255, 255, 0.06);
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__sep {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(0, 0, 0, 0.08);
 }
 /* Tray grid — minimal container */
 .menu-surface--tray .provider-grid {
@@ -2969,7 +2969,7 @@ html {
 }
 /* Tray card compactness — match macOS density */
 .menu-surface--tray .menu-card {
-  gap: 3px;
+  gap: 2px;
 }
 /* Tray name-group — row layout like macOS (name left, email right on same line) */
 .menu-surface--tray .menu-card__name-group {
@@ -2981,6 +2981,14 @@ html {
   flex: 0 1 auto;
   text-align: right;
   max-width: 55%;
+}
+/* Tray footer — tighter padding like macOS */
+.menu-surface--tray .menu-surface__footer {
+  padding: 4px 0 2px;
+}
+.menu-surface--tray .menu-surface__footer-row {
+  padding: 3px 6px;
+  font-size: 12px;
 }
 
 .menu-stack__item {
