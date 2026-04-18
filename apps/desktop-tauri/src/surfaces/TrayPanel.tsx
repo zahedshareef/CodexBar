@@ -82,9 +82,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
   // Provider-specific action rows (mirrors upstream MenuDescriptor)
   const actionRows: MenuActionRow[] = activeProvider ? [
-    { icon: "🔑", label: "Add Account…", onClick: openProviders },
-    { icon: "📊", label: "Usage Dashboard", onClick: openPopOut },
-    { icon: "⚡", label: "Status Page", onClick: () => {
+    { icon: "", label: "Add Account…", onClick: openProviders },
+    { icon: "", label: "Usage Dashboard", onClick: openPopOut },
+    { icon: "", label: "Status Page", onClick: () => {
       void openProviderStatusPage(activeProvider.providerId);
     }},
   ] : [];
