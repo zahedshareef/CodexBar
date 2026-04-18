@@ -3309,6 +3309,46 @@ body {
   font-size: 13px;
 }
 
+/* Provider action rows (Add Account, Usage Dashboard, Status Page).
+   Mirrors upstream MenuDescriptor SF-Symbol action items between the
+   card content and the Settings/About/Quit footer. */
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 4px 0 0;
+  border-top: 1px solid var(--menu-popover-divider);
+  flex-shrink: 0;
+}
+.menu-actions__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--font-body);
+  cursor: pointer;
+  text-align: left;
+}
+.menu-actions__row:hover,
+.menu-actions__row:focus-visible {
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-theme="light"] .menu-actions__row:hover,
+[data-theme="light"] .menu-actions__row:focus-visible {
+  background: rgba(0, 0, 0, 0.06);
+}
+.menu-actions__icon {
+  width: 18px;
+  text-align: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
 /* Footer of native-style menu rows (Settings… / About / Quit).
    Sits flush with the surface's 10/6 padding and reads like an NSMenu
    item: full-width row, 18px icon column, subtle hover highlight. */

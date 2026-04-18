@@ -178,9 +178,43 @@ impl MetricPreference {
     }
 }
 
+/// Per-provider configuration values.
+///
+/// All fields are optional / falsy-default so unused providers serialize as
+/// empty objects (or skip serialization entirely). Defaults are applied via
+/// the accessor methods on [`Settings`] (e.g. cookie source defaults to
+/// `"auto"`, region defaults are provider-specific).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProviderConfig {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cookie_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage_source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_region: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manual_cookie_header: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ide_base_path: Option<String>,
+    /// Codex-only: opt out of OpenAI web "extras" surfaces.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub openai_web_extras: Option<bool>,
+    /// Codex-only: enable historical usage tracking in UI.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub historical_tracking: bool,
+    /// Claude-only: avoid keychain prompts when reading credentials.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub avoid_keychain_prompts: bool,
+}
+
 /// Application settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(from = "RawSettings", default)]
 pub struct Settings {
     /// Enabled provider IDs (by CLI name)
     pub enabled_providers: HashSet<String>,
@@ -250,117 +284,11 @@ pub struct Settings {
     #[serde(default)]
     pub show_all_token_accounts_in_menu: bool,
 
-    /// Preferred Claude usage source for the provider settings UI
-    #[serde(default = "default_claude_usage_source")]
-    pub claude_usage_source: String,
-
-    /// Preferred Codex usage source for the provider settings UI
-    #[serde(default = "default_codex_usage_source")]
-    pub codex_usage_source: String,
-
-    /// Preferred Codex cookie source for the provider settings UI
-    #[serde(default = "default_codex_cookie_source")]
-    pub codex_cookie_source: String,
-
-    /// Whether Codex historical tracking is enabled in the settings UI
-    #[serde(default)]
-    pub codex_historical_tracking: bool,
-
-    /// Whether Codex OpenAI web extras are enabled in the settings UI
-    #[serde(default = "default_codex_openai_web_extras")]
-    pub codex_openai_web_extras: bool,
-
-    /// Preferred Claude cookie source for the provider settings UI
-    #[serde(default = "default_claude_cookie_source")]
-    pub claude_cookie_source: String,
-
-    /// Preferred Cursor cookie source for the provider settings UI
-    #[serde(default = "default_cursor_cookie_source")]
-    pub cursor_cookie_source: String,
-
-    /// Preferred OpenCode cookie source for the provider settings UI
-    #[serde(default = "default_opencode_cookie_source")]
-    pub opencode_cookie_source: String,
-
-    /// Optional OpenCode workspace ID override for the provider settings UI
-    #[serde(default)]
-    pub opencode_workspace_id: String,
-
-    /// Preferred Factory cookie source for the provider settings UI
-    #[serde(default = "default_factory_cookie_source")]
-    pub factory_cookie_source: String,
-
-    /// Preferred Alibaba cookie source for the provider settings UI
-    #[serde(default = "default_alibaba_cookie_source")]
-    pub alibaba_cookie_source: String,
-
-    /// Manual Alibaba cookie header for the provider settings UI
-    #[serde(default)]
-    pub alibaba_cookie_header: String,
-
-    /// Preferred Alibaba API gateway region for the provider settings UI
-    #[serde(default = "default_alibaba_api_region")]
-    pub alibaba_api_region: String,
-
-    /// Preferred Kimi cookie source for the provider settings UI
-    #[serde(default = "default_kimi_cookie_source")]
-    pub kimi_cookie_source: String,
-
-    /// Manual Kimi cookie header or token value for the provider settings UI
-    #[serde(default)]
-    pub kimi_manual_cookie_header: String,
-
-    /// Preferred MiniMax cookie source for the provider settings UI
-    #[serde(default = "default_minimax_cookie_source")]
-    pub minimax_cookie_source: String,
-
-    /// Preferred Augment cookie source for the provider settings UI
-    #[serde(default = "default_augment_cookie_source")]
-    pub augment_cookie_source: String,
-
-    /// Manual Augment cookie header for the provider settings UI
-    #[serde(default)]
-    pub augment_cookie_header: String,
-
-    /// Preferred Amp cookie source for the provider settings UI
-    #[serde(default = "default_amp_cookie_source")]
-    pub amp_cookie_source: String,
-
-    /// Manual Amp cookie header for the provider settings UI
-    #[serde(default)]
-    pub amp_cookie_header: String,
-
-    /// Preferred Ollama cookie source for the provider settings UI
-    #[serde(default = "default_ollama_cookie_source")]
-    pub ollama_cookie_source: String,
-
-    /// Manual Ollama cookie header for the provider settings UI
-    #[serde(default)]
-    pub ollama_cookie_header: String,
-
-    /// Preferred z.ai API region for the provider settings UI
-    #[serde(default = "default_zai_api_region")]
-    pub zai_api_region: String,
-
-    /// Optional JetBrains IDE base path override for the provider settings UI
-    #[serde(default)]
-    pub jetbrains_ide_base_path: String,
-
-    /// Manual MiniMax cookie header for the provider settings UI
-    #[serde(default)]
-    pub minimax_cookie_header: String,
-
-    /// MiniMax API token for the provider settings UI
-    #[serde(default)]
-    pub minimax_api_token: String,
-
-    /// MiniMax API region for the provider settings UI
-    #[serde(default = "default_minimax_api_region")]
-    pub minimax_api_region: String,
-
-    /// Whether prompt-free Claude keychain credential reads are enabled
-    #[serde(default)]
-    pub claude_avoid_keychain_prompts: bool,
+    /// Per-provider configuration map (cookie/usage source, region, manual
+    /// headers, API tokens, etc). Replaces the legacy flat per-provider
+    /// fields; legacy `settings.json` files are migrated via [`RawSettings`].
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub provider_configs: HashMap<ProviderId, ProviderConfig>,
 
     /// Show debug-oriented settings and troubleshooting surfaces
     #[serde(default)]
@@ -417,72 +345,360 @@ fn default_true() -> bool {
     true
 }
 
-fn default_claude_usage_source() -> String {
-    "auto".to_string()
+/// Default cookie/usage source value for any provider.
+const DEFAULT_PROVIDER_SOURCE: &str = "auto";
+
+/// Default API region for providers that expose one.
+fn default_api_region(id: ProviderId) -> &'static str {
+    match id {
+        ProviderId::Alibaba => "intl",
+        ProviderId::Zai | ProviderId::MiniMax => "global",
+        _ => "",
+    }
 }
 
-fn default_codex_usage_source() -> String {
-    "auto".to_string()
+/// Default for the codex `openai_web_extras` boolean (true = show extras).
+const DEFAULT_CODEX_OPENAI_WEB_EXTRAS: bool = true;
+
+/// Raw on-disk shape of [`Settings`] used purely for deserialization.
+///
+/// It mirrors the canonical `Settings` fields but ALSO accepts the legacy
+/// flat per-provider fields (`codex_cookie_source`, `alibaba_api_region`,
+/// `claude_avoid_keychain_prompts`, …) so existing `settings.json` files keep
+/// loading. The `From<RawSettings> for Settings` impl folds any present
+/// legacy field into the unified [`provider_configs`](Settings::provider_configs)
+/// map.
+///
+/// Saves go through `Settings`'s derived `Serialize`, which writes only the
+/// new format (no legacy flat fields).
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+struct RawSettings {
+    enabled_providers: HashSet<String>,
+    refresh_interval_secs: u64,
+    start_minimized: bool,
+    start_at_login: bool,
+    show_notifications: bool,
+    sound_enabled: bool,
+    sound_volume: u8,
+    high_usage_threshold: f64,
+    critical_usage_threshold: f64,
+    merge_tray_icons: bool,
+    tray_icon_mode: TrayIconMode,
+    #[serde(default = "default_true")]
+    switcher_shows_icons: bool,
+    menu_bar_shows_highest_usage: bool,
+    menu_bar_shows_percent: bool,
+    show_as_used: bool,
+    surprise_animations: bool,
+    enable_animations: bool,
+    reset_time_relative: bool,
+    menu_bar_display_mode: String,
+    show_credits_extra_usage: bool,
+    show_all_token_accounts_in_menu: bool,
+
+    // ── New unified per-provider map ─────────────────────────────────
+    provider_configs: HashMap<ProviderId, ProviderConfig>,
+
+    // ── Legacy flat per-provider fields (migrated on load) ───────────
+    #[serde(default)]
+    claude_usage_source: Option<String>,
+    #[serde(default)]
+    codex_usage_source: Option<String>,
+    #[serde(default)]
+    codex_cookie_source: Option<String>,
+    #[serde(default)]
+    codex_historical_tracking: Option<bool>,
+    #[serde(default)]
+    codex_openai_web_extras: Option<bool>,
+    #[serde(default)]
+    claude_cookie_source: Option<String>,
+    #[serde(default)]
+    cursor_cookie_source: Option<String>,
+    #[serde(default)]
+    opencode_cookie_source: Option<String>,
+    #[serde(default)]
+    opencode_workspace_id: Option<String>,
+    #[serde(default)]
+    factory_cookie_source: Option<String>,
+    #[serde(default)]
+    alibaba_cookie_source: Option<String>,
+    #[serde(default)]
+    alibaba_cookie_header: Option<String>,
+    #[serde(default)]
+    alibaba_api_region: Option<String>,
+    #[serde(default)]
+    kimi_cookie_source: Option<String>,
+    #[serde(default)]
+    kimi_manual_cookie_header: Option<String>,
+    #[serde(default)]
+    minimax_cookie_source: Option<String>,
+    #[serde(default)]
+    augment_cookie_source: Option<String>,
+    #[serde(default)]
+    augment_cookie_header: Option<String>,
+    #[serde(default)]
+    amp_cookie_source: Option<String>,
+    #[serde(default)]
+    amp_cookie_header: Option<String>,
+    #[serde(default)]
+    ollama_cookie_source: Option<String>,
+    #[serde(default)]
+    ollama_cookie_header: Option<String>,
+    #[serde(default)]
+    zai_api_region: Option<String>,
+    #[serde(default)]
+    jetbrains_ide_base_path: Option<String>,
+    #[serde(default)]
+    minimax_cookie_header: Option<String>,
+    #[serde(default)]
+    minimax_api_token: Option<String>,
+    #[serde(default)]
+    minimax_api_region: Option<String>,
+    #[serde(default)]
+    claude_avoid_keychain_prompts: Option<bool>,
+
+    show_debug_settings: bool,
+    disable_keychain_access: bool,
+    hide_personal_info: bool,
+    update_channel: UpdateChannel,
+    provider_metrics: HashMap<String, MetricPreference>,
+    provider_order: Vec<String>,
+    #[serde(default = "default_global_shortcut")]
+    global_shortcut: String,
+    auto_download_updates: bool,
+    install_updates_on_quit: bool,
+    ui_language: Language,
+    theme: ThemePreference,
 }
 
-fn default_codex_cookie_source() -> String {
-    "auto".to_string()
+impl Default for RawSettings {
+    fn default() -> Self {
+        let s = Settings::default();
+        Self {
+            enabled_providers: s.enabled_providers,
+            refresh_interval_secs: s.refresh_interval_secs,
+            start_minimized: s.start_minimized,
+            start_at_login: s.start_at_login,
+            show_notifications: s.show_notifications,
+            sound_enabled: s.sound_enabled,
+            sound_volume: s.sound_volume,
+            high_usage_threshold: s.high_usage_threshold,
+            critical_usage_threshold: s.critical_usage_threshold,
+            merge_tray_icons: s.merge_tray_icons,
+            tray_icon_mode: s.tray_icon_mode,
+            switcher_shows_icons: s.switcher_shows_icons,
+            menu_bar_shows_highest_usage: s.menu_bar_shows_highest_usage,
+            menu_bar_shows_percent: s.menu_bar_shows_percent,
+            show_as_used: s.show_as_used,
+            surprise_animations: s.surprise_animations,
+            enable_animations: s.enable_animations,
+            reset_time_relative: s.reset_time_relative,
+            menu_bar_display_mode: s.menu_bar_display_mode,
+            show_credits_extra_usage: s.show_credits_extra_usage,
+            show_all_token_accounts_in_menu: s.show_all_token_accounts_in_menu,
+            provider_configs: s.provider_configs,
+            claude_usage_source: None,
+            codex_usage_source: None,
+            codex_cookie_source: None,
+            codex_historical_tracking: None,
+            codex_openai_web_extras: None,
+            claude_cookie_source: None,
+            cursor_cookie_source: None,
+            opencode_cookie_source: None,
+            opencode_workspace_id: None,
+            factory_cookie_source: None,
+            alibaba_cookie_source: None,
+            alibaba_cookie_header: None,
+            alibaba_api_region: None,
+            kimi_cookie_source: None,
+            kimi_manual_cookie_header: None,
+            minimax_cookie_source: None,
+            augment_cookie_source: None,
+            augment_cookie_header: None,
+            amp_cookie_source: None,
+            amp_cookie_header: None,
+            ollama_cookie_source: None,
+            ollama_cookie_header: None,
+            zai_api_region: None,
+            jetbrains_ide_base_path: None,
+            minimax_cookie_header: None,
+            minimax_api_token: None,
+            minimax_api_region: None,
+            claude_avoid_keychain_prompts: None,
+            show_debug_settings: s.show_debug_settings,
+            disable_keychain_access: s.disable_keychain_access,
+            hide_personal_info: s.hide_personal_info,
+            update_channel: s.update_channel,
+            provider_metrics: s.provider_metrics,
+            provider_order: s.provider_order,
+            global_shortcut: s.global_shortcut,
+            auto_download_updates: s.auto_download_updates,
+            install_updates_on_quit: s.install_updates_on_quit,
+            ui_language: s.ui_language,
+            theme: s.theme,
+        }
+    }
 }
 
-fn default_codex_openai_web_extras() -> bool {
-    true
-}
+impl From<RawSettings> for Settings {
+    fn from(raw: RawSettings) -> Self {
+        let mut provider_configs = raw.provider_configs;
 
-fn default_claude_cookie_source() -> String {
-    "auto".to_string()
-}
+        // Helper closures to lazily insert per-provider configs from legacy
+        // flat fields. Existing `provider_configs` entries take precedence.
+        fn set_cookie_source(
+            map: &mut HashMap<ProviderId, ProviderConfig>,
+            id: ProviderId,
+            value: Option<String>,
+        ) {
+            if let Some(v) = value {
+                let entry = map.entry(id).or_default();
+                if entry.cookie_source.is_none() {
+                    entry.cookie_source = Some(v);
+                }
+            }
+        }
+        fn set_usage_source(
+            map: &mut HashMap<ProviderId, ProviderConfig>,
+            id: ProviderId,
+            value: Option<String>,
+        ) {
+            if let Some(v) = value {
+                let entry = map.entry(id).or_default();
+                if entry.usage_source.is_none() {
+                    entry.usage_source = Some(v);
+                }
+            }
+        }
+        fn set_region(
+            map: &mut HashMap<ProviderId, ProviderConfig>,
+            id: ProviderId,
+            value: Option<String>,
+        ) {
+            if let Some(v) = value {
+                let entry = map.entry(id).or_default();
+                if entry.api_region.is_none() {
+                    entry.api_region = Some(v);
+                }
+            }
+        }
+        fn set_header(
+            map: &mut HashMap<ProviderId, ProviderConfig>,
+            id: ProviderId,
+            value: Option<String>,
+        ) {
+            if let Some(v) = value {
+                let entry = map.entry(id).or_default();
+                if entry.manual_cookie_header.is_none() {
+                    entry.manual_cookie_header = Some(v);
+                }
+            }
+        }
 
-fn default_cursor_cookie_source() -> String {
-    "auto".to_string()
-}
+        set_cookie_source(&mut provider_configs, ProviderId::Codex, raw.codex_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::Claude, raw.claude_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::Cursor, raw.cursor_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::OpenCode, raw.opencode_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::Factory, raw.factory_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::Alibaba, raw.alibaba_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::Kimi, raw.kimi_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::MiniMax, raw.minimax_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::Augment, raw.augment_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::Amp, raw.amp_cookie_source);
+        set_cookie_source(&mut provider_configs, ProviderId::Ollama, raw.ollama_cookie_source);
 
-fn default_opencode_cookie_source() -> String {
-    "auto".to_string()
-}
+        set_usage_source(&mut provider_configs, ProviderId::Claude, raw.claude_usage_source);
+        set_usage_source(&mut provider_configs, ProviderId::Codex, raw.codex_usage_source);
 
-fn default_factory_cookie_source() -> String {
-    "auto".to_string()
-}
+        set_region(&mut provider_configs, ProviderId::Alibaba, raw.alibaba_api_region);
+        set_region(&mut provider_configs, ProviderId::Zai, raw.zai_api_region);
+        set_region(&mut provider_configs, ProviderId::MiniMax, raw.minimax_api_region);
 
-fn default_alibaba_cookie_source() -> String {
-    "auto".to_string()
-}
+        set_header(&mut provider_configs, ProviderId::Alibaba, raw.alibaba_cookie_header);
+        set_header(&mut provider_configs, ProviderId::Kimi, raw.kimi_manual_cookie_header);
+        set_header(&mut provider_configs, ProviderId::Augment, raw.augment_cookie_header);
+        set_header(&mut provider_configs, ProviderId::Amp, raw.amp_cookie_header);
+        set_header(&mut provider_configs, ProviderId::Ollama, raw.ollama_cookie_header);
+        set_header(&mut provider_configs, ProviderId::MiniMax, raw.minimax_cookie_header);
 
-fn default_alibaba_api_region() -> String {
-    "intl".to_string()
-}
+        if let Some(v) = raw.opencode_workspace_id {
+            let entry = provider_configs.entry(ProviderId::OpenCode).or_default();
+            if entry.workspace_id.is_none() {
+                entry.workspace_id = Some(v);
+            }
+        }
+        if let Some(v) = raw.minimax_api_token {
+            let entry = provider_configs.entry(ProviderId::MiniMax).or_default();
+            if entry.api_token.is_none() {
+                entry.api_token = Some(v);
+            }
+        }
+        if let Some(v) = raw.jetbrains_ide_base_path {
+            let entry = provider_configs.entry(ProviderId::JetBrains).or_default();
+            if entry.ide_base_path.is_none() {
+                entry.ide_base_path = Some(v);
+            }
+        }
+        if let Some(v) = raw.codex_openai_web_extras {
+            let entry = provider_configs.entry(ProviderId::Codex).or_default();
+            if entry.openai_web_extras.is_none() {
+                entry.openai_web_extras = Some(v);
+            }
+        }
+        if let Some(v) = raw.codex_historical_tracking
+            && v
+        {
+            provider_configs
+                .entry(ProviderId::Codex)
+                .or_default()
+                .historical_tracking = true;
+        }
+        if let Some(v) = raw.claude_avoid_keychain_prompts
+            && v
+        {
+            provider_configs
+                .entry(ProviderId::Claude)
+                .or_default()
+                .avoid_keychain_prompts = true;
+        }
 
-fn default_kimi_cookie_source() -> String {
-    "auto".to_string()
-}
-
-fn default_minimax_cookie_source() -> String {
-    "auto".to_string()
-}
-
-fn default_augment_cookie_source() -> String {
-    "auto".to_string()
-}
-
-fn default_amp_cookie_source() -> String {
-    "auto".to_string()
-}
-
-fn default_ollama_cookie_source() -> String {
-    "auto".to_string()
-}
-
-fn default_zai_api_region() -> String {
-    "global".to_string()
-}
-
-fn default_minimax_api_region() -> String {
-    "global".to_string()
+        Settings {
+            enabled_providers: raw.enabled_providers,
+            refresh_interval_secs: raw.refresh_interval_secs,
+            start_minimized: raw.start_minimized,
+            start_at_login: raw.start_at_login,
+            show_notifications: raw.show_notifications,
+            sound_enabled: raw.sound_enabled,
+            sound_volume: raw.sound_volume,
+            high_usage_threshold: raw.high_usage_threshold,
+            critical_usage_threshold: raw.critical_usage_threshold,
+            merge_tray_icons: raw.merge_tray_icons,
+            tray_icon_mode: raw.tray_icon_mode,
+            switcher_shows_icons: raw.switcher_shows_icons,
+            menu_bar_shows_highest_usage: raw.menu_bar_shows_highest_usage,
+            menu_bar_shows_percent: raw.menu_bar_shows_percent,
+            show_as_used: raw.show_as_used,
+            surprise_animations: raw.surprise_animations,
+            enable_animations: raw.enable_animations,
+            reset_time_relative: raw.reset_time_relative,
+            menu_bar_display_mode: raw.menu_bar_display_mode,
+            show_credits_extra_usage: raw.show_credits_extra_usage,
+            show_all_token_accounts_in_menu: raw.show_all_token_accounts_in_menu,
+            provider_configs,
+            show_debug_settings: raw.show_debug_settings,
+            disable_keychain_access: raw.disable_keychain_access,
+            hide_personal_info: raw.hide_personal_info,
+            update_channel: raw.update_channel,
+            provider_metrics: raw.provider_metrics,
+            provider_order: raw.provider_order,
+            global_shortcut: raw.global_shortcut,
+            auto_download_updates: raw.auto_download_updates,
+            install_updates_on_quit: raw.install_updates_on_quit,
+            ui_language: raw.ui_language,
+            theme: raw.theme,
+        }
+    }
 }
 
 impl Default for Settings {
@@ -514,34 +730,7 @@ impl Default for Settings {
             menu_bar_display_mode: "detailed".to_string(), // Detailed mode by default
             show_credits_extra_usage: true, // Show credits + extra usage by default
             show_all_token_accounts_in_menu: false,
-            claude_usage_source: default_claude_usage_source(),
-            codex_usage_source: default_codex_usage_source(),
-            codex_cookie_source: default_codex_cookie_source(),
-            codex_historical_tracking: false,
-            codex_openai_web_extras: default_codex_openai_web_extras(),
-            claude_cookie_source: default_claude_cookie_source(),
-            cursor_cookie_source: default_cursor_cookie_source(),
-            opencode_cookie_source: default_opencode_cookie_source(),
-            opencode_workspace_id: String::new(),
-            factory_cookie_source: default_factory_cookie_source(),
-            alibaba_cookie_source: default_alibaba_cookie_source(),
-            alibaba_cookie_header: String::new(),
-            alibaba_api_region: default_alibaba_api_region(),
-            kimi_cookie_source: default_kimi_cookie_source(),
-            kimi_manual_cookie_header: String::new(),
-            minimax_cookie_source: default_minimax_cookie_source(),
-            augment_cookie_source: default_augment_cookie_source(),
-            augment_cookie_header: String::new(),
-            amp_cookie_source: default_amp_cookie_source(),
-            amp_cookie_header: String::new(),
-            ollama_cookie_source: default_ollama_cookie_source(),
-            ollama_cookie_header: String::new(),
-            zai_api_region: default_zai_api_region(),
-            jetbrains_ide_base_path: String::new(),
-            minimax_cookie_header: String::new(),
-            minimax_api_token: String::new(),
-            minimax_api_region: default_minimax_api_region(),
-            claude_avoid_keychain_prompts: false,
+            provider_configs: HashMap::new(),
             show_debug_settings: false,
             disable_keychain_access: false,
             hide_personal_info: false, // Show personal info by default

@@ -53,6 +53,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const openAbout = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "about" });
   }, []);
+  const openProviders = useCallback(() => {
+    setSurfaceMode("settings", { kind: "settings", tab: "providers" });
+  }, []);
   const quitApp = useCallback(() => {
     void getCurrentWindow().close();
   }, []);
@@ -66,6 +69,12 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     { icon: "", label: "About CodexBar", onClick: openAbout },
     { icon: "", label: "Quit", onClick: quitApp },
   ];
+
+  // Provider-specific action rows (mirrors upstream MenuDescriptor)
+  const actionRows = activeProvider ? [
+    { icon: "🔑", label: "Add Account…", onClick: openProviders },
+    { icon: "📊", label: "Usage Dashboard", onClick: openPopOut },
+  ] : [];
 
   const banner = (
     <UpdateBanner
@@ -127,6 +136,21 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
             />
           </div>
         </div>
+      )}
+      {actionRows.length > 0 && (
+        <nav className="menu-actions" aria-label="Provider actions">
+          {actionRows.map((row) => (
+            <button
+              key={row.label}
+              type="button"
+              className="menu-actions__row"
+              onClick={row.onClick}
+            >
+              <span className="menu-actions__icon" aria-hidden>{row.icon}</span>
+              <span>{row.label}</span>
+            </button>
+          ))}
+        </nav>
       )}
     </MenuSurface>
   );
