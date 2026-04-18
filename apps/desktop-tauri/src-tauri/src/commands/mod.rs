@@ -345,7 +345,7 @@ impl From<Settings> for SettingsSnapshot {
             global_shortcut: settings.global_shortcut,
             ui_language: language_label(settings.ui_language),
             theme: theme_label(settings.theme),
-            claude_avoid_keychain_prompts: settings.claude_avoid_keychain_prompts,
+            claude_avoid_keychain_prompts: settings.claude_avoid_keychain_prompts(),
             disable_keychain_access: settings.disable_keychain_access,
             show_debug_settings: settings.show_debug_settings,
             provider_metrics,
@@ -902,13 +902,13 @@ pub fn update_settings(
     if let Some(v) = patch.install_updates_on_quit {
         settings.install_updates_on_quit = v;
     }
-    if let Some(v) = patch.claude_avoid_keychain_prompts {
-        settings.claude_avoid_keychain_prompts = v;
+    if let Some(v) = patch.claude_avoid_keychain_prompts() {
+        settings.set_claude_avoid_keychain_prompts(v);
     }
     if let Some(v) = patch.disable_keychain_access {
         settings.disable_keychain_access = v;
         if v {
-            settings.claude_avoid_keychain_prompts = true;
+            settings.set_claude_avoid_keychain_prompts(true);
         }
     }
     if let Some(v) = patch.show_debug_settings {
@@ -1507,34 +1507,34 @@ fn provider_cookie_source_field<'a>(
     provider_id: &str,
 ) -> Option<&'a mut String> {
     match provider_id {
-        "codex" => Some(&mut settings.codex_cookie_source),
-        "claude" => Some(&mut settings.claude_cookie_source),
-        "cursor" => Some(&mut settings.cursor_cookie_source),
-        "opencode" => Some(&mut settings.opencode_cookie_source),
-        "factory" => Some(&mut settings.factory_cookie_source),
-        "alibaba" => Some(&mut settings.alibaba_cookie_source),
-        "kimi" | "kimik2" => Some(&mut settings.kimi_cookie_source),
-        "minimax" => Some(&mut settings.minimax_cookie_source),
-        "augment" => Some(&mut settings.augment_cookie_source),
-        "amp" => Some(&mut settings.amp_cookie_source),
-        "ollama" => Some(&mut settings.ollama_cookie_source),
+        "codex" => Some(&mut settings.codex_cookie_source()),
+        "claude" => Some(&mut settings.claude_cookie_source()),
+        "cursor" => Some(&mut settings.cursor_cookie_source()),
+        "opencode" => Some(&mut settings.opencode_cookie_source()),
+        "factory" => Some(&mut settings.factory_cookie_source()),
+        "alibaba" => Some(&mut settings.alibaba_cookie_source()),
+        "kimi" | "kimik2" => Some(&mut settings.kimi_cookie_source()),
+        "minimax" => Some(&mut settings.minimax_cookie_source()),
+        "augment" => Some(&mut settings.augment_cookie_source()),
+        "amp" => Some(&mut settings.amp_cookie_source()),
+        "ollama" => Some(&mut settings.ollama_cookie_source()),
         _ => None,
     }
 }
 
 fn provider_cookie_source_lookup(settings: &Settings, provider_id: &str) -> Option<String> {
     let copy = match provider_id {
-        "codex" => &settings.codex_cookie_source,
-        "claude" => &settings.claude_cookie_source,
-        "cursor" => &settings.cursor_cookie_source,
-        "opencode" => &settings.opencode_cookie_source,
-        "factory" => &settings.factory_cookie_source,
-        "alibaba" => &settings.alibaba_cookie_source,
-        "kimi" | "kimik2" => &settings.kimi_cookie_source,
-        "minimax" => &settings.minimax_cookie_source,
-        "augment" => &settings.augment_cookie_source,
-        "amp" => &settings.amp_cookie_source,
-        "ollama" => &settings.ollama_cookie_source,
+        "codex" => &settings.codex_cookie_source(),
+        "claude" => &settings.claude_cookie_source(),
+        "cursor" => &settings.cursor_cookie_source(),
+        "opencode" => &settings.opencode_cookie_source(),
+        "factory" => &settings.factory_cookie_source(),
+        "alibaba" => &settings.alibaba_cookie_source(),
+        "kimi" | "kimik2" => &settings.kimi_cookie_source(),
+        "minimax" => &settings.minimax_cookie_source(),
+        "augment" => &settings.augment_cookie_source(),
+        "amp" => &settings.amp_cookie_source(),
+        "ollama" => &settings.ollama_cookie_source(),
         _ => return None,
     };
     Some(copy.clone())
@@ -1571,18 +1571,18 @@ fn provider_region_field<'a>(
     provider_id: &str,
 ) -> Option<&'a mut String> {
     match provider_id {
-        "alibaba" => Some(&mut settings.alibaba_api_region),
-        "zai" => Some(&mut settings.zai_api_region),
-        "minimax" => Some(&mut settings.minimax_api_region),
+        "alibaba" => Some(&mut settings.alibaba_api_region()),
+        "zai" => Some(&mut settings.zai_api_region()),
+        "minimax" => Some(&mut settings.minimax_api_region()),
         _ => None,
     }
 }
 
 fn provider_region_lookup(settings: &Settings, provider_id: &str) -> Option<String> {
     let copy = match provider_id {
-        "alibaba" => &settings.alibaba_api_region,
-        "zai" => &settings.zai_api_region,
-        "minimax" => &settings.minimax_api_region,
+        "alibaba" => &settings.alibaba_api_region(),
+        "zai" => &settings.zai_api_region(),
+        "minimax" => &settings.minimax_api_region(),
         _ => return None,
     };
     Some(copy.clone())
@@ -1949,7 +1949,7 @@ pub fn get_vertexai_status() -> Result<VertexAiStatus, String> {
 #[tauri::command]
 pub fn list_jetbrains_detected_ides() -> Result<Vec<JetbrainsIde>, String> {
     let settings = Settings::load();
-    let override_path = settings.jetbrains_ide_base_path.clone();
+    let override_path = settings.jetbrains_ide_base_path().to_string();
 
     let mut entries: Vec<JetbrainsIde> = jetbrains_detected_ide_paths()
         .into_iter()
@@ -1989,7 +1989,7 @@ pub fn list_jetbrains_detected_ides() -> Result<Vec<JetbrainsIde>, String> {
 #[tauri::command]
 pub fn set_jetbrains_ide_path(path: String) -> Result<(), String> {
     let mut settings = Settings::load();
-    settings.jetbrains_ide_base_path = path;
+    settings.set_jetbrains_ide_base_path(path);
     settings.save().map_err(|e| e.to_string())
 }
 

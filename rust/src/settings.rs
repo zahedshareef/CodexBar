@@ -908,6 +908,272 @@ impl Settings {
         self.provider_metrics
             .insert(id.cli_name().to_string(), metric);
     }
+
+    // ── Per-provider configuration accessors ─────────────────────────
+    //
+    // These thin wrappers around `provider_configs` apply provider-specific
+    // defaults (e.g. cookie/usage source defaults to `"auto"`) so callers
+    // never have to reach into the raw `Option<String>` fields. The
+    // `*_str` / boolean / setter pairs intentionally mirror the names of
+    // the legacy flat fields so call-site migration is mechanical.
+
+    /// Read-only access to a provider's stored config, if any.
+    pub fn provider_config(&self, id: ProviderId) -> Option<&ProviderConfig> {
+        self.provider_configs.get(&id)
+    }
+
+    /// Mutable access to a provider's config, lazily creating an empty
+    /// entry if none exists.
+    pub fn provider_config_mut(&mut self, id: ProviderId) -> &mut ProviderConfig {
+        self.provider_configs.entry(id).or_default()
+    }
+
+    /// Cookie source for `id`, or the default `"auto"` if unset.
+    pub fn cookie_source(&self, id: ProviderId) -> &str {
+        self.provider_configs
+            .get(&id)
+            .and_then(|c| c.cookie_source.as_deref())
+            .unwrap_or(DEFAULT_PROVIDER_SOURCE)
+    }
+
+    pub fn set_cookie_source(&mut self, id: ProviderId, source: impl Into<String>) {
+        self.provider_config_mut(id).cookie_source = Some(source.into());
+    }
+
+    /// Usage source for `id`, or the default `"auto"` if unset.
+    pub fn usage_source(&self, id: ProviderId) -> &str {
+        self.provider_configs
+            .get(&id)
+            .and_then(|c| c.usage_source.as_deref())
+            .unwrap_or(DEFAULT_PROVIDER_SOURCE)
+    }
+
+    pub fn set_usage_source(&mut self, id: ProviderId, source: impl Into<String>) {
+        self.provider_config_mut(id).usage_source = Some(source.into());
+    }
+
+    /// API region for `id`, or the provider-specific default if unset.
+    pub fn api_region(&self, id: ProviderId) -> &str {
+        self.provider_configs
+            .get(&id)
+            .and_then(|c| c.api_region.as_deref())
+            .unwrap_or_else(|| default_api_region(id))
+    }
+
+    pub fn set_api_region(&mut self, id: ProviderId, region: impl Into<String>) {
+        self.provider_config_mut(id).api_region = Some(region.into());
+    }
+
+    /// Manual cookie header for `id`, or `""` if unset.
+    pub fn manual_cookie_header(&self, id: ProviderId) -> &str {
+        self.provider_configs
+            .get(&id)
+            .and_then(|c| c.manual_cookie_header.as_deref())
+            .unwrap_or("")
+    }
+
+    pub fn set_manual_cookie_header(&mut self, id: ProviderId, header: impl Into<String>) {
+        self.provider_config_mut(id).manual_cookie_header = Some(header.into());
+    }
+
+    /// API token for `id`, or `""` if unset.
+    pub fn api_token(&self, id: ProviderId) -> &str {
+        self.provider_configs
+            .get(&id)
+            .and_then(|c| c.api_token.as_deref())
+            .unwrap_or("")
+    }
+
+    pub fn set_api_token(&mut self, id: ProviderId, token: impl Into<String>) {
+        self.provider_config_mut(id).api_token = Some(token.into());
+    }
+
+    /// Workspace ID override for `id`, or `""` if unset.
+    pub fn workspace_id(&self, id: ProviderId) -> &str {
+        self.provider_configs
+            .get(&id)
+            .and_then(|c| c.workspace_id.as_deref())
+            .unwrap_or("")
+    }
+
+    pub fn set_workspace_id(&mut self, id: ProviderId, value: impl Into<String>) {
+        self.provider_config_mut(id).workspace_id = Some(value.into());
+    }
+
+    /// IDE base path override for `id`, or `""` if unset.
+    pub fn ide_base_path(&self, id: ProviderId) -> &str {
+        self.provider_configs
+            .get(&id)
+            .and_then(|c| c.ide_base_path.as_deref())
+            .unwrap_or("")
+    }
+
+    pub fn set_ide_base_path(&mut self, id: ProviderId, value: impl Into<String>) {
+        self.provider_config_mut(id).ide_base_path = Some(value.into());
+    }
+
+    /// Codex `openai_web_extras` toggle, default `true`.
+    pub fn openai_web_extras(&self, id: ProviderId) -> bool {
+        self.provider_configs
+            .get(&id)
+            .and_then(|c| c.openai_web_extras)
+            .unwrap_or(DEFAULT_CODEX_OPENAI_WEB_EXTRAS)
+    }
+
+    pub fn set_openai_web_extras(&mut self, id: ProviderId, value: bool) {
+        self.provider_config_mut(id).openai_web_extras = Some(value);
+    }
+
+    /// Per-provider historical-tracking toggle (currently codex-only).
+    pub fn historical_tracking(&self, id: ProviderId) -> bool {
+        self.provider_configs
+            .get(&id)
+            .map(|c| c.historical_tracking)
+            .unwrap_or(false)
+    }
+
+    pub fn set_historical_tracking(&mut self, id: ProviderId, value: bool) {
+        self.provider_config_mut(id).historical_tracking = value;
+    }
+
+    /// Per-provider "avoid keychain prompts" toggle (currently claude-only).
+    pub fn avoid_keychain_prompts(&self, id: ProviderId) -> bool {
+        self.provider_configs
+            .get(&id)
+            .map(|c| c.avoid_keychain_prompts)
+            .unwrap_or(false)
+    }
+
+    pub fn set_avoid_keychain_prompts(&mut self, id: ProviderId, value: bool) {
+        self.provider_config_mut(id).avoid_keychain_prompts = value;
+    }
+
+    // ── Legacy field-name aliases ────────────────────────────────────
+    //
+    // Keep the names of the old flat per-provider fields available as
+    // accessor methods so existing call sites only need a `()` (read) or
+    // `set_` prefix (write). New code should prefer the typed accessors
+    // above.
+
+    pub fn codex_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Codex) }
+    pub fn set_codex_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::Codex, v)
+    }
+    pub fn claude_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Claude) }
+    pub fn set_claude_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::Claude, v)
+    }
+    pub fn cursor_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Cursor) }
+    pub fn set_cursor_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::Cursor, v)
+    }
+    pub fn opencode_cookie_source(&self) -> &str { self.cookie_source(ProviderId::OpenCode) }
+    pub fn set_opencode_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::OpenCode, v)
+    }
+    pub fn factory_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Factory) }
+    pub fn set_factory_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::Factory, v)
+    }
+    pub fn alibaba_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Alibaba) }
+    pub fn set_alibaba_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::Alibaba, v)
+    }
+    pub fn kimi_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Kimi) }
+    pub fn set_kimi_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::Kimi, v)
+    }
+    pub fn minimax_cookie_source(&self) -> &str { self.cookie_source(ProviderId::MiniMax) }
+    pub fn set_minimax_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::MiniMax, v)
+    }
+    pub fn augment_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Augment) }
+    pub fn set_augment_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::Augment, v)
+    }
+    pub fn amp_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Amp) }
+    pub fn set_amp_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::Amp, v)
+    }
+    pub fn ollama_cookie_source(&self) -> &str { self.cookie_source(ProviderId::Ollama) }
+    pub fn set_ollama_cookie_source(&mut self, v: impl Into<String>) {
+        self.set_cookie_source(ProviderId::Ollama, v)
+    }
+
+    pub fn claude_usage_source(&self) -> &str { self.usage_source(ProviderId::Claude) }
+    pub fn set_claude_usage_source(&mut self, v: impl Into<String>) {
+        self.set_usage_source(ProviderId::Claude, v)
+    }
+    pub fn codex_usage_source(&self) -> &str { self.usage_source(ProviderId::Codex) }
+    pub fn set_codex_usage_source(&mut self, v: impl Into<String>) {
+        self.set_usage_source(ProviderId::Codex, v)
+    }
+
+    pub fn alibaba_api_region(&self) -> &str { self.api_region(ProviderId::Alibaba) }
+    pub fn set_alibaba_api_region(&mut self, v: impl Into<String>) {
+        self.set_api_region(ProviderId::Alibaba, v)
+    }
+    pub fn zai_api_region(&self) -> &str { self.api_region(ProviderId::Zai) }
+    pub fn set_zai_api_region(&mut self, v: impl Into<String>) {
+        self.set_api_region(ProviderId::Zai, v)
+    }
+    pub fn minimax_api_region(&self) -> &str { self.api_region(ProviderId::MiniMax) }
+    pub fn set_minimax_api_region(&mut self, v: impl Into<String>) {
+        self.set_api_region(ProviderId::MiniMax, v)
+    }
+
+    pub fn alibaba_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Alibaba) }
+    pub fn set_alibaba_cookie_header(&mut self, v: impl Into<String>) {
+        self.set_manual_cookie_header(ProviderId::Alibaba, v)
+    }
+    pub fn kimi_manual_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Kimi) }
+    pub fn set_kimi_manual_cookie_header(&mut self, v: impl Into<String>) {
+        self.set_manual_cookie_header(ProviderId::Kimi, v)
+    }
+    pub fn augment_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Augment) }
+    pub fn set_augment_cookie_header(&mut self, v: impl Into<String>) {
+        self.set_manual_cookie_header(ProviderId::Augment, v)
+    }
+    pub fn amp_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Amp) }
+    pub fn set_amp_cookie_header(&mut self, v: impl Into<String>) {
+        self.set_manual_cookie_header(ProviderId::Amp, v)
+    }
+    pub fn ollama_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::Ollama) }
+    pub fn set_ollama_cookie_header(&mut self, v: impl Into<String>) {
+        self.set_manual_cookie_header(ProviderId::Ollama, v)
+    }
+    pub fn minimax_cookie_header(&self) -> &str { self.manual_cookie_header(ProviderId::MiniMax) }
+    pub fn set_minimax_cookie_header(&mut self, v: impl Into<String>) {
+        self.set_manual_cookie_header(ProviderId::MiniMax, v)
+    }
+
+    pub fn opencode_workspace_id(&self) -> &str { self.workspace_id(ProviderId::OpenCode) }
+    pub fn set_opencode_workspace_id(&mut self, v: impl Into<String>) {
+        self.set_workspace_id(ProviderId::OpenCode, v)
+    }
+    pub fn minimax_api_token(&self) -> &str { self.api_token(ProviderId::MiniMax) }
+    pub fn set_minimax_api_token(&mut self, v: impl Into<String>) {
+        self.set_api_token(ProviderId::MiniMax, v)
+    }
+    pub fn jetbrains_ide_base_path(&self) -> &str { self.ide_base_path(ProviderId::JetBrains) }
+    pub fn set_jetbrains_ide_base_path(&mut self, v: impl Into<String>) {
+        self.set_ide_base_path(ProviderId::JetBrains, v)
+    }
+
+    pub fn codex_openai_web_extras(&self) -> bool { self.openai_web_extras(ProviderId::Codex) }
+    pub fn set_codex_openai_web_extras(&mut self, v: bool) {
+        self.set_openai_web_extras(ProviderId::Codex, v)
+    }
+    pub fn codex_historical_tracking(&self) -> bool { self.historical_tracking(ProviderId::Codex) }
+    pub fn set_codex_historical_tracking(&mut self, v: bool) {
+        self.set_historical_tracking(ProviderId::Codex, v)
+    }
+    pub fn claude_avoid_keychain_prompts(&self) -> bool {
+        self.avoid_keychain_prompts(ProviderId::Claude)
+    }
+    pub fn set_claude_avoid_keychain_prompts(&mut self, v: bool) {
+        self.set_avoid_keychain_prompts(ProviderId::Claude, v)
+    }
 }
 
 /// Provider status for settings UI
