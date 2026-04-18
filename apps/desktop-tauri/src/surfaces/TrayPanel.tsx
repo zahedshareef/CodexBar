@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
@@ -8,11 +8,11 @@ import { useUpdateState } from "../hooks/useUpdateState";
 import { useLocale } from "../hooks/useLocale";
 import MenuCard from "../components/MenuCard";
 import MenuSurface, {
-  MenuSummary,
   MenuEmpty,
   type MenuFooterRow,
 } from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
+import { ProviderIcon } from "../components/providers/ProviderIcon";
 
 /** Sort: highest primary used% first, then alphabetical by name. */
 function sortProviders(
@@ -40,10 +40,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const { t } = useLocale();
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
-  const errorCount = useMemo(
-    () => sorted.filter((p) => p.error !== null).length,
-    [sorted],
-  );
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const activeIdx = Math.min(selectedIdx, Math.max(0, sorted.length - 1));
+  const activeProvider = sorted[activeIdx] ?? null;
 
   const openSettings = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "general" });
@@ -103,14 +102,31 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       banner={banner}
       footerRows={footerRows}
     >
-      <div className="menu-stack">
-        {sorted.map((p, idx) => (
-          <div key={p.providerId} className="menu-stack__item">
-            {idx > 0 && <div className="menu-stack__sep" />}
-            <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />
+      {sorted.length > 1 && (
+        <div className="provider-tabs">
+          {sorted.map((p, idx) => (
+            <button
+              key={p.providerId}
+              type="button"
+              className={`provider-tabs__tab${idx === activeIdx ? " provider-tabs__tab--active" : ""}`}
+              onClick={() => setSelectedIdx(idx)}
+              title={p.displayName}
+            >
+              <ProviderIcon providerId={p.providerId} size={20} />
+            </button>
+          ))}
+        </div>
+      )}
+      {activeProvider && (
+        <div className="menu-stack">
+          <div className="menu-stack__item">
+            <MenuCard
+              provider={activeProvider}
+              hideEmail={settings.hidePersonalInfo}
+            />
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </MenuSurface>
   );
 }

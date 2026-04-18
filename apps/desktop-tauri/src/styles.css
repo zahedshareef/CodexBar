@@ -3369,6 +3369,67 @@ body {
   color: var(--text-secondary);
 }
 
+/* ── Provider tab switcher (horizontal icon row) ─────────────────────
+   Mirrors the upstream macOS provider icon switcher at the top of the
+   menu popover. Each tab is a small provider badge; the active tab has
+   a highlighted pill background. */
+.provider-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.provider-tabs__tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.provider-tabs__tab:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.provider-tabs__tab--active {
+  background: var(--accent, #0a84ff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.provider-tabs__tab--active:hover {
+  background: var(--accent, #0a84ff);
+  filter: brightness(1.1);
+}
+
+/* Provider icon inside tabs — ensure consistent sizing */
+.provider-tabs__tab .provider-icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+[data-theme="light"] .provider-tabs {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .provider-tabs__tab:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .provider-tabs__tab--active {
+  background: var(--accent, #007aff);
+}
+
 /* ── Menu card / metric row tightening ────────────────────────────── */
 .menu-card__name {
   font-size: var(--font-headline);
