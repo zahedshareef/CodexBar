@@ -2912,7 +2912,7 @@ body {
   display: flex;
   flex-direction: column;
   /* upstream MenuContent VStack(spacing: 8) */
-  gap: 0;
+  gap: 6px;
   flex: 1 1 auto;
   min-height: 0;
   max-height: 100%;
@@ -2933,14 +2933,22 @@ body {
 .menu-stack__item {
   display: flex;
   flex-direction: column;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 10px;
 }
 
-/* Hairline separator between stacked cards — mirrors SwiftUI Divider()
-   used at the top level of MenuContent between sections. */
+[data-theme="light"] .menu-stack__item {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+/* Spacing between stacked cards — macOS uses gap, not a visible divider. */
 .menu-stack__sep {
-  height: 1px;
-  margin: 8px 16px;
-  background: var(--menu-popover-divider);
+  height: 0;
+  margin: 4px 0;
+  background: none;
 }
 
 /* ── Provider card — direct mirror of UsageMenuCardView ─────────────── */
@@ -2950,8 +2958,8 @@ body {
   flex-direction: column;
   /* outer VStack(alignment:.leading, spacing: 6) */
   gap: 6px;
-  /* .padding(.horizontal, 16) .padding(.top, 2) .padding(.bottom, 2) */
-  padding: 2px 16px;
+  /* card container provides outer padding; keep inner padding minimal */
+  padding: 2px 4px;
 }
 
 /* Header VStack(spacing: 3) with two HStacks */
@@ -3318,7 +3326,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 4px 0 0;
+  padding: 6px 0 2px;
   margin-top: 0;
   border-top: 1px solid var(--menu-popover-divider);
   flex-shrink: 0;
@@ -3379,9 +3387,17 @@ body {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 2px 0;
-  padding: 6px 4px;
+  margin: 0 0 4px;
+  padding: 8px 6px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--menu-popover-divider);
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+[data-theme="light"] .provider-grid {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .provider-grid__item {
@@ -3429,10 +3445,12 @@ body {
   color: #fff;
 }
 
-/* Provider icon inside grid — ensure consistent sizing */
+/* Provider icon inside grid — ensure consistent sizing + visibility */
 .provider-grid__item .provider-icon {
   width: 28px !important;
   height: 28px !important;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
 .provider-grid__dot {
@@ -3533,9 +3551,11 @@ body {
   font-size: var(--font-caption);
 }
 
-/* ── Card stack: align separator inset with upstream Divider() ───── */
+/* ── Card stack: spacing between cards (no visible divider) ───── */
 .menu-stack__sep {
-  margin: 8px 0;
+  height: 0;
+  margin: 4px 0;
+  background: none;
 }
 
 /* ── Settings: macOS toolbar-style tab bar ────────────────────────── */
