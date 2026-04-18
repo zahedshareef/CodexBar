@@ -58,8 +58,8 @@
   --sidebar-width: 200px;
   --icon-menu: 16px;
   --icon-sidebar: 20px;
-  --icon-about: 64px;
-  --about-icon-radius: 14px;
+  --icon-about: 92px;
+  --about-icon-radius: 16px;
 
   /* ── General surfaces / text ───────────────────────────────────── */
   --app-bg: #1c1c1e;
@@ -3667,8 +3667,20 @@ body {
 
 /* ── About pane parity ────────────────────────────────────────────── */
 .about-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   text-align: center;
-  padding: 28px 20px 24px;
+  gap: 12px;
+  padding: 4px 20px 24px;
+}
+.about-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
 }
 .about-icon {
   width: var(--icon-about);
@@ -3676,20 +3688,74 @@ body {
   border-radius: var(--about-icon-radius);
   object-fit: contain;
 }
+.about-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
 .about-title {
-  font-size: var(--font-title);
+  font-size: var(--font-title3);
   font-weight: 700;
   margin: 0;
 }
 .about-version {
+  margin: 0;
   font-size: var(--font-caption);
   color: var(--text-secondary);
+  font-style: normal;
 }
 .about-tagline {
+  margin: 0;
   font-size: var(--font-caption);
   color: var(--text-secondary);
+  font-style: normal;
+}
+.about-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.about-link {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: var(--font-caption);
+  color: var(--accent);
+  text-decoration: none;
+}
+.about-link:hover {
+  text-decoration: underline;
+}
+.about-link-sep {
+  display: none;
+}
+.about-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--panel-border);
+  margin: 4px 0;
+}
+.about-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.about-update-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
 }
 .about-copyright {
+  margin: 0;
   font-size: var(--font-caption2);
   color: var(--text-muted);
 }

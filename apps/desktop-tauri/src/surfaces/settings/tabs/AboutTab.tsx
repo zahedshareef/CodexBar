@@ -38,22 +38,33 @@ export default function AboutTab() {
         <div className="about-title-block">
           <h2 className="about-title">{appInfo.name}</h2>
           <p className="about-version">
-            v{appInfo.version}
-            {appInfo.buildNumber !== "dev" && (
-              <span className="about-build"> · Build {appInfo.buildNumber}</span>
-            )}
+            Version {appInfo.version}
+            {appInfo.buildNumber !== "dev" && ` (${appInfo.buildNumber})`}
           </p>
+          <p className="about-tagline">{appInfo.tagline}</p>
         </div>
       </div>
 
-      <p className="about-tagline">{appInfo.tagline}</p>
-
-      <div className="about-details">
-        <div className="about-detail-row">
-          <span className="about-detail-label">Update channel</span>
-          <span className="about-detail-value">{appInfo.updateChannel}</span>
-        </div>
+      <div className="about-links">
+        <a
+          className="about-link"
+          href="https://github.com/NessZerra/Win-CodexBar"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          GitHub
+        </a>
+        <a
+          className="about-link"
+          href="https://codexbar.app"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Website
+        </a>
       </div>
+
+      <div className="about-divider" />
 
       <div className="about-actions">
         <button
@@ -63,7 +74,7 @@ export default function AboutTab() {
         >
           {updateState.status === "checking"
             ? "Checking…"
-            : "Check for Updates"}
+            : "Check for Updates…"}
         </button>
 
         {updateState.status === "available" && (
@@ -121,26 +132,6 @@ export default function AboutTab() {
         {updateState.status === "idle" && hasChecked && (
           <span className="about-update-msg">You&apos;re up to date!</span>
         )}
-      </div>
-
-      <div className="about-links">
-        <a
-          className="about-link"
-          href="https://github.com/NessZerra/Win-CodexBar"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          GitHub
-        </a>
-        <span className="about-link-sep">·</span>
-        <a
-          className="about-link"
-          href="https://codexbar.app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Website
-        </a>
       </div>
 
       <p className="about-copyright">
