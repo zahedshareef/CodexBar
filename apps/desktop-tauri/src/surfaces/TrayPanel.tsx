@@ -102,14 +102,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       actions={headerActions}
       banner={banner}
       footerRows={footerRows}
-      summary={
-        <MenuSummary
-          total={sorted.length}
-          errorCount={errorCount}
-          isRefreshing={isRefreshing}
-          lastRefresh={lastRefresh}
-        />
-      }
     >
       <div className="menu-stack">
         {sorted.map((p, idx) => (

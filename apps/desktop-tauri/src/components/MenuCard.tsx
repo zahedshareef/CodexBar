@@ -10,7 +10,6 @@ import { useLocale } from "../hooks/useLocale";
 import type { LocaleKey } from "../i18n/keys";
 import { paceCategory } from "../surfaces/tray/paceCategory";
 import { SimpleBarChart, StackedBarChart } from "./MiniBarChart";
-import { ProviderIcon } from "./providers/ProviderIcon";
 
 interface MenuCardProps {
   provider: ProviderUsageSnapshot;
@@ -195,14 +194,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
     <article className="menu-card">
       <header className="menu-card__header">
         <div className="menu-card__title-row">
-          <div className="menu-card__name-group">
-            <ProviderIcon
-              providerId={provider.providerId}
-              size={16}
-              className="menu-card__provider-icon"
-            />
-            <span className="menu-card__name">{provider.displayName}</span>
-          </div>
+          <span className="menu-card__name">{provider.displayName}</span>
           {email && <span className="menu-card__email">{email}</span>}
         </div>
         <div className="menu-card__subtitle-row">
