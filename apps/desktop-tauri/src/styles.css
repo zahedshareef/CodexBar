@@ -2765,7 +2765,7 @@ body {
   padding: 6px 10px;
   width: 100%;
   min-width: 260px;
-  height: 100vh;
+  max-height: 100vh;
   font-size: 13px;
   line-height: 1.30;
   color: var(--text-primary);
@@ -2855,9 +2855,9 @@ body {
 .menu-surface__body {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .menu-surface__empty {
