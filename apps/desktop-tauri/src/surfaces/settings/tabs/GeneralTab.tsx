@@ -1,8 +1,17 @@
 import { useCallback, useState } from "react";
 import { useLocale } from "../../../hooks/useLocale";
 import { playNotificationSound, quitApp } from "../../../lib/tauri";
-import { Field, NumberInput, Toggle } from "../../../components/FormControls";
+import { Field, NumberInput, Select, Toggle } from "../../../components/FormControls";
 import type { TabProps } from "../../Settings";
+
+const REFRESH_CADENCE_OPTIONS: { value: string; label: string }[] = [
+  { value: "0", label: "Manual" },
+  { value: "60", label: "1 minute" },
+  { value: "300", label: "5 minutes" },
+  { value: "900", label: "15 minutes" },
+  { value: "1800", label: "30 minutes" },
+  { value: "3600", label: "1 hour" },
+];
 
 export default function GeneralTab({ settings, set, saving }: TabProps) {
   const { t } = useLocale();
@@ -136,13 +145,11 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
             label={t("RefreshIntervalLabel")}
             description={t("RefreshIntervalHelper")}
           >
-            <NumberInput
-              value={settings.refreshIntervalSecs}
-              min={0}
-              max={3600}
-              step={30}
+            <Select
+              value={String(settings.refreshIntervalSecs)}
               disabled={saving}
-              onChange={(v) => set({ refreshIntervalSecs: v })}
+              options={REFRESH_CADENCE_OPTIONS}
+              onChange={(v) => set({ refreshIntervalSecs: Number(v) })}
             />
           </Field>
         </div>

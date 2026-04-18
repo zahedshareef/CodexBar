@@ -66,6 +66,20 @@ export default function AboutTab({ settings, set, saving }: TabProps) {
         >
           Website
         </a>
+        <a
+          className="about-link"
+          href="https://twitter.com/steipete"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Twitter
+        </a>
+        <a
+          className="about-link"
+          href="mailto:peter@steipete.me"
+        >
+          Email
+        </a>
       </div>
 
       <div className="about-divider" />
@@ -95,19 +109,10 @@ export default function AboutTab({ settings, set, saving }: TabProps) {
               onChange={(v) => set({ updateChannel: v as UpdateChannel })}
             />
           </Field>
+          <p className="about-channel-description">
+            {t("UpdateChannelChoiceHelper")}
+          </p>
         </div>
-
-        <Field
-          label={t("InstallUpdatesOnQuit")}
-          description={t("InstallUpdatesOnQuitHelper")}
-          leading
-        >
-          <Toggle
-            checked={settings.installUpdatesOnQuit}
-            disabled={saving}
-            onChange={(v) => set({ installUpdatesOnQuit: v })}
-          />
-        </Field>
       </div>
 
       <div className="about-actions">

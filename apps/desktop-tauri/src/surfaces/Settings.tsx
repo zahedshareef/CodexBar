@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from "react";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import type {
   BootstrapState,
   SettingsTabId,
@@ -96,6 +97,20 @@ function isSettingsTab(value: string): value is SettingsTab {
   return TAB_META.some((t) => t.id === value);
 }
 
+const SETTINGS_WINDOW_HEIGHT = 580;
+const SETTINGS_WINDOW_DEFAULT_WIDTH = 496;
+const SETTINGS_WINDOW_PROVIDERS_WIDTH = 720;
+
+function applySettingsWindowSize(tab: SettingsTab) {
+  const width =
+    tab === "providers"
+      ? SETTINGS_WINDOW_PROVIDERS_WIDTH
+      : SETTINGS_WINDOW_DEFAULT_WIDTH;
+  void getCurrentWindow()
+    .setSize(new LogicalSize(width, SETTINGS_WINDOW_HEIGHT))
+    .catch(() => {});
+}
+
 export default function Settings({ state }: { state: BootstrapState }) {
   const { settings, saving, error, update } = useSettings(state.settings);
   const { t } = useLocale();
@@ -107,17 +122,29 @@ export default function Settings({ state }: { state: BootstrapState }) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   useEffect(() => {
+    applySettingsWindowSize(initialTab);
+    // initialTab is captured once on mount; subsequent tab changes are
+    // handled by handleTabClick / shellTarget effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (shellTarget?.kind !== "settings" || !isSettingsTab(shellTarget.tab)) {
       return;
     }
 
     const nextTab: SettingsTab = shellTarget.tab;
-    setActiveTab((current) => (current === nextTab ? current : nextTab));
+    setActiveTab((current) => {
+      if (current === nextTab) return current;
+      applySettingsWindowSize(nextTab);
+      return nextTab;
+    });
   }, [shellTarget]);
 
   const set = (patch: SettingsUpdate) => void update(patch);
   const handleTabClick = useCallback((tab: SettingsTab) => {
     setActiveTab(tab);
+    applySettingsWindowSize(tab);
     void setSurfaceMode("settings", { kind: "settings", tab });
   }, []);
 

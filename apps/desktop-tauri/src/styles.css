@@ -3816,3 +3816,11 @@ body {
 .about-channel-row .settings-field__label {
   flex: 1;
 }
+
+.about-channel-description {
+  margin: 4px 0 0;
+  max-width: 280px;
+  font-size: 11px;
+  color: var(--text-secondary, rgba(255, 255, 255, 0.55));
+  text-align: center;
+}

@@ -85,17 +85,6 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
               onChange={(v) => set({ surpriseAnimations: v })}
             />
           </Field>
-          <Field
-            label={t("EnableAnimationsLabel")}
-            description={t("EnableAnimationsHelper")}
-            leading
-          >
-            <Toggle
-              checked={settings.enableAnimations}
-              disabled={saving}
-              onChange={(v) => set({ enableAnimations: v })}
-            />
-          </Field>
         </div>
       </section>
 

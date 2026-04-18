@@ -693,7 +693,7 @@ impl LocaleKey {
 
             // General settings
             LocaleKey::InterfaceLanguage => "Interface Language",
-            LocaleKey::StartupSettings => "Startup",
+            LocaleKey::StartupSettings => "System",
             LocaleKey::StartAtLogin => "Start at Login",
             LocaleKey::StartMinimized => "Start Minimized",
             LocaleKey::StartAtLoginHelper => "Login automatically after system startup",
@@ -1031,7 +1031,7 @@ impl LocaleKey {
             LocaleKey::UpdateChannelChoiceHelper => {
                 "Choose between stable and beta preview versions"
             }
-            LocaleKey::AutoDownloadUpdates => "Auto-download updates",
+            LocaleKey::AutoDownloadUpdates => "Check for updates automatically",
             LocaleKey::AutoDownloadUpdatesHelper => {
                 "Download installer updates in the background when a new release is found"
             }
@@ -1103,7 +1103,7 @@ impl LocaleKey {
 
             // Tauri desktop shell — Settings section headings
             LocaleKey::TabTokenAccounts => "Tokens",
-            LocaleKey::SectionRefresh => "Refresh",
+            LocaleKey::SectionRefresh => "Automation",
             LocaleKey::SectionNotifications => "Notifications",
             LocaleKey::SectionUsageThresholds => "Usage Thresholds",
             LocaleKey::SectionKeyboard => "Keyboard",
@@ -1360,7 +1360,7 @@ impl LocaleKey {
 
             // General settings
             LocaleKey::InterfaceLanguage => "界面语言",
-            LocaleKey::StartupSettings => "启动",
+            LocaleKey::StartupSettings => "系统",
             LocaleKey::StartAtLogin => "开机启动",
             LocaleKey::StartMinimized => "最小化启动",
             LocaleKey::StartAtLoginHelper => "登录后自动启动 CodexBar",
@@ -1680,7 +1680,7 @@ impl LocaleKey {
             LocaleKey::UpdatesTitle => "更新",
             LocaleKey::UpdateChannelChoice => "更新通道",
             LocaleKey::UpdateChannelChoiceHelper => "在稳定版与测试预览版之间选择",
-            LocaleKey::AutoDownloadUpdates => "自动下载更新",
+            LocaleKey::AutoDownloadUpdates => "自动检查更新",
             LocaleKey::AutoDownloadUpdatesHelper => "发现新版本后在后台下载安装器更新",
             LocaleKey::InstallUpdatesOnQuit => "退出时安装更新",
             LocaleKey::InstallUpdatesOnQuitHelper => "退出 CodexBar 时自动启动已准备好的安装器",
@@ -1746,7 +1746,7 @@ impl LocaleKey {
 
             // Tauri desktop shell — Settings section headings
             LocaleKey::TabTokenAccounts => "令牌",
-            LocaleKey::SectionRefresh => "刷新",
+            LocaleKey::SectionRefresh => "自动化",
             LocaleKey::SectionNotifications => "通知",
             LocaleKey::SectionUsageThresholds => "用量阈值",
             LocaleKey::SectionKeyboard => "键盘",
