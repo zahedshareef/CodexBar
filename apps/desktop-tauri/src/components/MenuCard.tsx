@@ -188,7 +188,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const hasMetrics = metrics.length > 0;
   const hasCost = !!provider.cost;
   const hasPace = !!provider.pace;
-  const hasDetails = hasMetrics || hasCost || hasPace || hasCharts;
+  const hasDetails = !provider.error && (hasMetrics || hasCost || hasPace || hasCharts);
 
   return (
     <article className="menu-card">

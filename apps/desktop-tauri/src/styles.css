@@ -3976,12 +3976,13 @@ body {
       opacity, and card bottom padding (final overlay) ─────────────────── */
 .menu-card__subtitle--error {
   color: var(--provider-status-error);
-  line-height: 1.4;
+  line-height: 1.3;
   white-space: normal;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 2;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  font-size: 11px;
 }
 
 .menu-card__divider {
