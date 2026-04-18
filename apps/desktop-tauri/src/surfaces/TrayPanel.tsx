@@ -144,7 +144,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
             onClick={() => handleGridClick(idx, p.providerId)}
             title={p.displayName}
           >
-            <ProviderIcon providerId={p.providerId} size={28} />
+            <ProviderIcon providerId={p.providerId} size={32} />
             <span className="provider-grid__label">{p.displayName}</span>
             <span
               className="provider-grid__dot"

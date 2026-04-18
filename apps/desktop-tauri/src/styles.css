@@ -270,6 +270,10 @@ body {
   color: var(--text-primary);
 }
 
+html {
+  background: var(--app-bg, #1c1c1e);
+}
+
 .shell {
   margin: 0 auto;
   max-width: 720px;
@@ -2922,6 +2926,9 @@ body {
 /* Tray variant — auto-sized by JS, no forced min-height. */
 .menu-surface--tray {
   min-height: 0;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
 }
 .menu-surface--tray .menu-stack {
   scrollbar-width: thin;
@@ -2933,8 +2940,8 @@ body {
 .menu-stack__item {
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   padding: 10px;
 }
@@ -3326,9 +3333,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0;
-  padding: 6px 0 2px;
+  padding: 8px 0 4px;
   margin-top: 0;
-  border-top: 1px solid var(--menu-popover-divider);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   flex-shrink: 0;
 }
 .menu-surface__footer-row {
@@ -3386,12 +3393,12 @@ body {
 .provider-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px 0;
+  gap: 4px 2px;
   margin: 0 0 4px;
   padding: 8px 6px;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
 }
 
@@ -3430,7 +3437,7 @@ body {
 }
 
 .provider-grid__label {
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 500;
   color: var(--text-secondary);
   white-space: nowrap;
@@ -3447,8 +3454,8 @@ body {
 
 /* Provider icon inside grid — ensure consistent sizing + visibility */
 .provider-grid__item .provider-icon {
-  width: 28px !important;
-  height: 28px !important;
+  width: 32px !important;
+  height: 32px !important;
   background: rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
