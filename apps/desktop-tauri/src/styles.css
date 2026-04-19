@@ -3653,6 +3653,37 @@ html {
   opacity: 0.9;
 }
 
+/* Weekly indicator bar — macOS ProviderSwitcherView addWeeklyIndicator()
+   4px track at bottom of each grid button, fill = remainingPercent */
+.provider-grid__weekly-track {
+  display: block;
+  width: calc(100% - 12px);
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+}
+.provider-grid__weekly-track::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--weekly-pct, 0%);
+  border-radius: 2px;
+  background: var(--accent, #0a84ff);
+}
+/* Hide weekly bar when selected — matches macOS updateWeeklyIndicatorVisibility */
+.provider-grid__item--active .provider-grid__weekly-track {
+  display: none;
+}
+
+[data-theme="light"] .provider-grid__weekly-track {
+  background: rgba(0, 0, 0, 0.10);
+}
+
 .provider-grid__dot {
   width: 5px;
   height: 5px;

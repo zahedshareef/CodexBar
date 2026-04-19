@@ -181,7 +181,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           title="Overview"
         >
           <span className="provider-grid__icon-overview">⊞</span>
-          <span className="provider-grid__label">Over…</span>
+          <span className="provider-grid__label">Overview</span>
         </button>
         {providers.map((p) => (
           <button
@@ -193,10 +193,14 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           >
             <ProviderIcon providerId={p.providerId} size={16} />
             <span className="provider-grid__label">{p.displayName}</span>
-            <span
-              className="provider-grid__dot"
-              data-status={getProviderStatus(p)}
-            />
+            {/* Weekly indicator bar — matches macOS ProviderSwitcherView */}
+            {!p.error && (
+              <span
+                className="provider-grid__weekly-track"
+                style={{ "--weekly-pct": `${Math.max(0, Math.min(100, p.primary.remainingPercent))}%` } as React.CSSProperties}
+                data-provider={p.providerId}
+              />
+            )}
           </button>
         ))}
       </div>
