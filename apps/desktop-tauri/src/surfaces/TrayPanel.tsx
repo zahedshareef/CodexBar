@@ -174,7 +174,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           <span className="provider-grid__icon-overview">⊞</span>
           <span className="provider-grid__label">Over…</span>
         </button>
-        {sorted.map((p) => (
+        {providers.map((p) => (
           <button
             key={p.providerId}
             type="button"
