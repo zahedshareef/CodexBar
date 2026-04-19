@@ -57,12 +57,14 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   );
 
   // Cards to display based on mode
-  // Detail mode: selected provider card + error cards (like macOS)
+  // Overview: only providers with real data (email/error) — grid-only icons get no cards
+  // Detail: selected provider card + error cards (like macOS)
   const visibleProviders = useMemo(() => {
-    if (selectedProviderId === null) return sorted;
+    const active = sorted.filter((p) => p.accountEmail || p.error);
+    if (selectedProviderId === null) return active;
     const match = sorted.find((p) => p.providerId === selectedProviderId);
-    if (!match) return sorted;
-    const errors = sorted.filter((p) => p.error && p.providerId !== selectedProviderId);
+    if (!match) return active;
+    const errors = active.filter((p) => p.error && p.providerId !== selectedProviderId);
     return [match, ...errors];
   }, [sorted, selectedProviderId]);
 
