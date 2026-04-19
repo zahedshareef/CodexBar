@@ -3145,6 +3145,11 @@ html {
   gap: 8px;
 }
 
+/* When subtitle-row contains error text, align to top (macOS: .top) */
+.menu-card__subtitle-row:has(.menu-card__subtitle--error) {
+  align-items: flex-start;
+}
+
 /* subtitle: Font.footnote secondary ≈ 11px */
 .menu-card__subtitle {
   flex: 1;
