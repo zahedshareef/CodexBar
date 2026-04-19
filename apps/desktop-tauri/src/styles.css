@@ -3095,6 +3095,11 @@ html {
 .menu-surface--tray .menu-card__charts {
   display: none;
 }
+/* Hide cost section in tray — macOS compact popover only shows usage metrics */
+.menu-surface--tray .menu-card__cost,
+.menu-surface--tray .menu-card__content > .menu-card__divider:has(+ .menu-card__cost) {
+  display: none;
+}
 
 /* Tray footer — match macOS NSMenuItem native look (13pt, ~22px row height) */
 .menu-surface--tray .menu-surface__footer {
