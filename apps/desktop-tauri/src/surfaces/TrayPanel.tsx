@@ -55,13 +55,14 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   // Auto-resize the Tauri window to fit content (max 660px like macOS).
+  // Must set width first, then measure height at the correct width.
   useEffect(() => {
     const el = surfaceRef.current;
     if (!el) return;
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 660;
 
-    // Clear any previous constraints so scrollHeight reflects natural content
+    // Clear previous constraints
     el.style.height = "";
     el.style.overflow = "";
     const surface = el.querySelector<HTMLElement>(".menu-surface--tray");
@@ -70,23 +71,26 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       surface.style.maxHeight = "";
     }
 
-    const frame = requestAnimationFrame(() => {
-      const fullHeight = el.scrollHeight;
-      const windowHeight = Math.min(MAX_HEIGHT, Math.max(180, fullHeight));
-      void getCurrentWindow()
-        .setSize(new LogicalSize(TRAY_WIDTH, windowHeight))
-        .then(() => {
-          // Pin both wrapper and surface to the window height so the flex
-          // body can scroll while footer stays at the bottom.
-          el.style.height = `${windowHeight}px`;
-          el.style.overflow = "hidden";
-          if (surface) {
-            surface.style.height = `${windowHeight}px`;
-            surface.style.maxHeight = `${windowHeight}px`;
-          }
+    // Step 1: Set width first so content reflows at the final width
+    void getCurrentWindow()
+      .setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT))
+      .then(() => {
+        // Step 2: Measure content height at the correct 310px width
+        requestAnimationFrame(() => {
+          const fullHeight = el.scrollHeight;
+          const windowHeight = Math.min(MAX_HEIGHT, Math.max(180, fullHeight));
+          void getCurrentWindow()
+            .setSize(new LogicalSize(TRAY_WIDTH, windowHeight))
+            .then(() => {
+              el.style.height = `${windowHeight}px`;
+              el.style.overflow = "hidden";
+              if (surface) {
+                surface.style.height = `${windowHeight}px`;
+                surface.style.maxHeight = `${windowHeight}px`;
+              }
+            });
         });
-    });
-    return () => cancelAnimationFrame(frame);
+      });
   }, [sorted, isRefreshing]);
 
   const openSettings = useCallback(() => {
