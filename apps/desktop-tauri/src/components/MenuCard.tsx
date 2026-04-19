@@ -101,10 +101,10 @@ function paceStageKey(stage: PaceSnapshot["stage"]): LocaleKey {
 }
 
 type UsageLevel = "normal" | "high" | "critical" | "exhausted";
-function levelOf(pct: number, exhausted: boolean): UsageLevel {
+function levelOf(remainPct: number, exhausted: boolean): UsageLevel {
   if (exhausted) return "exhausted";
-  if (pct >= 90) return "critical";
-  if (pct >= 70) return "high";
+  if (remainPct <= 5) return "critical";
+  if (remainPct <= 25) return "high";
   return "normal";
 }
 
@@ -129,12 +129,13 @@ function MetricRow({
   exhaustedLabel: string;
 }) {
   const pct = Math.min(100, Math.max(0, snap.usedPercent));
-  const level = levelOf(pct, snap.isExhausted);
+  const remain = 100 - pct;
+  const level = levelOf(remain, snap.isExhausted);
   return (
     <div className="menu-metric">
       <div className="menu-metric__title">{title}</div>
       <div className="menu-metric__bar">
-        <div className="menu-metric__bar-fill" data-level={level} style={{ width: `${pct}%` }} />
+        <div className="menu-metric__bar-fill" data-level={level} style={{ width: `${remain}%` }} />
       </div>
       <div className="menu-metric__row">
         <span className="menu-metric__pct">{Math.round(100 - pct)}% left</span>

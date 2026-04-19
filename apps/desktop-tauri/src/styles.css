@@ -190,7 +190,7 @@
   --provider-icon-bg: rgba(255, 255, 255, 0.04);
 
   --usage-bar-track: rgba(255, 255, 255, 0.15);
-  --usage-bar-normal: #f0883e;
+  --usage-bar-normal: #0a84ff;
   --usage-bar-high: #ffd166;
   --usage-bar-critical: #ff9f43;
   --usage-bar-exhausted: #ff6c6c;
@@ -3728,13 +3728,13 @@ html {
    chart palette covers) but the menu defaults to a green-when-healthy
    gradient based on usage threshold — green → yellow → orange → red. */
 :root {
-  --usage-bar-normal: #f0883e;     /* upstream provider brand amber/orange */
+  --usage-bar-normal: #0a84ff;     /* macOS systemBlue — healthy */
   --usage-bar-high: #ffd60a;       /* macOS systemYellow */
   --usage-bar-critical: #ff9f0a;   /* macOS systemOrange */
   --usage-bar-exhausted: #ff453a;  /* macOS systemRed    */
 }
 [data-theme="light"] {
-  --usage-bar-normal: #e8772e;
+  --usage-bar-normal: #007aff;
   --usage-bar-high: #ffcc00;
   --usage-bar-critical: #ff9500;
   --usage-bar-exhausted: #ff3b30;
