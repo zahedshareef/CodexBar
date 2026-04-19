@@ -2944,7 +2944,7 @@ html {
   scrollbar-width: none;
 }
 .menu-surface--tray .menu-stack {
-  overflow-y: hidden; /* auto-resize handles height; no scroll needed */
+  overflow-y: auto; /* scroll when content exceeds MAX_HEIGHT cap */
   gap: 2px; /* macOS cards are tightly packed */
 }
 .menu-surface--tray .menu-stack::-webkit-scrollbar {

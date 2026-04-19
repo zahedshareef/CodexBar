@@ -10,6 +10,7 @@ import { useLocale } from "../hooks/useLocale";
 import type { LocaleKey } from "../i18n/keys";
 import { paceCategory } from "../surfaces/tray/paceCategory";
 import { SimpleBarChart, StackedBarChart } from "./MiniBarChart";
+import { DEMO_ENABLED } from "../lib/demoProviders";
 
 /** Small copy-to-clipboard button matching macOS CopyIconButton (doc.on.doc → checkmark). */
 function CopyIconButton({ text }: { text: string }) {
@@ -169,6 +170,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
 
   useEffect(() => {
+    if (DEMO_ENABLED) return; // skip chart fetch in demo mode
     let cancelled = false;
     setChartData(null);
     getProviderChartData(
