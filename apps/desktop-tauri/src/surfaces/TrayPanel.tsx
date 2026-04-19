@@ -55,30 +55,34 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   // Auto-resize the Tauri window to fit content (max 660px like macOS).
-  // Must set width first, then measure height at the correct width.
   useEffect(() => {
     const el = surfaceRef.current;
     if (!el) return;
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 660;
 
-    // Clear previous constraints
+    // Clear previous constraints so we get the natural content height
     el.style.height = "";
     el.style.overflow = "";
     const surface = el.querySelector<HTMLElement>(".menu-surface--tray");
+    const body = el.querySelector<HTMLElement>(".menu-surface__body");
     if (surface) {
       surface.style.height = "";
       surface.style.maxHeight = "";
     }
+    if (body) {
+      body.style.overflow = "visible";
+    }
 
-    // Step 1: Set width first so content reflows at the final width
+    // First set the final width so content reflows correctly
     void getCurrentWindow()
       .setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT))
       .then(() => {
-        // Step 2: Measure content height at the correct 310px width
         requestAnimationFrame(() => {
           const fullHeight = el.scrollHeight;
           const windowHeight = Math.min(MAX_HEIGHT, Math.max(180, fullHeight));
+          // Restore body overflow before applying final size
+          if (body) body.style.overflow = "";
           void getCurrentWindow()
             .setSize(new LogicalSize(TRAY_WIDTH, windowHeight))
             .then(() => {
