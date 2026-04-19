@@ -2966,12 +2966,12 @@ html {
   background: transparent;
   border: none;
   border-radius: 0;
-  padding: 2px 0;
+  padding: 0;
 }
 /* Tray separators — subtle hairline like macOS */
 .menu-surface--tray .menu-stack__sep {
   height: 1px;
-  margin: 4px 0;
+  margin: 2px 0;
   background: rgba(255, 255, 255, 0.10);
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__sep {
@@ -2987,7 +2987,7 @@ html {
 
 /* Tray font sizing — match macOS: .headline=13pt, .footnote=10pt */
 .menu-surface--tray .menu-card {
-  gap: 2px;
+  gap: 1px;
   padding: 2px 6px; /* macOS: .padding(.horizontal, 16) minus surface 10px */
 }
 
@@ -3073,17 +3073,27 @@ html {
 
 /* Tray card content — tighten spacing for compact panel */
 .menu-surface--tray .menu-card__divider {
-  margin: 2px 0;
+  margin: 1px 0;
 }
 .menu-surface--tray .menu-card__content {
-  gap: 8px;
+  gap: 4px;
 }
 .menu-surface--tray .menu-metric {
-  gap: 4px;
+  gap: 2px;
 }
 .menu-surface--tray .menu-metric__title {
   font-size: 11px;
   font-weight: 600;
+}
+/* Hide pace section in tray — macOS doesn't show pace in the compact popover */
+.menu-surface--tray .menu-card__pace,
+.menu-surface--tray .menu-card__pace + .menu-card__divider,
+.menu-surface--tray .menu-card__content > .menu-card__divider:has(+ .menu-card__pace) {
+  display: none;
+}
+/* Hide charts in tray — macOS shows charts only in the detail/dashboard view */
+.menu-surface--tray .menu-card__charts {
+  display: none;
 }
 
 /* Tray footer — match macOS NSMenuItem native look (13pt, ~22px row height) */
