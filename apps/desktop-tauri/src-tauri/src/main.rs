@@ -45,54 +45,14 @@ fn remove_dwm_border(window: &tauri::WebviewWindow) {
         ) -> i32;
     }
 
-    #[link(name = "user32")]
-    unsafe extern "system" {
-        fn GetWindowLongPtrW(hwnd: isize, index: i32) -> isize;
-        fn SetWindowLongPtrW(hwnd: isize, index: i32, value: isize) -> isize;
-        fn SetWindowPos(
-            hwnd: isize,
-            after: isize,
-            x: i32,
-            y: i32,
-            cx: i32,
-            cy: i32,
-            flags: u32,
-        ) -> i32;
-    }
-
     let hwnd = match window.hwnd() {
         Ok(h) => h.0 as isize,
         Err(_) => return,
     };
 
     unsafe {
-        // 1. Tell DWM to hide the border color (Windows 11+)
         let color = DWMWA_COLOR_NONE;
         DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &color, 4);
-
-        // 2. Strip WS_BORDER and WS_DLGFRAME from window style
-        const GWL_STYLE: i32 = -16;
-        const WS_BORDER: isize = 0x00800000;
-        const WS_DLGFRAME: isize = 0x00400000;
-        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-        let new_style = style & !(WS_BORDER | WS_DLGFRAME);
-        if new_style != style {
-            SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
-            // Force redraw without moving/resizing
-            const SWP_FRAMECHANGED: u32 = 0x0020;
-            const SWP_NOMOVE: u32 = 0x0002;
-            const SWP_NOSIZE: u32 = 0x0001;
-            const SWP_NOZORDER: u32 = 0x0004;
-            SetWindowPos(
-                hwnd,
-                0,
-                0,
-                0,
-                0,
-                0,
-                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
-            );
-        }
     }
 }
 
