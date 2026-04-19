@@ -128,7 +128,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }
 
   return (
-    <div ref={surfaceRef}>
+    <div ref={surfaceRef} style={{ height: "100vh", overflow: "hidden" }}>
       <MenuSurface
         variant="tray"
         onRefresh={refresh}

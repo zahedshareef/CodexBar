@@ -2934,16 +2934,28 @@ html {
 /* Tray variant — auto-sized by JS, no forced min-height. */
 .menu-surface--tray {
   min-height: 0;
+  max-height: 100vh;
   border-radius: 0;
   border: none;
   box-shadow: none;
   padding: 6px 10px; /* match upstream .padding(.horizontal, 10) */
+  display: flex;
+  flex-direction: column;
 }
 .menu-surface--tray,
 .menu-surface--tray * {
   scrollbar-width: none;
 }
+.menu-surface--tray .menu-surface__body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .menu-surface--tray .menu-stack {
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto; /* scroll when content exceeds MAX_HEIGHT cap */
   gap: 2px; /* macOS cards are tightly packed */
 }
