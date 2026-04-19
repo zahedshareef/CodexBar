@@ -2975,11 +2975,11 @@ html {
   padding: 5px 4px;
   margin: 0 -4px;
 }
-/* Tray separators — subtle hairline like macOS */
+/* Tray separators — spacing only like macOS (no visible hairlines) */
 .menu-surface--tray .menu-stack__sep {
-  height: 1px;
-  margin: 3px 0;
-  background: rgba(255, 255, 255, 0.08);
+  height: 0;
+  margin: 4px 0;
+  background: none;
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__sep {
   background: rgba(0, 0, 0, 0.08);
@@ -3029,6 +3029,10 @@ html {
 .menu-surface--tray .menu-card__subtitle,
 .menu-surface--tray .menu-card__subtitle--error {
   font-size: 10px;
+}
+/* Tray "Updated just now" — green tint like macOS */
+.menu-surface--tray .menu-card__subtitle:not(.menu-card__subtitle--error) {
+  color: #34c759;
 }
 /* Tray error subtitle — match macOS lineLimit(4) + bottom padding */
 .menu-surface--tray .menu-card__subtitle--error {
@@ -3091,6 +3095,10 @@ html {
 .menu-surface--tray .menu-metric__title {
   font-size: 11px;
   font-weight: 600;
+}
+.menu-surface--tray .menu-metric__bar {
+  height: 4px;
+  border-radius: 2px;
 }
 /* Hide pace section in tray — macOS doesn't show pace in the compact popover */
 .menu-surface--tray .menu-card__pace,
