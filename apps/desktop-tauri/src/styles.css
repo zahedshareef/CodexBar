@@ -354,7 +354,7 @@ html {
 }
 
 .summary dt {
-  color: var(--text-eyebrow);
+  color: var(--text-secondary);
   font-size: 0.82rem;
   font-weight: 600;
   letter-spacing: 0;
@@ -2961,8 +2961,8 @@ html {
 /* Tray separators — subtle hairline like macOS */
 .menu-surface--tray .menu-stack__sep {
   height: 1px;
-  margin: 1px 0;
-  background: rgba(255, 255, 255, 0.06);
+  margin: 4px 0;
+  background: rgba(255, 255, 255, 0.10);
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__sep {
   background: rgba(0, 0, 0, 0.08);
@@ -3013,6 +3013,14 @@ html {
 .menu-surface--tray .menu-card__subtitle--error {
   font-size: 10px;
 }
+/* Tray error subtitle — match macOS lineLimit(4) + bottom padding */
+.menu-surface--tray .menu-card__subtitle--error {
+  -webkit-line-clamp: 4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding-bottom: 4px;
+}
 
 /* Tray plan badge — plain text like macOS (not a pill) */
 .menu-surface--tray .menu-card__plan-badge {
@@ -3028,6 +3036,21 @@ html {
    not persistent colored dots under every icon */
 .menu-surface--tray .provider-grid__dot {
   display: none;
+}
+
+/* Tray footer — match macOS NSMenuItem native look (13pt, ~22px row height) */
+.menu-surface--tray .menu-surface__footer {
+  padding: 4px 0 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.10);
+}
+.menu-surface--tray .menu-surface__footer-row {
+  padding: 3px 6px;
+  font-size: 13px;
+}
+.menu-surface--tray .menu-surface__footer-icon {
+  font-size: 13px;
+  width: 16px;
+  opacity: 0.55;
 }
 
 /* ── Provider card — direct mirror of UsageMenuCardView ─────────────── */
@@ -3128,34 +3151,9 @@ html {
 
 /* SwiftUI Divider() — single hairline using the system separator. */
 .menu-card__divider {
-  height: 1px;
-  margin: 0;
-  background: var(--menu-popover-divider);
+  margin: 4px 0;
 }
 
-/* Section group VStack — upstream uses spacing 12 between groups,
-   spacing 6 inside MetricRow / Cost / etc. */
-.menu-card__group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.menu-card__group-title {
-  /* upstream: .font(.body).fontWeight(.medium) — use 400 on Windows */
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--text-primary);
-}
-
-.menu-card__metrics {
-  /* upstream MetricRow stack uses spacing 12 between rows */
-  gap: 12px;
-}
-
-/* Inner content VStack(spacing: 12) — mirrors UsageMenuCardView's
-   second VStack that holds metrics / cost / credits / etc. The outer
-   `.menu-card` keeps its 6px gap (header → divider → content). */
 .menu-card__content {
   display: flex;
   flex-direction: column;
