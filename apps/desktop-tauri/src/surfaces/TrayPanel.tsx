@@ -57,15 +57,16 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   );
 
   // Cards to display based on mode
-  // Overview: only providers with real data (email/error) — grid-only icons get no cards
-  // Detail: selected provider card + error cards (like macOS)
+  // Overview: non-error active providers first, then error cards (like macOS)
+  // Detail: selected provider card + error cards
   const visibleProviders = useMemo(() => {
     const active = sorted.filter((p) => p.accountEmail || p.error);
-    if (selectedProviderId === null) return active;
+    const normal = active.filter((p) => !p.error);
+    const errors = active.filter((p) => !!p.error);
+    if (selectedProviderId === null) return [...normal, ...errors];
     const match = sorted.find((p) => p.providerId === selectedProviderId);
-    if (!match) return active;
-    const errors = active.filter((p) => p.error && p.providerId !== selectedProviderId);
-    return [match, ...errors];
+    if (!match) return [...normal, ...errors];
+    return [match, ...errors.filter((p) => p.providerId !== selectedProviderId)];
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
@@ -192,17 +193,20 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       </div>
       <div className="provider-grid__divider" />
       <div className="menu-stack">
-        {visibleProviders.map((p, idx) => (
-          <Fragment key={p.providerId}>
-            {idx > 0 && <div className="menu-stack__sep" />}
-            <div
-              className={`menu-stack__item${idx === 0 ? " menu-stack__item--selected" : ""}`}
-              id={`card-${p.providerId}`}
-            >
-              <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />
-            </div>
-          </Fragment>
-        ))}
+        {visibleProviders.map((p, idx) => {
+          const isFirstNonError = idx === visibleProviders.findIndex((v) => !v.error);
+          return (
+            <Fragment key={p.providerId}>
+              {idx > 0 && <div className="menu-stack__sep" />}
+              <div
+                className={`menu-stack__item${isFirstNonError ? " menu-stack__item--selected" : ""}`}
+                id={`card-${p.providerId}`}
+              >
+                <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />
+              </div>
+            </Fragment>
+          );
+        })}
       </div>
     </MenuSurface>
   );
