@@ -32,19 +32,31 @@ fn should_hide_close_request(mode: SurfaceMode) -> bool {
 /// Remove the 1px DWM border that Windows draws around borderless windows.
 #[cfg(target_os = "windows")]
 fn remove_dwm_border(window: &tauri::WebviewWindow) {
-    #[repr(C)]
-    struct MARGINS {
-        left: i32,
-        right: i32,
-        top: i32,
-        bottom: i32,
-    }
+    const DWMWA_BORDER_COLOR: u32 = 34;
+    const DWMWA_COLOR_NONE: u32 = 0xFFFFFFFE;
 
     #[link(name = "dwmapi")]
     unsafe extern "system" {
-        fn DwmExtendFrameIntoClientArea(
+        fn DwmSetWindowAttribute(
             hwnd: isize,
-            margins: *const MARGINS,
+            attr: u32,
+            value: *const u32,
+            size: u32,
+        ) -> i32;
+    }
+
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetWindowLongPtrW(hwnd: isize, index: i32) -> isize;
+        fn SetWindowLongPtrW(hwnd: isize, index: i32, value: isize) -> isize;
+        fn SetWindowPos(
+            hwnd: isize,
+            after: isize,
+            x: i32,
+            y: i32,
+            cx: i32,
+            cy: i32,
+            flags: u32,
         ) -> i32;
     }
 
@@ -53,15 +65,34 @@ fn remove_dwm_border(window: &tauri::WebviewWindow) {
         Err(_) => return,
     };
 
-    let margins = MARGINS {
-        left: -1,
-        right: -1,
-        top: -1,
-        bottom: -1,
-    };
-
     unsafe {
-        DwmExtendFrameIntoClientArea(hwnd, &margins);
+        // 1. Tell DWM to hide the border color (Windows 11+)
+        let color = DWMWA_COLOR_NONE;
+        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &color, 4);
+
+        // 2. Strip WS_BORDER and WS_DLGFRAME from window style
+        const GWL_STYLE: i32 = -16;
+        const WS_BORDER: isize = 0x00800000;
+        const WS_DLGFRAME: isize = 0x00400000;
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        let new_style = style & !(WS_BORDER | WS_DLGFRAME);
+        if new_style != style {
+            SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
+            // Force redraw without moving/resizing
+            const SWP_FRAMECHANGED: u32 = 0x0020;
+            const SWP_NOMOVE: u32 = 0x0002;
+            const SWP_NOSIZE: u32 = 0x0001;
+            const SWP_NOZORDER: u32 = 0x0004;
+            SetWindowPos(
+                hwnd,
+                0,
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
+            );
+        }
     }
 }
 
