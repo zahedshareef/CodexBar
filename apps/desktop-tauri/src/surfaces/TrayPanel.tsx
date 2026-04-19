@@ -61,17 +61,12 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 660;
     const frame = requestAnimationFrame(() => {
-      const contentHeight = Math.min(MAX_HEIGHT, Math.max(180, el.scrollHeight));
-      void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, contentHeight)).then(() => {
-        // After window resize, constrain content to scroll within viewport
-        if (el.scrollHeight > MAX_HEIGHT) {
-          el.style.maxHeight = "100vh";
-          el.style.overflowY = "auto";
-        } else {
-          el.style.maxHeight = "";
-          el.style.overflowY = "";
-        }
-      });
+      const fullHeight = el.scrollHeight;
+      const windowHeight = Math.min(MAX_HEIGHT, Math.max(180, fullHeight));
+      void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, windowHeight));
+      // Constrain the wrapper so excess content scrolls within the capped window
+      el.style.maxHeight = `${windowHeight}px`;
+      el.style.overflowY = fullHeight > windowHeight ? "auto" : "";
     });
     return () => cancelAnimationFrame(frame);
   }, [sorted, isRefreshing]);
