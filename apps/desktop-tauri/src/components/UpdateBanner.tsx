@@ -19,16 +19,12 @@ export default function UpdateBanner({
   onOpenRelease,
 }: UpdateBannerProps) {
   const { t } = useLocale();
-  if (updateState.status === "idle") return null;
+  if (updateState.status === "idle" || updateState.status === "checking") return null;
 
   const cls = `update-banner update-banner--${updateState.status}`;
 
   return (
     <div className={cls}>
-      {updateState.status === "checking" && (
-        <span>{t("BannerCheckingForUpdates")}</span>
-      )}
-
       {updateState.status === "available" && (
         <>
           <span>
