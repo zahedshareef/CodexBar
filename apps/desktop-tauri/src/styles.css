@@ -3395,10 +3395,19 @@ html {
   border: none;
   box-shadow: none;
 }
+.menu-surface--tray {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
 [data-theme="light"] .menu-surface {
   background: var(--menu-popover-bg);
   border: 1px solid rgba(0, 0, 0, 0.15);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18), 0 0 1px rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .menu-surface--tray {
+  border: none;
+  box-shadow: none;
 }
 
 .menu-surface__header {
