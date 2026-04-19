@@ -3567,19 +3567,19 @@ html {
    7-column grid wrapping to rows. Active provider gets blue pill. */
 .provider-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 3px 2px;
   margin: 0 0 2px;
   padding: 4px 3px;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
+  background: none;
+  border: none;
+  border-radius: 0;
 }
 
 [data-theme="light"] .provider-grid {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: none;
+  border: none;
 }
 
 .provider-grid__item {

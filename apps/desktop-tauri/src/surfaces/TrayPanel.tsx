@@ -118,9 +118,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
   const footerRows: MenuFooterRow[] = [
     { icon: "↻", label: "Refresh", onClick: refresh },
-    { icon: "", label: "Settings\u2026", onClick: openSettings },
-    { icon: "", label: "About CodexBar", onClick: openAbout },
-    { icon: "", label: "Quit", onClick: quitApp },
+    { icon: "⚙", label: "Settings\u2026", onClick: openSettings },
+    { icon: "ⓘ", label: "About CodexBar", onClick: openAbout },
+    { icon: "✕", label: "Quit", onClick: quitApp },
   ];
 
   const handleGridClick = useCallback(
