@@ -189,7 +189,10 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         {visibleProviders.map((p, idx) => (
           <Fragment key={p.providerId}>
             {idx > 0 && <div className="menu-stack__sep" />}
-            <div className="menu-stack__item" id={`card-${p.providerId}`}>
+            <div
+              className={`menu-stack__item${idx === 0 ? " menu-stack__item--selected" : ""}`}
+              id={`card-${p.providerId}`}
+            >
               <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />
             </div>
           </Fragment>

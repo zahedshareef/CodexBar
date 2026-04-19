@@ -2968,11 +2968,18 @@ html {
   border-radius: 0;
   padding: 0;
 }
+/* Selected card — subtle blue-tinted background like macOS active provider */
+.menu-surface--tray .menu-stack__item--selected {
+  background: rgba(30, 60, 120, 0.35);
+  border-radius: 8px;
+  padding: 6px 4px;
+  margin: 0 -4px;
+}
 /* Tray separators — subtle hairline like macOS */
 .menu-surface--tray .menu-stack__sep {
   height: 1px;
-  margin: 2px 0;
-  background: rgba(255, 255, 255, 0.10);
+  margin: 3px 0;
+  background: rgba(255, 255, 255, 0.08);
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__sep {
   background: rgba(0, 0, 0, 0.08);
