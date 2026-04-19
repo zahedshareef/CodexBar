@@ -14,7 +14,19 @@ import MenuSurface, {
 import UpdateBanner from "../components/UpdateBanner";
 import { ProviderIcon } from "../components/providers/ProviderIcon";
 import { getProviderIcon } from "../components/providers/providerIcons";
+import { openProviderDashboard, openProviderStatusPage } from "../lib/tauri";
 import { DEMO_ENABLED, DEMO_PROVIDERS } from "../lib/demoProviders";
+
+/** Provider IDs that have a dashboard URL in the backend */
+const HAS_DASHBOARD = new Set([
+  "codex", "claude", "copilot", "cursor", "gemini", "antigravity",
+  "factory", "augment", "kilo", "amp", "openrouter", "warp", "zai",
+  "minimax", "kiro", "opencode",
+]);
+/** Provider IDs that have a status page URL in the backend */
+const HAS_STATUS_PAGE = new Set([
+  "codex", "claude", "copilot", "cursor", "gemini",
+]);
 
 function getProviderStatus(
   p: ProviderUsageSnapshot,
@@ -222,6 +234,32 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           );
         })}
       </div>
+      {/* Context actions — detail mode only, matches macOS actionsSection */}
+      {selectedProviderId && (HAS_DASHBOARD.has(selectedProviderId) || HAS_STATUS_PAGE.has(selectedProviderId)) && (
+        <div className="context-actions">
+          <div className="context-actions__divider" />
+          {HAS_DASHBOARD.has(selectedProviderId) && (
+            <button
+              type="button"
+              className="context-actions__btn"
+              onClick={() => void openProviderDashboard(selectedProviderId)}
+            >
+              <span className="context-actions__icon">📊</span>
+              Usage Dashboard
+            </button>
+          )}
+          {HAS_STATUS_PAGE.has(selectedProviderId) && (
+            <button
+              type="button"
+              className="context-actions__btn"
+              onClick={() => void openProviderStatusPage(selectedProviderId)}
+            >
+              <span className="context-actions__icon">💓</span>
+              Status Page
+            </button>
+          )}
+        </div>
+      )}
     </MenuSurface>
   );
 }
