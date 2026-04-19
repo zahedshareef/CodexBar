@@ -145,6 +145,14 @@ function MetricRow({
       {snap.isExhausted && (
         <div className="menu-metric__exhausted">{exhaustedLabel}</div>
       )}
+      {snap.reservePercent != null && (
+        <div className="menu-metric__row menu-metric__reserve">
+          <span className="menu-metric__pct">{Math.round(snap.reservePercent)}% in reserve</span>
+          {snap.reserveDescription && (
+            <span className="menu-metric__reset">{snap.reserveDescription}</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -745,6 +745,8 @@ mod tests {
                 resets_at: None,
                 reset_description: None,
                 is_exhausted: false,
+                reserve_percent: None,
+                reserve_description: None,
             },
             secondary: None,
             model_specific: None,

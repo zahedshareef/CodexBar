@@ -38,6 +38,8 @@ pub struct RateWindowSnapshot {
     pub resets_at: Option<String>,
     pub reset_description: Option<String>,
     pub is_exhausted: bool,
+    pub reserve_percent: Option<f64>,
+    pub reserve_description: Option<String>,
 }
 
 impl RateWindowSnapshot {
@@ -49,6 +51,8 @@ impl RateWindowSnapshot {
             resets_at: rw.resets_at.map(|dt| dt.to_rfc3339()),
             reset_description: rw.reset_description.clone(),
             is_exhausted: rw.is_exhausted(),
+            reserve_percent: None,
+            reserve_description: None,
         }
     }
 }
@@ -183,6 +187,8 @@ impl ProviderUsageSnapshot {
                 resets_at: None,
                 reset_description: None,
                 is_exhausted: false,
+                reserve_percent: None,
+                reserve_description: None,
             },
             secondary: None,
             model_specific: None,
