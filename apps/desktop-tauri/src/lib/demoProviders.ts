@@ -15,6 +15,7 @@ export const DEMO_PROVIDERS: ProviderUsageSnapshot[] = [
   {
     providerId: "antigravity",
     displayName: "Antigravity",
+    primaryLabel: "Session",
     primary: {
       usedPercent: 100,
       remainingPercent: 0,
@@ -39,6 +40,7 @@ export const DEMO_PROVIDERS: ProviderUsageSnapshot[] = [
   {
     providerId: "copilot",
     displayName: "GitHub Copilot",
+    primaryLabel: "Monthly",
     primary: {
       usedPercent: 89,
       remainingPercent: 11,
@@ -70,6 +72,7 @@ export const DEMO_PROVIDERS: ProviderUsageSnapshot[] = [
   {
     providerId: "claude",
     displayName: "Claude",
+    primaryLabel: "Session",
     primary: {
       usedPercent: 72,
       remainingPercent: 28,
@@ -78,6 +81,7 @@ export const DEMO_PROVIDERS: ProviderUsageSnapshot[] = [
       resetDescription: "Resets in 1h 23m",
       isExhausted: false,
     },
+    secondaryLabel: "Weekly",
     secondary: {
       usedPercent: 45,
       remainingPercent: 55,
@@ -101,6 +105,7 @@ export const DEMO_PROVIDERS: ProviderUsageSnapshot[] = [
   {
     providerId: "codex",
     displayName: "Codex",
+    primaryLabel: "Monthly",
     primary: {
       usedPercent: 34,
       remainingPercent: 66,

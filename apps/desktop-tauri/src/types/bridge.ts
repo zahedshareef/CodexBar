@@ -244,7 +244,9 @@ export interface ProviderUsageSnapshot {
   providerId: string;
   displayName: string;
   primary: RateWindowSnapshot;
+  primaryLabel?: string;
   secondary: RateWindowSnapshot | null;
+  secondaryLabel?: string;
   modelSpecific: RateWindowSnapshot | null;
   tertiary: RateWindowSnapshot | null;
   cost: CostSnapshotBridge | null;

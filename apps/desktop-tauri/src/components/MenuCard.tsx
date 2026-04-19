@@ -109,7 +109,7 @@ function levelOf(pct: number, exhausted: boolean): UsageLevel {
 }
 
 interface MetricEntry {
-  labelKey: LocaleKey;
+  label: string;
   snap: RateWindowSnapshot;
 }
 
@@ -137,7 +137,7 @@ function MetricRow({
         <div className="menu-metric__bar-fill" data-level={level} style={{ width: `${pct}%` }} />
       </div>
       <div className="menu-metric__row">
-        <span className="menu-metric__pct">{pct.toFixed(0)}% used</span>
+        <span className="menu-metric__pct">{Math.round(100 - pct)}% left</span>
         {snap.resetDescription && (
           <span className="menu-metric__reset">{snap.resetDescription}</span>
         )}
@@ -195,17 +195,17 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
     : null;
 
   const metrics: MetricEntry[] = [
-    { labelKey: "DetailWindowPrimary", snap: provider.primary },
+    { label: provider.primaryLabel ?? t("DetailWindowPrimary"), snap: provider.primary },
   ];
   if (provider.secondary)
-    metrics.push({ labelKey: "DetailWindowSecondary", snap: provider.secondary });
+    metrics.push({ label: provider.secondaryLabel ?? t("DetailWindowSecondary"), snap: provider.secondary });
   if (provider.modelSpecific)
     metrics.push({
-      labelKey: "DetailWindowModelSpecific",
+      label: t("DetailWindowModelSpecific"),
       snap: provider.modelSpecific,
     });
   if (provider.tertiary)
-    metrics.push({ labelKey: "DetailWindowTertiary", snap: provider.tertiary });
+    metrics.push({ label: t("DetailWindowTertiary"), snap: provider.tertiary });
 
   const hasCostHistory = chartData !== null && chartData.costHistory.length > 0;
   const hasCreditsHistory =
@@ -254,8 +254,8 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
             <section className="menu-card__group menu-card__metrics">
               {metrics.map((m) => (
                 <MetricRow
-                  key={m.labelKey}
-                  title={t(m.labelKey)}
+                  key={m.label}
+                  title={m.label}
                   snap={m.snap}
                   exhaustedLabel={t("DetailWindowExhausted")}
                 />
