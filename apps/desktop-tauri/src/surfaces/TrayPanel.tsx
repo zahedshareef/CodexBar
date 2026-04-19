@@ -56,7 +56,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   useEffect(() => {
     const el = surfaceRef.current;
     if (!el) return;
-    const TRAY_WIDTH = 300;
+    const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 660;
     const frame = requestAnimationFrame(() => {
       const contentHeight = Math.min(MAX_HEIGHT, Math.max(180, el.scrollHeight));
@@ -144,7 +144,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
             onClick={() => handleGridClick(idx, p.providerId)}
             title={p.displayName}
           >
-            <ProviderIcon providerId={p.providerId} size={20} />
+            <ProviderIcon providerId={p.providerId} size={16} />
             <span className="provider-grid__label">{p.displayName}</span>
             <span
               className="provider-grid__dot"
