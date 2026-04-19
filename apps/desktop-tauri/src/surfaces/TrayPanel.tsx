@@ -64,9 +64,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       const fullHeight = el.scrollHeight;
       const windowHeight = Math.min(MAX_HEIGHT, Math.max(180, fullHeight));
       void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, windowHeight));
-      // Constrain the wrapper so excess content scrolls within the capped window
-      el.style.maxHeight = `${windowHeight}px`;
-      el.style.overflowY = fullHeight > windowHeight ? "auto" : "";
     });
     return () => cancelAnimationFrame(frame);
   }, [sorted, isRefreshing]);
