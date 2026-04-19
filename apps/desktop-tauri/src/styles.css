@@ -3673,7 +3673,7 @@ html {
   bottom: 0;
   width: var(--weekly-pct, 0%);
   border-radius: 2px;
-  background: var(--accent, #0a84ff);
+  background: var(--weekly-color, var(--accent, #0a84ff));
 }
 /* Hide weekly bar when selected — matches macOS updateWeeklyIndicatorVisibility */
 .provider-grid__item--active .provider-grid__weekly-track {

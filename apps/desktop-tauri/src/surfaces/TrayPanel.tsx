@@ -13,6 +13,7 @@ import MenuSurface, {
 } from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
 import { ProviderIcon } from "../components/providers/ProviderIcon";
+import { getProviderIcon } from "../components/providers/providerIcons";
 import { DEMO_ENABLED, DEMO_PROVIDERS } from "../lib/demoProviders";
 
 function getProviderStatus(
@@ -197,8 +198,10 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
             {!p.error && (
               <span
                 className="provider-grid__weekly-track"
-                style={{ "--weekly-pct": `${Math.max(0, Math.min(100, p.primary.remainingPercent))}%` } as React.CSSProperties}
-                data-provider={p.providerId}
+                style={{
+                  "--weekly-pct": `${Math.max(0, Math.min(100, p.primary.remainingPercent))}%`,
+                  "--weekly-color": getProviderIcon(p.providerId).brandColor,
+                } as React.CSSProperties}
               />
             )}
           </button>
