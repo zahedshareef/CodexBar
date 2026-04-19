@@ -54,7 +54,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const activeIdx = Math.min(selectedIdx, Math.max(0, sorted.length - 1));
   const surfaceRef = useRef<HTMLDivElement>(null);
 
-  // Auto-resize the Tauri window to fit content (max 660px like macOS)
+  // Auto-resize the Tauri window to fit content (max 660px like macOS).
+  // Two-step: measure → resize window → constrain wrapper on next frame.
   useEffect(() => {
     const el = surfaceRef.current;
     if (!el) return;
@@ -63,7 +64,14 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     const frame = requestAnimationFrame(() => {
       const fullHeight = el.scrollHeight;
       const windowHeight = Math.min(MAX_HEIGHT, Math.max(180, fullHeight));
-      void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, windowHeight));
+      void getCurrentWindow()
+        .setSize(new LogicalSize(TRAY_WIDTH, windowHeight))
+        .then(() => {
+          // After the window has resized, constrain the wrapper so the
+          // flex body scrolls and the footer stays pinned at the bottom.
+          el.style.height = `${windowHeight}px`;
+          el.style.overflow = "hidden";
+        });
     });
     return () => cancelAnimationFrame(frame);
   }, [sorted, isRefreshing]);
