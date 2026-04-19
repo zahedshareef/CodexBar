@@ -2975,21 +2975,24 @@ html {
   padding: 5px 4px;
   margin: 0 -4px;
 }
-/* Tray separators — spacing only like macOS (no visible hairlines) */
+/* Tray separators — faint hairline between provider cards, mirroring
+   macOS native NSMenu Divider between MenuDescriptor sections. */
 .menu-surface--tray .menu-stack__sep {
-  height: 0;
+  height: 1px;
   margin: 4px 0;
-  background: none;
+  background: rgba(255, 255, 255, 0.08);
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__sep {
   background: rgba(0, 0, 0, 0.08);
 }
-/* Tray grid — minimal container */
+/* Tray grid — minimal container with macOS-style outer padding (≈16pt total
+   left/right between popover edge and grid item edges; surface already adds
+   10px so grid contributes ~6px). */
 .menu-surface--tray .provider-grid {
   background: none;
   border: none;
   border-radius: 0;
-  padding: 4px 3px 2px;
+  padding: 4px 6px 2px;
 }
 /* Divider between provider grid and card stack — matches macOS */
 .menu-surface--tray .provider-grid__divider {
@@ -3573,6 +3576,12 @@ html {
   cursor: pointer;
   transition: background 0.08s ease;
 }
+/* Footer rows without an SF Symbol icon (Settings / About / Quit on
+   macOS): indent by the same 18px the icon column would occupy so the
+   text aligns with iconified rows above. */
+.menu-surface__footer-row--no-icon {
+  padding-left: calc(6px + 18px + 8px);
+}
 .menu-surface__footer-row:hover,
 .menu-surface__footer-row:focus-visible {
   background: rgba(255, 255, 255, 0.07);
@@ -3606,13 +3615,14 @@ html {
 }
 
 /* ── Provider icon grid ──────────────────────────────────────────────
-   Mirrors the upstream macOS provider icon grid at the top of the
-   menu popover. Each cell shows icon + tiny label + status dot.
-   7-column grid wrapping to rows. Active provider gets blue pill. */
+   Mirrors the upstream macOS ProviderSwitcherView. Each cell is a
+   stacked icon+label tile with a 4px weekly indicator pinned to the
+   bottom edge. macOS uses rowHeight 36-40, rowSpacing 2-4 and a uniform
+   button width — we approximate with a 6-column grid. */
 .provider-grid {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 4px 1px;
+  gap: 4px 2px;
   margin: 0 0 2px;
   padding: 4px 6px;
   flex-shrink: 0;
@@ -3631,8 +3641,10 @@ html {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  gap: 1px;
-  padding: 2px 4px 2px;
+  gap: 2px;
+  /* macOS rowHeight 36 (stackedIcons, <3 rows): 16 icon + 11 label + 4 weekly + ~5 padding */
+  min-height: 36px;
+  padding: 3px 4px 3px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -3656,14 +3668,16 @@ html {
 }
 
 .provider-grid__label {
-  font-size: 9px;
-  font-weight: 500;
+  /* macOS smallSystemFontSize (~11pt) when comfortable, ~8pt when crammed.
+     Our rigid 6-col 310px layout falls in the crammed regime, so use ~10px. */
+  font-size: 10px;
+  font-weight: 400;
   color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  line-height: 1.1;
+  line-height: 1.15;
   text-align: center;
 }
 

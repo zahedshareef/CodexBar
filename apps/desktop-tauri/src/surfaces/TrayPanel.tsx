@@ -36,6 +36,7 @@ function getProviderStatus(
   if (p.primary.usedPercent > 80) return "warning";
   return "ok";
 }
+void getProviderStatus;
 
 /** Sort: highest primary used% first, then alphabetical by name. */
 function sortProviders(
@@ -127,11 +128,13 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     { icon: "⧉", title: t("TooltipPopOut"), onClick: openPopOut },
   ];
 
+  // Icon parity with macOS MenuDescriptor: only Refresh has an SF Symbol.
+  // Settings / About / Quit render as plain text rows (no icon column).
   const footerRows: MenuFooterRow[] = [
     { icon: "↻", label: "Refresh", onClick: refresh },
-    { icon: "⚙", label: "Settings\u2026", onClick: openSettings },
-    { icon: "ⓘ", label: "About CodexBar", onClick: openAbout },
-    { icon: "✕", label: "Quit", onClick: quitApp },
+    { icon: "", label: "Settings\u2026", onClick: openSettings },
+    { icon: "", label: "About CodexBar", onClick: openAbout },
+    { icon: "", label: "Quit", onClick: quitApp },
   ];
 
   const handleGridClick = useCallback(
@@ -220,12 +223,13 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       <div className="provider-grid__divider" />
       <div className="menu-stack">
         {visibleProviders.map((p, idx) => {
-          const isFirstNonError = idx === visibleProviders.findIndex((v) => !v.error);
+          const isSelected =
+            selectedProviderId !== null && p.providerId === selectedProviderId;
           return (
             <Fragment key={p.providerId}>
               {idx > 0 && <div className="menu-stack__sep" />}
               <div
-                className={`menu-stack__item${isFirstNonError ? " menu-stack__item--selected" : ""}`}
+                className={`menu-stack__item${isSelected ? " menu-stack__item--selected" : ""}`}
                 id={`card-${p.providerId}`}
               >
                 <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />

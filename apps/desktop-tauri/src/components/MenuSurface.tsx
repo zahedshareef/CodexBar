@@ -54,7 +54,7 @@ export default function MenuSurface({
             <button
               key={row.label}
               type="button"
-              className="menu-surface__footer-row"
+              className={`menu-surface__footer-row${row.icon ? "" : " menu-surface__footer-row--no-icon"}`}
               onClick={row.onClick}
             >
               {row.icon && (
