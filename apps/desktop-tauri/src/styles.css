@@ -3587,6 +3587,15 @@ html {
 }
 
 /* Provider icon inside grid — template-style like macOS (white silhouettes) */
+.provider-grid__icon-overview {
+  font-size: 14px;
+  line-height: 16px;
+  opacity: 0.7;
+}
+.provider-grid__item--active .provider-grid__icon-overview {
+  opacity: 1;
+}
+
 .provider-grid__item .provider-icon {
   width: 16px !important;
   height: 16px !important;

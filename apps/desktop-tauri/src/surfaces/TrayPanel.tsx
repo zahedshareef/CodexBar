@@ -36,10 +36,9 @@ function sortProviders(
 }
 
 /**
- * Tray popover surface — provider icon grid at top, with all provider
- * cards stacked vertically below. Mirrors the upstream macOS CodexBar
- * popover: the grid is for quick scanning + scrolling, while every
- * provider's full card is rendered in sequence separated by dividers.
+ * Tray popover surface — two modes like macOS CodexBar:
+ * 1. Overview (default): provider grid + all cards stacked
+ * 2. Detail: click a provider in grid → show only that provider's card
  */
 export default function TrayPanel({ state }: { state: BootstrapState }) {
   const { providers: realProviders, isRefreshing, refresh } = useProviders();
@@ -50,8 +49,18 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const { t } = useLocale();
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
-  const [selectedIdx, setSelectedIdx] = useState(0);
-  const activeIdx = Math.min(selectedIdx, Math.max(0, sorted.length - 1));
+
+  // null = overview (all providers), string = single provider detail
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
+    null,
+  );
+
+  // Cards to display based on mode
+  const visibleProviders = useMemo(() => {
+    if (selectedProviderId === null) return sorted;
+    const match = sorted.find((p) => p.providerId === selectedProviderId);
+    return match ? [match] : sorted;
+  }, [sorted, selectedProviderId]);
 
   // Set the Tauri window to the fixed tray panel size (310×660 like macOS).
   // The CSS flex layout handles scrolling the body while pinning the footer.
@@ -85,13 +94,19 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     { icon: "", label: "Quit", onClick: quitApp },
   ];
 
-  const handleGridClick = useCallback((idx: number, providerId: string) => {
-    setSelectedIdx(idx);
-    const el = document.getElementById(`card-${providerId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }, []);
+  const handleGridClick = useCallback(
+    (providerId: string | null) => {
+      setSelectedProviderId(providerId);
+      // In overview mode, scroll to card if clicking a specific provider
+      if (providerId !== null) {
+        const el = document.getElementById(`card-${providerId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
+    },
+    [],
+  );
 
   const banner = (
     <UpdateBanner
@@ -129,12 +144,22 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       footerRows={footerRows}
     >
       <div className="provider-grid">
-        {sorted.map((p, idx) => (
+        {/* Overview button — first item like macOS */}
+        <button
+          type="button"
+          className={`provider-grid__item${selectedProviderId === null ? " provider-grid__item--active" : ""}`}
+          onClick={() => handleGridClick(null)}
+          title="Overview"
+        >
+          <span className="provider-grid__icon-overview">⊞</span>
+          <span className="provider-grid__label">Over…</span>
+        </button>
+        {sorted.map((p) => (
           <button
             key={p.providerId}
             type="button"
-            className={`provider-grid__item${idx === activeIdx ? " provider-grid__item--active" : ""}`}
-            onClick={() => handleGridClick(idx, p.providerId)}
+            className={`provider-grid__item${p.providerId === selectedProviderId ? " provider-grid__item--active" : ""}`}
+            onClick={() => handleGridClick(p.providerId)}
             title={p.displayName}
           >
             <ProviderIcon providerId={p.providerId} size={16} />
@@ -148,7 +173,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       </div>
       <div className="menu-stack__sep" />
       <div className="menu-stack">
-        {sorted.map((p, idx) => (
+        {visibleProviders.map((p, idx) => (
           <Fragment key={p.providerId}>
             {idx > 0 && <div className="menu-stack__sep" />}
             <div className="menu-stack__item" id={`card-${p.providerId}`}>
