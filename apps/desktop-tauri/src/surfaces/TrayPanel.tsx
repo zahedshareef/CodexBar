@@ -58,22 +58,20 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   );
 
   // Cards to display based on mode
-  // Overview: enabled providers (have account or error) — matches macOS enabledProviders()
+  // Overview: all providers in the grid — non-error first, then errors
   // Detail: only the selected provider's card (macOS shows single provider)
   const visibleProviders = useMemo(() => {
     if (selectedProviderId === null) {
-      // Overview: only show "enabled" providers (accountEmail || error), non-error first
-      const enabled = sorted.filter((p) => p.accountEmail || p.error);
-      const normal = enabled.filter((p) => !p.error);
-      const errors = enabled.filter((p) => !!p.error);
+      // Overview: show all providers (they have data, email, or error), non-error first
+      const normal = sorted.filter((p) => !p.error);
+      const errors = sorted.filter((p) => !!p.error);
       return [...normal, ...errors];
     }
     // Detail: show ONLY the selected provider (macOS behavior — no appended errors)
     const match = sorted.find((p) => p.providerId === selectedProviderId);
     if (!match) {
-      const enabled = sorted.filter((p) => p.accountEmail || p.error);
-      const normal = enabled.filter((p) => !p.error);
-      const errors = enabled.filter((p) => !!p.error);
+      const normal = sorted.filter((p) => !p.error);
+      const errors = sorted.filter((p) => !!p.error);
       return [...normal, ...errors];
     }
     return [match];
