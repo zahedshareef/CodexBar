@@ -29,33 +29,6 @@ fn should_hide_close_request(mode: SurfaceMode) -> bool {
     )
 }
 
-/// Remove the 1px DWM border that Windows draws around borderless windows.
-#[cfg(target_os = "windows")]
-fn remove_dwm_border(window: &tauri::WebviewWindow) {
-    const DWMWA_BORDER_COLOR: u32 = 34;
-    const DWMWA_COLOR_NONE: u32 = 0xFFFFFFFE;
-
-    #[link(name = "dwmapi")]
-    unsafe extern "system" {
-        fn DwmSetWindowAttribute(
-            hwnd: isize,
-            attr: u32,
-            value: *const u32,
-            size: u32,
-        ) -> i32;
-    }
-
-    let hwnd = match window.hwnd() {
-        Ok(h) => h.0 as isize,
-        Err(_) => return,
-    };
-
-    unsafe {
-        let color = DWMWA_COLOR_NONE;
-        DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, &color, 4);
-    }
-}
-
 fn main() {
     codexbar::logging::init(false, false).expect("failed to initialize logging");
 
@@ -143,8 +116,6 @@ fn main() {
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
                 window.hide()?;
-                #[cfg(target_os = "windows")]
-                remove_dwm_border(&window);
             }
             tray_bridge::setup(app)?;
             shortcut_bridge::register(app.handle());
