@@ -3022,6 +3022,29 @@ html {
   padding-bottom: 4px;
 }
 
+/* Copy-to-clipboard button — matches macOS CopyIconButton (doc.on.doc, 18×18) */
+.menu-card__copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.12s, background 0.12s;
+}
+.menu-card__copy-btn:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
 /* Tray plan badge — plain text like macOS (not a pill) */
 .menu-surface--tray .menu-card__plan-badge {
   background: none;

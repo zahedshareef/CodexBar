@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type {
   PaceSnapshot,
   ProviderChartData,
@@ -10,6 +10,27 @@ import { useLocale } from "../hooks/useLocale";
 import type { LocaleKey } from "../i18n/keys";
 import { paceCategory } from "../surfaces/tray/paceCategory";
 import { SimpleBarChart, StackedBarChart } from "./MiniBarChart";
+
+/** Small copy-to-clipboard button matching macOS CopyIconButton (doc.on.doc → checkmark). */
+function CopyIconButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 900);
+  }, [text]);
+  return (
+    <button
+      type="button"
+      className="menu-card__copy-btn"
+      onClick={handleCopy}
+      aria-label={copied ? "Copied" : "Copy error"}
+      title={copied ? "Copied" : "Copy error"}
+    >
+      {copied ? "✓" : "⧉"}
+    </button>
+  );
+}
 
 interface MenuCardProps {
   provider: ProviderUsageSnapshot;
@@ -201,9 +222,12 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
         </div>
         <div className="menu-card__subtitle-row">
           {provider.error ? (
-            <span className="menu-card__subtitle menu-card__subtitle--error">
-              {provider.error}
-            </span>
+            <>
+              <span className="menu-card__subtitle menu-card__subtitle--error">
+                {provider.error}
+              </span>
+              <CopyIconButton text={provider.error} />
+            </>
           ) : (
             <span className="menu-card__subtitle">
               {t("DetailUpdatedPrefix")} {formatRelative(provider.updatedAt)}
