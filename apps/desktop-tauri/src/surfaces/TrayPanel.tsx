@@ -62,10 +62,10 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     return match ? [match] : sorted;
   }, [sorted, selectedProviderId]);
 
-  // Dynamically size the Tauri window to fit content, capped at 660px.
+  // Dynamically size the Tauri window to fit content, capped at 800px.
   useEffect(() => {
     const TRAY_WIDTH = 310;
-    const MAX_HEIGHT = 660;
+    const MAX_HEIGHT = 800;
     // Temporarily unconstrain height to measure natural content height
     const root = document.documentElement;
     const surface = root.querySelector<HTMLElement>(".menu-surface--tray");
