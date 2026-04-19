@@ -3179,6 +3179,11 @@ html {
   font-size: 13px;
   line-height: 1.3;
 }
+/* Indent must override the tray padding above so iconless rows (Settings /
+   About / Quit) align with the iconified Refresh row. */
+.menu-surface--tray .menu-surface__footer-row--no-icon {
+  padding-left: calc(6px + 18px + 8px);
+}
 .menu-surface--tray .menu-surface__footer-icon {
   font-size: 13px;
   width: 16px;
@@ -3311,6 +3316,16 @@ html {
   font-size: 13px;
   font-weight: 400;
   color: var(--text-primary);
+}
+
+/* Header row — title left, "N% left" right. Mirrors the macOS compact menu
+   layout where the remaining-percent label sits on the same baseline as the
+   metric title with the progress bar directly underneath. */
+.menu-metric__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 /* UsageProgressBar — Capsule track + Capsule fill, .frame(height: 6) */
@@ -3658,13 +3673,13 @@ html {
 }
 
 .provider-grid__item--active {
-  background: var(--accent, #0a84ff);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  background: rgba(10, 132, 255, 0.25);
+  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.35);
 }
 
 .provider-grid__item--active:hover {
-  background: var(--accent, #0a84ff);
-  filter: brightness(1.1);
+  background: rgba(10, 132, 255, 0.32);
+  filter: none;
 }
 
 .provider-grid__label {
@@ -3768,13 +3783,14 @@ html {
   background: rgba(0, 0, 0, 0.06);
 }
 [data-theme="light"] .provider-grid__item--active {
-  background: var(--accent, #007aff);
+  background: rgba(0, 122, 255, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(0, 122, 255, 0.30);
 }
 [data-theme="light"] .provider-grid__label {
   color: var(--text-secondary);
 }
 [data-theme="light"] .provider-grid__item--active .provider-grid__label {
-  color: #fff;
+  color: var(--text-primary);
 }
 
 /* ── Menu card / metric row tightening ────────────────────────────── */
