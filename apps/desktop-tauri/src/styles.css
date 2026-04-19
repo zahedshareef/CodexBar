@@ -3061,6 +3061,21 @@ html {
   display: none;
 }
 
+/* Tray card content — tighten spacing for compact panel */
+.menu-surface--tray .menu-card__divider {
+  margin: 2px 0;
+}
+.menu-surface--tray .menu-card__content {
+  gap: 8px;
+}
+.menu-surface--tray .menu-metric {
+  gap: 4px;
+}
+.menu-surface--tray .menu-metric__title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
 /* Tray footer — match macOS NSMenuItem native look (13pt, ~22px row height) */
 .menu-surface--tray .menu-surface__footer {
   padding: 4px 0 2px;
