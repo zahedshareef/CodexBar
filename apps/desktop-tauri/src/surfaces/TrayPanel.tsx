@@ -51,14 +51,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const sorted = useMemo(() => sortProviders(providers), [providers]);
 
   // null = overview (all providers), string = single provider detail
-  // Default to first non-error provider (like macOS remembers last selected)
+  // Default to overview like macOS — shows all cards sorted by priority
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
-    () => {
-      if (DEMO_ENABLED) return "codex"; // match macOS demo screenshot
-      const s = sortProviders(providers);
-      const first = s.find((p) => !p.error);
-      return first ? first.providerId : null;
-    },
+    null,
   );
 
   // Cards to display based on mode
@@ -111,9 +106,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
   const footerRows: MenuFooterRow[] = [
     { icon: "↻", label: "Refresh", onClick: refresh },
-    { icon: "", label: "Settings…", onClick: openSettings },
-    { icon: "", label: "About CodexBar", onClick: openAbout },
-    { icon: "", label: "Quit", onClick: quitApp },
+    { icon: "⚙", label: "Settings\u2026", onClick: openSettings },
+    { icon: "ℹ", label: "About CodexBar", onClick: openAbout },
+    { icon: "⏻", label: "Quit", onClick: quitApp },
   ];
 
   const handleGridClick = useCallback(
