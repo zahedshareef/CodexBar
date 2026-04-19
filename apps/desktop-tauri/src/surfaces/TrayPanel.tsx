@@ -153,6 +153,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           </button>
         ))}
       </div>
+      <div className="menu-stack__sep" />
       <div className="menu-stack">
         {sorted.map((p, idx) => (
           <Fragment key={p.providerId}>

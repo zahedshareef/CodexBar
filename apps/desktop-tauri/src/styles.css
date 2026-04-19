@@ -2993,7 +2993,7 @@ html {
 /* Tray name + email */
 .menu-surface--tray .menu-card__name {
   font-size: 13px;
-  font-weight: 500; /* macOS .headline is semibold by default */
+  font-weight: 600; /* macOS .headline is semibold by default */
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
