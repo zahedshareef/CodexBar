@@ -2981,16 +2981,28 @@ html {
 .menu-surface--tray .menu-card__subtitle--error {
   font-size: 10px;
 }
-/* Tray name-group — row layout like macOS (name left, email right on same line) */
+/* Tray name-group — row layout like macOS: HStack { name — Spacer — email } */
 .menu-surface--tray .menu-card__name-group {
   flex-direction: row;
-  align-items: center;
+  align-items: baseline;
+  justify-content: space-between;
   gap: 6px;
+  width: 100%;
 }
 .menu-surface--tray .menu-card__email {
   flex: 0 1 auto;
   text-align: right;
   max-width: 55%;
+  font-size: 12px; /* macOS .subheadline = 12pt */
+}
+/* Tray plan badge — plain text like macOS (not a pill) */
+.menu-surface--tray .menu-card__plan-badge {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 /* Tray footer — tighter padding like macOS */
 .menu-surface--tray .menu-surface__footer {
