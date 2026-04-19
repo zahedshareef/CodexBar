@@ -2970,9 +2970,9 @@ html {
 }
 /* Selected card — subtle blue-tinted background like macOS active provider */
 .menu-surface--tray .menu-stack__item--selected {
-  background: rgba(30, 60, 120, 0.35);
+  background: rgba(30, 55, 110, 0.28);
   border-radius: 8px;
-  padding: 6px 4px;
+  padding: 5px 4px;
   margin: 0 -4px;
 }
 /* Tray separators — subtle hairline like macOS */
@@ -3108,14 +3108,15 @@ html {
   display: none;
 }
 
-/* Tray footer — match macOS NSMenuItem native look (13pt, ~22px row height) */
+/* Tray footer — match macOS NSMenuItem native look (13pt, ~20px row height) */
 .menu-surface--tray .menu-surface__footer {
-  padding: 4px 0 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.10);
+  padding: 2px 0 1px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .menu-surface--tray .menu-surface__footer-row {
-  padding: 3px 6px;
+  padding: 2px 6px;
   font-size: 13px;
+  line-height: 1.3;
 }
 .menu-surface--tray .menu-surface__footer-icon {
   font-size: 13px;
