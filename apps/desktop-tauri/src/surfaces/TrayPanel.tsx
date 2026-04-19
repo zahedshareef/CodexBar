@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
@@ -52,50 +52,14 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const sorted = useMemo(() => sortProviders(providers), [providers]);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const activeIdx = Math.min(selectedIdx, Math.max(0, sorted.length - 1));
-  const surfaceRef = useRef<HTMLDivElement>(null);
 
-  // Auto-resize the Tauri window to fit content (max 660px like macOS).
+  // Set the Tauri window to the fixed tray panel size (310×660 like macOS).
+  // The CSS flex layout handles scrolling the body while pinning the footer.
   useEffect(() => {
-    const el = surfaceRef.current;
-    if (!el) return;
     const TRAY_WIDTH = 310;
-    const MAX_HEIGHT = 660;
-
-    // Clear previous constraints so we get the natural content height
-    el.style.height = "";
-    el.style.overflow = "";
-    const surface = el.querySelector<HTMLElement>(".menu-surface--tray");
-    const body = el.querySelector<HTMLElement>(".menu-surface__body");
-    if (surface) {
-      surface.style.height = "";
-      surface.style.maxHeight = "";
-    }
-    if (body) {
-      body.style.overflow = "visible";
-    }
-
-    // First set the final width so content reflows correctly
-    void getCurrentWindow()
-      .setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT))
-      .then(() => {
-        requestAnimationFrame(() => {
-          const fullHeight = el.scrollHeight;
-          const windowHeight = Math.min(MAX_HEIGHT, Math.max(180, fullHeight));
-          // Restore body overflow before applying final size
-          if (body) body.style.overflow = "";
-          void getCurrentWindow()
-            .setSize(new LogicalSize(TRAY_WIDTH, windowHeight))
-            .then(() => {
-              el.style.height = `${windowHeight}px`;
-              el.style.overflow = "hidden";
-              if (surface) {
-                surface.style.height = `${windowHeight}px`;
-                surface.style.maxHeight = `${windowHeight}px`;
-              }
-            });
-        });
-      });
-  }, [sorted, isRefreshing]);
+    const TRAY_HEIGHT = 660;
+    void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, TRAY_HEIGHT));
+  }, []);
 
   const openSettings = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "general" });
@@ -142,23 +106,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
   if (sorted.length === 0) {
     return (
-      <div ref={surfaceRef}>
-        <MenuSurface
-          variant="tray"
-          onRefresh={refresh}
-          isRefreshing={isRefreshing}
-          actions={headerActions}
-          banner={banner}
-          footerRows={footerRows}
-        >
-          <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
-        </MenuSurface>
-      </div>
-    );
-  }
-
-  return (
-    <div ref={surfaceRef}>
       <MenuSurface
         variant="tray"
         onRefresh={refresh}
@@ -167,6 +114,20 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         banner={banner}
         footerRows={footerRows}
       >
+        <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
+      </MenuSurface>
+    );
+  }
+
+  return (
+    <MenuSurface
+      variant="tray"
+      onRefresh={refresh}
+      isRefreshing={isRefreshing}
+      actions={headerActions}
+      banner={banner}
+      footerRows={footerRows}
+    >
       <div className="provider-grid">
         {sorted.map((p, idx) => (
           <button
@@ -196,7 +157,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           </Fragment>
         ))}
       </div>
-      </MenuSurface>
-    </div>
+    </MenuSurface>
   );
 }

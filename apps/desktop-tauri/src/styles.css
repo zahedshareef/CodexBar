@@ -2940,6 +2940,7 @@ html {
   padding: 6px 10px; /* match upstream .padding(.horizontal, 10) */
   display: flex;
   flex-direction: column;
+  height: 100vh;
   box-sizing: border-box;
 }
 .menu-surface--tray .menu-surface__body {
@@ -2956,6 +2957,8 @@ html {
 }
 .menu-surface--tray .menu-stack {
   gap: 2px; /* macOS cards are tightly packed */
+  max-height: none;
+  overflow-y: visible;
 }
 
 /* Tray cards — blend with panel bg like macOS (no visible card containers) */
