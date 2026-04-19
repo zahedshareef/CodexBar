@@ -2964,7 +2964,7 @@ html {
 
 /* Tray cards — rounded semi-transparent containers matching macOS panel */
 .menu-surface--tray .menu-stack__item {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.10);
   border: none;
   border-radius: 8px;
   padding: 6px 8px;
@@ -2992,7 +2992,7 @@ html {
 }
 /* Tray grid — subtle rounded container to match macOS grid area */
 .menu-surface--tray .provider-grid {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
   border: none;
   border-radius: 8px;
   padding: 6px 6px 4px;
@@ -3172,24 +3172,25 @@ html {
   display: none;
 }
 
-/* Tray footer — match macOS NSMenuItem native look (11pt, ~18px row height) */
+/* Tray footer — match macOS NSMenuItem native look (10pt, ~16px row height) */
 .menu-surface--tray .menu-surface__footer {
-  padding: 2px 0 1px;
+  padding: 1px 0 0;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .menu-surface--tray .menu-surface__footer-row {
   padding: 1px 6px;
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: 10px;
+  line-height: 1.3;
+  min-height: 16px;
 }
 /* Indent must override the tray padding above so iconless rows (Settings /
    About / Quit) align with the iconified Refresh row. */
 .menu-surface--tray .menu-surface__footer-row--no-icon {
-  padding-left: calc(6px + 14px + 6px);
+  padding-left: calc(6px + 12px + 5px);
 }
 .menu-surface--tray .menu-surface__footer-icon {
-  font-size: 11px;
-  width: 14px;
+  font-size: 10px;
+  width: 12px;
   opacity: 0.55;
 }
 
