@@ -13,6 +13,7 @@ import MenuSurface, {
 } from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
 import { ProviderIcon } from "../components/providers/ProviderIcon";
+import { DEMO_ENABLED, DEMO_PROVIDERS } from "../lib/demoProviders";
 
 function getProviderStatus(
   p: ProviderUsageSnapshot,
@@ -41,7 +42,8 @@ function sortProviders(
  * provider's full card is rendered in sequence separated by dividers.
  */
 export default function TrayPanel({ state }: { state: BootstrapState }) {
-  const { providers, isRefreshing, refresh } = useProviders();
+  const { providers: realProviders, isRefreshing, refresh } = useProviders();
+  const providers = DEMO_ENABLED ? DEMO_PROVIDERS : realProviders;
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
