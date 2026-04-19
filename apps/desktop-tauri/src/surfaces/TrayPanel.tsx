@@ -62,13 +62,26 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     return match ? [match] : sorted;
   }, [sorted, selectedProviderId]);
 
-  // Set the Tauri window to the fixed tray panel size (310×660 like macOS).
-  // The CSS flex layout handles scrolling the body while pinning the footer.
+  // Dynamically size the Tauri window to fit content, capped at 660px.
   useEffect(() => {
     const TRAY_WIDTH = 310;
-    const TRAY_HEIGHT = 660;
-    void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, TRAY_HEIGHT));
-  }, []);
+    const MAX_HEIGHT = 660;
+    // Temporarily unconstrain height to measure natural content height
+    const root = document.documentElement;
+    const surface = root.querySelector<HTMLElement>(".menu-surface--tray");
+    if (surface) {
+      const prev = surface.style.height;
+      surface.style.height = "auto";
+      requestAnimationFrame(() => {
+        const contentHeight = surface.scrollHeight;
+        surface.style.height = prev || "";
+        const height = Math.min(Math.max(contentHeight, 200), MAX_HEIGHT);
+        void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, height));
+      });
+    } else {
+      void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
+    }
+  }, [visibleProviders]);
 
   const openSettings = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "general" });
