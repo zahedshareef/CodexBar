@@ -41,7 +41,7 @@ fn remove_dwm_border(window: &tauri::WebviewWindow) {
     }
 
     #[link(name = "dwmapi")]
-    extern "system" {
+    unsafe extern "system" {
         fn DwmExtendFrameIntoClientArea(
             hwnd: isize,
             margins: *const MARGINS,
