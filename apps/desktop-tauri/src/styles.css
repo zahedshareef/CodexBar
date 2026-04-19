@@ -2991,6 +2991,12 @@ html {
   border-radius: 0;
   padding: 4px 3px 2px;
 }
+/* Divider between provider grid and card stack — matches macOS */
+.menu-surface--tray .provider-grid__divider {
+  height: 1px;
+  margin: 4px 0 2px;
+  background: rgba(255, 255, 255, 0.10);
+}
 
 /* Tray font sizing — match macOS: .headline=13pt, .footnote=10pt */
 .menu-surface--tray .menu-card {

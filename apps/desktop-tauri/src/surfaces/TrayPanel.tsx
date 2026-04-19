@@ -184,7 +184,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           </button>
         ))}
       </div>
-      <div className="menu-stack__sep" />
+      <div className="provider-grid__divider" />
       <div className="menu-stack">
         {visibleProviders.map((p, idx) => (
           <Fragment key={p.providerId}>
