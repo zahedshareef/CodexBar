@@ -2,7 +2,8 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 
 use codexbar::core::{
-    FetchContext, ProviderFetchResult, ProviderId, RateWindow, instantiate_provider,
+    FetchContext, ProviderFetchResult, ProviderId, ProviderMetadata, RateWindow,
+    instantiate_provider,
 };
 use codexbar::locale;
 use codexbar::settings::{
@@ -89,7 +90,9 @@ pub struct ProviderUsageSnapshot {
     pub provider_id: String,
     pub display_name: String,
     pub primary: RateWindowSnapshot,
+    pub primary_label: Option<String>,
     pub secondary: Option<RateWindowSnapshot>,
+    pub secondary_label: Option<String>,
     pub model_specific: Option<RateWindowSnapshot>,
     pub tertiary: Option<RateWindowSnapshot>,
     pub cost: Option<CostSnapshotBridge>,
@@ -117,7 +120,11 @@ fn pace_stage_str(stage: codexbar::core::PaceStage) -> &'static str {
 }
 
 impl ProviderUsageSnapshot {
-    fn from_fetch_result(id: ProviderId, result: &ProviderFetchResult) -> Self {
+    fn from_fetch_result(
+        id: ProviderId,
+        metadata: &ProviderMetadata,
+        result: &ProviderFetchResult,
+    ) -> Self {
         let usage = &result.usage;
 
         let pace =
@@ -143,10 +150,15 @@ impl ProviderUsageSnapshot {
             provider_id: id.cli_name().to_string(),
             display_name: id.display_name().to_string(),
             primary: RateWindowSnapshot::from_rate_window(&usage.primary),
+            primary_label: Some(metadata.session_label.to_string()),
             secondary: usage
                 .secondary
                 .as_ref()
                 .map(RateWindowSnapshot::from_rate_window),
+            secondary_label: usage
+                .secondary
+                .as_ref()
+                .map(|_| metadata.weekly_label.to_string()),
             model_specific: usage
                 .model_specific
                 .as_ref()
@@ -176,7 +188,7 @@ impl ProviderUsageSnapshot {
         }
     }
 
-    fn from_error(id: ProviderId, error: String) -> Self {
+    fn from_error(id: ProviderId, metadata: &ProviderMetadata, error: String) -> Self {
         Self {
             provider_id: id.cli_name().to_string(),
             display_name: id.display_name().to_string(),
@@ -190,7 +202,9 @@ impl ProviderUsageSnapshot {
                 reserve_percent: None,
                 reserve_description: None,
             },
+            primary_label: Some(metadata.session_label.to_string()),
             secondary: None,
+            secondary_label: None,
             model_specific: None,
             tertiary: None,
             cost: None,
@@ -1076,6 +1090,7 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
 
         handles.push(tokio::spawn(async move {
             let provider = instantiate_provider(id);
+            let metadata = provider.metadata().clone();
 
             let snapshot = match tokio::time::timeout(
                 PROVIDER_FETCH_TIMEOUT,
@@ -1083,9 +1098,9 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
             )
             .await
             {
-                Ok(Ok(result)) => ProviderUsageSnapshot::from_fetch_result(id, &result),
-                Ok(Err(e)) => ProviderUsageSnapshot::from_error(id, e.to_string()),
-                Err(_) => ProviderUsageSnapshot::from_error(id, "Timeout".to_string()),
+                Ok(Ok(result)) => ProviderUsageSnapshot::from_fetch_result(id, &metadata, &result),
+                Ok(Err(e)) => ProviderUsageSnapshot::from_error(id, &metadata, e.to_string()),
+                Err(_) => ProviderUsageSnapshot::from_error(id, &metadata, "Timeout".to_string()),
             };
 
             // Emit per-provider update event.

@@ -295,7 +295,12 @@ impl CodexApi {
             .and_then(|v| v.as_i64())
             .and_then(|ts| Utc.timestamp_opt(ts, 0).single());
 
-        RateWindow::with_details(used_percent, window_minutes, reset_at, None)
+        RateWindow::with_details(
+            used_percent,
+            window_minutes,
+            reset_at,
+            format_reset_countdown(reset_at),
+        )
     }
 
     fn extract_credits(&self, json: &serde_json::Value) -> Option<CostSnapshot> {
@@ -334,11 +339,12 @@ impl CodexApi {
         // Extract primary rate window
         let primary = if let Some(ref rate_limit) = response.rate_limit {
             if let Some(ref primary_window) = rate_limit.primary_window {
+                let reset_at = timestamp_to_datetime(primary_window.reset_at);
                 RateWindow::with_details(
                     primary_window.used_percent as f64,
                     primary_window.limit_window_seconds.map(|s| (s / 60) as u32),
-                    timestamp_to_datetime(primary_window.reset_at),
-                    None,
+                    reset_at,
+                    format_reset_countdown(reset_at),
                 )
             } else {
                 RateWindow::new(0.0)
@@ -353,11 +359,12 @@ impl CodexApi {
             .as_ref()
             .and_then(|rl| rl.secondary_window.as_ref())
             .map(|window| {
+                let reset_at = timestamp_to_datetime(window.reset_at);
                 RateWindow::with_details(
                     window.used_percent as f64,
                     window.limit_window_seconds.map(|s| (s / 60) as u32),
-                    timestamp_to_datetime(window.reset_at),
-                    None,
+                    reset_at,
+                    format_reset_countdown(reset_at),
                 )
             });
 
@@ -367,11 +374,12 @@ impl CodexApi {
             .as_ref()
             .and_then(|rl| rl.code_review_window.as_ref())
             .map(|window| {
+                let reset_at = timestamp_to_datetime(window.reset_at);
                 RateWindow::with_details(
                     window.used_percent as f64,
                     window.limit_window_seconds.map(|s| (s / 60) as u32),
-                    timestamp_to_datetime(window.reset_at),
-                    None,
+                    reset_at,
+                    format_reset_countdown(reset_at),
                 )
             });
 
@@ -475,6 +483,25 @@ impl CreditDetails {
 
 fn timestamp_to_datetime(timestamp: Option<i64>) -> Option<DateTime<Utc>> {
     timestamp.and_then(|ts| Utc.timestamp_opt(ts, 0).single())
+}
+
+fn format_reset_countdown(reset_at: Option<DateTime<Utc>>) -> Option<String> {
+    let dt = reset_at?;
+    let now = Utc::now();
+    if dt <= now {
+        return Some("now".to_string());
+    }
+    let diff = dt - now;
+    let hours = diff.num_hours();
+    let mins = diff.num_minutes() % 60;
+    if hours >= 24 {
+        let days = hours / 24;
+        Some(format!("Resets in {}d {}h", days, hours % 24))
+    } else if hours > 0 {
+        Some(format!("Resets in {}h {}m", hours, mins))
+    } else {
+        Some(format!("Resets in {}m", mins))
+    }
 }
 
 fn parse_chatgpt_base_url(config_content: &str) -> Option<String> {
