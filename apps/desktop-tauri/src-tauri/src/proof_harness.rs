@@ -218,9 +218,9 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
     let monitor = window.primary_monitor().ok()??;
     let pos = monitor.position();
     let size = monitor.size();
-    // Place roughly centred: 25% from left, 20% from top.
+    // Place roughly centred: 25% from left, near top for tray fit.
     let x = pos.x + (size.width as i32 / 4);
-    let y = pos.y + (size.height as i32 / 5);
+    let y = pos.y + 50; // Near top so tray panel fits vertically
     Some((x, y))
 }
 
