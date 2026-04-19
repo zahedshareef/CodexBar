@@ -2940,7 +2940,6 @@ html {
   padding: 6px 10px; /* match upstream .padding(.horizontal, 10) */
   display: flex;
   flex-direction: column;
-  height: 100%;
   box-sizing: border-box;
 }
 .menu-surface--tray .menu-surface__body {

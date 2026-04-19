@@ -55,17 +55,20 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
 
   // Auto-resize the Tauri window to fit content (max 660px like macOS).
-  // First render: measure natural height, cap at MAX_HEIGHT, resize window.
-  // Then constrain wrapper so the CSS flex layout inside handles scrolling.
   useEffect(() => {
     const el = surfaceRef.current;
     if (!el) return;
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 660;
 
-    // Remove constraints so we can measure natural height
+    // Clear any previous constraints so scrollHeight reflects natural content
     el.style.height = "";
     el.style.overflow = "";
+    const surface = el.querySelector<HTMLElement>(".menu-surface--tray");
+    if (surface) {
+      surface.style.height = "";
+      surface.style.maxHeight = "";
+    }
 
     const frame = requestAnimationFrame(() => {
       const fullHeight = el.scrollHeight;
@@ -73,8 +76,14 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       void getCurrentWindow()
         .setSize(new LogicalSize(TRAY_WIDTH, windowHeight))
         .then(() => {
+          // Pin both wrapper and surface to the window height so the flex
+          // body can scroll while footer stays at the bottom.
           el.style.height = `${windowHeight}px`;
           el.style.overflow = "hidden";
+          if (surface) {
+            surface.style.height = `${windowHeight}px`;
+            surface.style.maxHeight = `${windowHeight}px`;
+          }
         });
     });
     return () => cancelAnimationFrame(frame);
