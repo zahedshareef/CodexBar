@@ -51,11 +51,11 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const sorted = useMemo(() => sortProviders(providers), [providers]);
 
   // null = overview (all providers), string = single provider detail
-  // Default to first provider (highest usage) like macOS
+  // Default to first non-error provider (like macOS remembers last selected)
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
     () => {
+      if (DEMO_ENABLED) return "codex"; // match macOS demo screenshot
       const s = sortProviders(providers);
-      // Pick first non-error provider
       const first = s.find((p) => !p.error);
       return first ? first.providerId : null;
     },
