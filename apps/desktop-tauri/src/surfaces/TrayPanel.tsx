@@ -57,16 +57,25 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   );
 
   // Cards to display based on mode
-  // Overview: non-error active providers first, then error cards (like macOS)
-  // Detail: selected provider card + error cards
+  // Overview: enabled providers (have account or error) — matches macOS enabledProviders()
+  // Detail: only the selected provider's card (macOS shows single provider)
   const visibleProviders = useMemo(() => {
-    const active = sorted.filter((p) => p.accountEmail || p.error);
-    const normal = active.filter((p) => !p.error);
-    const errors = active.filter((p) => !!p.error);
-    if (selectedProviderId === null) return [...normal, ...errors];
+    if (selectedProviderId === null) {
+      // Overview: only show "enabled" providers (accountEmail || error), non-error first
+      const enabled = sorted.filter((p) => p.accountEmail || p.error);
+      const normal = enabled.filter((p) => !p.error);
+      const errors = enabled.filter((p) => !!p.error);
+      return [...normal, ...errors];
+    }
+    // Detail: show ONLY the selected provider (macOS behavior — no appended errors)
     const match = sorted.find((p) => p.providerId === selectedProviderId);
-    if (!match) return [...normal, ...errors];
-    return [match, ...errors.filter((p) => p.providerId !== selectedProviderId)];
+    if (!match) {
+      const enabled = sorted.filter((p) => p.accountEmail || p.error);
+      const normal = enabled.filter((p) => !p.error);
+      const errors = enabled.filter((p) => !!p.error);
+      return [...normal, ...errors];
+    }
+    return [match];
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
@@ -109,9 +118,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
   const footerRows: MenuFooterRow[] = [
     { icon: "↻", label: "Refresh", onClick: refresh },
-    { icon: "⚙", label: "Settings\u2026", onClick: openSettings },
-    { icon: "ℹ", label: "About CodexBar", onClick: openAbout },
-    { icon: "⏻", label: "Quit", onClick: quitApp },
+    { icon: "", label: "Settings\u2026", onClick: openSettings },
+    { icon: "", label: "About CodexBar", onClick: openAbout },
+    { icon: "", label: "Quit", onClick: quitApp },
   ];
 
   const handleGridClick = useCallback(
