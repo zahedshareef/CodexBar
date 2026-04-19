@@ -2941,6 +2941,7 @@ html {
   display: flex;
   flex-direction: column;
   height: 100%;
+  box-sizing: border-box;
 }
 .menu-surface--tray .menu-surface__body {
   flex: 1 1 auto;
