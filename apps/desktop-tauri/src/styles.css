@@ -90,7 +90,7 @@
   --provider-row-drop-outline: rgba(10, 132, 255, 0.5);
   --provider-status-ok: #22c55e;
   --provider-status-stale: #f59e0b;
-  --provider-status-error: #ef4444;
+  --provider-status-error: #ff453a; /* macOS NSColor.systemRed */
   --provider-status-disabled: rgba(235, 235, 245, 0.28);
   --provider-status-loading: #60a5fa;
   --provider-icon-ring: rgba(255, 255, 255, 0.06);
@@ -143,6 +143,14 @@
   --chart-tooltip-bg: rgba(44, 44, 46, 0.96);
   --chart-tooltip-border: rgba(255, 255, 255, 0.12);
   --chart-tooltip-text: #f5f5f7;
+
+  /* Tray popover — approximates NSVisualEffectView "menu" material.
+     Real macOS uses a vibrant blur; we fall back to an opaque/elevated
+     surface plus a subtle hairline divider to stay flush with the
+     window edge like the upstream NSMenu. */
+  --menu-popover-bg: var(--app-bg);
+  --menu-popover-divider: rgba(255, 255, 255, 0.10);
+  --menu-popover-divider-strong: rgba(255, 255, 255, 0.16);
 }
 
 [data-theme="dark"] {
@@ -175,13 +183,12 @@
   --provider-row-drop-outline: rgba(10, 132, 255, 0.5);
   --provider-status-ok: #22c55e;
   --provider-status-stale: #f59e0b;
-  --provider-status-error: #ef4444;
+  --provider-status-error: #ff453a; /* macOS NSColor.systemRed */
   --provider-status-disabled: rgba(235, 235, 245, 0.28);
   --provider-status-loading: #60a5fa;
   --provider-icon-ring: rgba(255, 255, 255, 0.06);
   --provider-icon-bg: rgba(255, 255, 255, 0.04);
 
-  /* Phase 9 — Tray / pop-out pace badges + usage bar tokens. */
   --usage-bar-track: rgba(255, 255, 255, 0.15);
   --usage-bar-normal: #f0883e;
   --usage-bar-high: #ffd166;
@@ -1977,7 +1984,6 @@ html {
   border-radius: 8px;
   cursor: pointer;
   user-select: none;
-  background: transparent;
   border: 1px solid transparent;
   transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
   outline: none;
@@ -2963,24 +2969,18 @@ html {
 }
 /* Tray grid — minimal container */
 .menu-surface--tray .provider-grid {
-  background: rgba(255, 255, 255, 0.03);
+  background: none;
   border: none;
-  border-radius: 8px;
+  border-radius: 0;
+  padding: 4px 3px 2px;
 }
-/* Tray card compactness — match macOS density */
+
+/* Tray font sizing — match macOS: .headline=13pt, .footnote=10pt */
 .menu-surface--tray .menu-card {
   gap: 2px;
   padding: 2px 6px; /* macOS: .padding(.horizontal, 16) minus surface 10px */
 }
-/* Tray font sizing — match macOS: .headline=13pt, .footnote=10pt */
-.menu-surface--tray .menu-card__name {
-  font-size: 13px;
-  font-weight: 600; /* macOS .headline is semibold by default */
-}
-.menu-surface--tray .menu-card__subtitle,
-.menu-surface--tray .menu-card__subtitle--error {
-  font-size: 10px;
-}
+
 /* Tray name-group — row layout like macOS: HStack { name — Spacer — email } */
 .menu-surface--tray .menu-card__name-group {
   flex-direction: row;
@@ -2989,12 +2989,31 @@ html {
   gap: 6px;
   width: 100%;
 }
+
+/* Tray name + email */
+.menu-surface--tray .menu-card__name {
+  font-size: 13px;
+  font-weight: 500; /* macOS .headline is semibold by default */
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .menu-surface--tray .menu-card__email {
   flex: 0 1 auto;
   text-align: right;
   max-width: 55%;
   font-size: 12px; /* macOS .subheadline = 12pt */
+  color: var(--text-secondary);
 }
+
+/* Tray subtitle + error — match macOS .footnote=10pt */
+.menu-surface--tray .menu-card__subtitle,
+.menu-surface--tray .menu-card__subtitle--error {
+  font-size: 10px;
+}
+
 /* Tray plan badge — plain text like macOS (not a pill) */
 .menu-surface--tray .menu-card__plan-badge {
   background: none;
@@ -3004,34 +3023,11 @@ html {
   font-weight: 400;
   color: var(--text-secondary);
 }
-/* Tray footer — tighter padding like macOS */
-.menu-surface--tray .menu-surface__footer {
-  padding: 4px 0 2px;
-}
-.menu-surface--tray .menu-surface__footer-row {
-  padding: 3px 6px;
-  font-size: 12px;
-}
 
-.menu-stack__item {
-  display: flex;
-  flex-direction: column;
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  padding: 6px 8px;
-}
-
-[data-theme="light"] .menu-stack__item {
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-/* Spacing between stacked cards — macOS uses gap, not a visible divider. */
-.menu-stack__sep {
-  height: 0;
-  margin: 4px 0;
-  background: none;
+/* Hide status dots in tray grid — macOS shows weekly indicators only on hover,
+   not persistent colored dots under every icon */
+.menu-surface--tray .provider-grid__dot {
+  display: none;
 }
 
 /* ── Provider card — direct mirror of UsageMenuCardView ─────────────── */
@@ -3065,8 +3061,8 @@ html {
    gives each card a recognizable provider mark before the name. */
 .menu-card__name-group {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 1px;
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -3811,6 +3807,9 @@ html {
   display: flex;
   flex-direction: column;
   gap: 0;
+  border-radius: 0;
+  background: transparent;
+  transition: none;
 }
 .settings-section__group > .settings-field {
   border: none;
@@ -3869,15 +3868,19 @@ html {
 
 /* ── Provider sidebar (Preferences › Providers) ───────────────────── */
 .provider-split {
+  display: flex;
   gap: 16px;
   min-height: 420px;
 }
 .providers-sidebar {
   width: var(--sidebar-width);
-  flex: 0 0 var(--sidebar-width);
-  padding: 6px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.03);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.07);
 }
 [data-theme="light"] .providers-sidebar {
@@ -3985,21 +3988,9 @@ html {
 }
 .about-actions {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-}
-.about-update-row {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   gap: 8px;
-}
-.about-copyright {
-  margin: 0;
-  font-size: var(--font-caption2);
-  color: var(--text-muted);
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 /* ── Refresh icon spin animation reused by header button ──────────── */
@@ -4031,7 +4022,7 @@ html {
   line-height: 1.4;
 }
 
-/* Quit button row (right-aligned) */
+/* ── Quit button row (right-aligned) */
 .settings-quit-row {
   display: flex;
   justify-content: flex-end;
