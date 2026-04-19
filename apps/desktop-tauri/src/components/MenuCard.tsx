@@ -227,31 +227,31 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const hasDetails = !provider.error && (hasMetrics || hasCost || hasPace || hasCharts);
 
   return (
-    <article className="menu-card">
+    <article className={`menu-card${provider.error ? " menu-card--error" : ""}`}>
       <header className="menu-card__header">
         <div className="menu-card__title-row">
           <div className="menu-card__name-group">
             <span className="menu-card__name">{provider.displayName}</span>
-            {email && <span className="menu-card__email">{email}</span>}
+            {!provider.error && email && <span className="menu-card__email">{email}</span>}
           </div>
         </div>
-        <div className="menu-card__subtitle-row">
-          {provider.error ? (
-            <>
-              <span className="menu-card__subtitle menu-card__subtitle--error">
-                {provider.error}
-              </span>
-              <CopyIconButton text={provider.error} />
-            </>
-          ) : (
+        {provider.error ? (
+          <div className="menu-card__subtitle-row">
+            <span className="menu-card__subtitle menu-card__subtitle--error">
+              {provider.error}
+            </span>
+            <CopyIconButton text={provider.error} />
+          </div>
+        ) : (
+          <div className="menu-card__subtitle-row">
             <span className="menu-card__subtitle">
               {t("DetailUpdatedPrefix")} {formatRelative(provider.updatedAt)}
             </span>
-          )}
-          {provider.planName && (
-            <span className="menu-card__plan-badge">{provider.planName}</span>
-          )}
-        </div>
+            {provider.planName && (
+              <span className="menu-card__plan-badge">{provider.planName}</span>
+            )}
+          </div>
+        )}
       </header>
 
       {hasDetails && <div className="menu-card__divider" />}

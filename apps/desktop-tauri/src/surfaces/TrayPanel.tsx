@@ -51,15 +51,24 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const sorted = useMemo(() => sortProviders(providers), [providers]);
 
   // null = overview (all providers), string = single provider detail
+  // Default to first provider (highest usage) like macOS
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
-    null,
+    () => {
+      const s = sortProviders(providers);
+      // Pick first non-error provider
+      const first = s.find((p) => !p.error);
+      return first ? first.providerId : null;
+    },
   );
 
   // Cards to display based on mode
+  // Detail mode: selected provider card + error cards (like macOS)
   const visibleProviders = useMemo(() => {
     if (selectedProviderId === null) return sorted;
     const match = sorted.find((p) => p.providerId === selectedProviderId);
-    return match ? [match] : sorted;
+    if (!match) return sorted;
+    const errors = sorted.filter((p) => p.error && p.providerId !== selectedProviderId);
+    return [match, ...errors];
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
