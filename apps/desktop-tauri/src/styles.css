@@ -3047,23 +3047,12 @@ html {
 
 /* Tray subtitle + error — match macOS .footnote=10pt */
 .menu-surface--tray .menu-card__subtitle,
-.menu-surface--tray .menu-card__subtitle--error {
+.menu-surface--tray .menu-card__error-text {
   font-size: 10px;
 }
 /* Tray "Updated just now" — green tint like macOS */
 .menu-surface--tray .menu-card__subtitle:not(.menu-card__subtitle--error) {
   color: #34c759;
-}
-/* Tray error subtitle — allow full wrapping (macOS shows complete error text) */
-.menu-surface--tray .menu-card__subtitle--error {
-  -webkit-line-clamp: unset;
-  -webkit-box-orient: unset;
-  overflow: hidden;
-  white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  text-overflow: unset;
-  padding-bottom: 2px;
 }
 
 /* Copy-to-clipboard button — matches macOS CopyIconButton (doc.on.doc, 18×18) */
@@ -3291,6 +3280,29 @@ html {
 .menu-card__subtitle-row:has(.menu-card__subtitle--error) {
   align-items: flex-start;
   min-width: 0;
+}
+
+/* Error block — simple block layout that respects parent width for text wrapping.
+   Avoids the flex sizing issues that cause text to overflow the panel. */
+.menu-card__error-block {
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+.menu-card__error-text {
+  display: block;
+  font-size: 11px;
+  color: var(--provider-status-error);
+  line-height: 1.3;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  padding-right: 20px; /* space for copy button */
+}
+.menu-card__error-block .menu-card__copy-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
 }
 
 /* subtitle: Font.footnote secondary ≈ 11px */

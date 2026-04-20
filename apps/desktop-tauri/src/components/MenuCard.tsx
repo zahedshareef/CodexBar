@@ -237,12 +237,8 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
           </div>
         </div>
         {provider.error ? (
-          <div className="menu-card__subtitle-row">
-            <div
-              className="menu-card__subtitle menu-card__subtitle--error"
-            >
-              {provider.error}
-            </div>
+          <div className="menu-card__error-block">
+            <span className="menu-card__error-text">{provider.error}</span>
             <CopyIconButton text={provider.error} />
           </div>
         ) : (
