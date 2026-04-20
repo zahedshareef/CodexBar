@@ -28,7 +28,7 @@ impl CodexProvider {
             metadata: ProviderMetadata {
                 id: ProviderId::Codex,
                 display_name: "Codex",
-                session_label: "3-Hour",
+                session_label: "Session",
                 weekly_label: "Weekly",
                 supports_opus: false,
                 supports_credits: true,

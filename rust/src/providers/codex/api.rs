@@ -492,13 +492,23 @@ fn format_reset_countdown(reset_at: Option<DateTime<Utc>>) -> Option<String> {
         return Some("now".to_string());
     }
     let diff = dt - now;
+    let total_mins = diff.num_minutes();
     let hours = diff.num_hours();
-    let mins = diff.num_minutes() % 60;
+    let mins = total_mins % 60;
     if hours >= 24 {
         let days = hours / 24;
-        Some(format!("Resets in {}d {}h", days, hours % 24))
+        let rem_h = hours % 24;
+        if rem_h == 0 {
+            Some(format!("Resets in {}d", days))
+        } else {
+            Some(format!("Resets in {}d {}h", days, rem_h))
+        }
     } else if hours > 0 {
-        Some(format!("Resets in {}h {}m", hours, mins))
+        if mins == 0 {
+            Some(format!("Resets in {}h", hours))
+        } else {
+            Some(format!("Resets in {}h {}m", hours, mins))
+        }
     } else {
         Some(format!("Resets in {}m", mins))
     }

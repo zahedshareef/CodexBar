@@ -58,9 +58,10 @@ impl RateWindowSnapshot {
     }
 
     /// Enrich with reserve info derived from pace analysis.
+    /// delta_percent = actual - expected; negative means ahead (in reserve).
     fn with_pace_reserve(mut self, pace: &codexbar::core::UsagePace) -> Self {
-        if pace.delta_percent > 0.0 {
-            self.reserve_percent = Some(pace.delta_percent.round());
+        if pace.delta_percent < 0.0 {
+            self.reserve_percent = Some(pace.delta_percent.abs().round());
             self.reserve_description = if pace.will_last_to_reset {
                 Some("Lasts until reset".to_string())
             } else {
