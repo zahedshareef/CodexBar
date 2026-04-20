@@ -3007,9 +3007,9 @@ html {
   background: transparent;
   border: none;
   border-radius: 0;
-  padding: 2px 12px 1px;
-  /* Auto-fit: compact when few providers, wrap to more rows when many */
-  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  padding: 2px 8px 1px;
+  /* macOS shows 7 icons per row at 310px width */
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
 }
 /* Divider between provider grid and card stack */
 .menu-surface--tray .provider-grid__divider {
@@ -3038,10 +3038,10 @@ html {
   width: 100%;
 }
 
-/* Tray name + email */
+/* Tray name + email — macOS: .font(.headline) = 13pt semibold */
 .menu-surface--tray .menu-card__name {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
