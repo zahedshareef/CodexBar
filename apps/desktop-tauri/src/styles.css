@@ -2938,7 +2938,7 @@ html {
   overflow: clip;
   border: none;
   box-shadow: none;
-  padding: 4px 6px;
+  padding: 4px 0;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -2971,7 +2971,7 @@ html {
   background: transparent;
   border: none;
   border-radius: 0;
-  padding: 4px 4px;
+  padding: 2px 0;
   min-width: 0;
   max-width: 100%;
   width: 100%;
@@ -3007,7 +3007,7 @@ html {
   background: transparent;
   border: none;
   border-radius: 0;
-  padding: 2px 2px 1px;
+  padding: 2px 12px 1px;
   /* Auto-fit: compact when few providers, wrap to more rows when many */
   grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
 }
@@ -3019,9 +3019,10 @@ html {
 }
 
 /* Tray font sizing — match macOS: .headline=13pt, .footnote=10pt */
+/* macOS: VStack(spacing: 6), .padding(.horizontal, 16), .padding(.top, 2), .padding(.bottom, 2) */
 .menu-surface--tray .menu-card {
-  gap: 4px;
-  padding: 0;
+  gap: 6px;
+  padding: 2px 16px;
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
@@ -3148,23 +3149,27 @@ html {
   font-size: 13px;
 }
 
-/* Tray card content — tighten spacing for compact panel */
+/* Tray card content — match macOS spacing values from SwiftUI source */
 .menu-surface--tray .menu-card__divider {
-  margin: 2px 0;
+  margin: 3px 0;
 }
+/* macOS: VStack(spacing: 12) for content sections */
 .menu-surface--tray .menu-card__content {
-  gap: 4px;
+  gap: 12px;
 }
+/* macOS: MetricRow VStack(spacing: 6) */
 .menu-surface--tray .menu-metric {
-  gap: 3px;
+  gap: 6px;
 }
+/* macOS: .font(.body) .fontWeight(.medium) for metric titles */
 .menu-surface--tray .menu-metric__title {
-  font-size: 11px;
-  font-weight: 400;
+  font-size: 13px;
+  font-weight: 500;
 }
+/* macOS: UsageProgressBar .frame(height: 6) */
 .menu-surface--tray .menu-metric__bar {
-  height: 4px;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: 3px;
   width: 100%;
   box-sizing: border-box;
   max-width: 100%;
@@ -3200,7 +3205,7 @@ html {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .menu-surface--tray .menu-surface__footer-row {
-  padding: 3px 8px;
+  padding: 3px 16px;
   font-size: 11px;
   line-height: 1.3;
   min-height: 18px;
@@ -3208,7 +3213,7 @@ html {
 /* Indent must override the tray padding above so iconless rows (Settings /
    About / Quit) align with the iconified Refresh row. */
 .menu-surface--tray .menu-surface__footer-row--no-icon {
-  padding-left: calc(8px + 14px + 8px);
+  padding-left: calc(16px + 14px + 8px);
 }
 .menu-surface--tray .menu-surface__footer-icon {
   font-size: 11px;
