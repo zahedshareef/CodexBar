@@ -2198,6 +2198,81 @@ pub fn play_notification_sound() -> Result<(), String> {
     Ok(())
 }
 
+/// Reposition the tray panel so its bottom-right corner stays anchored to
+/// the system-tray area. Called from the frontend after dynamic resize.
+#[tauri::command]
+pub fn reanchor_tray_panel(app: tauri::AppHandle) -> Result<(), String> {
+    use crate::window_positioner::{PanelSize, Rect};
+    use tauri::Manager;
+
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window unavailable".to_string())?;
+    let scale = window.scale_factor().unwrap_or(1.0).max(1.0);
+
+    // Use the window's current logical size (after JS resize).
+    let outer = window.outer_size().map_err(|e| e.to_string())?;
+    let panel_size = PanelSize {
+        width: (outer.width as f64 / scale).round() as u32,
+        height: (outer.height as f64 / scale).round() as u32,
+    };
+
+    // Prefer the saved tray anchor from a real click; fall back to
+    // bottom-right of the primary work area.
+    let monitor = window
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.current_monitor().ok().flatten())
+        .ok_or_else(|| "no monitor".to_string())?;
+
+    let work_area = Rect {
+        x: monitor.work_area().position.x,
+        y: monitor.work_area().position.y,
+        width: monitor.work_area().size.width,
+        height: monitor.work_area().size.height,
+    };
+
+    let (x, y) = {
+        let st = app.try_state::<std::sync::Mutex<crate::state::AppState>>();
+        let anchor = st.and_then(|s| s.lock().ok()?.tray_anchor);
+        if let Some(a) = anchor {
+            crate::window_positioner::calculate_panel_position(
+                &Rect {
+                    x: a.x,
+                    y: a.y,
+                    width: a.width,
+                    height: a.height,
+                },
+                &work_area,
+                &panel_size,
+                scale,
+            )
+        } else {
+            // Bottom-right fallback
+            crate::window_positioner::calculate_popout_position(
+                None,
+                &work_area,
+                &panel_size,
+                scale,
+            )
+        }
+    };
+
+    let pos = tauri::PhysicalPosition::new(
+        (x as f64 / scale).round() as i32,
+        (y as f64 / scale).round() as i32,
+    );
+    tracing::info!(
+        "reanchor_tray_panel: panel={}x{} work_area=({},{} {}x{}) => ({},{}) os=>({},{})",
+        panel_size.width, panel_size.height,
+        work_area.x, work_area.y, work_area.width, work_area.height,
+        x, y, pos.x, pos.y
+    );
+    let _ = window.set_position(pos);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn quit_app(app: tauri::AppHandle) {
     app.exit(0);

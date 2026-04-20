@@ -322,6 +322,10 @@ export function playNotificationSound(): Promise<void> {
   return invoke<void>("play_notification_sound");
 }
 
+export function reanchorTrayPanel(): Promise<void> {
+  return invoke<void>("reanchor_tray_panel");
+}
+
 export function quitApp(): Promise<void> {
   return invoke<void>("quit_app");
 }

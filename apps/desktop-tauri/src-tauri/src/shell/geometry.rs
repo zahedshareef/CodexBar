@@ -63,6 +63,7 @@ pub(super) fn popout_position(
     )
 }
 
+#[allow(dead_code)]
 pub(super) fn inferred_tray_anchor_rect(monitor: &MonitorPlacement) -> Rect {
     const SYNTHETIC_TRAY_ICON_SIZE: u32 = 24;
     const SYNTHETIC_TRAY_EDGE_PADDING: i32 = 8;
@@ -90,8 +91,10 @@ pub(super) fn inferred_tray_anchor_rect(monitor: &MonitorPlacement) -> Rect {
 }
 
 pub(super) fn inferred_tray_panel_position_for_monitor(monitor: &MonitorPlacement) -> (i32, i32) {
-    window_positioner::calculate_panel_position(
-        &inferred_tray_anchor_rect(monitor),
+    // Place panel at bottom-right of the work area, above the taskbar.
+    // Using calculate_popout_position with no anchor gives bottom-right placement.
+    window_positioner::calculate_popout_position(
+        None,
         &monitor.work_area,
         &tray_panel_size(),
         monitor.scale_factor,

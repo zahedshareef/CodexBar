@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
+import { reanchorTrayPanel } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
@@ -104,10 +105,14 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         const contentHeight = surface.scrollHeight;
         surface.style.height = prev || "";
         const height = Math.min(Math.max(contentHeight, 200), MAX_HEIGHT);
-        void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, height));
+        void getCurrentWindow()
+          .setSize(new LogicalSize(TRAY_WIDTH, height))
+          .then(() => reanchorTrayPanel().catch(() => {}));
       });
     } else {
-      void getCurrentWindow().setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
+      void getCurrentWindow()
+        .setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT))
+        .then(() => reanchorTrayPanel().catch(() => {}));
     }
   }, [visibleProviders]);
 
