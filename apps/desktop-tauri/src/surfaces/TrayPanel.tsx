@@ -92,57 +92,56 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // Uses an off-screen clone to measure true content height — the real surface
-  // is constrained by the viewport / flex layout and can't be measured in-place.
+  // Approach: temporarily expand the window to MAX so 100vh gives plenty of room,
+  // then measure body.scrollHeight (which with room = actual content height),
+  // then set window to the right size.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
     const MIN_HEIGHT = 200;
 
-    const resize = () => {
-      const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
-      if (!surface) return;
+    const resize = async () => {
+      const win = getCurrentWindow();
 
-      // Clone the surface off-screen with all constraints removed
-      const clone = surface.cloneNode(true) as HTMLElement;
-      clone.style.cssText =
-        "position:fixed;left:-9999px;top:0;width:310px;height:auto;" +
-        "max-height:none;overflow:visible;visibility:hidden;pointer-events:none;";
-      // Remove overflow/flex constraints from all descendants
-      clone.querySelectorAll<HTMLElement>("*").forEach((el) => {
-        el.style.overflow = "visible";
-        el.style.maxHeight = "none";
-        if (el.classList.contains("menu-surface__body")) {
-          el.style.flex = "0 0 auto";
-        }
-      });
-      document.body.appendChild(clone);
-      const contentHeight = clone.scrollHeight;
-      document.body.removeChild(clone);
+      // Step 1: expand window so 100vh gives room for all content
+      await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
+      // Wait for layout to settle with the larger viewport
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
-      void getCurrentWindow()
-        .setSize(new LogicalSize(TRAY_WIDTH, height))
-        .then(() => reanchorTrayPanel().catch(() => {}));
+      // Step 2: measure real content heights
+      const body = document.querySelector<HTMLElement>(
+        ".menu-surface--tray .menu-surface__body",
+      );
+      const footer = document.querySelector<HTMLElement>(
+        ".menu-surface--tray .menu-surface__footer",
+      );
+      if (!body) return;
+
+      const bodyH = body.scrollHeight;
+      const footerH = footer?.offsetHeight ?? 0;
+      const pad = 8; // 4px top + 4px bottom surface padding
+
+      // Debug: write measurements to document title for diagnostics
+      document.title = `CB b=${bodyH} f=${footerH} t=${bodyH + footerH + pad}`;
+
+      const total = bodyH + footerH + pad;
+      const height = Math.min(Math.max(total, MIN_HEIGHT), MAX_HEIGHT);
+
+      // Step 3: set window to actual content height
+      await win.setSize(new LogicalSize(TRAY_WIDTH, height));
+      reanchorTrayPanel().catch(() => {});
     };
 
-    // Measure after DOM settles, then re-check for async data
-    requestAnimationFrame(resize);
-    const t1 = setTimeout(resize, 500);
-    const t2 = setTimeout(resize, 1500);
-
-    // Re-measure when the content stack resizes (cards added/removed)
-    const stack = document.querySelector<HTMLElement>(".menu-stack");
-    let observer: ResizeObserver | undefined;
-    if (stack) {
-      observer = new ResizeObserver(() => resize());
-      observer.observe(stack);
-    }
+    // Measure after DOM settles, then re-check for async data load
+    const t0 = setTimeout(() => void resize(), 100);
+    const t1 = setTimeout(() => void resize(), 1000);
+    const t2 = setTimeout(() => void resize(), 3000);
 
     return () => {
+      clearTimeout(t0);
       clearTimeout(t1);
       clearTimeout(t2);
-      observer?.disconnect();
     };
   }, [visibleProviders, providers]);
 
