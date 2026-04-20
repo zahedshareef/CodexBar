@@ -177,15 +177,15 @@ function MetricRow({
 export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const { t } = useLocale();
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
-  const errorBlockRef = useRef<HTMLDivElement>(null);
+  const errorTextRef = useRef<HTMLSpanElement>(null);
 
-  // Force error block width to match parent card to prevent text overflow
+  // Force error text width to match parent card to prevent text overflow
   useEffect(() => {
-    const el = errorBlockRef.current;
+    const el = errorTextRef.current;
     if (!el) return;
     const card = el.closest(".menu-card") as HTMLElement | null;
     if (card) {
-      el.style.maxWidth = `${card.clientWidth}px`;
+      el.style.width = `${card.clientWidth}px`;
     }
   });
 
@@ -248,8 +248,8 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
           </div>
         </div>
         {provider.error ? (
-          <div className="menu-card__error-block" ref={errorBlockRef}>
-            <span className="menu-card__error-text" style={{ display: 'block', width: '100%', boxSizing: 'border-box', wordBreak: 'break-word' }}>{provider.error}</span>
+          <div className="menu-card__error-block">
+            <span ref={errorTextRef} className="menu-card__error-text" style={{ display: 'block', boxSizing: 'border-box', wordBreak: 'break-word' }}>{provider.error}</span>
             <CopyIconButton text={provider.error} />
           </div>
         ) : (
