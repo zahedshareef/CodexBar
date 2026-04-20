@@ -217,18 +217,17 @@ pub fn activate(app: &AppHandle) {
 }
 
 /// Calculate a predictable window position for proof captures.
-/// Uses the tray-anchored position chain when available, with a reliable
-/// fallback that places the panel on the right side, near the top.
+///
+/// Proof mode needs a reliable on-screen position. We skip
+/// `inferred_tray_panel_position` because its DPI-scaled maths can
+/// produce off-screen coords on high-DPI setups.
 fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
-    // Try real tray anchor first
+    // Try real tray anchor first (most accurate)
     if let Some(pos) = shell::tray_panel_position(app) {
         return Some(pos);
     }
-    // Infer tray position from monitor work area
-    if let Some(pos) = shell::inferred_tray_panel_position(app) {
-        return Some(pos);
-    }
-    // Reliable fallback using available_monitors (works even during setup)
+    // Skip inferred — its result is physical-pixel-scaled and often off-screen.
+    // Use a simple right-side placement based on monitor physical size.
     let window = app.get_webview_window("main")?;
     let monitor = window
         .primary_monitor()
@@ -239,12 +238,15 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
         let pos = m.position();
         let size = m.size();
         let scale = m.scale_factor();
-        let logical_w = (size.width as f64 / scale) as i32;
-        let x = pos.x + logical_w - 330;
-        let y = pos.y + 30;
+        // Panel is 310 logical px wide → 310*scale physical.
+        // Place it 20 logical px from the right edge, 30 logical from top.
+        let panel_phys_w = (310.0 * scale).round() as i32;
+        let margin = (20.0 * scale).round() as i32;
+        let top_margin = (30.0 * scale).round() as i32;
+        let x = pos.x + size.width as i32 - panel_phys_w - margin;
+        let y = pos.y + top_margin;
         return Some((x, y));
     }
-    // Absolute last resort: fixed position that works on common resolutions
     Some((800, 25))
 }
 
