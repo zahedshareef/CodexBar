@@ -226,8 +226,10 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
     if let Some(pos) = shell::tray_panel_position(app) {
         return Some(pos);
     }
-    // Skip inferred — its result is physical-pixel-scaled and often off-screen.
-    // Use a simple right-side placement based on monitor physical size.
+    // Use a simple right-side placement based on monitor geometry.
+    // Tauri's Monitor::size() may return scaled values (e.g. 6400 on a 3200px
+    // screen at 200% DPI), so we divide by scale to get the actual physical
+    // coordinate space that PhysicalPosition uses.
     let window = app.get_webview_window("main")?;
     let monitor = window
         .primary_monitor()
@@ -237,14 +239,13 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
     if let Some(m) = monitor {
         let pos = m.position();
         let size = m.size();
-        let scale = m.scale_factor();
-        // Panel is 310 logical px wide → 310*scale physical.
-        // Place it 20 logical px from the right edge, 30 logical from top.
-        let panel_phys_w = (310.0 * scale).round() as i32;
-        let margin = (20.0 * scale).round() as i32;
-        let top_margin = (30.0 * scale).round() as i32;
-        let x = pos.x + size.width as i32 - panel_phys_w - margin;
-        let y = pos.y + top_margin;
+        let scale = m.scale_factor().max(1.0);
+        let screen_w = (size.width as f64 / scale) as i32;
+        // Panel is 310 logical px wide. At the system coordinate level,
+        // set_position uses the same scale as GetSystemMetrics.
+        let panel_w = 310;
+        let x = pos.x / scale as i32 + screen_w - panel_w - 20;
+        let y = pos.y / scale as i32 + 30;
         return Some((x, y));
     }
     Some((800, 25))
