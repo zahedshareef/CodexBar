@@ -120,9 +120,14 @@ fn main() {
             tray_bridge::setup(app)?;
             shortcut_bridge::register(app.handle());
 
-            // In proof mode, immediately show the target surface.
+            // In proof mode, show the target surface after a brief delay
+            // so WebView2 has time to initialize.
             if is_proof_mode {
-                proof_harness::activate(app.handle());
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    proof_harness::activate(&app_handle);
+                });
             } else if force_start_visible {
                 let app = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
