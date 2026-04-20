@@ -129,7 +129,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       }
       const dbg = document.createElement("pre");
       dbg.style.cssText = "position:fixed;top:0;left:0;background:yellow;color:black;font:7px monospace;z-index:99999;padding:2px;max-width:100%;overflow:auto";
-      dbg.textContent = info + "\n---\n" + chain.join("\n");
+      dbg.textContent = `dpr:${window.devicePixelRatio} iW:${window.innerWidth}\n` + info + "\n---\n" + chain.join("\n");
       document.body.appendChild(dbg);
     }, 2000);
     return () => clearTimeout(timer);
