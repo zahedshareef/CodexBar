@@ -238,7 +238,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
         </div>
         {provider.error ? (
           <div className="menu-card__error-block">
-            <div style={{ display: 'table', tableLayout: 'fixed', width: '100%' }}>
+            <div style={{ display: 'table', tableLayout: 'fixed', width: '250px' }}>
               <div style={{ display: 'table-cell' }}>
                 <div className="menu-card__error-text">{provider.error}</div>
               </div>
