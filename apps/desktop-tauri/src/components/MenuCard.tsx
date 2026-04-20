@@ -249,7 +249,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
         </div>
         {provider.error ? (
           <div className="menu-card__error-block" ref={errorBlockRef}>
-            <span className="menu-card__error-text">{provider.error}</span>
+            <span className="menu-card__error-text" style={{ display: 'block', width: '150px', wordBreak: 'break-all', overflow: 'hidden', background: 'rgba(255,0,0,0.3)' }}>{provider.error}</span>
             <CopyIconButton text={provider.error} />
           </div>
         ) : (
