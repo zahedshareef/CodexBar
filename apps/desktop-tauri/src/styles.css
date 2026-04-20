@@ -2947,8 +2947,10 @@ html {
 .menu-surface--tray .menu-surface__body {
   flex: 1 1 auto;
   overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
   min-width: 0;
+  max-width: 100%;
   scrollbar-width: none;
 }
 .menu-surface--tray .menu-surface__body::-webkit-scrollbar {
@@ -2960,7 +2962,7 @@ html {
 .menu-surface--tray .menu-stack {
   gap: 3px;
   max-height: none;
-  overflow-y: visible;
+  overflow: hidden;
   min-width: 0;
 }
 
