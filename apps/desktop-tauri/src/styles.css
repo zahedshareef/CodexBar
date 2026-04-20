@@ -3018,9 +3018,6 @@ html {
   padding: 0;
   min-width: 0;
   overflow: hidden;
-  border: 2px solid lime; /* DEBUG */
-  width: 100%;
-  box-sizing: border-box;
 }
 
 /* Tray name-group — row layout like macOS: HStack { name — Spacer — email } */
@@ -3295,7 +3292,6 @@ html {
   overflow: hidden;
   max-width: 100%;
   box-sizing: border-box;
-  border: 2px solid red; /* DEBUG — remove after fixing */
 }
 .menu-card__error-text {
   display: block;
@@ -3577,6 +3573,12 @@ html {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 1px rgba(0, 0, 0, 0.3);
   font-size: var(--font-body);
   line-height: var(--line-tight);
+}
+/* Re-assert tray overrides after the second .menu-surface rule (cascade order) */
+.menu-surface--tray {
+  border: none;
+  box-shadow: none;
+  overflow: hidden;
 }
 .menu-surface--popout {
   width: 100%;
