@@ -179,13 +179,20 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
   const errorTextRef = useRef<HTMLSpanElement>(null);
 
-  // Force error text width to match parent card to prevent text overflow
+  // Force error text width from the stack-item ancestor (the card itself
+  // expands with the text so card.clientWidth is unreliable).
   useEffect(() => {
     const el = errorTextRef.current;
     if (!el) return;
-    const card = el.closest(".menu-card") as HTMLElement | null;
-    if (card) {
-      el.style.width = `${card.clientWidth}px`;
+    const item = el.closest(".menu-stack__item") as HTMLElement | null;
+    if (item) {
+      const style = getComputedStyle(item);
+      const available =
+        item.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight);
+      // Subtract card padding (2px each side) and error copy-btn space (20px)
+      el.style.width = `${Math.floor(available) - 4 - 20}px`;
     }
   });
 

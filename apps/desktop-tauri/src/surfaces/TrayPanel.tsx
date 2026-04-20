@@ -111,27 +111,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     }
   }, [visibleProviders]);
 
-  // DEBUG: report computed widths
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const sel = (s: string) => document.querySelector<HTMLElement>(s);
-      const w = (el: HTMLElement | null) => el ? el.offsetWidth : -1;
-      const surface = sel(".menu-surface--tray");
-      const body = sel(".menu-surface__body");
-      const stack = sel(".menu-stack");
-      const item = sel(".menu-stack__item");
-      const card = sel(".menu-card");
-      const header = sel(".menu-card__header");
-      const errBlock = sel(".menu-card__error-block");
-      const errText = sel(".menu-card__error-text");
-      const dbg = document.createElement("div");
-      dbg.style.cssText = "position:fixed;top:0;left:0;background:yellow;color:black;font:8px monospace;z-index:99999;padding:2px;width:100%;box-sizing:border-box";
-      dbg.textContent = `s:${w(surface)} b:${w(body)} sk:${w(stack)} it:${w(item)} c:${w(card)} h:${w(header)} eb:${w(errBlock)} et:${w(errText)}`;
-      document.body.appendChild(dbg);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [visibleProviders]);
-
   const openSettings = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "general" });
   }, []);
