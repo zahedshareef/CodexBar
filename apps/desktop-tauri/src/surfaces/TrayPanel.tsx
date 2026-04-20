@@ -125,8 +125,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       const errBlock = sel(".menu-card__error-block");
       const errText = sel(".menu-card__error-text");
       const dbg = document.createElement("div");
-      dbg.style.cssText = "position:fixed;top:0;left:0;background:yellow;color:black;font:10px monospace;z-index:99999;padding:2px;white-space:pre";
-      dbg.textContent = `srf:${w(surface)} body:${w(body)} stk:${w(stack)} item:${w(item)} card:${w(card)} hdr:${w(header)} err:${w(errBlock)} txt:${w(errText)}`;
+      dbg.style.cssText = "position:fixed;top:0;left:0;background:yellow;color:black;font:8px monospace;z-index:99999;padding:2px;width:100%;box-sizing:border-box";
+      dbg.textContent = `s:${w(surface)} b:${w(body)} sk:${w(stack)} it:${w(item)} c:${w(card)} h:${w(header)} eb:${w(errBlock)} et:${w(errText)}`;
       document.body.appendChild(dbg);
     }, 2000);
     return () => clearTimeout(timer);
