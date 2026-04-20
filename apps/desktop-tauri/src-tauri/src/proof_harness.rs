@@ -202,14 +202,18 @@ pub fn activate(app: &AppHandle) {
 
     let Some(config) = config else { return };
     let target = config.surface_mode();
+    let position = proof_window_position(app);
     tracing::info!(
-        "proof-harness: activating surface={} tab={:?}",
+        "proof-harness: activating surface={} tab={:?} position={:?}",
         config.target_surface,
         config.settings_tab,
+        position,
     );
 
-    let position = proof_window_position(app);
-    let _ = shell::transition_to_target(app, target, config.surface_target(), position);
+    match shell::transition_to_target(app, target, config.surface_target(), position) {
+        Ok(mode) => tracing::info!("proof-harness: transition succeeded → {mode:?}"),
+        Err(err) => tracing::error!("proof-harness: transition FAILED: {err}"),
+    }
 }
 
 /// Calculate a predictable window position for proof captures.
