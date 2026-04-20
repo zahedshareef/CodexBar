@@ -179,8 +179,9 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
 
   // The panel is fixed at 310px. Available text width:
-  // 310 - 12 (body pad) - 14 (stack-item pad) - 4 (card pad) - 20 (copy btn) = 260px
-  const errorTextWidth = 260;
+  // 310 - 12 (surface pad) - 15 (item pad+border) - 0 (card pad tray) - 20 (copy btn) = 263px
+  // Use slightly less to ensure no clipping at card edge
+  const errorTextWidth = 240;
 
   useEffect(() => {
     if (DEMO_ENABLED) return; // skip chart fetch in demo mode
