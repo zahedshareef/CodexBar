@@ -240,7 +240,6 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
           <div className="menu-card__subtitle-row">
             <div
               className="menu-card__subtitle menu-card__subtitle--error"
-              style={{ whiteSpace: "normal", wordBreak: "break-all", overflowWrap: "anywhere", maxWidth: "250px" }}
             >
               {provider.error}
             </div>
