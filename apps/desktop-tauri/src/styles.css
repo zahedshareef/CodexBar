@@ -3288,6 +3288,9 @@ html {
   display: block;
   position: relative;
   overflow: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: 2px solid red; /* DEBUG — remove after fixing */
 }
 .menu-card__error-text {
   display: block;
