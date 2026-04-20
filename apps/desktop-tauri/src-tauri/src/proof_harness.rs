@@ -243,9 +243,10 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
         // Panel takes its logical size in the OS coordinate space.
         let panel_w = 310;
         let panel_h = 550;
-        let margin = 16;
-        let x = screen_w - panel_w - margin;
-        let y = work_bottom - panel_h - margin;
+        let margin_right = 24;
+        let margin_bottom = 40;
+        let x = screen_w - panel_w - margin_right;
+        let y = work_bottom - panel_h - margin_bottom;
         return Some((x, y));
     }
     Some((800, 25))
