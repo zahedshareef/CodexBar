@@ -56,6 +56,26 @@ impl RateWindowSnapshot {
             reserve_description: None,
         }
     }
+
+    /// Enrich with reserve info derived from pace analysis.
+    fn with_pace_reserve(mut self, pace: &codexbar::core::UsagePace) -> Self {
+        if pace.delta_percent > 0.0 {
+            self.reserve_percent = Some(pace.delta_percent.round());
+            self.reserve_description = if pace.will_last_to_reset {
+                Some("Lasts until reset".to_string())
+            } else {
+                pace.eta_seconds.map(|s| {
+                    let h = (s / 3600.0) as u64;
+                    if h >= 24 {
+                        format!("Runs out in {}d {}h", h / 24, h % 24)
+                    } else {
+                        format!("Runs out in {}h", h)
+                    }
+                })
+            };
+        }
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -127,15 +147,38 @@ impl ProviderUsageSnapshot {
     ) -> Self {
         let usage = &result.usage;
 
-        let pace =
-            codexbar::core::UsagePace::weekly(&usage.primary, None, 10080).map(|p| PaceSnapshot {
-                stage: pace_stage_str(p.stage),
-                delta_percent: p.delta_percent,
-                will_last_to_reset: p.will_last_to_reset,
-                eta_seconds: p.eta_seconds,
-                expected_used_percent: p.expected_used_percent,
-                actual_used_percent: p.actual_used_percent,
-            });
+        let primary_pace = codexbar::core::UsagePace::weekly(&usage.primary, None, 10080);
+
+        let pace = primary_pace.as_ref().map(|p| PaceSnapshot {
+            stage: pace_stage_str(p.stage),
+            delta_percent: p.delta_percent,
+            will_last_to_reset: p.will_last_to_reset,
+            eta_seconds: p.eta_seconds,
+            expected_used_percent: p.expected_used_percent,
+            actual_used_percent: p.actual_used_percent,
+        });
+
+        // Compute pace for secondary window (weekly) to derive reserve info
+        let secondary_pace = usage
+            .secondary
+            .as_ref()
+            .and_then(|sw| codexbar::core::UsagePace::weekly(sw, None, 10080));
+
+        let primary_snap = {
+            let mut s = RateWindowSnapshot::from_rate_window(&usage.primary);
+            if let Some(ref p) = primary_pace {
+                s = s.with_pace_reserve(p);
+            }
+            s
+        };
+
+        let secondary_snap = usage.secondary.as_ref().map(|sw| {
+            let mut s = RateWindowSnapshot::from_rate_window(sw);
+            if let Some(ref p) = secondary_pace {
+                s = s.with_pace_reserve(p);
+            }
+            s
+        });
 
         let tray_status_label = {
             let pct = format!("{:.0}%", usage.primary.used_percent);
@@ -149,12 +192,9 @@ impl ProviderUsageSnapshot {
         Self {
             provider_id: id.cli_name().to_string(),
             display_name: id.display_name().to_string(),
-            primary: RateWindowSnapshot::from_rate_window(&usage.primary),
+            primary: primary_snap,
             primary_label: Some(metadata.session_label.to_string()),
-            secondary: usage
-                .secondary
-                .as_ref()
-                .map(RateWindowSnapshot::from_rate_window),
+            secondary: secondary_snap,
             secondary_label: usage
                 .secondary
                 .as_ref()
