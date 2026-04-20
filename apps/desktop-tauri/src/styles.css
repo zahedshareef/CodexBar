@@ -2938,7 +2938,7 @@ html {
   overflow: clip;
   border: none;
   box-shadow: none;
-  padding: 6px 8px;
+  padding: 4px 6px;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -2960,30 +2960,30 @@ html {
   flex-shrink: 0;
 }
 .menu-surface--tray .menu-stack {
-  gap: 6px;
+  gap: 2px;
   max-height: none;
   overflow: hidden;
   min-width: 0;
 }
 
-/* Tray cards — rounded semi-transparent containers matching macOS panel */
+/* Tray cards — flush layout matching macOS panel (no card containers) */
 .menu-surface--tray .menu-stack__item {
-  background: rgba(255, 255, 255, 0.05);
-  border: 0.5px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 4px 4px;
   min-width: 0;
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
   overflow: hidden;
 }
-/* Selected card — more prominent blue-tinted background like macOS active provider */
+/* Selected card — subtle highlight like macOS active provider */
 .menu-surface--tray .menu-stack__item--selected {
-  background: rgba(30, 55, 110, 0.30);
-  border: 0.5px solid rgba(60, 100, 180, 0.15);
-  border-radius: 8px;
-  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 4px;
 }
 /* Tray separators — rely on gap between rounded cards instead of hairlines */
 .menu-surface--tray .menu-stack__sep {
@@ -2999,23 +2999,23 @@ html {
   border: 0.5px solid rgba(0, 0, 0, 0.04);
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__item--selected {
-  background: rgba(0, 80, 200, 0.10);
-  border: 0.5px solid rgba(0, 80, 200, 0.08);
-}
-/* Tray grid — subtle rounded container to match macOS grid area */
-.menu-surface--tray .provider-grid {
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.06);
   border: none;
-  border-radius: 8px;
-  padding: 4px 6px 3px;
+}
+/* Tray grid — flush with no background container, matching macOS */
+.menu-surface--tray .provider-grid {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 2px 2px 1px;
   /* Auto-fit: compact when few providers, wrap to more rows when many */
   grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
 }
-/* Divider between provider grid and card stack — matches macOS */
+/* Divider between provider grid and card stack */
 .menu-surface--tray .provider-grid__divider {
   height: 1px;
-  margin: 4px 0;
-  background: rgba(255, 255, 255, 0.10);
+  margin: 2px 0;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* Tray font sizing — match macOS: .headline=13pt, .footnote=10pt */
@@ -3150,10 +3150,10 @@ html {
 
 /* Tray card content — tighten spacing for compact panel */
 .menu-surface--tray .menu-card__divider {
-  margin: 3px 0;
+  margin: 2px 0;
 }
 .menu-surface--tray .menu-card__content {
-  gap: 8px;
+  gap: 4px;
 }
 .menu-surface--tray .menu-metric {
   gap: 3px;
@@ -3195,8 +3195,8 @@ html {
 
 /* Tray footer — match macOS NSMenuItem native look (10pt, ~16px row height) */
 .menu-surface--tray .menu-surface__footer {
-  padding: 5px 0 2px;
-  margin-top: 4px;
+  padding: 3px 0 1px;
+  margin-top: 2px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .menu-surface--tray .menu-surface__footer-row {
