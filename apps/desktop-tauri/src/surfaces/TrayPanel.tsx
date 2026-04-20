@@ -111,30 +111,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     }
   }, [visibleProviders]);
 
-  // DEBUG: dump computed styles for error text
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const et = document.querySelector<HTMLElement>(".menu-card__error-text");
-      if (!et) return;
-      const cs = getComputedStyle(et);
-      const props = ["width", "maxWidth", "minWidth", "display", "overflow", "boxSizing", "wordBreak", "whiteSpace", "paddingRight"];
-      const info = props.map(p => `${p}:${cs.getPropertyValue(p.replace(/[A-Z]/g, m => `-${m.toLowerCase()}`))}`).join("\n");
-      // Also get parent chain widths
-      let el: HTMLElement | null = et;
-      const chain: string[] = [];
-      while (el) {
-        const r = el.getBoundingClientRect();
-        chain.push(`${el.className.split(" ")[0] || el.tagName}:cW=${el.clientWidth},bW=${r.width.toFixed(0)}`);
-        el = el.parentElement;
-      }
-      const dbg = document.createElement("pre");
-      dbg.style.cssText = "position:fixed;top:0;left:0;background:yellow;color:black;font:7px monospace;z-index:99999;padding:2px;max-width:100%;overflow:auto";
-      dbg.textContent = `dpr:${window.devicePixelRatio} iW:${window.innerWidth}\n` + info + "\n---\n" + chain.join("\n");
-      document.body.appendChild(dbg);
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [visibleProviders]);
-
   const openSettings = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "general" });
   }, []);
