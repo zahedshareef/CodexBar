@@ -133,18 +133,16 @@ function MetricRow({
   const level = levelOf(remain, snap.isExhausted);
   return (
     <div className="menu-metric">
-      <div className="menu-metric__head">
-        <span className="menu-metric__title">{title}</span>
-        <span className="menu-metric__pct">{Math.round(100 - pct)}% left</span>
-      </div>
+      <span className="menu-metric__title">{title}</span>
       <div className="menu-metric__bar">
         <div className="menu-metric__bar-fill" data-level={level} style={{ width: `${remain}%` }} />
       </div>
-      {snap.resetDescription && (
-        <div className="menu-metric__row">
+      <div className="menu-metric__row">
+        <span className="menu-metric__pct">{Math.round(100 - pct)}% left</span>
+        {snap.resetDescription && (
           <span className="menu-metric__reset">{snap.resetDescription}</span>
-        </div>
-      )}
+        )}
+      </div>
       {snap.isExhausted && (
         <div className="menu-metric__exhausted">{exhaustedLabel}</div>
       )}

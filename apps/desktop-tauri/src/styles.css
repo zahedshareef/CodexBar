@@ -2938,7 +2938,7 @@ html {
   overflow: hidden;
   border: none;
   box-shadow: none;
-  padding: 6px 8px; /* match upstream .padding(.horizontal, 10) */
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
   height: 100vh;
@@ -2957,7 +2957,7 @@ html {
   flex-shrink: 0;
 }
 .menu-surface--tray .menu-stack {
-  gap: 6px; /* gap between rounded card containers */
+  gap: 8px;
   max-height: none;
   overflow-y: visible;
 }
@@ -2967,13 +2967,13 @@ html {
   background: rgba(255, 255, 255, 0.10);
   border: none;
   border-radius: 8px;
-  padding: 6px 8px;
+  padding: 10px 12px;
 }
 /* Selected card — more prominent blue-tinted background like macOS active provider */
 .menu-surface--tray .menu-stack__item--selected {
   background: rgba(30, 55, 110, 0.35);
   border-radius: 8px;
-  padding: 6px 8px;
+  padding: 10px 12px;
 }
 /* Tray separators — rely on gap between rounded cards instead of hairlines */
 .menu-surface--tray .menu-stack__sep {
@@ -3006,7 +3006,7 @@ html {
 
 /* Tray font sizing — match macOS: .headline=13pt, .footnote=10pt */
 .menu-surface--tray .menu-card {
-  gap: 2px;
+  gap: 4px;
   padding: 0 2px;
 }
 
@@ -3143,13 +3143,13 @@ html {
   margin: 1px 0;
 }
 .menu-surface--tray .menu-card__content {
-  gap: 4px;
+  gap: 6px;
 }
 .menu-surface--tray .menu-metric {
-  gap: 2px;
+  gap: 4px;
 }
 .menu-surface--tray .menu-metric__title {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 .menu-surface--tray .menu-metric__bar {
