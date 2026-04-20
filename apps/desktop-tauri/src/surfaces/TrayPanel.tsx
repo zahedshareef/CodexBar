@@ -104,12 +104,16 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
       if (!surface) return;
       const body = surface.querySelector<HTMLElement>(".menu-surface__body");
+      const stack = surface.querySelector<HTMLElement>(".menu-stack");
 
-      // Save current inline styles
-      const sPrev = surface.style.cssText;
-      const bPrev = body?.style.cssText ?? "";
+      // Save inline styles for every element we'll override
+      const saved: [HTMLElement, string][] = [
+        [surface, surface.style.cssText],
+      ];
+      if (body) saved.push([body, body.style.cssText]);
+      if (stack) saved.push([stack, stack.style.cssText]);
 
-      // Remove all size constraints so content expands naturally
+      // Remove ALL size/overflow constraints so content expands naturally
       surface.style.height = "auto";
       surface.style.maxHeight = "none";
       surface.style.overflow = "visible";
@@ -118,13 +122,24 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         body.style.flex = "0 0 auto";
         body.style.maxHeight = "none";
       }
+      if (stack) {
+        stack.style.overflow = "visible";
+        stack.style.maxHeight = "none";
+      }
+      // Also unconstrain stack items and cards
+      const clipped = surface.querySelectorAll<HTMLElement>(
+        ".menu-stack__item, .menu-card",
+      );
+      for (const el of clipped) {
+        saved.push([el, el.style.cssText]);
+        el.style.overflow = "visible";
+      }
 
-      // Force reflow — reading scrollHeight triggers synchronous layout
+      // Force synchronous layout — scrollHeight now reflects true content
       const contentHeight = surface.scrollHeight;
 
-      // Restore original styles
-      surface.style.cssText = sPrev;
-      if (body) body.style.cssText = bPrev;
+      // Restore all original styles
+      for (const [el, css] of saved) el.style.cssText = css;
 
       const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
       void getCurrentWindow()
