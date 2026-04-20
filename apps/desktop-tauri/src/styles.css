@@ -3015,6 +3015,7 @@ html {
   gap: 1px;
   padding: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 /* Tray name-group — row layout like macOS: HStack { name — Spacer — email } */
