@@ -92,7 +92,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // Approach: expand window → shrink body flex to content → measure → restore.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -101,41 +100,44 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     const resize = async () => {
       const win = getCurrentWindow();
 
-      // Step 1: expand window so body has room for all content
+      // Expand window so body has room for all content
       await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-      // Step 2: temporarily shrink body to content height for measurement
       const body = document.querySelector<HTMLElement>(
         ".menu-surface--tray .menu-surface__body",
       );
       const footer = document.querySelector<HTMLElement>(
         ".menu-surface--tray .menu-surface__footer",
       );
+      const stack = document.querySelector<HTMLElement>(
+        ".menu-surface--tray .menu-stack",
+      );
       if (!body) return;
 
-      // Save and override body flex so it sizes to content, not flex fill
-      const prevFlex = body.style.flex;
-      body.style.flex = "0 0 auto";
-
-      // Force layout recalc
-      const bodyH = body.offsetHeight;
+      // Measure children directly — sum their offsetHeights
+      let childrenTotal = 0;
+      const parts: string[] = [];
+      for (const child of Array.from(body.children)) {
+        const el = child as HTMLElement;
+        const h = el.offsetHeight;
+        childrenTotal += h;
+        const cls = el.className.split(" ")[0] || el.tagName;
+        parts.push(`${cls}=${h}`);
+      }
       const footerH = footer?.offsetHeight ?? 0;
-      const pad = 8; // 4px top + 4px bottom
+      const pad = 8;
+      const total = childrenTotal + footerH + pad;
 
-      // Restore body flex
-      body.style.flex = prevFlex;
+      // Log to title for diagnostics
+      document.title = `ch=${childrenTotal} fh=${footerH} T=${total} | ${parts.join(",")}`;
 
-      const total = bodyH + footerH + pad;
       const height = Math.min(Math.max(total, MIN_HEIGHT), MAX_HEIGHT);
-
-      // Step 3: set window to fit content
       await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
     };
 
-    // Measure after DOM settles, then re-check for async data load
     const t0 = setTimeout(() => void resize(), 100);
     const t1 = setTimeout(() => void resize(), 1000);
     const t2 = setTimeout(() => void resize(), 3000);
