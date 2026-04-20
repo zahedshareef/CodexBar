@@ -213,8 +213,9 @@ pub fn activate(app: &AppHandle) {
 }
 
 /// Calculate a predictable window position for proof captures.
-/// Prefer the tray-anchored position (bottom-right near system tray);
-/// fall back to inferred tray position from work-area geometry.
+/// Uses the tray-anchored position chain when available, with a reliable
+/// fallback that places the panel near the bottom-right (tray area) but
+/// safely above the taskbar.
 fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
     // Try real tray anchor first
     if let Some(pos) = shell::tray_panel_position(app) {
@@ -224,8 +225,17 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
     if let Some(pos) = shell::inferred_tray_panel_position(app) {
         return Some(pos);
     }
-    // Last resort: shortcut position (right side of screen)
-    shell::shortcut_panel_position(app)
+    // Reliable fallback: right side, near top (always visible for captures)
+    let window = app.get_webview_window("main")?;
+    let monitor = window.primary_monitor().ok()??;
+    let pos = monitor.position();
+    let size = monitor.size();
+    let scale = monitor.scale_factor();
+    let logical_w = (size.width as f64 / scale) as i32;
+    // Place panel 310px from right edge, 30px from top
+    let x = pos.x + logical_w - 330;
+    let y = pos.y + 30;
+    Some((x, y))
 }
 
 /// Returns `true` when proof mode is active in the shared state.
