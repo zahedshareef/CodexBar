@@ -92,9 +92,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // Approach: temporarily expand the window to MAX so 100vh gives plenty of room,
-  // then measure body.scrollHeight (which with room = actual content height),
-  // then set window to the right size.
+  // Approach: expand window → shrink body flex to content → measure → restore.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -103,13 +101,12 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     const resize = async () => {
       const win = getCurrentWindow();
 
-      // Step 1: expand window so 100vh gives room for all content
+      // Step 1: expand window so body has room for all content
       await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
-      // Wait for layout to settle with the larger viewport
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-      // Step 2: measure real content heights
+      // Step 2: temporarily shrink body to content height for measurement
       const body = document.querySelector<HTMLElement>(
         ".menu-surface--tray .menu-surface__body",
       );
@@ -118,17 +115,22 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       );
       if (!body) return;
 
-      const bodyH = body.scrollHeight;
-      const footerH = footer?.offsetHeight ?? 0;
-      const pad = 8; // 4px top + 4px bottom surface padding
+      // Save and override body flex so it sizes to content, not flex fill
+      const prevFlex = body.style.flex;
+      body.style.flex = "0 0 auto";
 
-      // Debug: write measurements to document title for diagnostics
-      document.title = `CB b=${bodyH} f=${footerH} t=${bodyH + footerH + pad}`;
+      // Force layout recalc
+      const bodyH = body.offsetHeight;
+      const footerH = footer?.offsetHeight ?? 0;
+      const pad = 8; // 4px top + 4px bottom
+
+      // Restore body flex
+      body.style.flex = prevFlex;
 
       const total = bodyH + footerH + pad;
       const height = Math.min(Math.max(total, MIN_HEIGHT), MAX_HEIGHT);
 
-      // Step 3: set window to actual content height
+      // Step 3: set window to fit content
       await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
     };
