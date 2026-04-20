@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type {
   PaceSnapshot,
   ProviderChartData,
@@ -177,24 +177,10 @@ function MetricRow({
 export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const { t } = useLocale();
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
-  const errorTextRef = useRef<HTMLSpanElement>(null);
 
-  // Force error text width from the stack-item ancestor (the card itself
-  // expands with the text so card.clientWidth is unreliable).
-  useEffect(() => {
-    const el = errorTextRef.current;
-    if (!el) return;
-    const item = el.closest(".menu-stack__item") as HTMLElement | null;
-    if (item) {
-      const style = getComputedStyle(item);
-      const available =
-        item.clientWidth -
-        parseFloat(style.paddingLeft) -
-        parseFloat(style.paddingRight);
-      // Subtract card padding (2px each side) and error copy-btn space (20px)
-      el.style.width = `${Math.floor(available) - 4 - 20}px`;
-    }
-  });
+  // The panel is fixed at 310px. Available text width:
+  // 310 - 12 (body pad) - 14 (stack-item pad) - 4 (card pad) - 20 (copy btn) = 260px
+  const errorTextWidth = 260;
 
   useEffect(() => {
     if (DEMO_ENABLED) return; // skip chart fetch in demo mode
@@ -256,7 +242,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
         </div>
         {provider.error ? (
           <div className="menu-card__error-block">
-            <span ref={errorTextRef} className="menu-card__error-text" style={{ display: 'block', boxSizing: 'border-box', wordBreak: 'break-word' }}>{provider.error}</span>
+            <span className="menu-card__error-text" style={{ display: 'block', width: `${errorTextWidth}px`, boxSizing: 'border-box', wordBreak: 'break-word' }}>{provider.error}</span>
             <CopyIconButton text={provider.error} />
           </div>
         ) : (
