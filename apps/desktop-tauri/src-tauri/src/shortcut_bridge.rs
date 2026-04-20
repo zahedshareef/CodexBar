@@ -101,12 +101,11 @@ pub fn plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
-                let position = shell::shortcut_panel_position(app);
                 let _ = shell::reopen_to_target(
                     app,
                     SurfaceMode::TrayPanel,
                     SurfaceTarget::Summary,
-                    position,
+                    None,
                 );
             }
         })

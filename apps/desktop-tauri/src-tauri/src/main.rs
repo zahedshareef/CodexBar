@@ -43,12 +43,11 @@ fn main() {
         .manage(Mutex::new(initial_state))
         .plugin(shortcut_bridge::plugin())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            let position = shell::shortcut_panel_position(app);
             let _ = shell::reopen_to_target(
                 app,
                 SurfaceMode::TrayPanel,
                 SurfaceTarget::Summary,
-                position,
+                None,
             );
         }))
         .invoke_handler(tauri::generate_handler![
