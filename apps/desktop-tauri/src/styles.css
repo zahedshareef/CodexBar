@@ -3019,6 +3019,7 @@ html {
   padding: 0;
   min-width: 0;
   overflow: hidden;
+  contain: inline-size;
 }
 
 /* Tray name-group — row layout like macOS: HStack { name — Spacer — email } */
@@ -3302,7 +3303,10 @@ html {
   word-break: break-word;
   overflow-wrap: anywhere;
   white-space: normal;
+  overflow: hidden;
   padding-right: 20px; /* space for copy button */
+  max-width: 100%;
+  box-sizing: border-box;
 }
 .menu-card__error-block .menu-card__copy-btn {
   position: absolute;

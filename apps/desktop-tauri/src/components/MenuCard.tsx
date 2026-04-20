@@ -178,11 +178,6 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const { t } = useLocale();
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
 
-  // The panel is fixed at 310px. Available text width:
-  // 310 - 12 (surface pad) - 15 (item pad+border) - 0 (card pad tray) - 20 (copy btn) = 263px
-  // Use slightly less to ensure no clipping at card edge
-  const errorTextWidth = 200;
-
   useEffect(() => {
     if (DEMO_ENABLED) return; // skip chart fetch in demo mode
     let cancelled = false;
@@ -243,7 +238,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
         </div>
         {provider.error ? (
           <div className="menu-card__error-block">
-            <span className="menu-card__error-text" style={{ display: 'block', width: `${errorTextWidth}px`, boxSizing: 'border-box', wordBreak: 'break-word', background: 'rgba(255,0,0,0.3)' }}>{provider.error}</span>
+            <span className="menu-card__error-text">{provider.error}</span>
             <CopyIconButton text={provider.error} />
           </div>
         ) : (
