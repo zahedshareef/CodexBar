@@ -3051,10 +3051,9 @@ html {
 }
 /* Tray error subtitle — allow full wrapping (macOS shows complete error text) */
 .menu-surface--tray .menu-card__subtitle--error {
-  display: block;
   -webkit-line-clamp: unset;
   -webkit-box-orient: unset;
-  overflow: visible;
+  overflow: hidden;
   white-space: normal;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -3231,6 +3230,7 @@ html {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 
 .menu-card__title-row {
@@ -3285,6 +3285,8 @@ html {
 /* When subtitle-row contains error text, align to top (macOS: .top) */
 .menu-card__subtitle-row:has(.menu-card__subtitle--error) {
   align-items: flex-start;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* subtitle: Font.footnote secondary ≈ 11px */
@@ -3300,7 +3302,7 @@ html {
 /* Error subtitle must wrap — override base truncation */
 .menu-card__subtitle.menu-card__subtitle--error {
   white-space: normal;
-  overflow: visible;
+  overflow: hidden;
   text-overflow: unset;
   overflow-wrap: anywhere;
   word-break: break-word;
