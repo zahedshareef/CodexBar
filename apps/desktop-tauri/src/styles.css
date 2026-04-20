@@ -2964,14 +2964,15 @@ html {
 
 /* Tray cards — rounded semi-transparent containers matching macOS panel */
 .menu-surface--tray .menu-stack__item {
-  background: rgba(255, 255, 255, 0.10);
-  border: none;
+  background: rgba(255, 255, 255, 0.05);
+  border: 0.5px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
   padding: 6px 8px;
 }
 /* Selected card — more prominent blue-tinted background like macOS active provider */
 .menu-surface--tray .menu-stack__item--selected {
-  background: rgba(30, 55, 110, 0.35);
+  background: rgba(30, 55, 110, 0.30);
+  border: 0.5px solid rgba(60, 100, 180, 0.15);
   border-radius: 8px;
   padding: 6px 8px;
 }
@@ -2985,14 +2986,16 @@ html {
   background: transparent;
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__item {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(0, 0, 0, 0.03);
+  border: 0.5px solid rgba(0, 0, 0, 0.04);
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__item--selected {
-  background: rgba(0, 80, 200, 0.12);
+  background: rgba(0, 80, 200, 0.10);
+  border: 0.5px solid rgba(0, 80, 200, 0.08);
 }
 /* Tray grid — subtle rounded container to match macOS grid area */
 .menu-surface--tray .provider-grid {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
   border: none;
   border-radius: 8px;
   padding: 4px 6px 2px;
@@ -3022,7 +3025,7 @@ html {
 /* Tray name + email */
 .menu-surface--tray .menu-card__name {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
@@ -3143,14 +3146,14 @@ html {
   margin: 2px 0;
 }
 .menu-surface--tray .menu-card__content {
-  gap: 6px;
+  gap: 5px;
 }
 .menu-surface--tray .menu-metric {
   gap: 3px;
 }
 .menu-surface--tray .menu-metric__title {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 400;
 }
 .menu-surface--tray .menu-metric__bar {
   height: 4px;
