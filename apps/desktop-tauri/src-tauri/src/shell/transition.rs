@@ -17,6 +17,18 @@ use super::position::default_surface_position;
 use super::window::apply_window_properties;
 use super::{SHELL_TRANSITION_SERIAL, ShellTransitionRequest};
 
+/// Positions from the positioner pipeline are in Tauri's physical coordinate
+/// space (e.g. 6400×3600 at 200 % DPI). `set_position(PhysicalPosition)` maps
+/// directly to the OS logical coordinate space (3200×1800), so we divide by the
+/// window's scale factor before applying.
+fn os_position(window: &WebviewWindow, x: i32, y: i32) -> tauri::PhysicalPosition<i32> {
+    let scale = window.scale_factor().unwrap_or(1.0).max(1.0);
+    tauri::PhysicalPosition::new(
+        (x as f64 / scale).round() as i32,
+        (y as f64 / scale).round() as i32,
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct SurfaceSnapshot {
     pub mode: SurfaceMode,
@@ -361,7 +373,7 @@ fn apply_same_mode_target_update(
     position: Option<(i32, i32)>,
 ) -> Result<SurfaceMode, String> {
     if let Some((x, y)) = position {
-        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+        let _ = window.set_position(os_position(window, x, y));
     }
     let _ = window.show();
     let _ = window.set_focus();
@@ -386,7 +398,7 @@ pub(super) fn apply_transition(
     position: Option<(i32, i32)>,
 ) -> Result<SurfaceMode, String> {
     if let Some((x, y)) = position {
-        let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+        let _ = window.set_position(os_position(window, x, y));
     }
 
     match apply_window_properties(window, &transition.properties) {

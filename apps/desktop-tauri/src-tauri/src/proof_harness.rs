@@ -232,24 +232,22 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
         .flatten()
         .or_else(|| window.available_monitors().ok()?.into_iter().next());
     if let Some(m) = monitor {
+        // Return coordinates in Tauri physical space (same as
+        // monitor.size/work_area). transition.rs divides by scale before
+        // calling set_position.
+        let screen_w = m.size().width as i32;
+        let work_area = m.work_area();
+        let work_bottom = work_area.position.y + work_area.size.height as i32;
         let scale = m.scale_factor().max(1.0);
-        // Monitor::size/work_area return Tauri physical coords (2× OS coords
-        // at 200% DPI). Divide by scale to get OS logical coords, which is
-        // what PhysicalPosition actually maps to in SetWindowPos.
-        let screen_w = (m.size().width as f64 / scale) as i32;
-        let work_h = (m.work_area().size.height as f64 / scale) as i32;
-        let work_y = (m.work_area().position.y as f64 / scale) as i32;
-        let work_bottom = work_y + work_h;
-        // Panel logical dimensions (no scaling — already in OS coords).
-        let panel_w = 310;
-        let panel_h = 620;
-        let margin = 12;
+        let panel_w = (310.0 * scale) as i32;
+        let panel_h = (620.0 * scale) as i32;
+        let margin = (12.0 * scale) as i32;
         let x = screen_w - panel_w - margin;
         let y = work_bottom - panel_h - margin;
         tracing::info!(
             "proof-pos: screen_w={screen_w} work_bottom={work_bottom} \
-             panel={}x{} → ({x},{y})",
-            panel_w, panel_h, 
+             panel={}x{} scale={scale} → ({x},{y})",
+            panel_w, panel_h,
         );
         return Some((x, y));
     }
