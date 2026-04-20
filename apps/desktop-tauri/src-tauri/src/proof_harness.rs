@@ -212,16 +212,20 @@ pub fn activate(app: &AppHandle) {
     let _ = shell::transition_to_target(app, target, config.surface_target(), position);
 }
 
-/// Calculate a predictable, centered-ish window position for proof captures.
+/// Calculate a predictable window position for proof captures.
+/// Prefer the tray-anchored position (bottom-right near system tray);
+/// fall back to inferred tray position from work-area geometry.
 fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
-    let window = app.get_webview_window("main")?;
-    let monitor = window.primary_monitor().ok()??;
-    let pos = monitor.position();
-    let size = monitor.size();
-    // Place roughly centred: 25% from left, near top for tray fit.
-    let x = pos.x + (size.width as i32 / 4);
-    let y = pos.y + 50; // Near top so tray panel fits vertically
-    Some((x, y))
+    // Try real tray anchor first
+    if let Some(pos) = shell::tray_panel_position(app) {
+        return Some(pos);
+    }
+    // Infer tray position from monitor work area
+    if let Some(pos) = shell::inferred_tray_panel_position(app) {
+        return Some(pos);
+    }
+    // Last resort: shortcut position (right side of screen)
+    shell::shortcut_panel_position(app)
 }
 
 /// Returns `true` when proof mode is active in the shared state.
