@@ -92,34 +92,42 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // Re-runs when providers change (data load) or visible set changes.
-  // Also observes the content stack via ResizeObserver for layout shifts.
+  // Measures body.scrollHeight (full content including overflow) + footer + padding
+  // rather than toggling surface height, which breaks in a flex+overflow layout.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
     const MIN_HEIGHT = 200;
+    const SURFACE_PAD = 8; // 4px top + 4px bottom
 
     const resize = () => {
-      const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
-      if (!surface) return;
-      const prev = surface.style.height;
-      surface.style.height = "auto";
-      requestAnimationFrame(() => {
-        const contentHeight = surface.scrollHeight;
-        surface.style.height = prev || "";
-        const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
-        void getCurrentWindow()
-          .setSize(new LogicalSize(TRAY_WIDTH, height))
-          .then(() => reanchorTrayPanel().catch(() => {}));
-      });
+      const body = document.querySelector<HTMLElement>(
+        ".menu-surface--tray .menu-surface__body",
+      );
+      if (!body) return;
+      const footer = document.querySelector<HTMLElement>(
+        ".menu-surface--tray .menu-surface__footer",
+      );
+      const banner = document.querySelector<HTMLElement>(
+        ".menu-surface--tray .update-banner",
+      );
+      const totalContent =
+        body.scrollHeight +
+        (footer?.offsetHeight ?? 0) +
+        (banner?.offsetHeight ?? 0) +
+        SURFACE_PAD;
+      const height = Math.min(Math.max(totalContent, MIN_HEIGHT), MAX_HEIGHT);
+      void getCurrentWindow()
+        .setSize(new LogicalSize(TRAY_WIDTH, height))
+        .then(() => reanchorTrayPanel().catch(() => {}));
     };
 
-    // Initial measurement + delayed re-check for async rendering
-    resize();
-    const timer = setTimeout(resize, 300);
+    // Measure after DOM settles, then re-check for async data
+    requestAnimationFrame(resize);
+    const t1 = setTimeout(resize, 300);
+    const t2 = setTimeout(resize, 800);
 
-    // Observe the menu-stack (content container) — it resizes when cards
-    // are added/removed or when card content changes size.
+    // Re-measure when the content stack resizes (cards added/removed)
     const stack = document.querySelector<HTMLElement>(".menu-stack");
     let observer: ResizeObserver | undefined;
     if (stack) {
@@ -128,7 +136,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     }
 
     return () => {
-      clearTimeout(timer);
+      clearTimeout(t1);
+      clearTimeout(t2);
       observer?.disconnect();
     };
   }, [visibleProviders, providers]);
