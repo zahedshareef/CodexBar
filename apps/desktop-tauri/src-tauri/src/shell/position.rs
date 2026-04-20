@@ -21,18 +21,36 @@ pub fn inferred_tray_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
         .primary_monitor()
         .ok()
         .flatten()
-        .map(|monitor| monitor_placement(&monitor))
+        .map(|monitor| {
+            let mp = monitor_placement(&monitor);
+            tracing::info!(
+                "inferred_tray: primary bounds=({},{} {}x{}) wa=({},{} {}x{}) scale={}",
+                mp.bounds.x, mp.bounds.y, mp.bounds.width, mp.bounds.height,
+                mp.work_area.x, mp.work_area.y, mp.work_area.width, mp.work_area.height,
+                mp.scale_factor
+            );
+            mp
+        })
         .or_else(|| {
             window
                 .current_monitor()
                 .ok()
                 .flatten()
-                .map(|monitor| monitor_placement(&monitor))
+                .map(|monitor| {
+                    let mp = monitor_placement(&monitor);
+                    tracing::info!(
+                        "inferred_tray: current bounds=({},{} {}x{}) wa=({},{} {}x{}) scale={}",
+                        mp.bounds.x, mp.bounds.y, mp.bounds.width, mp.bounds.height,
+                        mp.work_area.x, mp.work_area.y, mp.work_area.width, mp.work_area.height,
+                        mp.scale_factor
+                    );
+                    mp
+                })
         })?;
 
-    Some(super::geometry::inferred_tray_panel_position_for_monitor(
-        &monitor,
-    ))
+    let pos = super::geometry::inferred_tray_panel_position_for_monitor(&monitor);
+    tracing::info!("inferred_tray_panel_position => ({},{})", pos.0, pos.1);
+    Some(pos)
 }
 
 fn current_tray_anchor(app: &AppHandle) -> Option<crate::state::TrayAnchor> {
@@ -114,9 +132,15 @@ pub(super) fn visible_surface_position_for_mode_with_fallbacks(
 pub fn default_surface_position(app: &AppHandle, mode: SurfaceMode) -> Option<(i32, i32)> {
     match mode {
         SurfaceMode::Hidden => None,
-        SurfaceMode::TrayPanel => tray_panel_position(app)
-            .or_else(|| inferred_tray_panel_position(app))
-            .or_else(|| shortcut_panel_position(app)),
+        SurfaceMode::TrayPanel => {
+            let tp = tray_panel_position(app);
+            tracing::info!("default_surface_position: tray_panel_position={:?}", tp);
+            let itp = tp.or_else(|| inferred_tray_panel_position(app));
+            tracing::info!("default_surface_position: after_inferred={:?}", itp);
+            let sp = itp.or_else(|| shortcut_panel_position(app));
+            tracing::info!("default_surface_position: after_shortcut={:?}", sp);
+            sp
+        }
         SurfaceMode::PopOut => visible_surface_position_for_mode(app, mode),
         SurfaceMode::Settings => remembered_settings_position(app)
             .or_else(|| visible_surface_position_for_mode(app, mode)),
