@@ -3023,7 +3023,7 @@ html {
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: clip;
 }
 
 /* Tray name-group — row layout like macOS: HStack { name — Spacer — email } */
@@ -3297,7 +3297,7 @@ html {
 .menu-card__error-block {
   display: block;
   position: relative;
-  overflow: hidden;
+  overflow: clip;
   max-width: 100%;
   box-sizing: border-box;
 }
@@ -3309,7 +3309,7 @@ html {
   word-break: break-word;
   overflow-wrap: anywhere;
   white-space: normal;
-  overflow: hidden;
+  overflow: clip;
   padding-right: 20px; /* space for copy button */
   max-width: 100%;
   box-sizing: border-box;
