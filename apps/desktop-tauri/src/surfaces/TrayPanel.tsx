@@ -92,9 +92,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // Temporarily removes flex/overflow constraints so scrollHeight reflects the
-  // true content height — necessary because flex+overflow clips children when
-  // the window is smaller than the content.
+  // Uses an off-screen clone to measure true content height — the real surface
+  // is constrained by the viewport / flex layout and can't be measured in-place.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -103,43 +102,23 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     const resize = () => {
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
       if (!surface) return;
-      const body = surface.querySelector<HTMLElement>(".menu-surface__body");
-      const stack = surface.querySelector<HTMLElement>(".menu-stack");
 
-      // Save inline styles for every element we'll override
-      const saved: [HTMLElement, string][] = [
-        [surface, surface.style.cssText],
-      ];
-      if (body) saved.push([body, body.style.cssText]);
-      if (stack) saved.push([stack, stack.style.cssText]);
-
-      // Remove ALL size/overflow constraints so content expands naturally
-      surface.style.height = "auto";
-      surface.style.maxHeight = "none";
-      surface.style.overflow = "visible";
-      if (body) {
-        body.style.overflow = "visible";
-        body.style.flex = "0 0 auto";
-        body.style.maxHeight = "none";
-      }
-      if (stack) {
-        stack.style.overflow = "visible";
-        stack.style.maxHeight = "none";
-      }
-      // Also unconstrain stack items and cards
-      const clipped = surface.querySelectorAll<HTMLElement>(
-        ".menu-stack__item, .menu-card",
-      );
-      for (const el of clipped) {
-        saved.push([el, el.style.cssText]);
+      // Clone the surface off-screen with all constraints removed
+      const clone = surface.cloneNode(true) as HTMLElement;
+      clone.style.cssText =
+        "position:fixed;left:-9999px;top:0;width:310px;height:auto;" +
+        "max-height:none;overflow:visible;visibility:hidden;pointer-events:none;";
+      // Remove overflow/flex constraints from all descendants
+      clone.querySelectorAll<HTMLElement>("*").forEach((el) => {
         el.style.overflow = "visible";
-      }
-
-      // Force synchronous layout — scrollHeight now reflects true content
-      const contentHeight = surface.scrollHeight;
-
-      // Restore all original styles
-      for (const [el, css] of saved) el.style.cssText = css;
+        el.style.maxHeight = "none";
+        if (el.classList.contains("menu-surface__body")) {
+          el.style.flex = "0 0 auto";
+        }
+      });
+      document.body.appendChild(clone);
+      const contentHeight = clone.scrollHeight;
+      document.body.removeChild(clone);
 
       const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
       void getCurrentWindow()
