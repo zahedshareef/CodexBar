@@ -232,21 +232,20 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
         .flatten()
         .or_else(|| window.available_monitors().ok()?.into_iter().next());
     if let Some(m) = monitor {
-        let size = m.size();
         let scale = m.scale_factor().max(1.0);
-        // Tauri reports size in scaled units; divide by scale to get
-        // the system coordinate space used by PhysicalPosition.
-        let screen_w = (size.width as f64 / scale) as i32;
-        let screen_h = (size.height as f64 / scale) as i32;
-        // Panel logical dimensions scaled to system coords.
-        let panel_w = (310.0 * scale) as i32;
-        let panel_h = (550.0 * scale) as i32;
-        let margin = (8.0 * scale) as i32;
-        // Estimate taskbar height (~48 system px at most DPIs).
-        let taskbar_h = (48.0 * scale) as i32;
-        // Bottom-right, just above the taskbar — mimics tray anchor.
+        // Tauri reports size doubled at 200% DPI; divide by scale to get
+        // the OS coordinate space (matches GetSystemMetrics).
+        let screen_w = (m.size().width as f64 / scale) as i32;
+        // Use work area height so we anchor above the taskbar.
+        let work_area = m.work_area();
+        let work_bottom = (work_area.position.y as f64 / scale) as i32
+            + (work_area.size.height as f64 / scale) as i32;
+        // Panel takes its logical size in the OS coordinate space.
+        let panel_w = 310;
+        let panel_h = 550;
+        let margin = 8;
         let x = screen_w - panel_w - margin;
-        let y = screen_h - panel_h - taskbar_h - margin;
+        let y = work_bottom - panel_h - margin;
         return Some((x, y));
     }
     Some((800, 25))
