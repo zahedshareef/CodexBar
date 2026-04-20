@@ -92,8 +92,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // Uses ResizeObserver to re-measure when content height changes (data load,
-  // error text expansion, etc.) — more reliable than a single rAF measurement.
+  // Re-runs when providers change (data load) or visible set changes.
+  // Also observes the content stack via ResizeObserver for layout shifts.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -114,19 +114,24 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       });
     };
 
-    // Initial measurement
+    // Initial measurement + delayed re-check for async rendering
     resize();
+    const timer = setTimeout(resize, 300);
 
-    // Re-measure whenever the body content changes size
-    const body = document.querySelector<HTMLElement>(".menu-surface__body");
+    // Observe the menu-stack (content container) — it resizes when cards
+    // are added/removed or when card content changes size.
+    const stack = document.querySelector<HTMLElement>(".menu-stack");
     let observer: ResizeObserver | undefined;
-    if (body) {
+    if (stack) {
       observer = new ResizeObserver(() => resize());
-      observer.observe(body);
+      observer.observe(stack);
     }
 
-    return () => observer?.disconnect();
-  }, [visibleProviders]);
+    return () => {
+      clearTimeout(timer);
+      observer?.disconnect();
+    };
+  }, [visibleProviders, providers]);
 
   const openSettings = useCallback(() => {
     setSurfaceMode("settings", { kind: "settings", tab: "general" });
