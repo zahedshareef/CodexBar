@@ -242,7 +242,7 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
         let work_bottom = work_y + work_h;
         // Panel logical dimensions (no scaling — already in OS coords).
         let panel_w = 310;
-        let panel_h = 550;
+        let panel_h = 620;
         let margin = 12;
         let x = screen_w - panel_w - margin;
         let y = work_bottom - panel_h - margin;
