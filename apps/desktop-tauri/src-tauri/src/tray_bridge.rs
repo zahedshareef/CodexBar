@@ -259,15 +259,10 @@ pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 ..
             } = event
             {
-                tracing::info!(
-                    "tray click: rect={:?} position={:?} button={:?}",
-                    rect, position, button
-                );
                 let app = tray.app_handle();
                 store_anchor(app, &rect, position);
                 if button == MouseButton::Left {
                     let position = shell::tray_panel_position(app);
-                    tracing::info!("tray_panel_position => {:?}", position);
                     shell::toggle_tray_panel(app, position);
                 }
             }

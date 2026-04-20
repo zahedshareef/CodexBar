@@ -2263,11 +2263,9 @@ pub fn reanchor_tray_panel(app: tauri::AppHandle) -> Result<(), String> {
         (x as f64 / scale).round() as i32,
         (y as f64 / scale).round() as i32,
     );
-    tracing::info!(
-        "reanchor_tray_panel: panel={}x{} work_area=({},{} {}x{}) => ({},{}) os=>({},{})",
-        panel_size.width, panel_size.height,
-        work_area.x, work_area.y, work_area.width, work_area.height,
-        x, y, pos.x, pos.y
+    tracing::debug!(
+        "reanchor_tray_panel: panel={}x{} => ({},{})",
+        panel_size.width, panel_size.height, pos.x, pos.y
     );
     let _ = window.set_position(pos);
     Ok(())

@@ -21,36 +21,18 @@ pub fn inferred_tray_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
         .primary_monitor()
         .ok()
         .flatten()
-        .map(|monitor| {
-            let mp = monitor_placement(&monitor);
-            tracing::info!(
-                "inferred_tray: primary_monitor bounds=({},{} {}x{}) work_area=({},{} {}x{}) scale={}",
-                mp.bounds.x, mp.bounds.y, mp.bounds.width, mp.bounds.height,
-                mp.work_area.x, mp.work_area.y, mp.work_area.width, mp.work_area.height,
-                mp.scale_factor
-            );
-            mp
-        })
+        .map(|monitor| monitor_placement(&monitor))
         .or_else(|| {
             window
                 .current_monitor()
                 .ok()
                 .flatten()
-                .map(|monitor| {
-                    let mp = monitor_placement(&monitor);
-                    tracing::info!(
-                        "inferred_tray: current_monitor bounds=({},{} {}x{}) work_area=({},{} {}x{}) scale={}",
-                        mp.bounds.x, mp.bounds.y, mp.bounds.width, mp.bounds.height,
-                        mp.work_area.x, mp.work_area.y, mp.work_area.width, mp.work_area.height,
-                        mp.scale_factor
-                    );
-                    mp
-                })
+                .map(|monitor| monitor_placement(&monitor))
         })?;
 
-    let pos = super::geometry::inferred_tray_panel_position_for_monitor(&monitor);
-    tracing::info!("inferred_tray_panel_position => ({},{})", pos.0, pos.1);
-    Some(pos)
+    Some(super::geometry::inferred_tray_panel_position_for_monitor(
+        &monitor,
+    ))
 }
 
 fn current_tray_anchor(app: &AppHandle) -> Option<crate::state::TrayAnchor> {
@@ -211,30 +193,19 @@ pub fn remember_current_geometry_if_settings(window: &tauri::Window) {
 /// Calculate panel position anchored to the saved tray icon rectangle.
 pub fn tray_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
     let anchor = current_tray_anchor(app)?;
-    tracing::info!(
-        "tray_panel_position: anchor=({},{} {}x{})",
-        anchor.x, anchor.y, anchor.width, anchor.height
-    );
 
     let window = app.get_webview_window("main")?;
     let monitors = window.available_monitors().ok()?;
 
     let monitor = monitor_for_anchor(&monitors, anchor)?;
     let scale = monitor.scale_factor();
-    let wa = monitor_work_area_rect(monitor);
-    tracing::info!(
-        "tray_panel_position: monitor work_area=({},{} {}x{}) scale={}",
-        wa.x, wa.y, wa.width, wa.height, scale
-    );
 
-    let pos = window_positioner::calculate_panel_position(
+    Some(window_positioner::calculate_panel_position(
         &tray_anchor_rect(anchor),
-        &wa,
+        &monitor_work_area_rect(monitor),
         &tray_panel_size(),
         scale,
-    );
-    tracing::info!("tray_panel_position => ({},{})", pos.0, pos.1);
-    Some(pos)
+    ))
 }
 
 /// Calculate panel position for shortcut/second-instance opens (22 % left, centred).
