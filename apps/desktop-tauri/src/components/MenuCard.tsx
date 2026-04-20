@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   PaceSnapshot,
   ProviderChartData,
@@ -177,6 +177,17 @@ function MetricRow({
 export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
   const { t } = useLocale();
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
+  const errorBlockRef = useRef<HTMLDivElement>(null);
+
+  // Force error block width to match parent card to prevent text overflow
+  useEffect(() => {
+    const el = errorBlockRef.current;
+    if (!el) return;
+    const card = el.closest(".menu-card") as HTMLElement | null;
+    if (card) {
+      el.style.maxWidth = `${card.clientWidth}px`;
+    }
+  });
 
   useEffect(() => {
     if (DEMO_ENABLED) return; // skip chart fetch in demo mode
@@ -237,7 +248,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
           </div>
         </div>
         {provider.error ? (
-          <div className="menu-card__error-block">
+          <div className="menu-card__error-block" ref={errorBlockRef}>
             <span className="menu-card__error-text">{provider.error}</span>
             <CopyIconButton text={provider.error} />
           </div>
