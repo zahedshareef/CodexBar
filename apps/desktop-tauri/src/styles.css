@@ -3008,6 +3008,8 @@ html {
   border: none;
   border-radius: 8px;
   padding: 4px 6px 3px;
+  /* Auto-fit: compact when few providers, wrap to more rows when many */
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
 }
 /* Divider between provider grid and card stack — matches macOS */
 .menu-surface--tray .provider-grid__divider {
@@ -3058,9 +3060,9 @@ html {
 .menu-surface--tray .menu-card__error-text {
   font-size: 10px;
 }
-/* Tray "Updated just now" — green tint like macOS */
+/* Tray "Updated just now" — secondary color like macOS */
 .menu-surface--tray .menu-card__subtitle:not(.menu-card__subtitle--error) {
-  color: #34c759;
+  color: var(--text-secondary);
 }
 
 /* Copy-to-clipboard button — matches macOS CopyIconButton (doc.on.doc, 18×18) */
