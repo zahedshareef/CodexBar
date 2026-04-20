@@ -237,12 +237,16 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
         // Tauri reports size in scaled units; divide by scale to get
         // the system coordinate space used by PhysicalPosition.
         let screen_w = (size.width as f64 / scale) as i32;
-        // Panel is 310 logical px → 310*scale in system coords.
+        let screen_h = (size.height as f64 / scale) as i32;
+        // Panel logical dimensions scaled to system coords.
         let panel_w = (310.0 * scale) as i32;
-        let margin = (20.0 * scale) as i32;
-        let top_margin = (30.0 * scale) as i32;
+        let panel_h = (550.0 * scale) as i32;
+        let margin = (8.0 * scale) as i32;
+        // Estimate taskbar height (~48 system px at most DPIs).
+        let taskbar_h = (48.0 * scale) as i32;
+        // Bottom-right, just above the taskbar — mimics tray anchor.
         let x = screen_w - panel_w - margin;
-        let y = top_margin;
+        let y = screen_h - panel_h - taskbar_h - margin;
         return Some((x, y));
     }
     Some((800, 25))
