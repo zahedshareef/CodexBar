@@ -2259,10 +2259,9 @@ pub fn reanchor_tray_panel(app: tauri::AppHandle) -> Result<(), String> {
         }
     };
 
-    let pos = tauri::PhysicalPosition::new(
-        (x as f64 / scale).round() as i32,
-        (y as f64 / scale).round() as i32,
-    );
+    // Pass physical coordinates directly — tao converts PhysicalPosition
+    // to OS logical internally by dividing by the window's scale factor.
+    let pos = tauri::PhysicalPosition::new(x, y);
     tracing::debug!(
         "reanchor_tray_panel: panel={}x{} => ({},{})",
         panel_size.width, panel_size.height, pos.x, pos.y

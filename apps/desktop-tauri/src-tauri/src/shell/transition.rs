@@ -18,15 +18,12 @@ use super::window::apply_window_properties;
 use super::{SHELL_TRANSITION_SERIAL, ShellTransitionRequest};
 
 /// Positions from the positioner pipeline are in Tauri's physical coordinate
-/// space (e.g. 6400×3600 at 200 % DPI). `set_position(PhysicalPosition)` maps
-/// directly to the OS logical coordinate space (3200×1800), so we divide by the
-/// window's scale factor before applying.
-fn os_position(window: &WebviewWindow, x: i32, y: i32) -> tauri::PhysicalPosition<i32> {
-    let scale = window.scale_factor().unwrap_or(1.0).max(1.0);
-    tauri::PhysicalPosition::new(
-        (x as f64 / scale).round() as i32,
-        (y as f64 / scale).round() as i32,
-    )
+/// space (e.g. 5120×2880 at 200 % DPI on a 2560×1440 logical desktop).
+/// `set_position(PhysicalPosition)` is converted to OS logical coordinates by
+/// tao internally (divides by the window's scale factor), so we pass the
+/// physical coordinates through without manual division.
+fn os_position(_window: &WebviewWindow, x: i32, y: i32) -> tauri::PhysicalPosition<i32> {
+    tauri::PhysicalPosition::new(x, y)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
