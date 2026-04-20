@@ -92,28 +92,40 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
+  // Uses ResizeObserver to re-measure when content height changes (data load,
+  // error text expansion, etc.) — more reliable than a single rAF measurement.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
-    // Temporarily unconstrain height to measure natural content height
-    const root = document.documentElement;
-    const surface = root.querySelector<HTMLElement>(".menu-surface--tray");
-    if (surface) {
+    const MIN_HEIGHT = 200;
+
+    const resize = () => {
+      const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
+      if (!surface) return;
       const prev = surface.style.height;
       surface.style.height = "auto";
       requestAnimationFrame(() => {
         const contentHeight = surface.scrollHeight;
         surface.style.height = prev || "";
-        const height = Math.min(Math.max(contentHeight, 200), MAX_HEIGHT);
+        const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
         void getCurrentWindow()
           .setSize(new LogicalSize(TRAY_WIDTH, height))
           .then(() => reanchorTrayPanel().catch(() => {}));
       });
-    } else {
-      void getCurrentWindow()
-        .setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT))
-        .then(() => reanchorTrayPanel().catch(() => {}));
+    };
+
+    // Initial measurement
+    resize();
+
+    // Re-measure whenever the body content changes size
+    const body = document.querySelector<HTMLElement>(".menu-surface__body");
+    let observer: ResizeObserver | undefined;
+    if (body) {
+      observer = new ResizeObserver(() => resize());
+      observer.observe(body);
     }
+
+    return () => observer?.disconnect();
   }, [visibleProviders]);
 
   const openSettings = useCallback(() => {
