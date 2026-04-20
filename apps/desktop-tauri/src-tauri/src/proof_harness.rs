@@ -214,8 +214,7 @@ pub fn activate(app: &AppHandle) {
 
 /// Calculate a predictable window position for proof captures.
 /// Uses the tray-anchored position chain when available, with a reliable
-/// fallback that places the panel near the bottom-right (tray area) but
-/// safely above the taskbar.
+/// fallback that places the panel on the right side, near the top.
 fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
     // Try real tray anchor first
     if let Some(pos) = shell::tray_panel_position(app) {
@@ -225,17 +224,24 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
     if let Some(pos) = shell::inferred_tray_panel_position(app) {
         return Some(pos);
     }
-    // Reliable fallback: right side, near top (always visible for captures)
+    // Reliable fallback using available_monitors (works even during setup)
     let window = app.get_webview_window("main")?;
-    let monitor = window.primary_monitor().ok()??;
-    let pos = monitor.position();
-    let size = monitor.size();
-    let scale = monitor.scale_factor();
-    let logical_w = (size.width as f64 / scale) as i32;
-    // Place panel 310px from right edge, 30px from top
-    let x = pos.x + logical_w - 330;
-    let y = pos.y + 30;
-    Some((x, y))
+    let monitor = window
+        .primary_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.available_monitors().ok()?.into_iter().next());
+    if let Some(m) = monitor {
+        let pos = m.position();
+        let size = m.size();
+        let scale = m.scale_factor();
+        let logical_w = (size.width as f64 / scale) as i32;
+        let x = pos.x + logical_w - 330;
+        let y = pos.y + 30;
+        return Some((x, y));
+    }
+    // Absolute last resort: fixed position that works on common resolutions
+    Some((800, 25))
 }
 
 /// Returns `true` when proof mode is active in the shared state.
