@@ -2973,6 +2973,9 @@ html {
   border-radius: 8px;
   padding: 5px 7px;
   min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
   overflow: hidden;
 }
 /* Selected card — more prominent blue-tinted background like macOS active provider */
@@ -3018,8 +3021,9 @@ html {
   gap: 1px;
   padding: 0;
   min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   overflow: hidden;
-  contain: inline-size;
 }
 
 /* Tray name-group — row layout like macOS: HStack { name — Spacer — email } */
@@ -3229,6 +3233,8 @@ html {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .menu-card__title-row {
