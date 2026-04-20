@@ -92,31 +92,41 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // Measures body.scrollHeight (full content including overflow) + footer + padding
-  // rather than toggling surface height, which breaks in a flex+overflow layout.
+  // Temporarily removes flex/overflow constraints so scrollHeight reflects the
+  // true content height — necessary because flex+overflow clips children when
+  // the window is smaller than the content.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
     const MIN_HEIGHT = 200;
-    const SURFACE_PAD = 8; // 4px top + 4px bottom
 
     const resize = () => {
-      const body = document.querySelector<HTMLElement>(
-        ".menu-surface--tray .menu-surface__body",
-      );
-      if (!body) return;
-      const footer = document.querySelector<HTMLElement>(
-        ".menu-surface--tray .menu-surface__footer",
-      );
-      const banner = document.querySelector<HTMLElement>(
-        ".menu-surface--tray .update-banner",
-      );
-      const totalContent =
-        body.scrollHeight +
-        (footer?.offsetHeight ?? 0) +
-        (banner?.offsetHeight ?? 0) +
-        SURFACE_PAD;
-      const height = Math.min(Math.max(totalContent, MIN_HEIGHT), MAX_HEIGHT);
+      const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
+      if (!surface) return;
+      const body = surface.querySelector<HTMLElement>(".menu-surface__body");
+
+      // Save current inline styles
+      const sPrev = surface.style.cssText;
+      const bPrev = body?.style.cssText ?? "";
+
+      // Remove all size constraints so content expands naturally
+      surface.style.height = "auto";
+      surface.style.maxHeight = "none";
+      surface.style.overflow = "visible";
+      if (body) {
+        body.style.overflow = "visible";
+        body.style.flex = "0 0 auto";
+        body.style.maxHeight = "none";
+      }
+
+      // Force reflow — reading scrollHeight triggers synchronous layout
+      const contentHeight = surface.scrollHeight;
+
+      // Restore original styles
+      surface.style.cssText = sPrev;
+      if (body) body.style.cssText = bPrev;
+
+      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
       void getCurrentWindow()
         .setSize(new LogicalSize(TRAY_WIDTH, height))
         .then(() => reanchorTrayPanel().catch(() => {}));
@@ -124,8 +134,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
     // Measure after DOM settles, then re-check for async data
     requestAnimationFrame(resize);
-    const t1 = setTimeout(resize, 300);
-    const t2 = setTimeout(resize, 800);
+    const t1 = setTimeout(resize, 500);
+    const t2 = setTimeout(resize, 1500);
 
     // Re-measure when the content stack resizes (cards added/removed)
     const stack = document.querySelector<HTMLElement>(".menu-stack");
