@@ -23,10 +23,15 @@ use super::{SHELL_TRANSITION_SERIAL, ShellTransitionRequest};
 /// window's scale factor before applying.
 fn os_position(window: &WebviewWindow, x: i32, y: i32) -> tauri::PhysicalPosition<i32> {
     let scale = window.scale_factor().unwrap_or(1.0).max(1.0);
-    tauri::PhysicalPosition::new(
+    let result = tauri::PhysicalPosition::new(
         (x as f64 / scale).round() as i32,
         (y as f64 / scale).round() as i32,
-    )
+    );
+    tracing::info!(
+        "os_position: input=({},{}) scale={} => ({},{})",
+        x, y, scale, result.x, result.y
+    );
+    result
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
