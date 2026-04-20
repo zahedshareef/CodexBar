@@ -2948,6 +2948,7 @@ html {
   flex: 1 1 auto;
   overflow-y: auto;
   min-height: 0;
+  min-width: 0;
   scrollbar-width: none;
 }
 .menu-surface--tray .menu-surface__body::-webkit-scrollbar {
@@ -2960,6 +2961,7 @@ html {
   gap: 3px;
   max-height: none;
   overflow-y: visible;
+  min-width: 0;
 }
 
 /* Tray cards — rounded semi-transparent containers matching macOS panel */
@@ -2968,6 +2970,8 @@ html {
   border: 0.5px solid rgba(255, 255, 255, 0.06);
   border-radius: 8px;
   padding: 5px 7px;
+  min-width: 0;
+  overflow: hidden;
 }
 /* Selected card — more prominent blue-tinted background like macOS active provider */
 .menu-surface--tray .menu-stack__item--selected {
@@ -3011,6 +3015,8 @@ html {
 .menu-surface--tray .menu-card {
   gap: 1px;
   padding: 0;
+  overflow: hidden;
+  min-width: 0;
 }
 
 /* Tray name-group — row layout like macOS: HStack { name — Spacer — email } */
