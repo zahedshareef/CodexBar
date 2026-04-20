@@ -3049,12 +3049,16 @@ html {
 .menu-surface--tray .menu-card__subtitle:not(.menu-card__subtitle--error) {
   color: #34c759;
 }
-/* Tray error subtitle — match macOS lineLimit(4) + bottom padding */
+/* Tray error subtitle — allow full wrapping (macOS shows complete error text) */
 .menu-surface--tray .menu-card__subtitle--error {
-  -webkit-line-clamp: 4;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  display: block;
+  -webkit-line-clamp: unset;
+  -webkit-box-orient: unset;
+  overflow: visible;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-overflow: unset;
   padding-bottom: 2px;
 }
 
@@ -3158,6 +3162,9 @@ html {
 .menu-surface--tray .menu-metric__bar {
   height: 3px;
   border-radius: 2px;
+  width: 100%;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 .menu-surface--tray .menu-metric__pct,
 .menu-surface--tray .menu-metric__reset {
