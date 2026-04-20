@@ -2973,6 +2973,7 @@ html {
   border-radius: 8px;
   padding: 5px 7px;
   min-width: 0;
+  overflow: hidden;
 }
 /* Selected card — more prominent blue-tinted background like macOS active provider */
 .menu-surface--tray .menu-stack__item--selected {
