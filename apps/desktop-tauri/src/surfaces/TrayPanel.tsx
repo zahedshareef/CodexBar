@@ -102,36 +102,48 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
       if (!surface) return;
 
+      // Force-remove viewport constraints (CSS :has() may not work in all WebView2 versions)
+      document.documentElement.style.overflow = "visible";
+      document.body.style.overflow = "visible";
+      document.body.style.minHeight = "0";
+
       // Remove any previous inline max-height
       surface.style.maxHeight = "none";
+
+      // Force body and stack to NOT use overflow so all content is in-flow
+      const body = surface.querySelector<HTMLElement>(".menu-surface__body");
+      const stack = surface.querySelector<HTMLElement>(".menu-stack");
+      if (body) {
+        body.style.overflow = "visible";
+        body.style.flex = "0 0 auto";
+      }
+      if (stack) {
+        stack.style.overflow = "visible";
+      }
 
       // Expand window to give content room
       await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
 
-      // Poll until viewport actually resizes
-      let vpH = 0;
-      for (let i = 0; i < 30; i++) {
+      // Wait for viewport to update
+      for (let i = 0; i < 20; i++) {
         await new Promise<void>((r) => setTimeout(r, 50));
-        vpH = document.documentElement.clientHeight;
-        if (vpH >= MAX_HEIGHT - 20) break;
+        if (document.documentElement.clientHeight >= MAX_HEIGHT - 20) break;
       }
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-      const surfaceH = surface.offsetHeight;
-      const bodyEl = surface.querySelector<HTMLElement>(".menu-surface__body");
-      const footerEl = surface.querySelector<HTMLElement>(".menu-surface__footer");
-      const bodySH = bodyEl?.scrollHeight ?? 0;
-      const bodyOH = bodyEl?.offsetHeight ?? 0;
-      const footerH = footerEl?.offsetHeight ?? 0;
-
-      // Measure using getBoundingClientRect to bypass layout issues
+      // Measure by scanning all descendants for true visual extent
       const surfaceRect = surface.getBoundingClientRect();
-      const lastChild = (footerEl || surface.lastElementChild) as HTMLElement;
-      const lastRect = lastChild?.getBoundingClientRect();
-      const bcrHeight = lastRect ? Math.ceil(lastRect.bottom - surfaceRect.top) + 4 : surfaceH;
+      let maxBottom = surfaceRect.bottom;
+      const descendants = surface.querySelectorAll("*");
+      for (const el of descendants) {
+        const r = (el as HTMLElement).getBoundingClientRect();
+        if (r.height > 0 && r.bottom > maxBottom) maxBottom = r.bottom;
+      }
+      const contentHeight = Math.ceil(maxBottom - surfaceRect.top) + 4;
+      const stackCards = stack ? stack.children.length : 0;
 
-      // Write diagnostics to overlay
+      // Write diagnostics
       let diagEl = document.getElementById("_diag");
       if (!diagEl) {
         diagEl = document.createElement("div");
@@ -139,11 +151,19 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         diagEl.style.cssText = "position:fixed;top:0;left:0;right:0;background:red;color:white;font:8px monospace;z-index:99999;padding:2px;word-break:break-all;";
         document.body.appendChild(diagEl);
       }
-      diagEl.textContent = `vp=${vpH} srf=${surfaceH} body=${bodyOH}/${bodySH} ftr=${footerH} bcr=${bcrHeight}`;
+      const sH = surface.offsetHeight;
+      const bH = body?.offsetHeight ?? 0;
+      const stH = stack?.scrollHeight ?? 0;
+      diagEl.textContent = `scan=${contentHeight} srf=${sH} body=${bH} stk=${stH} cards=${stackCards}`;
 
-      const contentHeight = bcrHeight;
       const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
+
+      // Restore scroll overflow for runtime (capped by explicit maxHeight)
       surface.style.maxHeight = `${height}px`;
+      if (body) {
+        body.style.overflow = "";
+        body.style.flex = "";
+      }
 
       await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
