@@ -111,14 +111,16 @@ function applySettingsWindowSize(tab: SettingsTab) {
     .catch(() => {});
 }
 
-export default function Settings({ state }: { state: BootstrapState }) {
+export default function Settings({ state, initialTab: propTab }: { state: BootstrapState; initialTab?: string }) {
   const { settings, saving, error, update } = useSettings(state.settings);
   const { t } = useLocale();
   const shellTarget = useSurfaceTarget("settings");
   const initialTab: SettingsTab =
-    shellTarget?.kind === "settings" && isSettingsTab(shellTarget.tab)
-      ? shellTarget.tab
-      : "general";
+    propTab && isSettingsTab(propTab)
+      ? propTab
+      : shellTarget?.kind === "settings" && isSettingsTab(shellTarget.tab)
+        ? shellTarget.tab
+        : "general";
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
   useEffect(() => {
@@ -127,6 +129,17 @@ export default function Settings({ state }: { state: BootstrapState }) {
     // handled by handleTabClick / shellTarget effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Respond to prop-driven tab changes (detached window re-focus events).
+  useEffect(() => {
+    if (propTab && isSettingsTab(propTab)) {
+      setActiveTab((current) => {
+        if (current === propTab) return current;
+        applySettingsWindowSize(propTab);
+        return propTab;
+      });
+    }
+  }, [propTab]);
 
   useEffect(() => {
     if (shellTarget?.kind !== "settings" || !isSettingsTab(shellTarget.tab)) {

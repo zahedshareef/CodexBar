@@ -149,20 +149,6 @@ fn resolve_menu_target(id: &str) -> Option<shell::ShellTransitionRequest> {
             target: SurfaceTarget::Dashboard,
             position: None,
         }),
-        "settings" => Some(shell::ShellTransitionRequest {
-            mode: SurfaceMode::Settings,
-            target: SurfaceTarget::Settings {
-                tab: "general".into(),
-            },
-            position: None,
-        }),
-        "about" => Some(shell::ShellTransitionRequest {
-            mode: SurfaceMode::Settings,
-            target: SurfaceTarget::Settings {
-                tab: "about".into(),
-            },
-            position: None,
-        }),
         _ if id.starts_with("provider:") => Some(shell::ShellTransitionRequest {
             mode: SurfaceMode::PopOut,
             target: SurfaceTarget::parse(id)?,
@@ -174,6 +160,8 @@ fn resolve_menu_target(id: &str) -> Option<shell::ShellTransitionRequest> {
 
 enum MenuAction {
     Transition(shell::ShellTransitionRequest),
+    /// Open Settings/About in a detached window.
+    OpenSettings(String),
     Refresh,
     CheckForUpdates,
     /// Toggle the enabled/disabled state of the provider with the given CLI name.
@@ -191,6 +179,8 @@ fn resolve_menu_action(id: &str) -> Option<MenuAction> {
         "refresh" => Some(MenuAction::Refresh),
         "check_for_updates" => Some(MenuAction::CheckForUpdates),
         "quit" => Some(MenuAction::Quit),
+        "settings" => Some(MenuAction::OpenSettings("general".into())),
+        "about" => Some(MenuAction::OpenSettings("about".into())),
         _ if id.starts_with("toggle_provider:") => {
             let provider_id = id["toggle_provider:".len()..].to_string();
             Some(MenuAction::ToggleProvider(provider_id))
@@ -301,6 +291,9 @@ fn handle_menu_event(app: &AppHandle, id: &str) {
                     );
                 }
             }
+        }
+        Some(MenuAction::OpenSettings(tab)) => {
+            let _ = shell::settings_window::open_or_focus(app, &tab);
         }
         Some(MenuAction::Refresh) => {
             let handle = app.clone();
@@ -595,15 +588,18 @@ mod tests {
     }
 
     #[test]
-    fn settings_menu_routes_to_settings_about_target() {
-        let action = resolve_menu_target("about").expect("about target");
-        assert_eq!(action.mode, SurfaceMode::Settings);
-        assert_eq!(
-            action.target,
-            SurfaceTarget::Settings {
-                tab: "about".into()
-            }
-        );
+    fn settings_menu_routes_to_open_settings_action() {
+        let action = resolve_menu_action("about").expect("about action");
+        match action {
+            MenuAction::OpenSettings(tab) => assert_eq!(tab, "about"),
+            _ => panic!("expected OpenSettings for 'about'"),
+        }
+
+        let action = resolve_menu_action("settings").expect("settings action");
+        match action {
+            MenuAction::OpenSettings(tab) => assert_eq!(tab, "general"),
+            _ => panic!("expected OpenSettings for 'settings'"),
+        }
     }
 
     #[test]
@@ -644,25 +640,18 @@ mod tests {
     #[test]
     fn non_show_panel_menu_keeps_explicit_position() {
         let dispatch = resolve_menu_transition_dispatch(
-            "settings",
+            "pop_out",
             shell::ShellTransitionRequest {
-                mode: SurfaceMode::Settings,
-                target: SurfaceTarget::Settings {
-                    tab: "general".into(),
-                },
+                mode: SurfaceMode::PopOut,
+                target: SurfaceTarget::Dashboard,
                 position: Some((320, 240)),
             },
         );
 
         match dispatch {
             MenuTransitionDispatch::Transition(request) => {
-                assert_eq!(request.mode, SurfaceMode::Settings);
-                assert_eq!(
-                    request.target,
-                    SurfaceTarget::Settings {
-                        tab: "general".into()
-                    }
-                );
+                assert_eq!(request.mode, SurfaceMode::PopOut);
+                assert_eq!(request.target, SurfaceTarget::Dashboard);
                 assert_eq!(request.position, Some((320, 240)));
             }
             MenuTransitionDispatch::Reopen(_) => {

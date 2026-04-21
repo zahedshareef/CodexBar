@@ -8,6 +8,7 @@ use crate::surface_target::SurfaceTarget;
 
 mod geometry;
 mod position;
+pub mod settings_window;
 mod transition;
 mod window;
 

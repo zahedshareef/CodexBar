@@ -57,6 +57,10 @@ export function setSurfaceMode<M extends VisibleSurfaceMode>(
   return invoke<SurfaceMode>("set_surface_mode", { mode, target });
 }
 
+export function openSettingsWindow(tab: string): Promise<void> {
+  return invoke<void>("open_settings_window", { tab });
+}
+
 export function getCurrentSurfaceMode(): Promise<SurfaceMode> {
   return invoke<SurfaceMode>("get_current_surface_mode");
 }

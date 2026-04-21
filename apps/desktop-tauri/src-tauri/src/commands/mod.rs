@@ -1001,6 +1001,16 @@ pub fn set_surface_mode(
         .map(|mode| mode.as_str().to_string())
 }
 
+/// Open (or focus) a detached Settings/About window.
+///
+/// Unlike `set_surface_mode`, this spawns a *separate* window so the tray
+/// panel stays open.  On Windows, `WebviewWindowBuilder::build` deadlocks
+/// inside synchronous Tauri commands, so this must be `async`.
+#[tauri::command]
+pub async fn open_settings_window(app: tauri::AppHandle, tab: String) -> Result<(), String> {
+    crate::shell::settings_window::open_or_focus(&app, &tab)
+}
+
 #[tauri::command]
 pub fn get_current_surface_mode(state: tauri::State<'_, Mutex<AppState>>) -> String {
     state

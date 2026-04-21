@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { checkForUpdates, getBootstrapState, getSettingsSnapshot, setSurfaceMode } from "./lib/tauri";
 import { useSurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
 import { useTheme } from "./hooks/useTheme";
@@ -9,6 +10,17 @@ import PopOutPanel from "./surfaces/PopOutPanel";
 import { LocaleProvider } from "./i18n/LocaleProvider";
 import type { BootstrapState, ThemePreference } from "./types/bridge";
 import type { SurfaceSnapshot } from "./hooks/useSurfaceSnapshot";
+
+/** True when running inside the detached Settings window. */
+function isSettingsWindow(): boolean {
+  return getCurrentWebviewWindow().label === "settings";
+}
+
+/** Parse the initial Settings tab from the URL query string. */
+function initialSettingsTab(): string {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("tab") || "general";
+}
 
 export default function App() {
   return (
@@ -97,6 +109,11 @@ function AppInner() {
     );
   }
 
+  // Detached settings window — render Settings directly, skip SurfaceRouter.
+  if (isSettingsWindow()) {
+    return <DetachedSettingsApp state={state} />;
+  }
+
   return <SurfaceRouter surface={surface} state={state} />;
 }
 
@@ -130,6 +147,27 @@ function SettingsLayout({ state }: { state: BootstrapState }) {
   return (
     <main className="settings-surface settings-surface--full">
       <Settings state={state} />
+    </main>
+  );
+}
+
+function DetachedSettingsApp({ state }: { state: BootstrapState }) {
+  const [tab, setTab] = useState(initialSettingsTab);
+
+  useEffect(() => {
+    // Listen for tab-change events from Rust (when the window is re-focused
+    // with a different tab request).
+    const unlisten = listen<string>("settings-change-tab", (event) => {
+      setTab(event.payload);
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  return (
+    <main className="settings-surface settings-surface--full">
+      <Settings state={state} initialTab={tab} />
     </main>
   );
 }
