@@ -136,8 +136,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       }
       diagEl.textContent = `H=${contentHeight} ${parts.join(" | ")}`;
 
-      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
-      await win.setSize(new LogicalSize(TRAY_WIDTH, height));
+      // DEBUG: Leave at 800 to see all content (no shrink)
+      // const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
+      // await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
     };
 
