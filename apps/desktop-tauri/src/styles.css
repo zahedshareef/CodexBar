@@ -1024,17 +1024,21 @@ html {
 
 /* ── Tray Panel ───────────────────────────────────────────────────── */
 
-/* Smooth entrance: prevents the brief flash of stale content when the
-   window becomes visible before React has processed the surface-mode event. */
-@keyframes surfaceFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+/* Hide the panel during the initial resize + reposition dance so the
+   user never sees the window jump around.  Once layout is measured and
+   the window is anchored in its final position, .tray-panel-reveal--ready
+   fades the content in smoothly. */
+.tray-panel-reveal {
+  opacity: 0;
+}
+.tray-panel-reveal--ready {
+  opacity: 1;
+  transition: opacity 80ms ease-out;
 }
 
 .shell--tray-panel {
   max-width: 320px;
   padding: 8px 10px 12px;
-  animation: surfaceFadeIn 80ms ease-out;
 }
 
 /* spin animation for refresh */

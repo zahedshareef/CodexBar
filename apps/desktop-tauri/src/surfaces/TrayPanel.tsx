@@ -71,6 +71,10 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     null,
   );
 
+  // Hide panel during the initial resize+reposition dance so the user
+  // doesn't see the window jump around.  Revealed after first layout pass.
+  const [layoutReady, setLayoutReady] = useState(false);
+
   // Cards to display based on mode
   // Overview: all providers in the grid — non-error first, then errors
   // Detail: only the selected provider's card (macOS shows single provider)
@@ -140,7 +144,10 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       if (body) { body.style.overflow = ""; body.style.flex = ""; }
 
       await win.setSize(new LogicalSize(TRAY_WIDTH, height));
-      reanchorTrayPanel().catch(() => {});
+      await reanchorTrayPanel().catch(() => {});
+
+      // First layout pass complete — reveal the panel
+      setLayoutReady(true);
     };
 
     const t0 = setTimeout(() => void resize(), 100);
@@ -230,6 +237,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
   if (sorted.length === 0) {
     return (
+      <div className={`tray-panel-reveal${layoutReady ? " tray-panel-reveal--ready" : ""}`}>
       <MenuSurface
         variant="tray"
         onRefresh={refresh}
@@ -240,10 +248,12 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       >
         <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
       </MenuSurface>
+      </div>
     );
   }
 
   return (
+    <div className={`tray-panel-reveal${layoutReady ? " tray-panel-reveal--ready" : ""}`}>
     <MenuSurface
       variant="tray"
       onRefresh={refresh}
@@ -341,5 +351,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         </div>
       )}
     </MenuSurface>
+    </div>
   );
 }
