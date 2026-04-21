@@ -28,20 +28,41 @@ const ZAI_CREDENTIAL_TARGET: &str = "codexbar-zai";
 /// z.ai quota response structure
 #[derive(Debug, Deserialize)]
 struct ZaiQuotaResponse {
-    /// List of quota limits
+    #[serde(default)]
+    code: Option<i32>,
+    #[serde(default)]
+    data: Option<ZaiQuotaData>,
+    /// Legacy flat limits array (backwards compat)
     #[serde(default)]
     limits: Vec<ZaiLimit>,
 }
 
 #[derive(Debug, Deserialize)]
+struct ZaiQuotaData {
+    #[serde(default)]
+    limits: Vec<ZaiLimit>,
+    #[serde(rename = "planName")]
+    plan_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ZaiLimit {
-    /// Limit type (e.g., "tokens", "mcp")
+    /// Limit type: "TOKENS_LIMIT" or "TIME_LIMIT" (upstream) or "tokens"/"mcp" (legacy)
     #[serde(rename = "type")]
     limit_type: Option<String>,
     /// Used amount
     used: Option<f64>,
+    /// Current value (alternative to used)
+    #[serde(rename = "currentValue")]
+    current_value: Option<f64>,
     /// Total limit
     limit: Option<f64>,
+    /// Remaining amount
+    remaining: Option<f64>,
+    /// Time unit enum: 1=days, 3=hours, 5=minutes, 6=weeks
+    unit: Option<i32>,
+    /// Number of time units in the window
+    number: Option<i32>,
     /// Reset time (ISO 8601)
     #[serde(rename = "resetAt")]
     reset_at: Option<String>,
@@ -152,58 +173,123 @@ impl ZaiProvider {
         &self,
         quota: &ZaiQuotaResponse,
     ) -> Result<UsageSnapshot, ProviderError> {
-        // Find tokens limit (primary/session)
-        let tokens_limit = quota
-            .limits
-            .iter()
-            .find(|l| l.limit_type.as_deref() == Some("tokens"));
-
-        // Find MCP limit (weekly/secondary)
-        let mcp_limit = quota
-            .limits
-            .iter()
-            .find(|l| l.limit_type.as_deref() == Some("mcp"));
-
-        // Calculate session (tokens) usage percentage
-        let session_percent = if let Some(tokens) = tokens_limit {
-            let used = tokens.used.unwrap_or(0.0);
-            let limit = tokens.limit.unwrap_or(0.0);
-            if limit > 0.0 {
-                (used / limit) * 100.0
-            } else if used > 0.0 {
-                // No limit field but usage exists - don't report 0%
-                100.0
-            } else {
-                0.0
-            }
+        // Get limits from data.limits (upstream) or flat limits (legacy)
+        let limits = if let Some(data) = &quota.data {
+            &data.limits
         } else {
-            0.0
+            &quota.limits
+        };
+        let plan_name = quota
+            .data
+            .as_ref()
+            .and_then(|d| d.plan_name.as_deref())
+            .unwrap_or("z.ai");
+
+        // Collect TOKENS_LIMIT entries (upstream uses "TOKENS_LIMIT", legacy uses "tokens")
+        let mut token_limits: Vec<&ZaiLimit> = limits
+            .iter()
+            .filter(|l| {
+                matches!(
+                    l.limit_type.as_deref(),
+                    Some("TOKENS_LIMIT") | Some("tokens")
+                )
+            })
+            .collect();
+
+        // Find TIME_LIMIT entry (or legacy "mcp")
+        let time_limit = limits.iter().find(|l| {
+            matches!(
+                l.limit_type.as_deref(),
+                Some("TIME_LIMIT") | Some("mcp")
+            )
+        });
+
+        // Sort token limits by window_minutes: shortest first
+        token_limits.sort_by_key(|l| Self::window_minutes(l));
+
+        // Compute used percent for a limit entry
+        fn compute_percent(l: &ZaiLimit) -> f64 {
+            let limit = l.limit.unwrap_or(0.0);
+            if limit <= 0.0 {
+                return if l.used.unwrap_or(0.0) > 0.0 || l.current_value.unwrap_or(0.0) > 0.0 {
+                    100.0
+                } else {
+                    0.0
+                };
+            }
+            let used = {
+                let from_remaining = l.remaining.map(|r| limit - r);
+                let from_current = l.current_value;
+                let from_used = l.used;
+                // Use max of available signals
+                let candidates = [from_remaining, from_current, from_used];
+                candidates
+                    .iter()
+                    .filter_map(|&v| v)
+                    .fold(0.0_f64, f64::max)
+            };
+            ((used / limit) * 100.0).clamp(0.0, 100.0)
+        }
+
+        fn make_window(l: &ZaiLimit, window_mins: Option<u32>) -> RateWindow {
+            RateWindow::with_details(
+                compute_percent(l),
+                window_mins,
+                None,
+                l.reset_at.clone(),
+            )
+        }
+
+        // Build windows based on upstream layout:
+        // If 2+ TOKENS_LIMIT: shortest → session (5-hour), longest → weekly (primary)
+        // TIME_LIMIT → secondary
+        let (primary, secondary, tertiary) = match token_limits.len() {
+            0 => {
+                // No token limits; use time_limit as primary if available
+                let p = time_limit
+                    .map(|l| make_window(l, Self::window_minutes(l)))
+                    .unwrap_or_else(|| RateWindow::new(0.0));
+                (p, None, None)
+            }
+            1 => {
+                let p = make_window(token_limits[0], Self::window_minutes(token_limits[0]));
+                let s = time_limit.map(|l| make_window(l, Self::window_minutes(l)));
+                (p, s, None)
+            }
+            _ => {
+                // 2+ token limits: longest → primary (weekly), shortest → tertiary (5-hour)
+                let weekly = token_limits.last().unwrap();
+                let session = token_limits.first().unwrap();
+                let p = make_window(weekly, Self::window_minutes(weekly));
+                let s = time_limit.map(|l| make_window(l, Self::window_minutes(l)));
+                let t = Some(make_window(session, Self::window_minutes(session)));
+                (p, s, t)
+            }
         };
 
-        // Calculate MCP usage percentage
-        let mcp_percent = if let Some(mcp) = mcp_limit {
-            let used = mcp.used.unwrap_or(0.0);
-            let limit = mcp.limit.unwrap_or(0.0);
-            if limit > 0.0 {
-                (used / limit) * 100.0
-            } else if used > 0.0 {
-                100.0
-            } else {
-                0.0
-            }
-        } else {
-            0.0
-        };
-
-        let mut usage =
-            UsageSnapshot::new(RateWindow::new(session_percent)).with_login_method("z.ai");
-
-        // Add secondary (MCP) usage if available
-        if mcp_limit.is_some() {
-            usage = usage.with_secondary(RateWindow::new(mcp_percent));
+        let mut usage = UsageSnapshot::new(primary).with_login_method(plan_name);
+        if let Some(sec) = secondary {
+            usage = usage.with_secondary(sec);
+        }
+        if let Some(ter) = tertiary {
+            usage = usage.with_model_specific(ter);
         }
 
         Ok(usage)
+    }
+
+    /// Compute window_minutes from a limit's unit + number fields
+    fn window_minutes(l: &ZaiLimit) -> Option<u32> {
+        let unit = l.unit?;
+        let number = l.number.unwrap_or(1) as u32;
+        let minutes_per_unit = match unit {
+            1 => 1440,  // days
+            3 => 60,    // hours
+            5 => 1,     // minutes
+            6 => 10080, // weeks
+            _ => return None,
+        };
+        Some(number * minutes_per_unit)
     }
 }
 

@@ -100,7 +100,25 @@ impl OllamaProvider {
         // Try browser cookie extraction
         use crate::browser::cookies::get_cookie_header;
         match get_cookie_header("ollama.com") {
-            Ok(header) if !header.is_empty() => Ok(header),
+            Ok(header) if !header.is_empty() => {
+                // Validate that we have a recognized session cookie
+                const SESSION_COOKIE_NAMES: &[&str] = &[
+                    "session",
+                    "__Secure-session",
+                    "ollama_session",
+                    "__Host-ollama_session",
+                    "__Secure-next-auth.session-token",
+                    "next-auth.session-token",
+                ];
+                let has_session = SESSION_COOKIE_NAMES
+                    .iter()
+                    .any(|name| header.contains(name));
+                if has_session {
+                    Ok(header)
+                } else {
+                    Err(ProviderError::NoCookies)
+                }
+            }
             _ => Err(ProviderError::NoCookies),
         }
     }

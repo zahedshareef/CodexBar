@@ -266,13 +266,33 @@ impl OpenCodeProvider {
             "usedPercent",
             "percentUsed",
             "percent",
+            "usage_percent",
+            "used_percent",
             "utilization",
+            "utilizationPercent",
+            "utilization_percent",
+            "usage",
         ];
-        let reset_keys = [
+        let reset_in_keys = [
             "resetInSec",
             "resetInSeconds",
             "resetSeconds",
+            "reset_sec",
+            "reset_in_sec",
             "resetsInSec",
+            "resetsInSeconds",
+            "resetIn",
+            "resetSec",
+        ];
+        let reset_at_keys = [
+            "resetAt",
+            "resetsAt",
+            "reset_at",
+            "resets_at",
+            "nextReset",
+            "next_reset",
+            "renewAt",
+            "renew_at",
         ];
 
         let mut percent: Option<f64> = None;
@@ -302,11 +322,23 @@ impl OpenCodeProvider {
 
         let percent = percent?;
 
+        // Try reset-in-seconds keys first
         let mut reset_sec: Option<i64> = None;
-        for key in reset_keys {
+        for key in reset_in_keys {
             if let Some(val) = obj.get(key).and_then(|v| v.as_i64()) {
                 reset_sec = Some(val);
                 break;
+            }
+        }
+
+        // Fallback: try absolute resetAt keys (epoch seconds)
+        if reset_sec.is_none() {
+            for key in reset_at_keys {
+                if let Some(val) = obj.get(key).and_then(|v| v.as_i64()) {
+                    let now = chrono::Utc::now().timestamp();
+                    reset_sec = Some((val - now).max(0));
+                    break;
+                }
             }
         }
 

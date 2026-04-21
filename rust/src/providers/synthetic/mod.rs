@@ -126,7 +126,42 @@ impl SyntheticProvider {
         &self,
         json: &serde_json::Value,
     ) -> Result<UsageSnapshot, ProviderError> {
-        // Parse Synthetic usage response
+        // Try structured 3-slot quota parsing (upstream 0.22 format)
+        let data = json.get("data").unwrap_or(json);
+
+        let rolling = data
+            .get("rollingFiveHourLimit")
+            .or_else(|| data.get("rolling_five_hour_limit"));
+        let weekly = data
+            .get("weeklyTokenLimit")
+            .or_else(|| data.get("weekly_token_limit"));
+        let search = data.get("search").and_then(|s| s.get("hourly"));
+
+        if rolling.is_some() || weekly.is_some() {
+            // Structured multi-slot format
+            let primary = rolling
+                .map(|w| self.parse_quota_slot(w, Some(300)))
+                .unwrap_or_else(|| RateWindow::new(0.0));
+            let secondary = weekly.map(|w| self.parse_quota_slot(w, Some(10080)));
+            let tertiary = search.map(|w| self.parse_quota_slot(w, Some(60)));
+
+            let plan = json
+                .get("plan")
+                .or_else(|| json.get("tier"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Synthetic");
+
+            let mut usage = UsageSnapshot::new(primary).with_login_method(plan);
+            if let Some(sec) = secondary {
+                usage = usage.with_secondary(sec);
+            }
+            if let Some(ter) = tertiary {
+                usage = usage.with_model_specific(ter);
+            }
+            return Ok(usage);
+        }
+
+        // Fallback: flat single-window format
         let used = json
             .get("usage")
             .or_else(|| json.get("used"))
@@ -165,6 +200,69 @@ impl SyntheticProvider {
         let usage = UsageSnapshot::new(primary_window).with_login_method(plan);
 
         Ok(usage)
+    }
+
+    /// Parse a structured quota slot (5-hour, weekly, or search)
+    fn parse_quota_slot(&self, obj: &serde_json::Value, window_minutes: Option<u32>) -> RateWindow {
+        let percent_keys = [
+            "usagePercent",
+            "usedPercent",
+            "percentUsed",
+            "percent",
+            "usage_percent",
+        ];
+        let reset_keys = [
+            "resetInSec",
+            "resetInSeconds",
+            "resetSeconds",
+            "reset_in_sec",
+        ];
+
+        let mut percent: Option<f64> = None;
+        for key in percent_keys {
+            if let Some(val) = obj.get(key).and_then(|v| v.as_f64()) {
+                percent = Some(if val <= 1.0 { val * 100.0 } else { val });
+                break;
+            }
+        }
+
+        // Fallback: compute from used/limit
+        if percent.is_none() {
+            let used = obj
+                .get("used")
+                .or_else(|| obj.get("tokensUsed"))
+                .and_then(|v| v.as_f64());
+            let limit = obj
+                .get("limit")
+                .or_else(|| obj.get("tokensLimit"))
+                .and_then(|v| v.as_f64());
+            if let (Some(u), Some(l)) = (used, limit) {
+                if l > 0.0 {
+                    percent = Some((u / l) * 100.0);
+                }
+            }
+        }
+
+        let mut reset_sec: Option<i64> = None;
+        for key in reset_keys {
+            if let Some(val) = obj.get(key).and_then(|v| v.as_i64()) {
+                reset_sec = Some(val);
+                break;
+            }
+        }
+
+        let reset_at = reset_sec.and_then(|s| {
+            chrono::Utc::now()
+                .checked_add_signed(chrono::Duration::seconds(s))
+                .map(|t| t.to_rfc3339())
+        });
+
+        RateWindow::with_details(
+            percent.unwrap_or(0.0).clamp(0.0, 100.0),
+            window_minutes,
+            None,
+            reset_at,
+        )
     }
 
     /// Probe for Synthetic installation

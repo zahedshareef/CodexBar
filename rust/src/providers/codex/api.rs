@@ -203,13 +203,22 @@ impl CodexApi {
         let login_method = plan_type.as_ref().map(|pt| match pt.as_str() {
             "guest" => "Guest".to_string(),
             "free" => "ChatGPT Free".to_string(),
-            "go" => "ChatGPT Go".to_string(),
+            "go" => "Codex Go".to_string(),
             "plus" => "ChatGPT Plus".to_string(),
-            "pro" => "ChatGPT Pro".to_string(),
+            "pro" | "pro_lite" | "prolite" | "pro-lite" => {
+                if pt == "pro" {
+                    "ChatGPT Pro".to_string()
+                } else {
+                    "Pro Lite".to_string()
+                }
+            }
             "team" => "ChatGPT Team".to_string(),
             "business" => "ChatGPT Business".to_string(),
             "enterprise" => "ChatGPT Enterprise".to_string(),
             "education" | "edu" => "ChatGPT Education".to_string(),
+            "free_workspace" | "freeWorkspace" => "Free Workspace".to_string(),
+            "quorum" => "Codex Quorum".to_string(),
+            "k12" => "Codex K12".to_string(),
             other => format!("ChatGPT {}", capitalize(other)),
         });
 
@@ -236,18 +245,24 @@ impl CodexApi {
     ) -> (RateWindow, Option<RateWindow>, Option<RateWindow>) {
         // Try rate_limit object
         if let Some(rate_limit) = json.get("rate_limit") {
-            let primary = rate_limit
+            let primary_opt = rate_limit
                 .get("primary_window")
-                .map(|w| self.parse_window(w))
-                .unwrap_or_else(|| RateWindow::new(0.0));
+                .map(|w| self.parse_window(w));
 
-            let secondary = rate_limit
+            let secondary_opt = rate_limit
                 .get("secondary_window")
                 .map(|w| self.parse_window(w));
 
             let code_review = rate_limit
                 .get("code_review_window")
                 .map(|w| self.parse_window(w));
+
+            // If primary is missing, promote secondary to primary (weekly-only plans)
+            let (primary, secondary) = match (primary_opt, secondary_opt) {
+                (Some(p), s) => (p, s),
+                (None, Some(s)) => (s, None),
+                (None, None) => (RateWindow::new(0.0), None),
+            };
 
             return (primary, secondary, code_review);
         }

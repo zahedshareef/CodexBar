@@ -94,10 +94,18 @@ impl CursorApi {
             )));
         }
 
-        response
-            .json()
+        // Try structured deserialization first, fall back to raw JSON on failure
+        let text = response
+            .text()
             .await
-            .map_err(|e| ProviderError::Parse(e.to_string()))
+            .map_err(|e| ProviderError::Parse(e.to_string()))?;
+        serde_json::from_str::<UsageSummary>(&text).map_err(|e| {
+            tracing::warn!(
+                "Cursor usage-summary parse error: {e}, raw: {}",
+                &text[..text.len().min(200)]
+            );
+            ProviderError::Parse(e.to_string())
+        })
     }
 
     async fn fetch_user_info(&self, cookie_header: &str) -> Result<UserInfo, ProviderError> {

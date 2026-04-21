@@ -20,10 +20,22 @@ pub struct DeviceCodeResponse {
     pub user_code: String,
     /// The URL where the user should enter the code
     pub verification_uri: String,
+    /// Pre-filled verification URL (includes user_code in query string)
+    #[serde(default)]
+    pub verification_uri_complete: Option<String>,
     /// How long until the codes expire (seconds)
     pub expires_in: u32,
     /// Polling interval in seconds
     pub interval: u32,
+}
+
+impl DeviceCodeResponse {
+    /// Returns the best URL to open — prefers the pre-filled complete URI
+    pub fn verification_url_to_open(&self) -> &str {
+        self.verification_uri_complete
+            .as_deref()
+            .unwrap_or(&self.verification_uri)
+    }
 }
 
 /// Access token response from GitHub

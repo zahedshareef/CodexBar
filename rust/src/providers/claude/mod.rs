@@ -41,7 +41,7 @@ impl ClaudeProvider {
                 default_enabled: true,
                 is_primary: true,
                 dashboard_url: Some("https://claude.ai/settings/usage"),
-                status_page_url: Some("https://status.anthropic.com"),
+                status_page_url: Some("https://status.claude.com/"),
             },
             web_fetcher: ClaudeWebApiFetcher::new(),
             oauth_fetcher: ClaudeOAuthFetcher::new(),
@@ -348,7 +348,9 @@ fn which_claude() -> Option<std::path::PathBuf> {
     #[cfg(windows)]
     {
         let candidates = [
+            // Direct install
             dirs::data_local_dir().map(|p| p.join("Programs").join("claude").join("claude.exe")),
+            // npm global (AppData\Roaming\npm)
             dirs::data_local_dir().map(|p| p.join("npm").join("claude.cmd")),
             dirs::home_dir().map(|h| {
                 h.join("AppData")
@@ -356,6 +358,22 @@ fn which_claude() -> Option<std::path::PathBuf> {
                     .join("npm")
                     .join("claude.cmd")
             }),
+            // npm global alternate (~\.npm-global)
+            dirs::home_dir().map(|h| h.join(".npm-global").join("claude.cmd")),
+            // Volta managed
+            dirs::data_local_dir().map(|p| {
+                p.join("Volta")
+                    .join("tools")
+                    .join("image")
+                    .join("packages")
+                    .join("@anthropic-ai")
+                    .join("claude-code")
+                    .join("bin")
+                    .join("claude.cmd")
+            }),
+            // fnm managed (via shim)
+            dirs::data_local_dir().map(|p| p.join("fnm_multishells").join("claude.cmd")),
+            // PATH lookup
             find_windows_claude_in_path(),
         ];
 

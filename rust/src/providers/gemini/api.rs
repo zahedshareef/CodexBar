@@ -159,34 +159,122 @@ impl GeminiApi {
 
     fn extract_oauth_client_credentials(&self) -> Result<OAuthClientCredentials, ProviderError> {
         // Try to read OAuth client credentials from Gemini CLI installation
-        // The Gemini CLI stores these in its internal config
-        // Fall back to environment variables if CLI not found
+        // Check multiple possible locations: CLI install paths, bundled OAuth config
+
+        // 1. Try ~/.gemini/client_config.json (user-configured)
         if let Some(home) = dirs::home_dir() {
             let cli_config = home.join(".gemini").join("client_config.json");
-            if cli_config.exists()
-                && let Ok(content) = std::fs::read_to_string(&cli_config)
-                && let Ok(config) = serde_json::from_str::<serde_json::Value>(&content)
-                && let (Some(id), Some(secret)) = (
-                    config.get("client_id").and_then(|v| v.as_str()),
-                    config.get("client_secret").and_then(|v| v.as_str()),
-                )
-            {
-                return Ok(OAuthClientCredentials {
-                    client_id: id.to_string(),
-                    client_secret: secret.to_string(),
-                });
+            if let Some(creds) = Self::try_read_client_config(&cli_config) {
+                return Ok(creds);
             }
         }
 
-        // Fall back to environment variables
+        // 2. Try to find gemini binary and extract OAuth creds from its package
+        if let Ok(gemini_path) = which::which("gemini") {
+            let resolved = std::fs::canonicalize(&gemini_path).unwrap_or(gemini_path);
+            if let Some(base_dir) = resolved.parent() {
+                // Try Homebrew/npm/Nix/Bun layout candidates relative to the binary
+                let oauth_subpath = std::path::Path::new("@google")
+                    .join("gemini-cli-core")
+                    .join("dist")
+                    .join("src")
+                    .join("code_assist")
+                    .join("oauth2.js");
+
+                let candidates = [
+                    // npm global: {bin}/../node_modules/@google/gemini-cli-core/...
+                    base_dir
+                        .join("..")
+                        .join("node_modules")
+                        .join(&oauth_subpath),
+                    // Homebrew: {bin}/../libexec/lib/node_modules/@google/gemini-cli/node_modules/...
+                    base_dir
+                        .join("..")
+                        .join("libexec")
+                        .join("lib")
+                        .join("node_modules")
+                        .join("@google")
+                        .join("gemini-cli")
+                        .join("node_modules")
+                        .join(&oauth_subpath),
+                    // Nix: {bin}/../share/gemini-cli/node_modules/...
+                    base_dir
+                        .join("..")
+                        .join("share")
+                        .join("gemini-cli")
+                        .join("node_modules")
+                        .join(&oauth_subpath),
+                    // Bun sibling
+                    base_dir
+                        .join("..")
+                        .join("gemini-cli-core")
+                        .join("dist")
+                        .join("src")
+                        .join("code_assist")
+                        .join("oauth2.js"),
+                ];
+
+                for candidate in &candidates {
+                    if let Some(creds) = Self::try_extract_oauth_from_js(candidate) {
+                        return Ok(creds);
+                    }
+                }
+            }
+        }
+
+        // 3. Windows-specific: check %APPDATA%\npm\node_modules path
+        #[cfg(windows)]
+        if let Some(appdata) = dirs::data_dir() {
+            let npm_path = appdata
+                .join("npm")
+                .join("node_modules")
+                .join("@google")
+                .join("gemini-cli-core")
+                .join("dist")
+                .join("src")
+                .join("code_assist")
+                .join("oauth2.js");
+            if let Some(creds) = Self::try_extract_oauth_from_js(&npm_path) {
+                return Ok(creds);
+            }
+        }
+
+        // 4. Fall back to environment variables
         let client_id = std::env::var("GEMINI_CLIENT_ID")
-            .map_err(|_| ProviderError::NotInstalled("GEMINI_CLIENT_ID not set".to_string()))?;
+            .map_err(|_| ProviderError::NotInstalled("GEMINI_CLIENT_ID not set. Install Gemini CLI or set GEMINI_CLIENT_ID/GEMINI_CLIENT_SECRET.".to_string()))?;
         let client_secret = std::env::var("GEMINI_CLIENT_SECRET")
             .map_err(|_| ProviderError::NotInstalled("GEMINI_CLIENT_SECRET not set".to_string()))?;
 
         Ok(OAuthClientCredentials {
             client_id,
             client_secret,
+        })
+    }
+
+    fn try_read_client_config(path: &std::path::Path) -> Option<OAuthClientCredentials> {
+        let content = std::fs::read_to_string(path).ok()?;
+        let config: serde_json::Value = serde_json::from_str(&content).ok()?;
+        let id = config.get("client_id")?.as_str()?;
+        let secret = config.get("client_secret")?.as_str()?;
+        Some(OAuthClientCredentials {
+            client_id: id.to_string(),
+            client_secret: secret.to_string(),
+        })
+    }
+
+    fn try_extract_oauth_from_js(path: &std::path::Path) -> Option<OAuthClientCredentials> {
+        let content = std::fs::read_to_string(path).ok()?;
+        let id_re = regex_lite::Regex::new(r#"OAUTH_CLIENT_ID\s*=\s*['"](.*?)['"]"#).ok()?;
+        let secret_re =
+            regex_lite::Regex::new(r#"OAUTH_CLIENT_SECRET\s*=\s*['"](.*?)['"]"#).ok()?;
+        let id = id_re.captures(&content)?.get(1)?.as_str().to_string();
+        let secret = secret_re.captures(&content)?.get(1)?.as_str().to_string();
+        if id.is_empty() || secret.is_empty() {
+            return None;
+        }
+        Some(OAuthClientCredentials {
+            client_id: id,
+            client_secret: secret,
         })
     }
 

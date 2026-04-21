@@ -68,15 +68,24 @@ impl AntigravityProvider {
 
         // Parse command line for CSRF token and port — compiled once
         static CSRF_RE: OnceLock<Regex> = OnceLock::new();
+        static EXT_CSRF_RE: OnceLock<Regex> = OnceLock::new();
         static PORT_RE: OnceLock<Regex> = OnceLock::new();
         let csrf_regex = CSRF_RE
             .get_or_init(|| Regex::new(r"--csrf_token\s+([a-f0-9-]+)").expect("valid regex"));
+        let ext_csrf_regex = EXT_CSRF_RE.get_or_init(|| {
+            Regex::new(r"--extension_server_csrf_token\s+([a-f0-9-]+)").expect("valid regex")
+        });
         let port_regex = PORT_RE
             .get_or_init(|| Regex::new(r"--extension_server_port\s+(\d+)").expect("valid regex"));
 
         for line in stdout.lines() {
             if line.contains("language_server_windows") && line.contains("--csrf_token") {
                 let csrf_token = csrf_regex
+                    .captures(line)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string());
+
+                let ext_csrf_token = ext_csrf_regex
                     .captures(line)
                     .and_then(|c| c.get(1))
                     .map(|m| m.as_str().to_string());
@@ -89,6 +98,7 @@ impl AntigravityProvider {
                 if let (Some(token), Some(p)) = (csrf_token, port) {
                     return Ok(ProcessInfo {
                         csrf_token: token,
+                        extension_server_csrf_token: ext_csrf_token,
                         extension_port: p,
                     });
                 }
@@ -188,17 +198,45 @@ impl AntigravityProvider {
             }
         });
 
+        // Use extension server CSRF token if available, otherwise fall back to language server token
+        let csrf_token = process_info
+            .extension_server_csrf_token
+            .as_deref()
+            .unwrap_or(&process_info.csrf_token);
+
         let resp = client
             .post(&url)
             .header("Content-Type", "application/json")
             .header("Connect-Protocol-Version", "1")
-            .header("X-Codeium-Csrf-Token", &process_info.csrf_token)
+            .header("X-Codeium-Csrf-Token", csrf_token)
             .json(&body)
             .send()
             .await
             .map_err(|e| ProviderError::Other(format!("API request failed: {}", e)))?;
 
         if !resp.status().is_success() {
+            // Retry with language server CSRF token if extension server token failed
+            if process_info.extension_server_csrf_token.is_some() {
+                let retry_resp = client
+                    .post(&url)
+                    .header("Content-Type", "application/json")
+                    .header("Connect-Protocol-Version", "1")
+                    .header("X-Codeium-Csrf-Token", &process_info.csrf_token)
+                    .json(&body)
+                    .send()
+                    .await;
+
+                if let Ok(retry) = retry_resp {
+                    if retry.status().is_success() {
+                        let json: UserStatusResponse = retry
+                            .json()
+                            .await
+                            .map_err(|e| ProviderError::Parse(e.to_string()))?;
+                        return self.parse_user_status(json);
+                    }
+                }
+            }
+
             let status = resp.status();
             let text = resp.text().await.unwrap_or_default();
             return Err(ProviderError::Other(format!(
@@ -324,6 +362,7 @@ impl Provider for AntigravityProvider {
 
 struct ProcessInfo {
     csrf_token: String,
+    extension_server_csrf_token: Option<String>,
     extension_port: u16,
 }
 

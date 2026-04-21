@@ -10,8 +10,11 @@ use crate::core::{
     RateWindow, SourceMode, UsageSnapshot,
 };
 
-const ALIBABA_API_BASE: &str = "https://tongyi.aliyun.com";
-const ALIBABA_COOKIE_DOMAIN: &str = "tongyi.aliyun.com";
+const ALIBABA_INTL_COOKIE_DOMAIN: &str = "modelstudio.console.alibabacloud.com";
+const ALIBABA_CN_COOKIE_DOMAIN: &str = "bailian.console.aliyun.com";
+const ALIBABA_INTL_GATEWAY: &str = "https://modelstudio.console.alibabacloud.com";
+const ALIBABA_CN_GATEWAY: &str = "https://bailian.console.aliyun.com";
+const ALIBABA_LEGACY_DOMAIN: &str = "tongyi.aliyun.com";
 
 pub struct AlibabaProvider {
     metadata: ProviderMetadata,
@@ -29,29 +32,43 @@ impl AlibabaProvider {
                 supports_credits: false,
                 default_enabled: false,
                 is_primary: false,
-                dashboard_url: Some("https://tongyi.aliyun.com"),
+                dashboard_url: Some("https://bailian.console.aliyun.com"),
                 status_page_url: None,
             },
         }
     }
 
-    fn get_auth_cookies(&self, ctx: &FetchContext) -> Result<String, ProviderError> {
+    fn get_auth_cookies(&self, ctx: &FetchContext) -> Result<(String, &'static str), ProviderError> {
         if let Some(ref cookie_header) = ctx.manual_cookie_header
             && !cookie_header.trim().is_empty()
         {
-            return Ok(cookie_header.clone());
+            // Guess region from cookie contents
+            let gateway = if cookie_header.contains("alibabacloud") {
+                ALIBABA_INTL_GATEWAY
+            } else {
+                ALIBABA_CN_GATEWAY
+            };
+            return Ok((cookie_header.clone(), gateway));
         }
 
-        let cookies = get_cookie_header(ALIBABA_COOKIE_DOMAIN)
-            .map_err(|e| ProviderError::Other(format!("Failed to get cookies: {}", e)))?;
-        if cookies.is_empty() {
-            return Err(ProviderError::AuthRequired);
+        // Try international domain first, then China mainland, then legacy
+        for (domain, gateway) in [
+            (ALIBABA_INTL_COOKIE_DOMAIN, ALIBABA_INTL_GATEWAY),
+            (ALIBABA_CN_COOKIE_DOMAIN, ALIBABA_CN_GATEWAY),
+            (ALIBABA_LEGACY_DOMAIN, ALIBABA_CN_GATEWAY),
+        ] {
+            if let Ok(cookies) = get_cookie_header(domain) {
+                if !cookies.is_empty() {
+                    return Ok((cookies, gateway));
+                }
+            }
         }
-        Ok(cookies)
+
+        Err(ProviderError::AuthRequired)
     }
 
     async fn fetch_via_web(&self, ctx: &FetchContext) -> Result<UsageSnapshot, ProviderError> {
-        let cookies = self.get_auth_cookies(ctx)?;
+        let (cookies, gateway) = self.get_auth_cookies(ctx)?;
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
@@ -59,7 +76,7 @@ impl AlibabaProvider {
             .map_err(|e| ProviderError::Other(e.to_string()))?;
 
         let resp = client
-            .get(format!("{}/api/user/info", ALIBABA_API_BASE))
+            .get(format!("{}/api/user/info", gateway))
             .header("Cookie", &cookies)
             .header("Accept", "application/json")
             .header(
