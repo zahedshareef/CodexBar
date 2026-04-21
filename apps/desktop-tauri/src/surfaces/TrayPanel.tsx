@@ -92,7 +92,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // Expand window, measure body.scrollHeight + footer, shrink to fit.
+  // CSS removes all viewport constraints (no 100vh, no overflow:hidden) so
+  // the surface sizes to its true content height. We expand the window first,
+  // wait for the viewport to actually update, measure, then shrink.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -100,51 +102,44 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
     const resize = async () => {
       const win = getCurrentWindow();
-
-      // Expand window so content has room to lay out fully
-      await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
-      await new Promise<void>((r) => setTimeout(r, 200));
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
       if (!surface) return;
-      const body = surface.querySelector<HTMLElement>(".menu-surface__body");
 
-      // Sum the heights of all surface children to get true content height
-      let contentHeight = 0;
-      const parts: string[] = [];
-      for (const child of Array.from(surface.children)) {
-        const el = child as HTMLElement;
-        const cls = el.className.split(" ").pop() || el.tagName;
-        if (el === body) {
-          parts.push(`${cls}:sH=${el.scrollHeight},oH=${el.offsetHeight}`);
-          contentHeight += el.scrollHeight;
-        } else if (!el.id?.startsWith("_diag")) {
-          parts.push(`${cls}:oH=${el.offsetHeight}`);
-          contentHeight += el.offsetHeight;
-        }
+      // Remove any previous inline max-height so surface can grow freely
+      surface.style.maxHeight = "none";
+
+      // Expand window to give content room
+      await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
+
+      // Poll until the viewport actually resizes (WebView2 can lag)
+      for (let i = 0; i < 30; i++) {
+        await new Promise<void>((r) => setTimeout(r, 50));
+        if (document.documentElement.clientHeight >= MAX_HEIGHT - 20) break;
       }
-      contentHeight += 8; // surface padding
+      // One more rAF to ensure layout is complete
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-      // Write diagnostics to a visible overlay
-      let diagEl = document.getElementById("_diag");
-      if (!diagEl) {
-        diagEl = document.createElement("div");
-        diagEl.id = "_diag";
-        diagEl.style.cssText = "position:fixed;top:0;left:0;right:0;background:red;color:white;font:9px monospace;z-index:99999;padding:2px;word-break:break-all;";
-        document.body.appendChild(diagEl);
+      // Measure true content height — surface has height:auto, no max-height
+      const contentHeight = surface.offsetHeight;
+
+      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
+
+      // Set explicit pixel max-height for scroll capping, then resize window
+      surface.style.maxHeight = `${height}px`;
+      if (contentHeight > MAX_HEIGHT) {
+        // Enable body scrolling when content exceeds cap
+        const body = surface.querySelector<HTMLElement>(".menu-surface__body");
+        if (body) body.style.flex = "1 1 auto";
       }
-      diagEl.textContent = `H=${contentHeight} ${parts.join(" | ")}`;
 
-      // DEBUG: Leave at 800 to see all content (no shrink)
-      // const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
-      // await win.setSize(new LogicalSize(TRAY_WIDTH, height));
+      await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
     };
 
     const t0 = setTimeout(() => void resize(), 100);
-    const t1 = setTimeout(() => void resize(), 1000);
-    const t2 = setTimeout(() => void resize(), 3000);
+    const t1 = setTimeout(() => void resize(), 1500);
+    const t2 = setTimeout(() => void resize(), 4000);
 
     return () => {
       clearTimeout(t0);

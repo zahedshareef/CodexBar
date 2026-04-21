@@ -2931,6 +2931,15 @@ html {
   overflow-y: auto;
 }
 
+/* Unlock html/body overflow for tray panel auto-sizing */
+body:has(.menu-surface--tray) {
+  overflow: visible;
+  min-height: 0;
+}
+html:has(.menu-surface--tray) {
+  overflow: visible;
+}
+
 /* Tray variant — auto-sized by JS, no forced min-height. */
 .menu-surface--tray {
   min-height: 0;
@@ -2942,13 +2951,12 @@ html {
   display: flex;
   flex-direction: column;
   /* Auto-size to content; JS resizes the Tauri window to match.
-     max-height caps the surface so the body scrolls when content exceeds it. */
+     No max-height here — JS sets an explicit pixel cap after measuring. */
   height: auto;
-  max-height: 100vh;
   box-sizing: border-box;
 }
 .menu-surface--tray .menu-surface__body {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
