@@ -22,6 +22,21 @@ pub fn apply_window_properties(
     window: &WebviewWindow,
     props: &WindowProperties,
 ) -> Result<(), String> {
+    let needs_show = apply_window_layout(window, props)?;
+    if needs_show {
+        show_window(window)?;
+    }
+    Ok(())
+}
+
+/// Apply layout properties (decorations, size, always-on-top) WITHOUT making
+/// the window visible.  Returns `true` when the caller should subsequently
+/// call [`show_window`] to make it visible, or `false` when the mode hides
+/// the window (already handled internally).
+pub fn apply_window_layout(
+    window: &WebviewWindow,
+    props: &WindowProperties,
+) -> Result<bool, String> {
     let map_err = |e: tauri::Error| e.to_string();
 
     window.set_decorations(props.decorations).map_err(map_err)?;
@@ -44,12 +59,18 @@ pub fn apply_window_properties(
                 .map_err(map_err)?;
         }
 
-        window.show().map_err(map_err)?;
-        window.set_focus().map_err(map_err)?;
+        Ok(true) // caller should show
     } else {
         window.hide().map_err(map_err)?;
+        Ok(false)
     }
+}
 
+/// Make the window visible and give it input focus.
+pub fn show_window(window: &WebviewWindow) -> Result<(), String> {
+    let map_err = |e: tauri::Error| e.to_string();
+    window.show().map_err(map_err)?;
+    window.set_focus().map_err(map_err)?;
     Ok(())
 }
 

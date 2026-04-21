@@ -14,7 +14,7 @@ use crate::window_positioner::{self, Rect};
 
 use super::geometry::surface_panel_size;
 use super::position::default_surface_position;
-use super::window::apply_window_properties;
+use super::window::{apply_window_layout, apply_window_properties, show_window};
 use super::{SHELL_TRANSITION_SERIAL, ShellTransitionRequest};
 
 /// Positions from the positioner pipeline are in Tauri's physical coordinate
@@ -384,8 +384,8 @@ fn apply_same_mode_target_update(
     if let Some((x, y)) = position {
         let _ = window.set_position(os_position(window, x, y));
     }
-    let _ = window.show();
-    let _ = window.set_focus();
+    // Commit state + emit event before making the window visible so the
+    // React frontend renders the correct surface first.
     commit_surface_snapshot(
         app,
         &SurfaceSnapshot {
@@ -394,6 +394,8 @@ fn apply_same_mode_target_update(
         },
     )?;
     events::emit_surface_mode_changed(app, mode, mode, target);
+    let _ = window.show();
+    let _ = window.set_focus();
     proof_harness::sync_after_surface_transition(app);
     Ok(mode)
 }
@@ -410,8 +412,12 @@ pub(super) fn apply_transition(
         let _ = window.set_position(os_position(window, x, y));
     }
 
-    match apply_window_properties(window, &transition.properties) {
-        Ok(()) => {
+    // Phase 1: apply layout properties (size, decorations, etc.) WITHOUT
+    // making the window visible yet.
+    match apply_window_layout(window, &transition.properties) {
+        Ok(needs_show) => {
+            // Phase 2: commit state + emit event so the React frontend can
+            // start rendering the correct surface BEFORE the window appears.
             commit_surface_snapshot(
                 app,
                 &SurfaceSnapshot {
@@ -420,6 +426,12 @@ pub(super) fn apply_transition(
                 },
             )?;
             events::emit_surface_mode_changed(app, transition.from, transition.to, current_target);
+
+            // Phase 3: now make the window visible.
+            if needs_show {
+                let _ = show_window(window);
+            }
+
             proof_harness::sync_after_surface_transition(app);
             Ok(transition.to)
         }
