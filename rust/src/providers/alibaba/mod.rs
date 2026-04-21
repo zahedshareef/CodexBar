@@ -60,10 +60,10 @@ impl AlibabaProvider {
             (ALIBABA_CN_COOKIE_DOMAIN, ALIBABA_CN_GATEWAY),
             (ALIBABA_LEGACY_DOMAIN, ALIBABA_CN_GATEWAY),
         ] {
-            if let Ok(cookies) = get_cookie_header(domain) {
-                if !cookies.is_empty() {
-                    return Ok((cookies, gateway));
-                }
+            if let Ok(cookies) = get_cookie_header(domain)
+                && !cookies.is_empty()
+            {
+                return Ok((cookies, gateway));
             }
         }
 

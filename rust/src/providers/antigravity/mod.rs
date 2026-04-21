@@ -226,14 +226,14 @@ impl AntigravityProvider {
                     .send()
                     .await;
 
-                if let Ok(retry) = retry_resp {
-                    if retry.status().is_success() {
-                        let json: UserStatusResponse = retry
-                            .json()
-                            .await
-                            .map_err(|e| ProviderError::Parse(e.to_string()))?;
-                        return self.parse_user_status(json);
-                    }
+                if let Ok(retry) = retry_resp
+                    && retry.status().is_success()
+                {
+                    let json: UserStatusResponse = retry
+                        .json()
+                        .await
+                        .map_err(|e| ProviderError::Parse(e.to_string()))?;
+                    return self.parse_user_status(json);
                 }
             }
 

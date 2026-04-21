@@ -67,10 +67,10 @@ impl KiloProvider {
             return Ok(token);
         }
 
-        if let Ok(token) = std::env::var("KILO_API_KEY") {
-            if !token.is_empty() {
-                return Ok(token);
-            }
+        if let Ok(token) = std::env::var("KILO_API_KEY")
+            && !token.is_empty()
+        {
+            return Ok(token);
         }
 
         if let Some(home) = dirs::home_dir() {

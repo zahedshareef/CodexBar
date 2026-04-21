@@ -236,10 +236,10 @@ impl SyntheticProvider {
                 .get("limit")
                 .or_else(|| obj.get("tokensLimit"))
                 .and_then(|v| v.as_f64());
-            if let (Some(u), Some(l)) = (used, limit) {
-                if l > 0.0 {
-                    percent = Some((u / l) * 100.0);
-                }
+            if let (Some(u), Some(l)) = (used, limit)
+                && l > 0.0
+            {
+                percent = Some((u / l) * 100.0);
             }
         }
 

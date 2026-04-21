@@ -1,5 +1,39 @@
 # Changelog
 
+## [Windows] 0.22.0 — 2026-07-20
+
+### New Providers
+- Perplexity: cookie-based credits tracking (recurring/bonus/purchased), Pro/Max plan detection
+- Abacus AI: cookie-based compute points + billing tier fetch
+- OpenCode Go: cookie-based workspace usage (rolling/weekly/monthly windows)
+- Kilo: API-key tRPC batch (env/keyring/auth.json), credit blocks + Kilo Pass
+
+### Provider Updates (upstream 0.18–0.22 parity)
+- Claude: broader CLI lookup (Volta, fnm, npm-global), status page URL fix
+- Codex: Pro Lite/Go/Quorum/K12 plan types, dashboard URL, weekly-only rate limits
+- Cursor: defensive JSON parsing with text fallback
+- Synthetic: 3-slot quota (5-hour, weekly, search limits)
+- Antigravity: extension_server_csrf_token extraction and fallback probing
+- z.ai: dual TOKENS_LIMIT (weekly + 5-hour session), TIME_LIMIT, plan name
+- Ollama: validate session cookie names
+- OpenCode: expanded percent/reset key variants, absolute resetAt support
+- Alibaba: region-aware endpoints (international/China), multi-domain cookies
+- Copilot: verification_uri_complete for pre-filled device login URL
+- Gemini: OAuth credential discovery from CLI paths (Homebrew/npm/Nix/Bun/Volta)
+
+### Pricing & Models
+- Fix stale GPT-5.4/5.4-mini/5.4-nano pricing
+- Add 10 new Codex models (gpt-5-mini, gpt-5-nano, gpt-5-pro, gpt-5.1-codex, etc.)
+- Add Claude Opus 4.7 and Claude Sonnet 4.6 pricing
+- Add displayLabel field to CodexPricing (for Research Preview tags)
+
+### UI
+- Add keyboard shortcuts: Ctrl+R (Refresh), Ctrl+, (Settings), Ctrl+Q (Quit)
+- Show shortcut hints in footer menu items
+- Update PopOutPanel shortcuts from macOS ⌘ to Windows Ctrl+
+
+---
+
 ## [Windows] 1.0.2 — 2026-01-24
 
 ### UI Redesign
