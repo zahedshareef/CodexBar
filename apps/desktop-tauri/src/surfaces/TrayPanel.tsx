@@ -92,9 +92,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // CSS uses height:auto so the surface sizes to its content.
-  // We expand the window to MAX first so 100vh (max-height) gives room,
-  // measure the surface's natural offsetHeight, then shrink to fit.
+  // Temporarily strips all overflow/flex constraints to measure true content height.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -103,19 +101,39 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     const resize = async () => {
       const win = getCurrentWindow();
 
-      // Expand window so max-height:100vh gives room for all content
+      // Expand window to max so viewport doesn't clip
       await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
-      // WebView2 needs time to reflow after window resize
-      await new Promise<void>((r) => setTimeout(r, 150));
+      await new Promise<void>((r) => setTimeout(r, 200));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
       if (!surface) return;
+      const body = surface.querySelector<HTMLElement>(".menu-surface__body");
+      const stack = surface.querySelector<HTMLElement>(".menu-stack");
 
-      // With height:auto, offsetHeight = actual content height
+      // Save existing inline styles
+      const saved = new Map<HTMLElement, string>();
+      const override = (el: HTMLElement | null, css: string) => {
+        if (!el) return;
+        saved.set(el, el.style.cssText);
+        el.style.cssText += css;
+      };
+
+      // Temporarily remove all constraints to get true content height
+      override(surface, "height:max-content !important;max-height:none !important;overflow:visible !important;");
+      override(body, "flex:0 0 auto !important;overflow:visible !important;max-height:none !important;height:auto !important;");
+      override(stack, "overflow:visible !important;max-height:none !important;");
+
+      // Force sync reflow
+      void surface.offsetHeight;
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
       const contentHeight = surface.offsetHeight;
-      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
 
+      // Restore inline styles
+      saved.forEach((css, el) => { el.style.cssText = css; });
+
+      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
       await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
     };
