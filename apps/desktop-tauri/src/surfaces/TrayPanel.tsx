@@ -92,6 +92,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
+  // During measurement we temporarily unlock overflow/flex constraints,
+  // expand the window, scan all descendants for true visual extent,
+  // then shrink the window to the content height.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -102,29 +105,19 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
       if (!surface) return;
 
-      // Force-remove viewport constraints (CSS :has() may not work in all WebView2 versions)
+      // Unlock viewport constraints for measurement
       document.documentElement.style.overflow = "visible";
       document.body.style.overflow = "visible";
       document.body.style.minHeight = "0";
-
-      // Remove any previous inline max-height
       surface.style.maxHeight = "none";
 
-      // Force body and stack to NOT use overflow so all content is in-flow
       const body = surface.querySelector<HTMLElement>(".menu-surface__body");
       const stack = surface.querySelector<HTMLElement>(".menu-stack");
-      if (body) {
-        body.style.overflow = "visible";
-        body.style.flex = "0 0 auto";
-      }
-      if (stack) {
-        stack.style.overflow = "visible";
-      }
+      if (body) { body.style.overflow = "visible"; body.style.flex = "0 0 auto"; }
+      if (stack) { stack.style.overflow = "visible"; }
 
-      // Expand window to give content room
+      // Expand window so content has room to lay out
       await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
-
-      // Wait for viewport to update
       for (let i = 0; i < 20; i++) {
         await new Promise<void>((r) => setTimeout(r, 50));
         if (document.documentElement.clientHeight >= MAX_HEIGHT - 20) break;
@@ -132,40 +125,19 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-      // Measure by scanning all descendants for true visual extent
+      // Scan all descendants to find true content extent
       const surfaceRect = surface.getBoundingClientRect();
       let maxBottom = surfaceRect.bottom;
-      const descendants = surface.querySelectorAll("*");
-      for (const el of descendants) {
+      for (const el of surface.querySelectorAll("*")) {
         const r = (el as HTMLElement).getBoundingClientRect();
         if (r.height > 0 && r.bottom > maxBottom) maxBottom = r.bottom;
       }
       const contentHeight = Math.ceil(maxBottom - surfaceRect.top) + 4;
-      const stackCards = stack ? stack.children.length : 0;
-      const dpr = window.devicePixelRatio;
-      const innerH = window.innerHeight;
-
-      // Write diagnostics
-      let diagEl = document.getElementById("_diag");
-      if (!diagEl) {
-        diagEl = document.createElement("div");
-        diagEl.id = "_diag";
-        diagEl.style.cssText = "position:fixed;top:0;left:0;right:0;background:red;color:white;font:8px monospace;z-index:99999;padding:2px;word-break:break-all;";
-        document.body.appendChild(diagEl);
-      }
-      const sH = surface.offsetHeight;
-      const bH = body?.offsetHeight ?? 0;
-      const stH = stack?.scrollHeight ?? 0;
-      diagEl.textContent = `dpr=${dpr} inner=${innerH} scan=${contentHeight} srf=${sH} body=${bH} stk=${stH} cards=${stackCards}`;
-
       const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
 
-      // Restore scroll overflow for runtime (capped by explicit maxHeight)
+      // Restore runtime overflow (capped by explicit maxHeight)
       surface.style.maxHeight = `${height}px`;
-      if (body) {
-        body.style.overflow = "";
-        body.style.flex = "";
-      }
+      if (body) { body.style.overflow = ""; body.style.flex = ""; }
 
       await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
