@@ -109,6 +109,10 @@ impl WeeklyIndicatorColors {
             ProviderId::OpenRouter => (110, 65, 226, 255), // OpenRouter purple
             ProviderId::NanoGPT => (59, 130, 246, 255), // Blue
             ProviderId::Infini => (0, 150, 255, 255),   // Infini blue
+            ProviderId::Perplexity => (32, 178, 170, 255), // Perplexity teal
+            ProviderId::Abacus => (244, 67, 54, 255),   // Abacus red
+            ProviderId::OpenCodeGo => (99, 102, 241, 255), // Indigo (shared with OpenCode)
+            ProviderId::Kilo => (124, 58, 237, 255),    // Kilo violet
         }
     }
 

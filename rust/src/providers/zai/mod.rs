@@ -197,12 +197,9 @@ impl ZaiProvider {
             .collect();
 
         // Find TIME_LIMIT entry (or legacy "mcp")
-        let time_limit = limits.iter().find(|l| {
-            matches!(
-                l.limit_type.as_deref(),
-                Some("TIME_LIMIT") | Some("mcp")
-            )
-        });
+        let time_limit = limits
+            .iter()
+            .find(|l| matches!(l.limit_type.as_deref(), Some("TIME_LIMIT") | Some("mcp")));
 
         // Sort token limits by window_minutes: shortest first
         token_limits.sort_by_key(|l| Self::window_minutes(l));
@@ -223,21 +220,13 @@ impl ZaiProvider {
                 let from_used = l.used;
                 // Use max of available signals
                 let candidates = [from_remaining, from_current, from_used];
-                candidates
-                    .iter()
-                    .filter_map(|&v| v)
-                    .fold(0.0_f64, f64::max)
+                candidates.iter().filter_map(|&v| v).fold(0.0_f64, f64::max)
             };
             ((used / limit) * 100.0).clamp(0.0, 100.0)
         }
 
         fn make_window(l: &ZaiLimit, window_mins: Option<u32>) -> RateWindow {
-            RateWindow::with_details(
-                compute_percent(l),
-                window_mins,
-                None,
-                l.reset_at.clone(),
-            )
+            RateWindow::with_details(compute_percent(l), window_mins, None, l.reset_at.clone())
         }
 
         // Build windows based on upstream layout:

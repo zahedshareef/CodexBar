@@ -35,6 +35,10 @@ pub enum ProviderId {
     Alibaba,
     NanoGPT,
     Infini,
+    Perplexity,
+    Abacus,
+    OpenCodeGo,
+    Kilo,
 }
 
 impl ProviderId {
@@ -65,6 +69,10 @@ impl ProviderId {
             ProviderId::Alibaba,
             ProviderId::NanoGPT,
             ProviderId::Infini,
+            ProviderId::Perplexity,
+            ProviderId::Abacus,
+            ProviderId::OpenCodeGo,
+            ProviderId::Kilo,
         ]
     }
 
@@ -95,6 +103,10 @@ impl ProviderId {
             ProviderId::Alibaba => "alibaba",
             ProviderId::NanoGPT => "nanogpt",
             ProviderId::Infini => "infini",
+            ProviderId::Perplexity => "perplexity",
+            ProviderId::Abacus => "abacus",
+            ProviderId::OpenCodeGo => "opencodego",
+            ProviderId::Kilo => "kilo",
         }
     }
 
@@ -125,6 +137,10 @@ impl ProviderId {
             ProviderId::Alibaba => "Alibaba",
             ProviderId::NanoGPT => "NanoGPT",
             ProviderId::Infini => "Infini",
+            ProviderId::Perplexity => "Perplexity",
+            ProviderId::Abacus => "Abacus AI",
+            ProviderId::OpenCodeGo => "OpenCode Go",
+            ProviderId::Kilo => "Kilo",
         }
     }
 
@@ -148,6 +164,9 @@ impl ProviderId {
             ProviderId::Antigravity => Some("antigravity.ai"),
             ProviderId::Alibaba => Some("tongyi.aliyun.com"),
             ProviderId::Ollama => Some("ollama.com"),
+            ProviderId::Perplexity => Some("perplexity.ai"),
+            ProviderId::Abacus => Some("apps.abacus.ai"),
+            ProviderId::OpenCodeGo => Some("opencode.ai"),
             // Token-based providers (don't use cookies)
             ProviderId::Copilot => None,
             ProviderId::Zai => None,
@@ -158,6 +177,7 @@ impl ProviderId {
             ProviderId::OpenRouter => None,
             ProviderId::NanoGPT => None,
             ProviderId::Infini => None,
+            ProviderId::Kilo => None,
         }
     }
 
@@ -190,6 +210,10 @@ impl ProviderId {
             "alibaba" | "tongyi" | "qianwen" | "qwen" => Some(ProviderId::Alibaba),
             "nanogpt" | "nano-gpt" => Some(ProviderId::NanoGPT),
             "infini" | "infini-ai" => Some(ProviderId::Infini),
+            "perplexity" | "pplx" => Some(ProviderId::Perplexity),
+            "abacus" | "abacus ai" | "abacus-ai" => Some(ProviderId::Abacus),
+            "opencodego" | "opencode-go" | "opencode go" => Some(ProviderId::OpenCodeGo),
+            "kilo" => Some(ProviderId::Kilo),
             _ => None,
         }
     }
@@ -370,6 +394,9 @@ pub fn cli_name_map() -> HashMap<&'static str, ProviderId> {
     map.insert("qianwen", ProviderId::Alibaba);
     map.insert("qwen", ProviderId::Alibaba);
     map.insert("infini-ai", ProviderId::Infini);
+    map.insert("pplx", ProviderId::Perplexity);
+    map.insert("abacus-ai", ProviderId::Abacus);
+    map.insert("opencode-go", ProviderId::OpenCodeGo);
     map
 }
 
@@ -380,7 +407,7 @@ mod tests {
     #[test]
     fn test_provider_id_all() {
         let all = ProviderId::all();
-        assert_eq!(all.len(), 24);
+        assert_eq!(all.len(), 28);
         assert!(all.contains(&ProviderId::Claude));
         assert!(all.contains(&ProviderId::Codex));
         assert!(all.contains(&ProviderId::Kimi));

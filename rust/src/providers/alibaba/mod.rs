@@ -38,7 +38,10 @@ impl AlibabaProvider {
         }
     }
 
-    fn get_auth_cookies(&self, ctx: &FetchContext) -> Result<(String, &'static str), ProviderError> {
+    fn get_auth_cookies(
+        &self,
+        ctx: &FetchContext,
+    ) -> Result<(String, &'static str), ProviderError> {
         if let Some(ref cookie_header) = ctx.manual_cookie_header
             && !cookie_header.trim().is_empty()
         {

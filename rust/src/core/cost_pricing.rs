@@ -482,7 +482,9 @@ impl CostUsagePricing {
     /// Get the display label for a Codex model (e.g. "Research Preview")
     pub fn codex_display_label(model: &str) -> Option<&'static str> {
         let key = Self::normalize_codex_model(model);
-        CODEX_PRICING.get(key.as_str()).and_then(|p| p.display_label)
+        CODEX_PRICING
+            .get(key.as_str())
+            .and_then(|p| p.display_label)
     }
 
     /// Normalize a Claude model name for pricing lookup
@@ -749,7 +751,10 @@ mod tests {
 
     #[test]
     fn test_codex_display_label() {
-        assert_eq!(CostUsagePricing::codex_display_label("gpt-5.3-codex-spark"), Some("Research Preview"));
+        assert_eq!(
+            CostUsagePricing::codex_display_label("gpt-5.3-codex-spark"),
+            Some("Research Preview")
+        );
         assert_eq!(CostUsagePricing::codex_display_label("gpt-5.4"), None);
     }
 }

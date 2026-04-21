@@ -335,6 +335,10 @@ pub fn account_name_for_provider(provider: ProviderId) -> &'static str {
         ProviderId::OpenRouter => "openrouter-token",
         ProviderId::NanoGPT => "nanogpt-api-token",
         ProviderId::Infini => "infini-api-token",
+        ProviderId::Perplexity => "perplexity-cookie",
+        ProviderId::Abacus => "abacus-cookie",
+        ProviderId::OpenCodeGo => "opencodego-cookie",
+        ProviderId::Kilo => "kilo-api-token",
     }
 }
 

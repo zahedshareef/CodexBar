@@ -2,6 +2,7 @@
 
 #![allow(dead_code)]
 
+pub mod abacus;
 pub mod alibaba;
 pub mod amp;
 pub mod antigravity;
@@ -14,6 +15,7 @@ pub mod factory;
 pub mod gemini;
 pub mod infini;
 pub mod jetbrains;
+pub mod kilo;
 pub mod kimi;
 pub mod kimik2;
 pub mod kiro;
@@ -22,13 +24,16 @@ pub mod nanogpt;
 pub mod ollama;
 pub mod openai;
 pub mod opencode;
+pub mod opencodego;
 pub mod openrouter;
+pub mod perplexity;
 pub mod synthetic;
 pub mod vertexai;
 pub mod warp;
 pub mod zai;
 
 // Re-export provider implementations
+pub use abacus::AbacusProvider;
 pub use alibaba::AlibabaProvider;
 pub use amp::AmpProvider;
 pub use antigravity::AntigravityProvider;
@@ -41,6 +46,7 @@ pub use factory::FactoryProvider;
 pub use gemini::GeminiProvider;
 pub use infini::InfiniProvider;
 pub use jetbrains::JetBrainsProvider;
+pub use kilo::KiloProvider;
 pub use kimi::KimiProvider;
 pub use kimik2::KimiK2Provider;
 pub use kiro::KiroProvider;
@@ -48,7 +54,9 @@ pub use minimax::MiniMaxProvider;
 pub use nanogpt::NanoGPTProvider;
 pub use ollama::OllamaProvider;
 pub use opencode::OpenCodeProvider;
+pub use opencodego::OpenCodeGoProvider;
 pub use openrouter::OpenRouterProvider;
+pub use perplexity::PerplexityProvider;
 pub use synthetic::SyntheticProvider;
 pub use vertexai::VertexAIProvider;
 pub use warp::WarpProvider;
