@@ -111,10 +111,13 @@ fn apply_transition_request(
         let resolution = resolve_transition_request(&guard, &request, force_same_mode_apply);
         (previous, resolution)
     };
+
+    let synth = should_synthesize_default_position(&resolution);
+
     let position = resolve_transition_position(
         request.position,
         &resolution,
-        should_synthesize_default_position(&resolution),
+        synth,
         || default_surface_position(app, request.mode),
     )
     .or_else(|| preserved_visible_mode_change_position(&window, &resolution));
@@ -291,6 +294,13 @@ fn preserved_visible_mode_change_position(
         return None;
     }
 
+    // When opening Settings from TrayPanel, don't preserve the tray's
+    // bottom-right position — Settings should appear centered on screen
+    // like a standalone window (matching macOS behavior).
+    if transition.from == SurfaceMode::TrayPanel && transition.to == SurfaceMode::Settings {
+        return None;
+    }
+
     let current = window.outer_position().ok()?;
     let current_top_left = (current.x, current.y);
     let (monitor_rect, scale_factor) = current_monitor_work_area(window, current_top_left)?;
@@ -307,6 +317,8 @@ pub(super) fn should_synthesize_default_position(resolution: &TransitionResoluti
     match resolution {
         TransitionResolution::ModeChange { transition, .. } => {
             transition.from == SurfaceMode::Hidden
+                || (transition.from == SurfaceMode::TrayPanel
+                    && transition.to == SurfaceMode::Settings)
         }
         TransitionResolution::SameModeReopen { .. } => true,
         TransitionResolution::SameModeRetarget { .. } | TransitionResolution::Noop { .. } => false,

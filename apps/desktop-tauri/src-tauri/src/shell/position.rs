@@ -111,8 +111,24 @@ pub fn default_surface_position(app: &AppHandle, mode: SurfaceMode) -> Option<(i
             .or_else(|| shortcut_panel_position(app)),
         SurfaceMode::PopOut => visible_surface_position_for_mode(app, mode),
         SurfaceMode::Settings => remembered_settings_position(app)
-            .or_else(|| visible_surface_position_for_mode(app, mode)),
+            .or_else(|| centered_settings_position(app)),
     }
+}
+
+/// Center the Settings window on the current/primary monitor.
+fn centered_settings_position(app: &AppHandle) -> Option<(i32, i32)> {
+    let window = app.get_webview_window("main")?;
+
+    let monitor = window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten())
+        .or_else(|| window.available_monitors().ok().and_then(|v| v.into_iter().next()));
+
+    let placement = monitor.map(|m| monitor_placement(&m))?;
+    let panel_size = surface_panel_size(SurfaceMode::Settings);
+    Some(super::geometry::centered_position(&placement, &panel_size))
 }
 
 /// Load persisted Settings geometry and clamp it into the current monitor's

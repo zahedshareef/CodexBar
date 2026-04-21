@@ -63,6 +63,20 @@ pub(super) fn popout_position(
     )
 }
 
+/// Center a panel on the monitor's work area (used for Settings windows).
+pub(super) fn centered_position(
+    monitor: &MonitorPlacement,
+    panel_size: &PanelSize,
+) -> (i32, i32) {
+    let scale = monitor.scale_factor;
+    let pw = (panel_size.width as f64 * scale) as i32;
+    let ph = (panel_size.height as f64 * scale) as i32;
+    let wa = &monitor.work_area;
+    let x = wa.x + (wa.width as i32 - pw) / 2;
+    let y = wa.y + (wa.height as i32 - ph) / 2;
+    (x, y)
+}
+
 #[allow(dead_code)]
 pub(super) fn inferred_tray_anchor_rect(monitor: &MonitorPlacement) -> Rect {
     const SYNTHETIC_TRAY_ICON_SIZE: u32 = 24;
