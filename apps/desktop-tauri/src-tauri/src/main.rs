@@ -140,43 +140,53 @@ fn main() {
 
             Ok(())
         })
-        .on_window_event(move |window, event| match event {
-            tauri::WindowEvent::Focused(false) => {
-                // Suppress blur-dismiss in proof mode so the window stays
-                // visible for automated screenshot capture.
-                if force_start_visible || proof_harness::is_proof_mode(window.app_handle()) {
-                    return;
-                }
-                // Grace period: ignore blur within 500ms of showing the panel.
-                // On Windows, the tray click can cause a spurious blur before
-                // the window fully acquires focus.
-                if let Some(st) = window.app_handle().try_state::<Mutex<AppState>>()
-                    && let Some(shown_at) = st.lock().unwrap().last_shown_at
-                    && shown_at.elapsed() < Duration::from_millis(500)
-                {
-                    return;
-                }
-                // Blur in TrayPanel mode → auto-hide.
-                let _ = shell::hide_to_tray_if_current(window.app_handle(), |mode| {
-                    mode == SurfaceMode::TrayPanel
-                });
+        .on_window_event(move |window, event| {
+            // Only the main window participates in blur-dismiss and close-to-hide.
+            // The detached settings window uses normal OS close behavior.
+            if window.label() != "main" {
+                return;
             }
-            tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
-                // Capture geometry for surfaces eligible for persistence
-                // (currently only Settings). The helper is a no-op when the
-                // current surface is not eligible.
-                shell::remember_current_geometry_if_settings(window);
-            }
-            tauri::WindowEvent::CloseRequested { api, .. } => {
-                // Close visible shell surfaces → hide instead of quitting.
-                if matches!(
-                    shell::hide_to_tray_if_current(window.app_handle(), should_hide_close_request),
-                    Ok(Some(_))
-                ) {
-                    api.prevent_close();
+            match event {
+                tauri::WindowEvent::Focused(false) => {
+                    // Suppress blur-dismiss in proof mode so the window stays
+                    // visible for automated screenshot capture.
+                    if force_start_visible || proof_harness::is_proof_mode(window.app_handle()) {
+                        return;
+                    }
+                    // Grace period: ignore blur within 500ms of showing the panel.
+                    // On Windows, the tray click can cause a spurious blur before
+                    // the window fully acquires focus.
+                    if let Some(st) = window.app_handle().try_state::<Mutex<AppState>>()
+                        && let Some(shown_at) = st.lock().unwrap().last_shown_at
+                        && shown_at.elapsed() < Duration::from_millis(500)
+                    {
+                        return;
+                    }
+                    // Blur in TrayPanel mode → auto-hide.
+                    let _ = shell::hide_to_tray_if_current(window.app_handle(), |mode| {
+                        mode == SurfaceMode::TrayPanel
+                    });
                 }
+                tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
+                    // Capture geometry for surfaces eligible for persistence
+                    // (currently only Settings). The helper is a no-op when the
+                    // current surface is not eligible.
+                    shell::remember_current_geometry_if_settings(window);
+                }
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    // Close visible shell surfaces → hide instead of quitting.
+                    if matches!(
+                        shell::hide_to_tray_if_current(
+                            window.app_handle(),
+                            should_hide_close_request
+                        ),
+                        Ok(Some(_))
+                    ) {
+                        api.prevent_close();
+                    }
+                }
+                _ => {}
             }
-            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("failed to run CodexBar desktop shell");
