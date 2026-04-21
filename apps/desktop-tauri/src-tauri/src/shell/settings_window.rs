@@ -1,9 +1,11 @@
 //! Detached Settings window: opens Settings/About in a separate window
 //! so the tray panel stays open.
 
-use tauri::{Emitter, Manager, WebviewUrl};
+use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl};
 
 const SETTINGS_LABEL: &str = "settings";
+const SETTINGS_WIDTH: f64 = 496.0;
+const SETTINGS_HEIGHT: f64 = 580.0;
 
 /// Open the detached Settings window, or focus it if already open.
 ///
@@ -21,15 +23,24 @@ pub fn open_or_focus(app: &tauri::AppHandle, tab: &str) -> Result<(), String> {
 
     let win = tauri::WebviewWindowBuilder::new(app, SETTINGS_LABEL, url)
         .title("CodexBar Settings")
-        .inner_size(496.0, 580.0)
+        .inner_size(SETTINGS_WIDTH, SETTINGS_HEIGHT)
         .decorations(true)
         .resizable(true)
         .build()
         .map_err(|e| e.to_string())?;
 
-    // Explicitly center on the monitor — the builder's .center() is
-    // unreliable on Windows when called from an async Tauri command.
-    let _ = win.center();
+    // Manually center: Tauri's .center() is unreliable on Windows when
+    // called from async commands. Compute position from the primary monitor.
+    if let Ok(Some(monitor)) = win.primary_monitor() {
+        let pos = monitor.position();
+        let size = monitor.size();
+        let scale = win.scale_factor().unwrap_or(1.0);
+        let win_w = (SETTINGS_WIDTH * scale) as i32;
+        let win_h = (SETTINGS_HEIGHT * scale) as i32;
+        let x = pos.x + (size.width as i32 - win_w) / 2;
+        let y = pos.y + (size.height as i32 - win_h) / 2;
+        let _ = win.set_position(PhysicalPosition::new(x, y));
+    }
 
     Ok(())
 }
