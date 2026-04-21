@@ -52,7 +52,7 @@ export default function AboutTab({ settings, set, saving }: TabProps) {
       <div className="about-links">
         <a
           className="about-link"
-          href="https://github.com/NessZerra/Win-CodexBar"
+          href="https://github.com/Finesssee/Win-CodexBar"
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -68,17 +68,11 @@ export default function AboutTab({ settings, set, saving }: TabProps) {
         </a>
         <a
           className="about-link"
-          href="https://twitter.com/steipete"
+          href="https://github.com/steipete/CodexBar"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Twitter
-        </a>
-        <a
-          className="about-link"
-          href="mailto:peter@steipete.me"
-        >
-          Email
+          Original Project
         </a>
       </div>
 
@@ -184,7 +178,16 @@ export default function AboutTab({ settings, set, saving }: TabProps) {
       </div>
 
       <p className="about-copyright">
-        NessZerra — Windows Version. MIT License.
+        Windows port by NessZerra. Based on{" "}
+        <a
+          className="about-link about-link--inline"
+          href="https://github.com/steipete/CodexBar"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          CodexBar
+        </a>{" "}
+        by steipete. MIT License.
       </p>
     </section>
   );

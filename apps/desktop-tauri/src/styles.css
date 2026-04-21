@@ -1022,6 +1022,11 @@ html {
   color: var(--text-muted);
 }
 
+.about-link--inline {
+  font-size: inherit;
+  color: var(--text-eyebrow);
+}
+
 /* ── Tray Panel ───────────────────────────────────────────────────── */
 
 /* Hide the panel during the initial resize + reposition dance so the
