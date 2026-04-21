@@ -142,6 +142,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       }
       const contentHeight = Math.ceil(maxBottom - surfaceRect.top) + 4;
       const stackCards = stack ? stack.children.length : 0;
+      const dpr = window.devicePixelRatio;
+      const innerH = window.innerHeight;
 
       // Write diagnostics
       let diagEl = document.getElementById("_diag");
@@ -154,18 +156,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       const sH = surface.offsetHeight;
       const bH = body?.offsetHeight ?? 0;
       const stH = stack?.scrollHeight ?? 0;
-      diagEl.textContent = `scan=${contentHeight} srf=${sH} body=${bH} stk=${stH} cards=${stackCards}`;
+      diagEl.textContent = `dpr=${dpr} inner=${innerH} scan=${contentHeight} srf=${sH} body=${bH} stk=${stH} cards=${stackCards}`;
 
-      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
-
-      // Restore scroll overflow for runtime (capped by explicit maxHeight)
-      surface.style.maxHeight = `${height}px`;
-      if (body) {
-        body.style.overflow = "";
-        body.style.flex = "";
-      }
-
-      await win.setSize(new LogicalSize(TRAY_WIDTH, height));
+      // DEBUG: leave at 800 to inspect content
       reanchorTrayPanel().catch(() => {});
     };
 
