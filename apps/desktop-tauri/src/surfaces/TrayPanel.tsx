@@ -174,11 +174,34 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   // Icon parity with macOS MenuDescriptor: only Refresh has an SF Symbol.
   // Settings / About / Quit render as plain text rows (no icon column).
   const footerRows: MenuFooterRow[] = [
-    { icon: "↻", label: "Refresh", onClick: refresh },
-    { icon: "", label: "Settings\u2026", onClick: openSettings },
+    { icon: "↻", label: "Refresh", shortcut: "Ctrl+R", onClick: refresh },
+    { icon: "", label: "Settings\u2026", shortcut: "Ctrl+,", onClick: openSettings },
     { icon: "", label: "About CodexBar", onClick: openAbout },
-    { icon: "", label: "Quit", onClick: quitApp },
+    { icon: "", label: "Quit", shortcut: "Ctrl+Q", onClick: quitApp },
   ];
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
+      switch (e.key.toLowerCase()) {
+        case "r":
+          e.preventDefault();
+          refresh();
+          break;
+        case ",":
+          e.preventDefault();
+          openSettings();
+          break;
+        case "q":
+          e.preventDefault();
+          quitApp();
+          break;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [refresh, openSettings, quitApp]);
 
   const handleGridClick = useCallback(
     (providerId: string | null) => {

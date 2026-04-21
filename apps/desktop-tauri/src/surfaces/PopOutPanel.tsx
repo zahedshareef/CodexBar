@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode } from "../lib/tauri";
@@ -68,10 +68,33 @@ export default function PopOutPanel({
   ];
 
   const footerRows: MenuFooterRow[] = [
-    { icon: "⚙", label: t("TooltipSettings"), shortcut: "⌘,", onClick: openSettings },
+    { icon: "⚙", label: t("TooltipSettings"), shortcut: "Ctrl+,", onClick: openSettings },
     { icon: "ℹ", label: "About CodexBar", onClick: openAbout },
-    { icon: "✕", label: "Quit", shortcut: "⌘Q", onClick: quitApp },
+    { icon: "✕", label: "Quit", shortcut: "Ctrl+Q", onClick: quitApp },
   ];
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
+      switch (e.key.toLowerCase()) {
+        case "r":
+          e.preventDefault();
+          refresh();
+          break;
+        case ",":
+          e.preventDefault();
+          openSettings();
+          break;
+        case "q":
+          e.preventDefault();
+          quitApp();
+          break;
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [refresh, openSettings, quitApp]);
 
   const banner = (
     <UpdateBanner
