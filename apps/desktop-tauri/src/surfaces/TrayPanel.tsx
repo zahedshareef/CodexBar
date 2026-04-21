@@ -92,9 +92,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // CSS removes all viewport constraints (no 100vh, no overflow:hidden) so
-  // the surface sizes to its true content height. We expand the window first,
-  // wait for the viewport to actually update, measure, then shrink.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -105,41 +102,56 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
       if (!surface) return;
 
-      // Remove any previous inline max-height so surface can grow freely
+      // Remove any previous inline max-height
       surface.style.maxHeight = "none";
 
       // Expand window to give content room
       await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
 
-      // Poll until the viewport actually resizes (WebView2 can lag)
+      // Poll until viewport actually resizes
+      let vpH = 0;
       for (let i = 0; i < 30; i++) {
         await new Promise<void>((r) => setTimeout(r, 50));
-        if (document.documentElement.clientHeight >= MAX_HEIGHT - 20) break;
+        vpH = document.documentElement.clientHeight;
+        if (vpH >= MAX_HEIGHT - 20) break;
       }
-      // One more rAF to ensure layout is complete
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-      // Measure true content height — surface has height:auto, no max-height
-      const contentHeight = surface.offsetHeight;
+      const surfaceH = surface.offsetHeight;
+      const bodyEl = surface.querySelector<HTMLElement>(".menu-surface__body");
+      const footerEl = surface.querySelector<HTMLElement>(".menu-surface__footer");
+      const bodySH = bodyEl?.scrollHeight ?? 0;
+      const bodyOH = bodyEl?.offsetHeight ?? 0;
+      const footerH = footerEl?.offsetHeight ?? 0;
 
+      // Measure using getBoundingClientRect to bypass layout issues
+      const surfaceRect = surface.getBoundingClientRect();
+      const lastChild = (footerEl || surface.lastElementChild) as HTMLElement;
+      const lastRect = lastChild?.getBoundingClientRect();
+      const bcrHeight = lastRect ? Math.ceil(lastRect.bottom - surfaceRect.top) + 4 : surfaceH;
+
+      // Write diagnostics to overlay
+      let diagEl = document.getElementById("_diag");
+      if (!diagEl) {
+        diagEl = document.createElement("div");
+        diagEl.id = "_diag";
+        diagEl.style.cssText = "position:fixed;top:0;left:0;right:0;background:red;color:white;font:8px monospace;z-index:99999;padding:2px;word-break:break-all;";
+        document.body.appendChild(diagEl);
+      }
+      diagEl.textContent = `vp=${vpH} srf=${surfaceH} body=${bodyOH}/${bodySH} ftr=${footerH} bcr=${bcrHeight}`;
+
+      const contentHeight = bcrHeight;
       const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
-
-      // Set explicit pixel max-height for scroll capping, then resize window
       surface.style.maxHeight = `${height}px`;
-      if (contentHeight > MAX_HEIGHT) {
-        // Enable body scrolling when content exceeds cap
-        const body = surface.querySelector<HTMLElement>(".menu-surface__body");
-        if (body) body.style.flex = "1 1 auto";
-      }
 
       await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
     };
 
     const t0 = setTimeout(() => void resize(), 100);
-    const t1 = setTimeout(() => void resize(), 1500);
-    const t2 = setTimeout(() => void resize(), 4000);
+    const t1 = setTimeout(() => void resize(), 2000);
+    const t2 = setTimeout(() => void resize(), 5000);
 
     return () => {
       clearTimeout(t0);
