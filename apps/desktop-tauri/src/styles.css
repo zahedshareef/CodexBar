@@ -2996,14 +2996,14 @@ html:has(.menu-surface--tray) {
   border-radius: 6px;
   padding: 4px 4px;
 }
-/* Tray separators — rely on gap between rounded cards instead of hairlines */
+/* Tray separators — subtle hairlines matching macOS card dividers */
 .menu-surface--tray .menu-stack__sep {
-  height: 0;
-  margin: 0;
-  background: transparent;
+  height: 0.5px;
+  margin: 2px 16px;
+  background: rgba(255, 255, 255, 0.08);
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__sep {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.08);
 }
 [data-theme="light"] .menu-surface--tray .menu-stack__item {
   background: rgba(0, 0, 0, 0.03);
@@ -3211,9 +3211,9 @@ html:has(.menu-surface--tray) {
 
 /* Tray footer — match macOS NSMenuItem native look (10pt, ~16px row height) */
 .menu-surface--tray .menu-surface__footer {
-  padding: 3px 0 1px;
-  margin-top: 2px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2px 0 1px;
+  margin-top: 0;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.08);
 }
 .menu-surface--tray .menu-surface__footer-row {
   padding: 3px 16px;
