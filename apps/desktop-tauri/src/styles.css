@@ -2965,7 +2965,7 @@ html {
 .menu-surface--tray .menu-stack {
   gap: 2px;
   max-height: none;
-  overflow: hidden;
+  overflow: visible;
   min-width: 0;
 }
 

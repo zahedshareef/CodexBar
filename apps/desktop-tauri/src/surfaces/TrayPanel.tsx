@@ -92,7 +92,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // Temporarily strips all overflow/flex constraints to measure true content height.
+  // Expand window, measure body.scrollHeight + footer, shrink to fit.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -101,7 +101,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     const resize = async () => {
       const win = getCurrentWindow();
 
-      // Expand window to max so viewport doesn't clip
+      // Expand window so content has room to lay out fully
       await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
       await new Promise<void>((r) => setTimeout(r, 200));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
@@ -109,29 +109,32 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
       if (!surface) return;
       const body = surface.querySelector<HTMLElement>(".menu-surface__body");
-      const stack = surface.querySelector<HTMLElement>(".menu-stack");
 
-      // Save existing inline styles
-      const saved = new Map<HTMLElement, string>();
-      const override = (el: HTMLElement | null, css: string) => {
-        if (!el) return;
-        saved.set(el, el.style.cssText);
-        el.style.cssText += css;
-      };
+      // Sum the heights of all surface children to get true content height
+      let contentHeight = 0;
+      const parts: string[] = [];
+      for (const child of Array.from(surface.children)) {
+        const el = child as HTMLElement;
+        const cls = el.className.split(" ").pop() || el.tagName;
+        if (el === body) {
+          parts.push(`${cls}:sH=${el.scrollHeight},oH=${el.offsetHeight}`);
+          contentHeight += el.scrollHeight;
+        } else if (!el.id?.startsWith("_diag")) {
+          parts.push(`${cls}:oH=${el.offsetHeight}`);
+          contentHeight += el.offsetHeight;
+        }
+      }
+      contentHeight += 8; // surface padding
 
-      // Temporarily remove all constraints to get true content height
-      override(surface, "height:max-content !important;max-height:none !important;overflow:visible !important;");
-      override(body, "flex:0 0 auto !important;overflow:visible !important;max-height:none !important;height:auto !important;");
-      override(stack, "overflow:visible !important;max-height:none !important;");
-
-      // Force sync reflow
-      void surface.offsetHeight;
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-
-      const contentHeight = surface.offsetHeight;
-
-      // Restore inline styles
-      saved.forEach((css, el) => { el.style.cssText = css; });
+      // Write diagnostics to a visible overlay
+      let diagEl = document.getElementById("_diag");
+      if (!diagEl) {
+        diagEl = document.createElement("div");
+        diagEl.id = "_diag";
+        diagEl.style.cssText = "position:fixed;top:0;left:0;right:0;background:red;color:white;font:9px monospace;z-index:99999;padding:2px;word-break:break-all;";
+        document.body.appendChild(diagEl);
+      }
+      diagEl.textContent = `H=${contentHeight} ${parts.join(" | ")}`;
 
       const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
       await win.setSize(new LogicalSize(TRAY_WIDTH, height));
