@@ -19,14 +19,17 @@ pub fn open_or_focus(app: &tauri::AppHandle, tab: &str) -> Result<(), String> {
 
     let url = WebviewUrl::App(format!("index.html?window=settings&tab={tab}").into());
 
-    tauri::WebviewWindowBuilder::new(app, SETTINGS_LABEL, url)
+    let win = tauri::WebviewWindowBuilder::new(app, SETTINGS_LABEL, url)
         .title("CodexBar Settings")
         .inner_size(496.0, 580.0)
         .decorations(true)
         .resizable(true)
-        .center()
         .build()
         .map_err(|e| e.to_string())?;
+
+    // Explicitly center on the monitor — the builder's .center() is
+    // unreliable on Windows when called from an async Tauri command.
+    let _ = win.center();
 
     Ok(())
 }
