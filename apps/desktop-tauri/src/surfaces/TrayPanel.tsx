@@ -105,8 +105,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
       // Expand window so max-height:100vh gives room for all content
       await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
-      // Wait for layout to settle
-      await new Promise<void>((r) => setTimeout(r, 50));
+      // WebView2 needs time to reflow after window resize
+      await new Promise<void>((r) => setTimeout(r, 150));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
