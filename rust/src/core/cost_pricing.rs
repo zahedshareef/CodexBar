@@ -17,6 +17,8 @@ pub struct CodexPricing {
     pub output_cost_per_token: f64,
     /// Cost per cached input token in USD
     pub cache_read_input_cost_per_token: f64,
+    /// Optional display label override (e.g. "Research Preview")
+    pub display_label: Option<&'static str>,
 }
 
 /// Claude (Anthropic) model pricing with optional tiered pricing
@@ -53,6 +55,7 @@ static CODEX_PRICING: LazyLock<HashMap<&'static str, CodexPricing>> = LazyLock::
             input_cost_per_token: 1.25e-6,
             output_cost_per_token: 1e-5,
             cache_read_input_cost_per_token: 1.25e-7,
+            display_label: None,
         },
     );
     m.insert(
@@ -61,6 +64,34 @@ static CODEX_PRICING: LazyLock<HashMap<&'static str, CodexPricing>> = LazyLock::
             input_cost_per_token: 1.25e-6,
             output_cost_per_token: 1e-5,
             cache_read_input_cost_per_token: 1.25e-7,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5-mini",
+        CodexPricing {
+            input_cost_per_token: 2.5e-7,
+            output_cost_per_token: 2e-6,
+            cache_read_input_cost_per_token: 2.5e-8,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5-nano",
+        CodexPricing {
+            input_cost_per_token: 5e-8,
+            output_cost_per_token: 4e-7,
+            cache_read_input_cost_per_token: 5e-9,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5-pro",
+        CodexPricing {
+            input_cost_per_token: 1.5e-5,
+            output_cost_per_token: 1.2e-4,
+            cache_read_input_cost_per_token: 1.5e-5,
+            display_label: None,
         },
     );
     m.insert(
@@ -69,6 +100,34 @@ static CODEX_PRICING: LazyLock<HashMap<&'static str, CodexPricing>> = LazyLock::
             input_cost_per_token: 1.25e-6,
             output_cost_per_token: 1e-5,
             cache_read_input_cost_per_token: 1.25e-7,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5.1-codex",
+        CodexPricing {
+            input_cost_per_token: 1.25e-6,
+            output_cost_per_token: 1e-5,
+            cache_read_input_cost_per_token: 1.25e-7,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5.1-codex-max",
+        CodexPricing {
+            input_cost_per_token: 1.25e-6,
+            output_cost_per_token: 1e-5,
+            cache_read_input_cost_per_token: 1.25e-7,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5.1-codex-mini",
+        CodexPricing {
+            input_cost_per_token: 2.5e-7,
+            output_cost_per_token: 2e-6,
+            cache_read_input_cost_per_token: 2.5e-8,
+            display_label: None,
         },
     );
     m.insert(
@@ -77,6 +136,7 @@ static CODEX_PRICING: LazyLock<HashMap<&'static str, CodexPricing>> = LazyLock::
             input_cost_per_token: 1.75e-6,
             output_cost_per_token: 1.4e-5,
             cache_read_input_cost_per_token: 1.75e-7,
+            display_label: None,
         },
     );
     m.insert(
@@ -85,60 +145,105 @@ static CODEX_PRICING: LazyLock<HashMap<&'static str, CodexPricing>> = LazyLock::
             input_cost_per_token: 1.75e-6,
             output_cost_per_token: 1.4e-5,
             cache_read_input_cost_per_token: 1.75e-7,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5.2-pro",
+        CodexPricing {
+            input_cost_per_token: 2.1e-5,
+            output_cost_per_token: 1.68e-4,
+            cache_read_input_cost_per_token: 2.1e-5,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5.3-codex",
+        CodexPricing {
+            input_cost_per_token: 1.75e-6,
+            output_cost_per_token: 1.4e-5,
+            cache_read_input_cost_per_token: 1.75e-7,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5.3-codex-spark",
+        CodexPricing {
+            input_cost_per_token: 0.0,
+            output_cost_per_token: 0.0,
+            cache_read_input_cost_per_token: 0.0,
+            display_label: Some("Research Preview"),
         },
     );
 
-    // GPT-5.4 pricing
+    // GPT-5.4 pricing (updated to match upstream 0.22)
     m.insert(
         "gpt-5.4",
         CodexPricing {
             input_cost_per_token: 2.5e-6,
-            output_cost_per_token: 1e-5,
-            cache_read_input_cost_per_token: 6.25e-7,
+            output_cost_per_token: 1.5e-5,
+            cache_read_input_cost_per_token: 2.5e-7,
+            display_label: None,
         },
     );
     m.insert(
         "gpt-5.4-codex",
         CodexPricing {
             input_cost_per_token: 2.5e-6,
-            output_cost_per_token: 1e-5,
-            cache_read_input_cost_per_token: 6.25e-7,
+            output_cost_per_token: 1.5e-5,
+            cache_read_input_cost_per_token: 2.5e-7,
+            display_label: None,
         },
     );
 
-    // GPT-5.4 Mini pricing
+    // GPT-5.4 Mini pricing (updated to match upstream 0.22)
     m.insert(
         "gpt-5.4-mini",
         CodexPricing {
-            input_cost_per_token: 4e-7,
-            output_cost_per_token: 1.6e-6,
-            cache_read_input_cost_per_token: 1e-7,
+            input_cost_per_token: 7.5e-7,
+            output_cost_per_token: 4.5e-6,
+            cache_read_input_cost_per_token: 7.5e-8,
+            display_label: None,
         },
     );
     m.insert(
         "gpt-5.4-mini-codex",
         CodexPricing {
-            input_cost_per_token: 4e-7,
-            output_cost_per_token: 1.6e-6,
-            cache_read_input_cost_per_token: 1e-7,
+            input_cost_per_token: 7.5e-7,
+            output_cost_per_token: 4.5e-6,
+            cache_read_input_cost_per_token: 7.5e-8,
+            display_label: None,
         },
     );
 
-    // GPT-5.4 Nano pricing
+    // GPT-5.4 Nano pricing (updated to match upstream 0.22)
     m.insert(
         "gpt-5.4-nano",
         CodexPricing {
-            input_cost_per_token: 1e-7,
-            output_cost_per_token: 4e-7,
-            cache_read_input_cost_per_token: 2.5e-8,
+            input_cost_per_token: 2e-7,
+            output_cost_per_token: 1.25e-6,
+            cache_read_input_cost_per_token: 2e-8,
+            display_label: None,
         },
     );
     m.insert(
         "gpt-5.4-nano-codex",
         CodexPricing {
-            input_cost_per_token: 1e-7,
-            output_cost_per_token: 4e-7,
-            cache_read_input_cost_per_token: 2.5e-8,
+            input_cost_per_token: 2e-7,
+            output_cost_per_token: 1.25e-6,
+            cache_read_input_cost_per_token: 2e-8,
+            display_label: None,
+        },
+    );
+
+    // GPT-5.4 Pro
+    m.insert(
+        "gpt-5.4-pro",
+        CodexPricing {
+            input_cost_per_token: 3e-5,
+            output_cost_per_token: 1.8e-4,
+            cache_read_input_cost_per_token: 3e-5,
+            display_label: None,
         },
     );
 
@@ -209,6 +314,22 @@ static CLAUDE_PRICING: LazyLock<HashMap<&'static str, ClaudePricing>> = LazyLock
         },
     );
 
+    // Opus 4.7 (same pricing as Opus 4.6)
+    m.insert(
+        "claude-opus-4-7",
+        ClaudePricing {
+            input_cost_per_token: 5e-6,
+            output_cost_per_token: 2.5e-5,
+            cache_creation_input_cost_per_token: 6.25e-6,
+            cache_read_input_cost_per_token: 5e-7,
+            threshold_tokens: None,
+            input_cost_per_token_above_threshold: None,
+            output_cost_per_token_above_threshold: None,
+            cache_creation_input_cost_per_token_above_threshold: None,
+            cache_read_input_cost_per_token_above_threshold: None,
+        },
+    );
+
     // Opus 4.5
     m.insert(
         "claude-opus-4-5",
@@ -256,6 +377,22 @@ static CLAUDE_PRICING: LazyLock<HashMap<&'static str, ClaudePricing>> = LazyLock
     );
     m.insert(
         "claude-sonnet-4-5-20250929",
+        ClaudePricing {
+            input_cost_per_token: 3e-6,
+            output_cost_per_token: 1.5e-5,
+            cache_creation_input_cost_per_token: 3.75e-6,
+            cache_read_input_cost_per_token: 3e-7,
+            threshold_tokens: Some(200_000),
+            input_cost_per_token_above_threshold: Some(6e-6),
+            output_cost_per_token_above_threshold: Some(2.25e-5),
+            cache_creation_input_cost_per_token_above_threshold: Some(7.5e-6),
+            cache_read_input_cost_per_token_above_threshold: Some(6e-7),
+        },
+    );
+
+    // Sonnet 4.6 (same pricing as Sonnet 4.5, with 200k tier)
+    m.insert(
+        "claude-sonnet-4-6",
         ClaudePricing {
             input_cost_per_token: 3e-6,
             output_cost_per_token: 1.5e-5,
@@ -340,6 +477,12 @@ impl CostUsagePricing {
         }
 
         trimmed
+    }
+
+    /// Get the display label for a Codex model (e.g. "Research Preview")
+    pub fn codex_display_label(model: &str) -> Option<&'static str> {
+        let key = Self::normalize_codex_model(model);
+        CODEX_PRICING.get(key.as_str()).and_then(|p| p.display_label)
     }
 
     /// Normalize a Claude model name for pricing lookup
@@ -556,16 +699,16 @@ mod tests {
     fn test_gpt54_mini_cost() {
         let cost = CostUsagePricing::codex_cost_usd("gpt-5.4-mini", 1000, 0, 500);
         assert!(cost.is_some());
-        // 1000 * 4e-7 + 500 * 1.6e-6 = 0.0004 + 0.0008 = 0.0012
-        assert!((cost.unwrap() - 0.0012).abs() < 1e-10);
+        // 1000 * 7.5e-7 + 500 * 4.5e-6 = 0.00075 + 0.00225 = 0.003
+        assert!((cost.unwrap() - 0.003).abs() < 1e-10);
     }
 
     #[test]
     fn test_gpt54_nano_cost() {
         let cost = CostUsagePricing::codex_cost_usd("gpt-5.4-nano", 1000, 0, 500);
         assert!(cost.is_some());
-        // 1000 * 1e-7 + 500 * 4e-7 = 0.0001 + 0.0002 = 0.0003
-        assert!((cost.unwrap() - 0.0003).abs() < 1e-10);
+        // 1000 * 2e-7 + 500 * 1.25e-6 = 0.0002 + 0.000625 = 0.000825
+        assert!((cost.unwrap() - 0.000825).abs() < 1e-10);
     }
 
     #[test]
@@ -582,5 +725,31 @@ mod tests {
             CostUsagePricing::format_model_name("gpt-5.4-mini"),
             "GPT-5.4 Mini"
         );
+    }
+
+    #[test]
+    fn test_opus_4_7_cost() {
+        let cost = CostUsagePricing::claude_cost_usd("claude-opus-4-7", 1000, 0, 0, 500);
+        assert!(cost.is_some());
+    }
+
+    #[test]
+    fn test_sonnet_4_6_cost() {
+        let cost = CostUsagePricing::claude_cost_usd("claude-sonnet-4-6", 1000, 0, 0, 500);
+        assert!(cost.is_some());
+    }
+
+    #[test]
+    fn test_gpt5_pro_cost() {
+        let cost = CostUsagePricing::codex_cost_usd("gpt-5-pro", 1000, 0, 500);
+        assert!(cost.is_some());
+        // 1000 * 1.5e-5 + 500 * 1.2e-4 = 0.015 + 0.06 = 0.075
+        assert!((cost.unwrap() - 0.075).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_codex_display_label() {
+        assert_eq!(CostUsagePricing::codex_display_label("gpt-5.3-codex-spark"), Some("Research Preview"));
+        assert_eq!(CostUsagePricing::codex_display_label("gpt-5.4"), None);
     }
 }
