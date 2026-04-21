@@ -158,7 +158,16 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       const stH = stack?.scrollHeight ?? 0;
       diagEl.textContent = `dpr=${dpr} inner=${innerH} scan=${contentHeight} srf=${sH} body=${bH} stk=${stH} cards=${stackCards}`;
 
-      // DEBUG: leave at 800 to inspect content
+      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
+
+      // Restore scroll overflow for runtime (capped by explicit maxHeight)
+      surface.style.maxHeight = `${height}px`;
+      if (body) {
+        body.style.overflow = "";
+        body.style.flex = "";
+      }
+
+      await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
     };
 
