@@ -4,7 +4,7 @@ use clap::Args;
 use serde::Serialize;
 
 use crate::core::{
-    FetchContext, ProviderFetchResult, ProviderId, SourceMode, instantiate_provider,
+    FetchContext, ProviderFetchResult, ProviderId, SourceMode, UsagePace, instantiate_provider,
 };
 use crate::status::{ProviderStatus as StatusInfo, StatusLevel, fetch_provider_status};
 
@@ -340,6 +340,16 @@ pub fn render_text_with_status(
             secondary.used_percent,
             weekly_reset
         ));
+
+        // Weekly pace prediction
+        let window_minutes = secondary.window_minutes.unwrap_or(10080);
+        if let Some(pace) = UsagePace::weekly(secondary, None, window_minutes) {
+            lines.push(format!(
+                "  Pace:    {} {}",
+                pace.stage.emoji(),
+                pace.format_status()
+            ));
+        }
     }
 
     // Model-specific window

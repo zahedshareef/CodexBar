@@ -149,13 +149,11 @@ fn main() {
                 // Grace period: ignore blur within 500ms of showing the panel.
                 // On Windows, the tray click can cause a spurious blur before
                 // the window fully acquires focus.
-                if let Some(st) = window.app_handle().try_state::<Mutex<AppState>>() {
-                    let guard = st.lock().unwrap();
-                    if let Some(shown_at) = guard.last_shown_at {
-                        if shown_at.elapsed() < Duration::from_millis(500) {
-                            return;
-                        }
-                    }
+                if let Some(st) = window.app_handle().try_state::<Mutex<AppState>>()
+                    && let Some(shown_at) = st.lock().unwrap().last_shown_at
+                    && shown_at.elapsed() < Duration::from_millis(500)
+                {
+                    return;
                 }
                 // Blur in TrayPanel mode → auto-hide.
                 let _ = shell::hide_to_tray_if_current(window.app_handle(), |mode| {

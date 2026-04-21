@@ -24,10 +24,26 @@ pub struct CostSummary {
     pub sessions_count: u32,
     /// Cost breakdown by model
     pub by_model: HashMap<String, f64>,
+    /// Token breakdown by model
+    pub by_model_tokens: HashMap<String, ModelTokenCounts>,
     /// Period start date
     pub period_start: Option<NaiveDate>,
     /// Period end date
     pub period_end: Option<NaiveDate>,
+}
+
+/// Per-model token counts
+#[derive(Debug, Clone, Default)]
+pub struct ModelTokenCounts {
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cached_tokens: u64,
+}
+
+impl ModelTokenCounts {
+    pub fn total(&self) -> u64 {
+        self.input_tokens + self.output_tokens + self.cached_tokens
+    }
 }
 
 impl CostSummary {
@@ -274,6 +290,14 @@ impl CostScanner {
                     has_tokens = true;
 
                     *summary.by_model.entry(current_model.clone()).or_insert(0.0) += cost;
+
+                    let model_tokens = summary
+                        .by_model_tokens
+                        .entry(current_model.clone())
+                        .or_default();
+                    model_tokens.input_tokens += input;
+                    model_tokens.output_tokens += output;
+                    model_tokens.cached_tokens += cached;
                 }
             }
         }
@@ -357,6 +381,14 @@ impl CostScanner {
                         has_tokens = true;
 
                         *summary.by_model.entry(model.to_string()).or_insert(0.0) += cost;
+
+                        let model_tokens = summary
+                            .by_model_tokens
+                            .entry(model.to_string())
+                            .or_default();
+                        model_tokens.input_tokens += input;
+                        model_tokens.output_tokens += output;
+                        model_tokens.cached_tokens += cache_create + cache_read;
                     }
                 }
             }

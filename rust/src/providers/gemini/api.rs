@@ -239,6 +239,58 @@ impl GeminiApi {
             }
         }
 
+        // 3b. fnm-managed Node: scan %LOCALAPPDATA%\fnm\node-versions\*
+        #[cfg(windows)]
+        if let Some(local_appdata) = dirs::data_local_dir() {
+            let fnm_versions = local_appdata.join("fnm").join("node-versions");
+            if fnm_versions.is_dir()
+                && let Ok(entries) = std::fs::read_dir(&fnm_versions)
+            {
+                for entry in entries.flatten() {
+                    let candidate = entry
+                        .path()
+                        .join("installation")
+                        .join("lib")
+                        .join("node_modules")
+                        .join("@google")
+                        .join("gemini-cli-core")
+                        .join("dist")
+                        .join("src")
+                        .join("code_assist")
+                        .join("oauth2.js");
+                    if let Some(creds) = Self::try_extract_oauth_from_js(&candidate) {
+                        return Ok(creds);
+                    }
+                }
+            }
+        }
+
+        // 3c. fnm-managed Node (Unix): scan ~/.local/share/fnm/node-versions/*
+        #[cfg(not(windows))]
+        if let Some(data_dir) = dirs::data_dir() {
+            let fnm_versions = data_dir.join("fnm").join("node-versions");
+            if fnm_versions.is_dir()
+                && let Ok(entries) = std::fs::read_dir(&fnm_versions)
+            {
+                for entry in entries.flatten() {
+                    let candidate = entry
+                        .path()
+                        .join("installation")
+                        .join("lib")
+                        .join("node_modules")
+                        .join("@google")
+                        .join("gemini-cli-core")
+                        .join("dist")
+                        .join("src")
+                        .join("code_assist")
+                        .join("oauth2.js");
+                    if let Some(creds) = Self::try_extract_oauth_from_js(&candidate) {
+                        return Ok(creds);
+                    }
+                }
+            }
+        }
+
         // 4. Fall back to environment variables
         let client_id = std::env::var("GEMINI_CLIENT_ID")
             .map_err(|_| ProviderError::NotInstalled("GEMINI_CLIENT_ID not set. Install Gemini CLI or set GEMINI_CLIENT_ID/GEMINI_CLIENT_SECRET.".to_string()))?;
