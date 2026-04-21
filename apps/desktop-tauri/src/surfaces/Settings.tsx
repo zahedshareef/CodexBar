@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type {
   BootstrapState,
   SettingsTabId,
@@ -158,7 +159,10 @@ export default function Settings({ state, initialTab: propTab }: { state: Bootst
   const handleTabClick = useCallback((tab: SettingsTab) => {
     setActiveTab(tab);
     applySettingsWindowSize(tab);
-    void setSurfaceMode("settings", { kind: "settings", tab });
+    // Only transition the main window if we're NOT in the detached settings window
+    if (getCurrentWebviewWindow().label !== "settings") {
+      void setSurfaceMode("settings", { kind: "settings", tab });
+    }
   }, []);
 
   return (

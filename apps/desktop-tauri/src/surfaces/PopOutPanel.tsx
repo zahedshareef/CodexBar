@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
-import { setSurfaceMode } from "../lib/tauri";
+import { setSurfaceMode, openSettingsWindow } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
@@ -51,13 +51,13 @@ export default function PopOutPanel({
   );
 
   const openSettings = useCallback(() => {
-    setSurfaceMode("settings", { kind: "settings", tab: "general" });
+    openSettingsWindow("general");
   }, []);
   const goTray = useCallback(() => {
     setSurfaceMode("trayPanel", { kind: "summary" });
   }, []);
   const openAbout = useCallback(() => {
-    setSurfaceMode("settings", { kind: "settings", tab: "about" });
+    openSettingsWindow("about");
   }, []);
   const quitApp = useCallback(() => {
     void getCurrentWindow().close();
