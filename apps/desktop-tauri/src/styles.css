@@ -2941,7 +2941,10 @@ html {
   padding: 4px 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  /* Auto-size to content; JS resizes the Tauri window to match.
+     max-height caps the surface so the body scrolls when content exceeds it. */
+  height: auto;
+  max-height: 100vh;
   box-sizing: border-box;
 }
 .menu-surface--tray .menu-surface__body {

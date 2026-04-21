@@ -92,6 +92,9 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
+  // CSS uses height:auto so the surface sizes to its content.
+  // We expand the window to MAX first so 100vh (max-height) gives room,
+  // measure the surface's natural offsetHeight, then shrink to fit.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
@@ -100,40 +103,19 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     const resize = async () => {
       const win = getCurrentWindow();
 
-      // Expand window so body has room for all content
+      // Expand window so max-height:100vh gives room for all content
       await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
+      // Wait for layout to settle
+      await new Promise<void>((r) => setTimeout(r, 50));
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-      const body = document.querySelector<HTMLElement>(
-        ".menu-surface--tray .menu-surface__body",
-      );
-      const footer = document.querySelector<HTMLElement>(
-        ".menu-surface--tray .menu-surface__footer",
-      );
-      const stack = document.querySelector<HTMLElement>(
-        ".menu-surface--tray .menu-stack",
-      );
-      if (!body) return;
+      const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
+      if (!surface) return;
 
-      // Measure children directly — sum their offsetHeights
-      let childrenTotal = 0;
-      const parts: string[] = [];
-      for (const child of Array.from(body.children)) {
-        const el = child as HTMLElement;
-        const h = el.offsetHeight;
-        childrenTotal += h;
-        const cls = el.className.split(" ")[0] || el.tagName;
-        parts.push(`${cls}=${h}`);
-      }
-      const footerH = footer?.offsetHeight ?? 0;
-      const pad = 8;
-      const total = childrenTotal + footerH + pad;
+      // With height:auto, offsetHeight = actual content height
+      const contentHeight = surface.offsetHeight;
+      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
 
-      // Log to title for diagnostics
-      document.title = `ch=${childrenTotal} fh=${footerH} T=${total} | ${parts.join(",")}`;
-
-      const height = Math.min(Math.max(total, MIN_HEIGHT), MAX_HEIGHT);
       await win.setSize(new LogicalSize(TRAY_WIDTH, height));
       reanchorTrayPanel().catch(() => {});
     };
