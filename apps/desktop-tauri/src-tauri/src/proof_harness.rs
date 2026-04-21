@@ -333,12 +333,7 @@ pub fn run_command(app: &AppHandle, command: ProofCommand) -> Result<ProofStateP
             )?;
         }
         ProofCommand::OpenSettings { tab } => {
-            shell::transition_to_target(
-                app,
-                SurfaceMode::Settings,
-                SurfaceTarget::Settings { tab },
-                None,
-            )?;
+            shell::settings_window::open_or_focus(app, &tab)?;
         }
         ProofCommand::OpenAboutPath => {
             transition_about_path(app)?;
