@@ -2264,7 +2264,10 @@ pub fn reanchor_tray_panel(app: tauri::AppHandle) -> Result<(), String> {
     let pos = tauri::PhysicalPosition::new(x, y);
     tracing::debug!(
         "reanchor_tray_panel: panel={}x{} => ({},{})",
-        panel_size.width, panel_size.height, pos.x, pos.y
+        panel_size.width,
+        panel_size.height,
+        pos.x,
+        pos.y
     );
     let _ = window.set_position(pos);
     Ok(())

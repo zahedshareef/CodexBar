@@ -64,10 +64,7 @@ pub(super) fn popout_position(
 }
 
 /// Center a panel on the monitor's work area (used for Settings windows).
-pub(super) fn centered_position(
-    monitor: &MonitorPlacement,
-    panel_size: &PanelSize,
-) -> (i32, i32) {
+pub(super) fn centered_position(monitor: &MonitorPlacement, panel_size: &PanelSize) -> (i32, i32) {
     let scale = monitor.scale_factor;
     let pw = (panel_size.width as f64 * scale) as i32;
     let ph = (panel_size.height as f64 * scale) as i32;

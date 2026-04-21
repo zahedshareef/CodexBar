@@ -24,7 +24,9 @@ pub fn inferred_tray_panel_position(app: &AppHandle) -> Option<(i32, i32)> {
         .or_else(|| window.current_monitor().ok().flatten())
         .map(|m| monitor_placement(&m))?;
 
-    Some(super::geometry::inferred_tray_panel_position_for_monitor(&monitor))
+    Some(super::geometry::inferred_tray_panel_position_for_monitor(
+        &monitor,
+    ))
 }
 
 fn current_tray_anchor(app: &AppHandle) -> Option<crate::state::TrayAnchor> {
@@ -110,8 +112,9 @@ pub fn default_surface_position(app: &AppHandle, mode: SurfaceMode) -> Option<(i
             .or_else(|| inferred_tray_panel_position(app))
             .or_else(|| shortcut_panel_position(app)),
         SurfaceMode::PopOut => visible_surface_position_for_mode(app, mode),
-        SurfaceMode::Settings => remembered_settings_position(app)
-            .or_else(|| centered_settings_position(app)),
+        SurfaceMode::Settings => {
+            remembered_settings_position(app).or_else(|| centered_settings_position(app))
+        }
     }
 }
 
@@ -124,7 +127,12 @@ fn centered_settings_position(app: &AppHandle) -> Option<(i32, i32)> {
         .ok()
         .flatten()
         .or_else(|| window.primary_monitor().ok().flatten())
-        .or_else(|| window.available_monitors().ok().and_then(|v| v.into_iter().next()));
+        .or_else(|| {
+            window
+                .available_monitors()
+                .ok()
+                .and_then(|v| v.into_iter().next())
+        });
 
     let placement = monitor.map(|m| monitor_placement(&m))?;
     let panel_size = surface_panel_size(SurfaceMode::Settings);

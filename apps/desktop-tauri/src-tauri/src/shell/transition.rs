@@ -114,12 +114,9 @@ fn apply_transition_request(
 
     let synth = should_synthesize_default_position(&resolution);
 
-    let position = resolve_transition_position(
-        request.position,
-        &resolution,
-        synth,
-        || default_surface_position(app, request.mode),
-    )
+    let position = resolve_transition_position(request.position, &resolution, synth, || {
+        default_surface_position(app, request.mode)
+    })
     .or_else(|| preserved_visible_mode_change_position(&window, &resolution));
 
     match resolution {

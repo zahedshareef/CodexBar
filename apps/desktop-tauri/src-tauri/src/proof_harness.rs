@@ -247,7 +247,8 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
         tracing::info!(
             "proof-pos: screen_w={screen_w} work_bottom={work_bottom} \
              panel={}x{} scale={scale} → ({x},{y})",
-            panel_w, panel_h,
+            panel_w,
+            panel_h,
         );
         return Some((x, y));
     }
