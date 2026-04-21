@@ -326,6 +326,9 @@ pub(super) fn restore_surface_snapshot(state: &mut AppState, snapshot: &SurfaceS
     if snapshot.mode == SurfaceMode::Hidden {
         let _ = state.hide_surface();
     } else {
+        if snapshot.mode == SurfaceMode::TrayPanel {
+            state.last_shown_at = Some(std::time::Instant::now());
+        }
         let _ = state.transition_surface(snapshot.mode, snapshot.target.clone());
     }
 }

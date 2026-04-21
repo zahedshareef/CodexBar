@@ -135,6 +135,9 @@ pub struct AppState {
     pub proof_config: Option<ProofConfig>,
     /// Persistent notification manager — tracks which alerts have fired to prevent spam.
     pub notification_manager: codexbar::notifications::NotificationManager,
+    /// Instant when the tray panel was last shown — used to suppress
+    /// spurious blur-dismiss during the show animation on Windows.
+    pub last_shown_at: Option<std::time::Instant>,
 }
 
 impl Default for AppState {
@@ -170,6 +173,7 @@ impl AppState {
             installer_path: None,
             proof_config: None,
             notification_manager: codexbar::notifications::NotificationManager::new(),
+            last_shown_at: None,
         }
     }
 
