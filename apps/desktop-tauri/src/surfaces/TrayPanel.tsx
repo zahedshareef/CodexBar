@@ -136,10 +136,19 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         const r = (el as HTMLElement).getBoundingClientRect();
         if (r.height > 0 && r.bottom > maxBottom) maxBottom = r.bottom;
       }
+
+      // Also check the footer explicitly — it may lay out below the
+      // surface border-box when body flex overflows the auto-height parent.
+      const footer = surface.querySelector<HTMLElement>(".menu-surface__footer");
+      const footerRect = footer?.getBoundingClientRect();
+      if (footerRect && footerRect.height > 0 && footerRect.bottom > maxBottom) {
+        maxBottom = footerRect.bottom;
+      }
+
       const contentHeight = Math.ceil(maxBottom - surfaceRect.top) + 4;
       const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
 
-      // Restore runtime overflow (capped by explicit maxHeight)
+      // Lock surface to measured content height and restore body constraints
       surface.style.maxHeight = `${height}px`;
       if (body) { body.style.overflow = ""; body.style.flex = ""; }
 
