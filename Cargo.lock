@@ -891,6 +891,7 @@ version = "0.22.0"
 dependencies = [
  "chrono",
  "codexbar",
+ "raw-window-handle",
  "serde",
  "serde_json",
  "tauri",
