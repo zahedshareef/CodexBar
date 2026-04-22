@@ -1992,12 +1992,9 @@ html {
   overflow-y: auto;
   scrollbar-width: auto;
   scrollbar-color: rgba(255, 255, 255, 0.45) rgba(255, 255, 255, 0.08);
-}
-.providers-sidebar__list {
   list-style: none;
   margin: 0;
   padding: 4px;
-  box-sizing: border-box;
 }
 
 .providers-sidebar__row {
