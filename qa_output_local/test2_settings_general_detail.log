@@ -1,0 +1,52 @@
+[2026-04-22 05:30:35] Starting Test 2: Settings General Tab
+[2026-04-22 05:30:35] Descendant count for 'CodexBar Settings': 65
+[2026-04-22 05:30:36] Saved capture: C:\Users\Administrator\qa_output\test2_settings_general.png (992x1160)
+[2026-04-22 05:30:36] === Test 2 summary ===
+[2026-04-22 05:30:36] Screenshot: C:\Users\Administrator\qa_output\test2_settings_general.png
+[2026-04-22 05:30:36] Text count: 38
+[2026-04-22 05:30:36] HasCloseButton: True
+[2026-04-22 05:30:36] TextFile: C:\Users\Administrator\qa_output\test2_settings_general.txt
+[2026-04-22 05:30:36] TopBandRGB: 33.2,33.58,34.67
+[2026-04-22 05:30:36] TopBandBrightness: 33.82
+[2026-04-22 05:30:36] HasGeneralTab: True
+[2026-04-22 05:30:36] HasSettingsTitle: True
+[2026-04-22 05:30:36] Descendants: 65
+[2026-04-22 05:30:36] Visible texts:
+[2026-04-22 05:30:36] CodexBar Settings
+[2026-04-22 05:30:36] TAURI_DRAG_RESIZE_WINDOW
+[2026-04-22 05:30:36] CodexBar Desktop
+[2026-04-22 05:30:36] CodexBar Desktop - Web content
+[2026-04-22 05:30:36] Untitled
+[2026-04-22 05:30:36] Minimize
+[2026-04-22 05:30:36] Maximize
+[2026-04-22 05:30:36] Close
+[2026-04-22 05:30:36] CodexBar Desktop
+[2026-04-22 05:30:36] CodexBar Settings
+[2026-04-22 05:30:36] Close
+[2026-04-22 05:30:36] General
+[2026-04-22 05:30:36] Providers
+[2026-04-22 05:30:36] Display
+[2026-04-22 05:30:37] Advanced
+[2026-04-22 05:30:37] About
+[2026-04-22 05:30:37] SYSTEM
+[2026-04-22 05:30:37] Start at Login
+[2026-04-22 05:30:37] Login automatically after system startup
+[2026-04-22 05:30:37] Start Minimized
+[2026-04-22 05:30:37] Start minimized to system tray
+[2026-04-22 05:30:37] NOTIFICATIONS
+[2026-04-22 05:30:37] Show Notifications
+[2026-04-22 05:30:37] Alert when usage thresholds are reached
+[2026-04-22 05:30:37] Test sound
+[2026-04-22 05:30:37] Sound Alerts
+[2026-04-22 05:30:37] Play sound when thresholds are reached
+[2026-04-22 05:30:37] Alert Volume
+[2026-04-22 05:30:37] Volume for threshold alert sounds (0–100).
+[2026-04-22 05:30:37] USAGE THRESHOLDS
+[2026-04-22 05:30:37] High Usage Alert
+[2026-04-22 05:30:37] Show a warning when usage exceeds this percentage.
+[2026-04-22 05:30:37] Critical Alert
+[2026-04-22 05:30:37] Show a critical alert when usage exceeds this percentage.
+[2026-04-22 05:30:37] AUTOMATION
+[2026-04-22 05:30:37] Refresh interval
+[2026-04-22 05:30:37] Seconds between automatic provider refreshes (0 = manual).
+[2026-04-22 05:30:37] Quit

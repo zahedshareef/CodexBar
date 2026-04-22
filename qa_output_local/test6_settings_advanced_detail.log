@@ -1,0 +1,46 @@
+[2026-04-22 05:32:02] Starting Test 6: Settings Advanced Tab
+[2026-04-22 05:32:02] Opening settings tab 'Advanced'.
+[2026-04-22 05:32:06] Saved capture: C:\Users\Administrator\qa_output\test6_settings_advanced.png (992x1160)
+[2026-04-22 05:32:06] === Test 6 summary ===
+[2026-04-22 05:32:06] Screenshot: C:\Users\Administrator\qa_output\test6_settings_advanced.png
+[2026-04-22 05:32:06] Text count: 37
+[2026-04-22 05:32:06] AdvancedLikeText: Advanced; DEBUG; Show debug settings; Reveal troubleshooting and developer surfaces in the UI.; Skip keychain credential reads for Claude to prevent OS permission dialogs.
+[2026-04-22 05:32:06] TextFile: C:\Users\Administrator\qa_output\test6_settings_advanced.txt
+[2026-04-22 05:32:06] Visible texts:
+[2026-04-22 05:32:06] CodexBar Settings
+[2026-04-22 05:32:06] TAURI_DRAG_RESIZE_WINDOW
+[2026-04-22 05:32:06] CodexBar Desktop
+[2026-04-22 05:32:06] CodexBar Desktop - Web content
+[2026-04-22 05:32:06] Untitled
+[2026-04-22 05:32:06] Minimize
+[2026-04-22 05:32:06] Maximize
+[2026-04-22 05:32:06] Close
+[2026-04-22 05:32:06] CodexBar Desktop
+[2026-04-22 05:32:06] CodexBar Settings
+[2026-04-22 05:32:06] Close
+[2026-04-22 05:32:06] General
+[2026-04-22 05:32:06] Providers
+[2026-04-22 05:32:06] Display
+[2026-04-22 05:32:06] Advanced
+[2026-04-22 05:32:06] About
+[2026-04-22 05:32:06] KEYBOARD
+[2026-04-22 05:32:06] Global shortcut
+[2026-04-22 05:32:06] Key combination to toggle the tray panel.
+[2026-04-22 05:32:06] Ctrl+Shift+U
+[2026-04-22 05:32:06] Record
+[2026-04-22 05:32:06] Clear
+[2026-04-22 05:32:06] Press modifiers + a key. Esc cancels, Backspace clears.
+[2026-04-22 05:32:06] DEBUG
+[2026-04-22 05:32:06] Show debug settings
+[2026-04-22 05:32:06] Reveal troubleshooting and developer surfaces in the UI.
+[2026-04-22 05:32:06] Surprise animations
+[2026-04-22 05:32:06] Show occasional fun animations in the tray icon
+[2026-04-22 05:32:06] PRIVACY
+[2026-04-22 05:32:06] Hide Personal Info
+[2026-04-22 05:32:06] Mask emails and account names (good for streaming)
+[2026-04-22 05:32:06] Keychain access
+[2026-04-22 05:32:06] Disable all Keychain reads and writes. Browser cookie import is unavailable; paste Cookie headers manually in Providers.
+[2026-04-22 05:32:06] Disable all keychain access
+[2026-04-22 05:32:06] Turn off credential/keychain reads for all providers. Also enables the Claude option above.
+[2026-04-22 05:32:06] Avoid keychain prompts (Claude)
+[2026-04-22 05:32:06] Skip keychain credential reads for Claude to prevent OS permission dialogs.

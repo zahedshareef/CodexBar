@@ -1,0 +1,41 @@
+[2026-04-22 05:31:44] Starting Test 4: Settings About Tab
+[2026-04-22 05:31:44] Opening settings tab 'About'.
+[2026-04-22 05:31:48] Saved capture: C:\Users\Administrator\qa_output\test4_settings_about.png (992x1160)
+[2026-04-22 05:31:48] === Test 4 summary ===
+[2026-04-22 05:31:48] Screenshot: C:\Users\Administrator\qa_output\test4_settings_about.png
+[2026-04-22 05:31:48] Text count: 32
+[2026-04-22 05:31:48] AboutLikeText: CodexBar Settings; CodexBar Desktop; CodexBar Desktop - Web content; About; CodexBar; Version ; GitHub; Choose between stable and beta preview versions
+[2026-04-22 05:31:48] TextFile: C:\Users\Administrator\qa_output\test4_settings_about.txt
+[2026-04-22 05:31:48] Visible texts:
+[2026-04-22 05:31:48] CodexBar Settings
+[2026-04-22 05:31:48] TAURI_DRAG_RESIZE_WINDOW
+[2026-04-22 05:31:48] CodexBar Desktop
+[2026-04-22 05:31:48] CodexBar Desktop - Web content
+[2026-04-22 05:31:48] Untitled
+[2026-04-22 05:31:48] Minimize
+[2026-04-22 05:31:48] Maximize
+[2026-04-22 05:31:48] Close
+[2026-04-22 05:31:48] CodexBar Desktop
+[2026-04-22 05:31:48] CodexBar Settings
+[2026-04-22 05:31:48] Close
+[2026-04-22 05:31:48] General
+[2026-04-22 05:31:48] Providers
+[2026-04-22 05:31:48] Display
+[2026-04-22 05:31:48] Advanced
+[2026-04-22 05:31:48] About
+[2026-04-22 05:31:48] CodexBar
+[2026-04-22 05:31:48] CodexBar
+[2026-04-22 05:31:48] Version 
+[2026-04-22 05:31:48] 0.22.0
+[2026-04-22 05:31:48] May your tokens never run out—keep agent limits in view.
+[2026-04-22 05:31:48] GitHub
+[2026-04-22 05:31:48] Website
+[2026-04-22 05:31:48] Original Project
+[2026-04-22 05:31:48] Check for updates automatically
+[2026-04-22 05:31:48] Download installer updates in the background when a new release is found
+[2026-04-22 05:31:48] Update Channel
+[2026-04-22 05:31:48] Choose between stable and beta preview versions
+[2026-04-22 05:31:48] Check for Updates…
+[2026-04-22 05:31:48] Windows port by NessZerra. Based on
+[2026-04-22 05:31:48] CodexBar
+[2026-04-22 05:31:48] by steipete. MIT License.

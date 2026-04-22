@@ -1,0 +1,32 @@
+﻿CodexBar Settings
+TAURI_DRAG_RESIZE_WINDOW
+CodexBar Desktop
+CodexBar Desktop - Web content
+Untitled
+Minimize
+Maximize
+Close
+CodexBar Desktop
+CodexBar Settings
+Close
+General
+Providers
+Display
+Advanced
+About
+CodexBar
+CodexBar
+Version 
+0.22.0
+May your tokens never run out—keep agent limits in view.
+GitHub
+Website
+Original Project
+Check for updates automatically
+Download installer updates in the background when a new release is found
+Update Channel
+Choose between stable and beta preview versions
+Check for Updates…
+Windows port by NessZerra. Based on
+CodexBar
+by steipete. MIT License.

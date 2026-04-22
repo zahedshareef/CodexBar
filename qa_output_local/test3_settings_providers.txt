@@ -1,0 +1,228 @@
+﻿CodexBar Settings
+TAURI_DRAG_RESIZE_WINDOW
+CodexBar Desktop
+CodexBar Desktop - Web content
+Untitled
+Minimize
+Maximize
+Close
+CodexBar Desktop
+CodexBar Settings
+Close
+General
+Providers
+Display
+Advanced
+About
+Providers
+Stale Codex oauth 1% Codex enabled
+Stale
+Help:Stale
+Codex enabled
+Error Claude auto 0% Claude enabled
+Error
+Help:Error
+Claude enabled
+Disabled Cursor Disabled — web Cursor enabled
+Disabled
+Help:Disabled
+Cursor enabled
+Disabled Factory Disabled — web Factory enabled
+Disabled
+Help:Disabled
+Factory enabled
+Disabled Gemini Disabled — cli Gemini enabled
+Disabled
+Help:Disabled
+Gemini enabled
+Disabled Antigravity Disabled — cli Antigravity enabled
+Disabled
+Help:Disabled
+Antigravity enabled
+Disabled Copilot Disabled — github api Copilot enabled
+Disabled
+Help:Disabled
+Copilot enabled
+Disabled z.ai Disabled — api z.ai enabled
+Disabled
+Help:Disabled
+z.ai enabled
+Disabled MiniMax Disabled — auto MiniMax enabled
+Disabled
+Help:Disabled
+MiniMax enabled
+Disabled Kiro Disabled — kiro env Kiro enabled
+Disabled
+Help:Disabled
+Kiro enabled
+Disabled Vertex AI Disabled — api Vertex AI enabled
+Disabled
+Help:Disabled
+Vertex AI enabled
+Disabled Augment Disabled — web Augment enabled
+Disabled
+Help:Disabled
+Augment enabled
+Disabled OpenCode Disabled — web OpenCode enabled
+Disabled
+Help:Disabled
+OpenCode enabled
+Disabled Kimi Disabled — web Kimi enabled
+Disabled
+Help:Disabled
+Kimi enabled
+Disabled Kimi K2 Disabled — web Kimi K2 enabled
+Disabled
+Help:Disabled
+Kimi K2 enabled
+Disabled Amp Disabled — web Amp enabled
+Disabled
+Help:Disabled
+Amp enabled
+Disabled Warp Disabled — api Warp enabled
+Disabled
+Help:Disabled
+Warp enabled
+Disabled Ollama Disabled — web Ollama enabled
+Disabled
+Help:Disabled
+Ollama enabled
+Disabled OpenRouter Disabled — api OpenRouter enabled
+Disabled
+Help:Disabled
+OpenRouter enabled
+Disabled Synthetic Disabled — api Synthetic enabled
+Disabled
+Help:Disabled
+Synthetic enabled
+Disabled JetBrains AI Disabled — cli JetBrains AI enabled
+Disabled
+Help:Disabled
+JetBrains AI enabled
+Disabled Alibaba Disabled — web Alibaba enabled
+Disabled
+Help:Disabled
+Alibaba enabled
+Disabled NanoGPT Disabled — api NanoGPT enabled
+Disabled
+Help:Disabled
+NanoGPT enabled
+Disabled Infini Disabled — web Infini enabled
+Disabled
+Help:Disabled
+Infini enabled
+Disabled Perplexity Disabled — auto Perplexity enabled
+Disabled
+Help:Disabled
+Perplexity enabled
+Disabled Abacus AI Disabled — auto Abacus AI enabled
+Disabled
+Help:Disabled
+Abacus AI enabled
+Disabled OpenCode Go Disabled — auto OpenCode Go enabled
+Disabled
+Help:Disabled
+OpenCode Go enabled
+Disabled Kilo Disabled — auto Kilo enabled
+Disabled
+Help:Disabled
+Kilo enabled
+Codex
+oauth · Updated 18m
+Plan
+Plan
+ChatGPT Team
+Data Source
+Data Source
+oauth
+Usage
+Session
+1%
+Resets in Resets in 3h 45m
+Weekly
+0%
+Resets in Resets in 6d 22h
+Pace
+Far behind
+Will last to reset
+Cookie source
+Cookie source
+Automatic
+Manual
+Disabled
+Automatic imports browser cookies for dashboard extras.
+Credentials
+Stores local Codex usage history (8 weeks) to personalize Pace predictions.
+Enable historical tracking to see usage over time.
+Cost (30 days)
+Cost (30 days)
+Cost (30 days)
+03-24
+$0.00
+04-22
+Quick Actions
+Refresh
+Switch account...
+Usage dashboard
+Status page
+Buy credits...
+API KEYS
+Configure API keys for providers that use token-based authentication. Keys are stored locally and never transmitted.
+AlibabaNot setAdd KeyGet your Coding Plan API key from Alibaba Model Studio / BailianOpen dashboard ↗
+Alibaba
+Add Key
+Get your Coding Plan API key from Alibaba Model Studio / Bailian
+Open dashboard ↗
+AmpNot setAdd KeyGet your token from Sourcegraph → Settings → Access TokensOpen dashboard ↗
+Amp
+Add Key
+Get your token from Sourcegraph → Settings → Access Tokens
+Open dashboard ↗
+SyntheticNot setAdd KeyGet your API key from Synthetic → Account → API KeysOpen dashboard ↗
+Synthetic
+Add Key
+Get your API key from Synthetic → Account → API Keys
+Open dashboard ↗
+CopilotNot setAdd KeyGitHub Personal Access Token with copilot scopeOpen dashboard ↗
+Copilot
+Add Key
+GitHub Personal Access Token with copilot scope
+Open dashboard ↗
+z.aiNot setAdd KeyGet your API token from z.ai Dashboard → SettingsOpen dashboard ↗
+z.ai
+Add Key
+Get your API token from z.ai Dashboard → Settings
+Open dashboard ↗
+WarpNot setAdd KeyGet your API key from Warp → Settings → API Keys (docs.warp.dev/reference/cli/api-keys)Open dashboard ↗
+Warp
+Add Key
+Get your API key from Warp → Settings → API Keys (docs.warp.dev/reference/cli/api-keys)
+Open dashboard ↗
+OpenRouterNot setAdd KeyGet your API key from openrouter.ai/settings/keysOpen dashboard ↗
+OpenRouter
+Add Key
+Get your API key from openrouter.ai/settings/keys
+Open dashboard ↗
+NanoGPTNot setAdd KeyGet your API key from nano-gpt.com/apiOpen dashboard ↗
+NanoGPT
+Add Key
+Get your API key from nano-gpt.com/api
+Open dashboard ↗
+InfiniNot setAdd KeyGet your API key from Infini Cloud → Settings → API KeysOpen dashboard ↗
+Infini
+Add Key
+Get your API key from Infini Cloud → Settings → API Keys
+Open dashboard ↗
+SAVED COOKIES
+Manual cookie overrides for browser-authenticated providers. These are used when automatic browser cookie extraction is unavailable.
+No manual cookies saved.
+IMPORT FROM BROWSER
+Extract cookies automatically from a signed-in browser. The browser must be installed on this machine and you must be signed in to the provider in that browser.
+Import Cookies
+ADD COOKIE MANUALLY
+Paste cookie header value…
+Help:Paste cookie header value…
+Save Cookie
+TOKEN ACCOUNTS
+Manage multiple session tokens or API tokens per provider. The active account is used for all fetches. Only providers that require manual tokens appear here.
+Provider

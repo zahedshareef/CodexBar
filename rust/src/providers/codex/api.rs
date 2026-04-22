@@ -514,18 +514,18 @@ fn format_reset_countdown(reset_at: Option<DateTime<Utc>>) -> Option<String> {
         let days = hours / 24;
         let rem_h = hours % 24;
         if rem_h == 0 {
-            Some(format!("Resets in {}d", days))
+            Some(format!("{}d", days))
         } else {
-            Some(format!("Resets in {}d {}h", days, rem_h))
+            Some(format!("{}d {}h", days, rem_h))
         }
     } else if hours > 0 {
         if mins == 0 {
-            Some(format!("Resets in {}h", hours))
+            Some(format!("{}h", hours))
         } else {
-            Some(format!("Resets in {}h {}m", hours, mins))
+            Some(format!("{}h {}m", hours, mins))
         }
     } else {
-        Some(format!("Resets in {}m", mins))
+        Some(format!("{}m", mins))
     }
 }
 

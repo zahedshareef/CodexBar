@@ -1,0 +1,39 @@
+﻿CodexBar Desktop
+CodexBar Desktop
+CodexBar Desktop - Web content
+Untitled
+Minimize
+Maximize
+Close
+CodexBar Desktop
+⊞ All
+Help:Overview
+Codex
+Help:Codex
+Claude
+Help:Claude
+Codex
+Updated
+ 
+just now
+ChatGPT Team
+Session
+99
+% left
+Resets in 3h 45m
+Weekly
+100
+% left
+Resets in 6d 22h
+1
+% in reserve
+Lasts until reset
+Claude
+Provider not installed: Claude CLI not found. Install from https://docs.claude.ai/claude-code
+Copy error
+Help:Copy error
+Menu
+Refresh Ctrl+R
+Settings… Ctrl+,
+About CodexBar
+Quit Ctrl+Q

@@ -1,0 +1,36 @@
+﻿CodexBar Settings
+TAURI_DRAG_RESIZE_WINDOW
+CodexBar Desktop
+CodexBar Desktop - Web content
+Untitled
+Minimize
+Maximize
+Close
+CodexBar Desktop
+CodexBar Settings
+Close
+General
+Providers
+Display
+Advanced
+About
+MENU BAR
+Tray icon mode
+Single unified icon or one icon per enabled provider.
+Show provider icons
+Display provider icons in the tray switcher.
+Prefer highest usage
+Show the provider closest to its limit in the merged tray display.
+Show percent in tray
+Replace usage bar with provider branding + percentage text.
+Display mode
+Level of detail shown in the menu bar label.
+MENU CONTENT
+Show as used
+Display usage bars as consumed rather than remaining.
+Show Credits & Extra Usage
+Display credit balance and extra usage info
+Show all token accounts
+List all token accounts in provider menus instead of collapsing them.
+Relative Reset Time
+Show "2h 30m" instead of "3:00 PM"
