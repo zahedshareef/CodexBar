@@ -169,9 +169,19 @@ export function ProvidersSidebar({
     }
   };
 
+  // Ref for programmatic scroll testing
+  const listRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    // Auto-scroll to middle to verify scrolling works
+    if (listRef.current) {
+      listRef.current.scrollTop = 400;
+    }
+  }, [ordered]);
+
   return (
     <div className="providers-sidebar">
       <ul
+        ref={listRef}
         className="providers-sidebar__list"
         role="listbox"
         aria-label="Providers"
