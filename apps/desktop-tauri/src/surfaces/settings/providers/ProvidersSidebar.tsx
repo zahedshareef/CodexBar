@@ -169,21 +169,8 @@ export function ProvidersSidebar({
     }
   };
 
-  const sidebarRef = useRef<HTMLUListElement>(null);
-
-  // TEMP: auto-scroll after 2s to prove scrolling works
-  useEffect(() => {
-    const t = setTimeout(() => {
-      if (sidebarRef.current) {
-        sidebarRef.current.scrollTop = 500;
-      }
-    }, 2000);
-    return () => clearTimeout(t);
-  }, []);
-
   return (
     <ul
-      ref={sidebarRef}
       className="providers-sidebar"
       role="listbox"
       aria-label="Providers"
