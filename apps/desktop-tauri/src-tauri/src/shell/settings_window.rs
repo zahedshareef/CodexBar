@@ -30,6 +30,11 @@ pub fn open_or_focus(app: &tauri::AppHandle, tab: &str) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
 
+    // Force native title bar dark mode. The builder .theme() only sets the
+    // webview CSS color-scheme; the Window-level set_theme() is needed to
+    // propagate DWMWA_USE_IMMERSIVE_DARK_MODE to the native title bar.
+    let _ = win.set_theme(Some(tauri::Theme::Dark));
+
     // Manually center: Tauri's .center() is unreliable on Windows when
     // called from async commands. Compute position from the primary monitor.
     if let Ok(Some(monitor)) = win.primary_monitor() {
