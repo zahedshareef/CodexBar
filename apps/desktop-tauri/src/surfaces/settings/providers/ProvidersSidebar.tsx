@@ -169,8 +169,20 @@ export function ProvidersSidebar({
     }
   };
 
+  // DEBUG: auto-scroll sidebar to bottom after 2s to verify scroll works
+  const sidebarRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      if (sidebarRef.current) {
+        sidebarRef.current.scrollTop = sidebarRef.current.scrollHeight;
+      }
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, []);
+
   return (
     <ul
+      ref={sidebarRef}
       className="providers-sidebar"
       role="listbox"
       aria-label="Providers"
