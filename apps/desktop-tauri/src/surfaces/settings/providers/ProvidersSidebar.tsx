@@ -169,13 +169,32 @@ export function ProvidersSidebar({
     }
   };
 
+  const sidebarRef = useRef<HTMLUListElement>(null);
+  const [dbg, setDbg] = useState("");
+
+  useEffect(() => {
+    const el = sidebarRef.current;
+    if (!el) return;
+    const cs = getComputedStyle(el);
+    setDbg(
+      `h:${el.clientHeight} sh:${el.scrollHeight} ` +
+      `oh:${el.offsetHeight} ov:${cs.overflowY} ` +
+      `mh:${cs.minHeight} ht:${cs.height} ` +
+      `ph:${el.parentElement?.clientHeight ?? '?'}`
+    );
+  }, [ordered]);
+
   return (
     <ul
+      ref={sidebarRef}
       className="providers-sidebar"
       role="listbox"
       aria-label="Providers"
       aria-orientation="vertical"
     >
+      <li style={{ position: 'sticky', top: 0, zIndex: 999, background: '#f00', color: '#fff', fontSize: '9px', padding: '2px 4px', pointerEvents: 'none', listStyle: 'none' }}>
+        {dbg}
+      </li>
       {ordered.map((p) => {
           const isSelected = p.id === selectedId;
           const isDrop = dropTargetId === p.id;
