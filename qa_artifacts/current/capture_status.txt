@@ -1,2 +1,0 @@
-﻿CodexBar Desktop=False
-CodexBar Settings=False
