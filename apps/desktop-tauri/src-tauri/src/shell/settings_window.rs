@@ -25,6 +25,7 @@ pub fn open_or_focus(app: &tauri::AppHandle, tab: &str) -> Result<(), String> {
         .title("CodexBar Settings")
         .inner_size(SETTINGS_WIDTH, SETTINGS_HEIGHT)
         .decorations(true)
+        .theme(Some(tauri::Theme::Dark))
         .resizable(true)
         .build()
         .map_err(|e| e.to_string())?;
