@@ -38,7 +38,7 @@ pub fn open_or_focus(app: &tauri::AppHandle, tab: &str) -> Result<(), String> {
     {
         use std::ffi::c_void;
         #[link(name = "dwmapi")]
-        extern "system" {
+        unsafe extern "system" {
             fn DwmSetWindowAttribute(
                 hwnd: *mut c_void,
                 attr: u32,
