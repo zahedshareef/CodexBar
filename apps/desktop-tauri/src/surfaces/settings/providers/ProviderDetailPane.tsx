@@ -32,9 +32,12 @@ import { KiroCreds } from "./sections/credentials/KiroCreds";
 import { ClaudeCreds } from "./sections/credentials/ClaudeCreds";
 import { OpenAiExtras } from "./sections/credentials/OpenAiExtras";
 import { TokenAccountsPanel } from "../tokens/TokenAccountsPanel";
+import { ApiKeySection } from "./ApiKeySection";
+import { CookieSection } from "./CookieSection";
 
 interface Props {
   providerId: string | null;
+  cookieDomain?: string | null;
 }
 
 /**
@@ -47,7 +50,7 @@ interface Props {
  * credential detection UIs (6d), inline token accounts (6e) and charts
  * (6f) are wired in as sub-sections below.
  */
-export function ProviderDetailPane({ providerId }: Props) {
+export function ProviderDetailPane({ providerId, cookieDomain = null }: Props) {
   const { t } = useLocale();
   const [detail, setDetail] = useState<ProviderDetail | null>(null);
   const [cookieOptions, setCookieOptions] = useState<CookieSourceOption[]>([]);
@@ -231,6 +234,8 @@ export function ProviderDetailPane({ providerId }: Props) {
         onChanged={() => void load(detail.id)}
       />
       <CredentialsDispatcher providerId={detail.id} t={t} />
+      <ApiKeySection providerId={detail.id} />
+      <CookieSection providerId={detail.id} cookieDomain={cookieDomain} />
       {tokenProviderIds.has(detail.id) && (
         <TokenAccountsPanel providerId={detail.id} compact />
       )}

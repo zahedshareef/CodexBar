@@ -14,9 +14,6 @@ import {
 } from "../providers/ProvidersSidebar";
 import { ProviderDetailPane } from "../providers/ProviderDetailPane";
 import { getCachedProviders, reorderProviders } from "../../../lib/tauri";
-import ApiKeysTab from "./ApiKeysTab";
-import CookiesTab from "./CookiesTab";
-import TokenAccountsTab from "./TokenAccountsTab";
 
 interface ProvidersTabProps {
   settings: BootstrapState["settings"];
@@ -84,27 +81,24 @@ export default function ProvidersTab({
     });
   };
 
-  return (
-    <>
-      <div className="provider-split">
-        <ProvidersSidebar
-          providers={rows}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onReorder={handleReorder}
-          onToggleEnabled={toggle}
-          disabled={saving}
-        />
-        <ProviderDetailPane providerId={selectedId} />
-      </div>
+  const selectedEntry =
+    orderedProviders.find((p) => p.id === selectedId) ?? null;
 
-      {/* Credential management consolidated into the Providers tab so we
-          mirror upstream's 5-tab layout. These were standalone tabs in the
-          Win port; they live here now to keep the surface area small. */}
-      <ApiKeysTab providers={orderedProviders} />
-      <CookiesTab providers={orderedProviders} />
-      <TokenAccountsTab />
-    </>
+  return (
+    <div className="provider-split">
+      <ProvidersSidebar
+        providers={rows}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        onReorder={handleReorder}
+        onToggleEnabled={toggle}
+        disabled={saving}
+      />
+      <ProviderDetailPane
+        providerId={selectedId}
+        cookieDomain={selectedEntry?.cookieDomain ?? null}
+      />
+    </div>
   );
 }
 

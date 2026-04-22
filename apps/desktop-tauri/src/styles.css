@@ -4109,8 +4109,7 @@ html:has(.menu-surface--tray) {
 }
 .settings-body--providers {
   max-width: 100%;
-  overflow-x: clip;
-  overflow-y: auto;
+  overflow: clip;
 }
 .settings-status {
   max-width: 560px;
