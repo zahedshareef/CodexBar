@@ -1768,7 +1768,7 @@ html {
   height: calc(100vh - 140px);
   min-height: 340px;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: clip;
 }
 
 .provider-sidebar {
@@ -4109,7 +4109,7 @@ html:has(.menu-surface--tray) {
 }
 .settings-body--providers {
   max-width: 100%;
-  overflow: hidden;
+  overflow: clip;
 }
 .settings-status {
   max-width: 560px;
