@@ -1989,7 +1989,9 @@ html {
   height: 100%;
   min-height: 0;
   box-sizing: border-box;
-  overflow-y: scroll;
+  overflow-y: auto;
+  scrollbar-width: auto;
+  scrollbar-color: rgba(255, 255, 255, 0.45) rgba(255, 255, 255, 0.08);
 }
 .providers-sidebar__list {
   list-style: none;
@@ -4247,17 +4249,19 @@ html:has(.menu-surface--tray) {
 /* provider-split consolidated above (line ~1765) */
 /* providers-sidebar overrides consolidated above (line ~1981) */
 .providers-sidebar::-webkit-scrollbar {
-  width: 16px;
+  width: 10px;
 }
 .providers-sidebar::-webkit-scrollbar-track {
-  background: red;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  margin: 4px 0;
 }
 .providers-sidebar::-webkit-scrollbar-thumb {
-  background: lime;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 5px;
 }
 .providers-sidebar::-webkit-scrollbar-thumb:hover {
-  background: yellow;
+  background: rgba(255, 255, 255, 0.65);
 }
 [data-theme="light"] .providers-sidebar {
   background: rgba(0, 0, 0, 0.025);
