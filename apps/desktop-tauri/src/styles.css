@@ -4246,6 +4246,10 @@ html:has(.menu-surface--tray) {
 .providers-sidebar::-webkit-scrollbar {
   width: 8px;
 }
+.providers-sidebar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+}
 .providers-sidebar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.35);
   border-radius: 4px;
