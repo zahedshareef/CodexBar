@@ -3982,6 +3982,10 @@ html:has(.menu-surface--tray) {
 .settings {
   background: var(--app-bg);
   min-height: 100vh;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 /* Custom title bar for decoration-less Settings window */
 .settings-titlebar {
@@ -4092,6 +4096,13 @@ html:has(.menu-surface--tray) {
   max-width: 560px;
   margin: 0 auto;
   padding: 16px 20px 24px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+.settings-body--providers {
+  max-width: 100%;
+  overflow-y: auto;
 }
 .settings-status {
   max-width: 560px;
@@ -4231,7 +4242,9 @@ html:has(.menu-surface--tray) {
 .provider-split {
   display: flex;
   gap: 16px;
-  min-height: 420px;
+  height: calc(100vh - 140px);
+  min-height: 340px;
+  flex-shrink: 0;
 }
 .providers-sidebar {
   width: var(--sidebar-width);
@@ -4240,6 +4253,7 @@ html:has(.menu-surface--tray) {
   flex-direction: column;
   gap: 2px;
   overflow-y: auto;
+  min-height: 0;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.07);
@@ -4265,6 +4279,9 @@ html:has(.menu-surface--tray) {
   background: var(--surface-elevated);
   border-radius: 10px;
   padding: 16px 18px;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
 }
 .provider-detail-title {
   font-size: var(--font-title3);
