@@ -170,6 +170,19 @@ export function ProvidersSidebar({
   };
 
   const listRef = useRef<HTMLUListElement>(null);
+  const [dbg, setDbg] = useState("");
+
+  // Diagnostic: measure scroll metrics on mount and after any scroll
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const update = () => {
+      setDbg(`sh:${el.scrollHeight} ch:${el.clientHeight} st:${el.scrollTop} items:${ordered.length} ov:${getComputedStyle(el).overflowY}`);
+    };
+    update();
+    el.addEventListener("scroll", update);
+    return () => el.removeEventListener("scroll", update);
+  }, [ordered]);
 
   // Manual wheel handler — ensures scroll works even when parent
   // body competes for wheel events (WebView2 + nested scrollers).
@@ -183,6 +196,10 @@ export function ProvidersSidebar({
 
   return (
     <div className="providers-sidebar" onWheel={handleWheel}>
+      {/* DEBUG: scroll diagnostics */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 999, background: '#f00', color: '#fff', fontSize: '9px', padding: '2px 4px', pointerEvents: 'none' }}>
+        {dbg}
+      </div>
       <ul
         ref={listRef}
         className="providers-sidebar__list"
