@@ -1,7 +1,0 @@
-
-PsExec v2.43 - Execute processes remotely
-Copyright (C) 2001-2023 Mark Russinovich
-Sysinternals - www.sysinternals.com
-
-Connecting to local system...Starting PSEXESVC service on local system...Copying authentication key to EC2AMAZ-H83BO7S...Connecting with PsExec service on EC2AMAZ-H83BO7S...Starting powershell on EC2AMAZ-H83BO7S...
-powershell exited on EC2AMAZ-H83BO7S with error code 1.
