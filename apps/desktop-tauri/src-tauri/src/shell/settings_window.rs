@@ -47,14 +47,32 @@ pub fn open_or_focus(app: &tauri::AppHandle, tab: &str) -> Result<(), String> {
             ) -> i32;
         }
         const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
+        const DWMWA_CAPTION_COLOR: u32 = 35;
+        const DWMWA_TEXT_COLOR: u32 = 36;
         if let Ok(hwnd) = win.hwnd() {
             let dark: u32 = 1;
+            // COLORREF is 0x00BBGGRR
+            let caption_color: u32 = 0x001E1E1E; // RGB(30, 30, 30)
+            let text_color: u32 = 0x00FFFFFF; // RGB(255, 255, 255)
             unsafe {
                 DwmSetWindowAttribute(
                     hwnd.0 as *mut c_void,
                     DWMWA_USE_IMMERSIVE_DARK_MODE,
                     &dark as *const u32 as *const c_void,
-                    std::mem::size_of::<u32>() as u32,
+                    4,
+                );
+                // Directly set caption and text colors (Win11+/Server 2025+)
+                DwmSetWindowAttribute(
+                    hwnd.0 as *mut c_void,
+                    DWMWA_CAPTION_COLOR,
+                    &caption_color as *const u32 as *const c_void,
+                    4,
+                );
+                DwmSetWindowAttribute(
+                    hwnd.0 as *mut c_void,
+                    DWMWA_TEXT_COLOR,
+                    &text_color as *const u32 as *const c_void,
+                    4,
                 );
             }
         }
