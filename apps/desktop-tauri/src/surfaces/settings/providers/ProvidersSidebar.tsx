@@ -170,87 +170,89 @@ export function ProvidersSidebar({
   };
 
   return (
-    <ul
-      className="providers-sidebar"
-      role="listbox"
-      aria-label="Providers"
-      aria-orientation="vertical"
-    >
-      {ordered.map((p) => {
-        const isSelected = p.id === selectedId;
-        const isDrop = dropTargetId === p.id;
-        const isDragging = dragId === p.id;
-        const reveal = justMounted.has(p.id);
-        const brand = getProviderIcon(p.id).brandColor;
-        const cls = [
-          "providers-sidebar__row",
-          isSelected && "providers-sidebar__row--selected",
-          !p.enabled && "providers-sidebar__row--disabled",
-          isDragging && "providers-sidebar__row--dragging",
-          isDrop && "providers-sidebar__row--drop",
-          reveal && "providers-sidebar__row--reveal",
-        ]
-          .filter(Boolean)
-          .join(" ");
+    <div className="providers-sidebar">
+      <ul
+        className="providers-sidebar__list"
+        role="listbox"
+        aria-label="Providers"
+        aria-orientation="vertical"
+      >
+        {ordered.map((p) => {
+          const isSelected = p.id === selectedId;
+          const isDrop = dropTargetId === p.id;
+          const isDragging = dragId === p.id;
+          const reveal = justMounted.has(p.id);
+          const brand = getProviderIcon(p.id).brandColor;
+          const cls = [
+            "providers-sidebar__row",
+            isSelected && "providers-sidebar__row--selected",
+            !p.enabled && "providers-sidebar__row--disabled",
+            isDragging && "providers-sidebar__row--dragging",
+            isDrop && "providers-sidebar__row--drop",
+            reveal && "providers-sidebar__row--reveal",
+          ]
+            .filter(Boolean)
+            .join(" ");
 
-        const rowStyle: CSSProperties = {
-          ["--provider-brand" as string]: brand,
-        };
+          const rowStyle: CSSProperties = {
+            ["--provider-brand" as string]: brand,
+          };
 
-        return (
-          <li
-            key={p.id}
-            className={cls}
-            role="option"
-            tabIndex={isSelected ? 0 : -1}
-            aria-selected={isSelected}
-            draggable={!disabled}
-            style={rowStyle}
-            onClick={() => onSelect(p.id)}
-            onKeyDown={handleKey(p)}
-            onDragStart={handleDragStart(p.id)}
-            onDragOver={handleDragOver(p.id)}
-            onDrop={handleDrop(p.id)}
-            onDragEnd={handleDragEnd}
-          >
-            <span
-              className={`providers-sidebar__status providers-sidebar__status--${p.status}`}
-              title={t(STATUS_TO_KEY[p.status])}
-              aria-label={t(STATUS_TO_KEY[p.status])}
-            />
-            <ProviderIcon providerId={p.id} size={24} />
-            <div className="providers-sidebar__text">
-              <span className="providers-sidebar__name">{p.displayName}</span>
-              <span className="providers-sidebar__subtitle">
-                <span className="providers-sidebar__subtitle-primary">
-                  {p.subtitlePrimary}
-                </span>
-                {p.subtitleSecondary && (
-                  <span className="providers-sidebar__subtitle-secondary">
-                    {p.subtitleSecondary}
-                  </span>
-                )}
-              </span>
-            </div>
-            <span
-              className="providers-sidebar__handle"
-              aria-hidden="true"
-              title={t("ProviderSidebarReorderHint")}
+          return (
+            <li
+              key={p.id}
+              className={cls}
+              role="option"
+              tabIndex={isSelected ? 0 : -1}
+              aria-selected={isSelected}
+              draggable={!disabled}
+              style={rowStyle}
+              onClick={() => onSelect(p.id)}
+              onKeyDown={handleKey(p)}
+              onDragStart={handleDragStart(p.id)}
+              onDragOver={handleDragOver(p.id)}
+              onDrop={handleDrop(p.id)}
+              onDragEnd={handleDragEnd}
             >
-              ⋮⋮
-            </span>
-            <input
-              type="checkbox"
-              className="providers-sidebar__checkbox"
-              checked={p.enabled}
-              disabled={disabled}
-              onClick={(e) => e.stopPropagation()}
-              onChange={(e) => onToggleEnabled(p.id, e.target.checked)}
-              aria-label={`${p.displayName} enabled`}
-            />
-          </li>
-        );
-      })}
-    </ul>
+              <span
+                className={`providers-sidebar__status providers-sidebar__status--${p.status}`}
+                title={t(STATUS_TO_KEY[p.status])}
+                aria-label={t(STATUS_TO_KEY[p.status])}
+              />
+              <ProviderIcon providerId={p.id} size={24} />
+              <div className="providers-sidebar__text">
+                <span className="providers-sidebar__name">{p.displayName}</span>
+                <span className="providers-sidebar__subtitle">
+                  <span className="providers-sidebar__subtitle-primary">
+                    {p.subtitlePrimary}
+                  </span>
+                  {p.subtitleSecondary && (
+                    <span className="providers-sidebar__subtitle-secondary">
+                      {p.subtitleSecondary}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <span
+                className="providers-sidebar__handle"
+                aria-hidden="true"
+                title={t("ProviderSidebarReorderHint")}
+              >
+                ⋮⋮
+              </span>
+              <input
+                type="checkbox"
+                className="providers-sidebar__checkbox"
+                checked={p.enabled}
+                disabled={disabled}
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => onToggleEnabled(p.id, e.target.checked)}
+                aria-label={`${p.displayName} enabled`}
+              />
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

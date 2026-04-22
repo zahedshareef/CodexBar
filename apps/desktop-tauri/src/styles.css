@@ -1981,16 +1981,20 @@ html {
 /* ── Providers sidebar (Phase 6a) ─────────────────────────────────── */
 
 .providers-sidebar {
-  list-style: none;
-  margin: 0;
-  padding: 4px;
   width: 244px;
   flex-shrink: 0;
-  overflow-y: scroll;
-  overflow-x: hidden;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.04);
+  height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.providers-sidebar__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
   height: 100%;
   box-sizing: border-box;
 }
@@ -4243,18 +4247,18 @@ html:has(.menu-surface--tray) {
 /* ── Provider sidebar (Preferences › Providers) ───────────────────── */
 /* provider-split consolidated above (line ~1765) */
 /* providers-sidebar overrides consolidated above (line ~1981) */
-.providers-sidebar::-webkit-scrollbar {
+.providers-sidebar__list::-webkit-scrollbar {
   width: 8px;
 }
-.providers-sidebar::-webkit-scrollbar-track {
+.providers-sidebar__list::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.06);
   border-radius: 4px;
 }
-.providers-sidebar::-webkit-scrollbar-thumb {
+.providers-sidebar__list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.35);
   border-radius: 4px;
 }
-.providers-sidebar::-webkit-scrollbar-thumb:hover {
+.providers-sidebar__list::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.55);
 }
 [data-theme="light"] .providers-sidebar {
