@@ -76,7 +76,7 @@ unsafe extern "system" fn borderless_subclass_proc(
                 // client area == the window area (no non-client area).
                 return 0;
             }
-            DefSubclassProc(hwnd, msg, wparam, lparam)
+            unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
         }
         WM_NCPAINT => {
             // Suppress DWM non-client painting entirely.
@@ -86,7 +86,7 @@ unsafe extern "system" fn borderless_subclass_proc(
             // Return TRUE to accept activation but skip DWM painting.
             1
         }
-        _ => DefSubclassProc(hwnd, msg, wparam, lparam),
+        _ => unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) },
     }
 }
 
