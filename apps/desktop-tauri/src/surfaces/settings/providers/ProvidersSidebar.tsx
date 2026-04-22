@@ -169,9 +169,22 @@ export function ProvidersSidebar({
     }
   };
 
+  const listRef = useRef<HTMLUListElement>(null);
+
+  // Manual wheel handler — ensures scroll works even when parent
+  // body competes for wheel events (WebView2 + nested scrollers).
+  const handleWheel = (e: React.WheelEvent) => {
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTop += e.deltaY;
+    e.stopPropagation();
+    e.preventDefault();
+  };
+
   return (
-    <div className="providers-sidebar">
+    <div className="providers-sidebar" onWheel={handleWheel}>
       <ul
+        ref={listRef}
         className="providers-sidebar__list"
         role="listbox"
         aria-label="Providers"
