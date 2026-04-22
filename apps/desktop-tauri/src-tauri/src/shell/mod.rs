@@ -7,6 +7,7 @@ use crate::surface::SurfaceMode;
 use crate::surface_target::SurfaceTarget;
 
 mod geometry;
+pub(crate) mod dwm;
 mod position;
 pub mod settings_window;
 mod transition;

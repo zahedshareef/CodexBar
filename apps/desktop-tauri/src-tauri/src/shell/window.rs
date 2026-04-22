@@ -40,6 +40,9 @@ pub fn apply_window_layout(
     let map_err = |e: tauri::Error| e.to_string();
 
     window.set_decorations(props.decorations).map_err(map_err)?;
+    if !props.decorations {
+        super::dwm::force_dark_caption(window);
+    }
     window.set_resizable(props.resizable).map_err(map_err)?;
     window
         .set_always_on_top(props.always_on_top)

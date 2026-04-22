@@ -112,6 +112,7 @@ fn main() {
         ])
         .setup(move |app| {
             if let Some(window) = app.get_webview_window("main") {
+                shell::dwm::force_dark_caption(&window);
                 window.hide()?;
             }
             tray_bridge::setup(app)?;
