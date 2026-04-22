@@ -1831,7 +1831,9 @@ html {
 
 .provider-detail {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   background: var(--surface-elevated);
   border-radius: 8px;
   padding: 12px;
@@ -1990,6 +1992,7 @@ html {
   min-height: 0;
   box-sizing: border-box;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   scrollbar-width: auto;
   scrollbar-color: rgba(255, 255, 255, 0.45) rgba(255, 255, 255, 0.08);
   list-style: none;
