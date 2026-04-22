@@ -4247,22 +4247,17 @@ html:has(.menu-surface--tray) {
 /* provider-split consolidated above (line ~1765) */
 /* providers-sidebar overrides consolidated above (line ~1981) */
 .providers-sidebar::-webkit-scrollbar {
-  width: 10px;
+  width: 16px;
 }
 .providers-sidebar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 5px;
-  margin: 4px 0;
+  background: red;
 }
 .providers-sidebar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.45);
-  border-radius: 5px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  background: lime;
+  border-radius: 8px;
 }
 .providers-sidebar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.65);
-  background-clip: padding-box;
+  background: yellow;
 }
 [data-theme="light"] .providers-sidebar {
   background: rgba(0, 0, 0, 0.025);
