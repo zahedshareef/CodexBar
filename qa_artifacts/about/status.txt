@@ -1,0 +1,5 @@
+showHidden=invoke
+tray=CodexBar
+Claude: error (Provider not installed: Claude CLI not f;action=none
+panelCapture=False
+settingsCapture=False

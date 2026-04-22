@@ -1,0 +1,4 @@
+showHidden=invoke
+tray=missing
+panelCapture=False
+settingsCapture=False

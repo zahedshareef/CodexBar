@@ -1,0 +1,1 @@
+IDX=35;TYPE=ControlType.Pane;CLASS=com.codexbar.desktop-sic;NAME=com.codexbar.desktop-siw;OFF=False;X=0;Y=0;W=6;H=6

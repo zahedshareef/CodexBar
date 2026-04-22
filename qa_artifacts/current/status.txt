@@ -1,0 +1,7 @@
+showHidden=invoke
+tray=CodexBar Desktop;action=invoke
+panelCapture=True
+settingsButton=missing
+settingsGeneralCapture=False
+settingsWindow=missing
+settingsAboutCapture=False

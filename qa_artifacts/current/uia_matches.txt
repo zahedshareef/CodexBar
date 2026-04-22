@@ -1,0 +1,13 @@
+[0] ControlType.Pane | Shell_TrayWnd | 
+[1] ControlType.Pane | TrayNotifyWnd | 
+[13] ControlType.Button | SystemTray.NormalButton | Show Hidden Icons
+[14] ControlType.Button | SystemTray.AccentButton | Network Network 2
+Internet access
+
+Tailscale
+No internet access
+[15] ControlType.Button | SystemTray.OmniButtonRight | Volume Remote Audio: 100%
+[16] ControlType.Button | SystemTray.OmniButton | Clock 8:50 PM
+‎4/‎22/‎2026
+[17] ControlType.Button | SystemTray.ShowDesktopButton | Show Desktop
+[35] ControlType.Pane | com.codexbar.desktop-sic | com.codexbar.desktop-siw
