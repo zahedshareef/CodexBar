@@ -4219,6 +4219,7 @@ html:has(.menu-surface--tray) {
 }
 .select {
   padding-right: 26px;
+  line-height: 1;
 }
 .number-input {
   width: 52px;
@@ -4426,19 +4427,33 @@ html:has(.menu-surface--tray) {
 
 .about-channel-row {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  max-width: 280px;
+  gap: 4px;
   width: 100%;
 }
 
+.about-channel-row .settings-field {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: auto;
+}
+
 .about-channel-row .settings-field__label {
-  flex: 1;
+  white-space: nowrap;
+}
+
+.about-channel-row .select {
+  min-width: 100px;
+  text-align: center;
+  text-align-last: center;
 }
 
 .about-channel-description {
-  margin: 4px 0 0;
-  max-width: 280px;
+  margin: 2px 0 0;
+  max-width: 320px;
   font-size: 11px;
   color: var(--text-secondary, rgba(255, 255, 255, 0.55));
   text-align: center;
