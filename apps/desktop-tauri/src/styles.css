@@ -1988,14 +1988,20 @@ html {
   border: 1px solid rgba(255, 255, 255, 0.04);
   height: 100%;
   box-sizing: border-box;
+  position: relative;
   overflow: hidden;
 }
 .providers-sidebar__list {
   list-style: none;
   margin: 0;
   padding: 4px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   overflow-y: auto;
-  height: 100%;
+  overscroll-behavior: contain;
   box-sizing: border-box;
 }
 
@@ -4248,18 +4254,22 @@ html:has(.menu-surface--tray) {
 /* provider-split consolidated above (line ~1765) */
 /* providers-sidebar overrides consolidated above (line ~1981) */
 .providers-sidebar__list::-webkit-scrollbar {
-  width: 8px;
+  width: 10px;
 }
 .providers-sidebar__list::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  margin: 4px 0;
 }
 .providers-sidebar__list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.35);
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 .providers-sidebar__list::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.65);
+  background-clip: padding-box;
 }
 [data-theme="light"] .providers-sidebar {
   background: rgba(0, 0, 0, 0.025);
@@ -4283,6 +4293,7 @@ html:has(.menu-surface--tray) {
   border-radius: 10px;
   padding: 16px 18px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   height: 100%;
   box-sizing: border-box;
   flex: 1;
