@@ -169,12 +169,26 @@ export function ProvidersSidebar({
     }
   };
 
+  const sidebarRef = useRef<HTMLUListElement>(null);
+
+  // Explicit wheel handler — WebView2 on Windows can swallow wheel events
+  // when parent containers have overflow:hidden/clip. This ensures the
+  // sidebar always scrolls in response to wheel input.
+  const handleWheel = (e: React.WheelEvent<HTMLUListElement>) => {
+    const el = sidebarRef.current;
+    if (!el) return;
+    el.scrollTop += e.deltaY;
+    e.stopPropagation();
+  };
+
   return (
     <ul
+      ref={sidebarRef}
       className="providers-sidebar"
       role="listbox"
       aria-label="Providers"
       aria-orientation="vertical"
+      onWheel={handleWheel}
     >
       {ordered.map((p) => {
           const isSelected = p.id === selectedId;
