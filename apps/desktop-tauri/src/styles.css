@@ -1988,20 +1988,12 @@ html {
   border: 1px solid rgba(255, 255, 255, 0.04);
   height: 100%;
   box-sizing: border-box;
-  position: relative;
-  overflow: hidden;
+  overflow-y: scroll;
 }
 .providers-sidebar__list {
   list-style: none;
   margin: 0;
   padding: 4px;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   box-sizing: border-box;
 }
 
@@ -4114,7 +4106,7 @@ html:has(.menu-surface--tray) {
 }
 .settings-body--providers {
   max-width: 100%;
-  overflow-y: auto;
+  overflow: hidden;
 }
 .settings-status {
   max-width: 560px;
@@ -4253,21 +4245,21 @@ html:has(.menu-surface--tray) {
 /* ── Provider sidebar (Preferences › Providers) ───────────────────── */
 /* provider-split consolidated above (line ~1765) */
 /* providers-sidebar overrides consolidated above (line ~1981) */
-.providers-sidebar__list::-webkit-scrollbar {
+.providers-sidebar::-webkit-scrollbar {
   width: 10px;
 }
-.providers-sidebar__list::-webkit-scrollbar-track {
+.providers-sidebar::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.08);
   border-radius: 5px;
   margin: 4px 0;
 }
-.providers-sidebar__list::-webkit-scrollbar-thumb {
+.providers-sidebar::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.45);
   border-radius: 5px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-.providers-sidebar__list::-webkit-scrollbar-thumb:hover {
+.providers-sidebar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.65);
   background-clip: padding-box;
 }
