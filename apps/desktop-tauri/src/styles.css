@@ -4245,6 +4245,7 @@ html:has(.menu-surface--tray) {
   height: calc(100vh - 140px);
   min-height: 340px;
   flex-shrink: 0;
+  overflow: hidden;
 }
 .providers-sidebar {
   width: var(--sidebar-width);
@@ -4254,9 +4255,20 @@ html:has(.menu-surface--tray) {
   gap: 2px;
   overflow-y: auto;
   min-height: 0;
+  max-height: 100%;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.07);
+}
+.providers-sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+.providers-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+}
+.providers-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.55);
 }
 [data-theme="light"] .providers-sidebar {
   background: rgba(0, 0, 0, 0.025);
