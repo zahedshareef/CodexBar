@@ -1987,6 +1987,7 @@ html {
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.04);
   height: 100%;
+  min-height: 0;
   box-sizing: border-box;
   overflow-y: scroll;
 }
@@ -4287,6 +4288,7 @@ html:has(.menu-surface--tray) {
   overflow-y: auto;
   overscroll-behavior: contain;
   height: 100%;
+  min-height: 0;
   box-sizing: border-box;
   flex: 1;
 }
