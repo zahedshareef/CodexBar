@@ -251,6 +251,10 @@ export function ProvidersSidebar({
           </li>
         );
       })}
+      {/* DEBUG: provider count */}
+      <li style={{ padding: '6px 8px', fontSize: '10px', color: '#f44', textAlign: 'center', listStyle: 'none' }}>
+        {ordered.length} of {providers.length} providers
+      </li>
     </ul>
   );
 }
