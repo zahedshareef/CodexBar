@@ -30,10 +30,35 @@ pub fn open_or_focus(app: &tauri::AppHandle, tab: &str) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    // Force native title bar dark mode. The builder .theme() only sets the
-    // webview CSS color-scheme; the Window-level set_theme() is needed to
-    // propagate DWMWA_USE_IMMERSIVE_DARK_MODE to the native title bar.
+    // Force native title bar dark mode via DWM. The builder .theme() only
+    // sets the webview CSS color-scheme, and set_theme() doesn't always
+    // propagate on Windows Server. Direct DwmSetWindowAttribute is reliable.
     let _ = win.set_theme(Some(tauri::Theme::Dark));
+    #[cfg(target_os = "windows")]
+    {
+        use std::ffi::c_void;
+        #[link(name = "dwmapi")]
+        extern "system" {
+            fn DwmSetWindowAttribute(
+                hwnd: *mut c_void,
+                attr: u32,
+                data: *const c_void,
+                size: u32,
+            ) -> i32;
+        }
+        const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
+        if let Ok(hwnd) = win.hwnd() {
+            let dark: u32 = 1;
+            unsafe {
+                DwmSetWindowAttribute(
+                    hwnd.0 as *mut c_void,
+                    DWMWA_USE_IMMERSIVE_DARK_MODE,
+                    &dark as *const u32 as *const c_void,
+                    std::mem::size_of::<u32>() as u32,
+                );
+            }
+        }
+    }
 
     // Manually center: Tauri's .center() is unreliable on Windows when
     // called from async commands. Compute position from the primary monitor.
