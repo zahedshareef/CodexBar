@@ -3983,6 +3983,41 @@ html:has(.menu-surface--tray) {
   background: var(--app-bg);
   min-height: 100vh;
 }
+/* Custom title bar for decoration-less Settings window */
+.settings-titlebar {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 4px 0 12px;
+  background: #1e1e1e;
+  -webkit-app-region: drag;
+  user-select: none;
+  flex-shrink: 0;
+}
+.settings-titlebar__title {
+  flex: 1;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.02em;
+}
+.settings-titlebar__close {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.settings-titlebar__close:hover {
+  background: #e81123;
+  color: #fff;
+}
 .settings-tabs {
   display: flex;
   gap: 2px;

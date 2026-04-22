@@ -169,6 +169,20 @@ export default function Settings({ state, initialTab: propTab }: { state: Bootst
     <div
       className={`settings${activeTab === "providers" ? " settings--providers-active" : ""}`}
     >
+      {/* custom title bar (decorations disabled for guaranteed dark theme) */}
+      {getCurrentWebviewWindow().label === "settings" && (
+        <div className="settings-titlebar" data-tauri-drag-region>
+          <span className="settings-titlebar__title" data-tauri-drag-region>CodexBar Settings</span>
+          <button
+            className="settings-titlebar__close"
+            onClick={() => void getCurrentWindow().close()}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* tab bar */}
       <nav className="settings-tabs" role="tablist">
         {TAB_META.map((tab) => (
