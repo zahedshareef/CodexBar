@@ -3,7 +3,7 @@
   #define AppVersion "0.0.0-dev"
 #endif
 #ifndef TargetBinDir
-  #define TargetBinDir "..\\target\\x86_64-pc-windows-msvc\\release"
+  #define TargetBinDir "..\\..\\target\\release"
 #endif
 #ifndef OutputDir
   #define OutputDir "..\\target\\installer"

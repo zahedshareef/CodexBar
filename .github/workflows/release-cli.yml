@@ -48,6 +48,8 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Build Linux CLI
         run: cargo build --manifest-path rust/Cargo.toml --release --target ${{ matrix.target }} --bin codexbar
 

@@ -24,6 +24,8 @@ jobs:
           components: rustfmt, clippy
           targets: x86_64-unknown-linux-gnu
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Check formatting
         run: cargo fmt --manifest-path rust/Cargo.toml --all --check
 
@@ -39,6 +41,24 @@ jobs:
       - name: Run Tauri tests
         run: cargo test --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml --target x86_64-unknown-linux-gnu
 
+  frontend-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/desktop-tauri/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix apps/desktop-tauri
+
+      - name: Build frontend
+        run: npm --prefix apps/desktop-tauri run build
+
   windows-build-and-test:
     runs-on: windows-latest
     steps:
@@ -49,6 +69,8 @@ jobs:
         with:
           components: clippy
           targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Run clippy
         shell: bash
@@ -111,6 +133,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build Linux CLI
         run: cargo build --manifest-path rust/Cargo.toml --release --target ${{ matrix.target }} --bin codexbar
