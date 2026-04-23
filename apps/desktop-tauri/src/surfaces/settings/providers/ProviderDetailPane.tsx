@@ -110,6 +110,10 @@ export function ProviderDetailPane({ providerId, cookieDomain = null }: Props) {
       setRegionOptions([]);
       return;
     }
+    // Clear stale detail immediately so we don't render the old provider
+    setDetail(null);
+    setCookieOptions([]);
+    setRegionOptions([]);
     const signal = { stale: false };
     void load(providerId, signal);
     return () => { signal.stale = true; };
@@ -118,16 +122,18 @@ export function ProviderDetailPane({ providerId, cookieDomain = null }: Props) {
   // Live-refresh when a new snapshot lands for this provider.
   useEffect(() => {
     if (!providerId) return;
+    const signal = { stale: false };
     const unlistenPromise = listen<{ providerId?: string }>(
       "provider-updated",
       (event) => {
         const pid = event.payload?.providerId;
         if (!pid || pid === providerId) {
-          void load(providerId);
+          void load(providerId, signal);
         }
       },
     );
     return () => {
+      signal.stale = true;
       void unlistenPromise.then((fn) => fn());
     };
   }, [providerId, load]);

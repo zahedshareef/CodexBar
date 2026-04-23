@@ -52,6 +52,9 @@ unsafe extern "system" {
 }
 
 #[cfg(windows)]
+static DARK_BRUSH: std::sync::OnceLock<isize> = std::sync::OnceLock::new();
+
+#[cfg(windows)]
 const WM_NCCALCSIZE: u32 = 0x0083;
 #[cfg(windows)]
 const WM_NCPAINT: u32 = 0x0085;
@@ -160,9 +163,9 @@ fn force_dark_caption_inner(win: &tauri::WebviewWindow, keep_resize: bool) {
         let ok = SetWindowSubclass(hwnd, borderless_subclass_proc, BORDERLESS_SUBCLASS_ID, 0);
         tracing::info!("dwm: subclass installed={ok}");
 
-        // Set background brush to dark
+        // Set background brush to dark (reuse a single GDI brush)
         const GCL_HBRBACKGROUND: i32 = -10;
-        let brush = CreateSolidBrush(0x001C1C1E);
+        let brush = *DARK_BRUSH.get_or_init(|| CreateSolidBrush(0x001C1C1E));
         if brush != 0 {
             SetWindowLongPtrW(hwnd, GCL_HBRBACKGROUND, brush);
         }

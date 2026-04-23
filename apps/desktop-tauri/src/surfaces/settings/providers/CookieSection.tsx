@@ -56,6 +56,7 @@ export function CookieSection({ providerId, cookieDomain }: Props) {
     setImportError(null);
     setImportStatus(null);
     setPasteValue("");
+    setSaved(null);
     void reload(signal);
     return () => { signal.stale = true; };
   }, [reload, cookieDomain]);

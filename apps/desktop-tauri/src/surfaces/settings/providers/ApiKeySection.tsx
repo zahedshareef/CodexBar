@@ -54,6 +54,8 @@ export function ApiKeySection({ providerId }: Props) {
     setEditValue("");
     setEditLabel("");
     setError(null);
+    setInfo(null);
+    setSaved(null);
     void reload(signal);
     return () => { signal.stale = true; };
   }, [reload]);
