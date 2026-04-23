@@ -17,14 +17,6 @@ pub mod settings;
 pub mod shortcuts;
 pub mod sound;
 
-// Legacy egui shell modules live under rust/legacy/. They are gated behind
-// the "legacy" feature so the default build (Tauri shell) does not compile them.
-#[cfg(feature = "legacy")]
-#[path = "../legacy/native_ui/mod.rs"]
-pub mod native_ui;
-#[cfg(feature = "legacy")]
-#[path = "../legacy/single_instance.rs"]
-pub mod single_instance;
 pub mod status;
 pub mod tray;
 pub mod updater;

@@ -17,8 +17,6 @@
 - `rust/src/tray` (shared): `icon.rs` + `render.rs` — pixel-level tray-icon rendering used by the Tauri shell.
 - `rust/src/browser`: Browser detection + cookie extraction for Windows.
 - `rust/src/core`: Shared provider-construction (`instantiate_provider`) and provider IDs.
-- `rust/legacy/`: Retired egui menubar shell (native_ui, single_instance, egui-only tray submodules).
-  Compiled but not wired into any binary; see `rust/legacy/README.md`.
 - `rust/assets`, `rust/icons`, `rust/gen`, `rust/wix`: UI assets, generated schemas, installer packaging.
 - `docs`: Mixed documentation (Windows port docs plus upstream/macOS references). Update only the relevant docs.
 
@@ -62,7 +60,7 @@
 
 ## Agent Notes
 - The default desktop app is the Tauri shell in `apps/desktop-tauri/`. The Rust crate owns shared backend logic
-  and the CLI; the egui menubar shell has been retired to `rust/legacy/`.
+  and the CLI.
 - New provider construction goes through `codexbar::core::instantiate_provider` — do not duplicate provider
   factories in shells or commands.
 - Keep provider data siloed: never show identity/plan/email fields from provider A in provider B UI.

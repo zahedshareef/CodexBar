@@ -14,9 +14,6 @@ path = "src/lib.rs"
 
 [features]
 default = []
-# Compiles the legacy egui shell modules under rust/legacy/. The default
-# (Tauri) build does not need them.
-legacy = []
 
 [dependencies]
 # Async runtime
