@@ -1,222 +1,120 @@
-[This repo is under some refactor and changes for the upcoming updates for the next couple of days. Stay tune!]
-
-# Win-CodexBar — Windows & WSL Port of CodexBar
+# Win-CodexBar
 
 [简体中文说明](./README.zh-CN.md)
 
-A Windows (and WSL) port of [CodexBar](https://github.com/steipete/CodexBar) — the tiny menu bar app that keeps your AI provider usage limits visible.
+The Windows port of [CodexBar](https://github.com/steipete/CodexBar) — a system tray app that keeps your AI coding-tool usage limits visible at a glance.
 
-> **This is the official Windows port.** The original CodexBar started as a macOS Swift app by [Peter Steinberger](https://github.com/steipete). This branch uses a Tauri desktop shell on top of the shared Rust backend.
+> Built with **Tauri + React** on a shared **Rust** backend. The original CodexBar is a macOS Swift app by [Peter Steinberger](https://github.com/steipete).
+
+<p align="center">
+  <img src="extra-docs/images/tray-panel.png" width="310" alt="Tray panel"/>
+  &nbsp;&nbsp;
+  <img src="extra-docs/images/settings-providers.png" width="310" alt="Settings — provider detail"/>
+</p>
 
 ## Features
 
-- **16 AI Providers**: Codex, Claude, Cursor, Gemini, Copilot, Antigravity, Windsurf, Zai, Kiro, Vertex AI, Augment, MiniMax, OpenCode, Kimi, Kimi K2, Infini
-- **System Tray Icon**: Dynamic two-bar meter showing session + weekly usage
-- **Desktop Shell**: Tauri + React UI backed by the shared Rust core
-- **Browser Cookie Extraction**: Automatic extraction from Chrome, Edge, Brave, Firefox (DPAPI encrypted)
-- **CLI Commands**: `codexbar usage` and `codexbar cost` for scripting
-- **Preferences Window**: Enable/disable providers, set refresh intervals, manage cookies
+- **28 AI providers** — Codex, Claude, Cursor, Factory, Gemini, Copilot, Antigravity, z.ai, MiniMax, Kiro, Vertex AI, Augment, OpenCode, Kimi, Kimi K2, Amp, Warp, Ollama, OpenRouter, Synthetic, JetBrains AI, Alibaba, NanoGPT, Infini, Perplexity, Abacus AI, OpenCode Go, Kilo
+- **System tray icon** — dynamic two-bar meter showing session + weekly usage
+- **Browser cookie import** — Chrome, Edge, Brave, Firefox (DPAPI decryption on Windows)
+- **Per-provider credentials** — API keys, cookies, and OAuth all managed from the provider detail pane
+- **CLI** — `codexbar usage` and `codexbar cost` for scripting and CI
+- **WSL support** — CLI works out of the box; desktop shell via WSLg
 
-## Screenshots
-
-### Main Window
-![CodexBar Main Window](docs/images/main-window.png)
-
-### Settings
-![CodexBar Settings](docs/images/settings.png)
-
-### Overview
-![CodexBar Overview](docs/images/overview.png)
-
-## Getting Started
-
-### Quick Start — Windows
+## Quick Start
 
 ```powershell
-# Clone and run — Rust/MinGW prerequisites are installed automatically; install Node.js first
+# Prerequisites: Node.js — Rust and MinGW are installed automatically
 git clone https://github.com/Finesssee/Win-CodexBar.git
 cd Win-CodexBar
 .\dev.ps1
 ```
 
-This will:
-1. Check for Rust and MinGW-w64, install them if missing
-2. Build the Tauri desktop shell in debug mode through Tauri's no-bundle workflow
-4. Launch the desktop app
+The script installs Rust/MinGW if needed, builds the Tauri desktop shell, and launches the app.
 
-Other options:
 ```powershell
-.\dev.ps1 -Release         # optimised build
-.\dev.ps1 -Verbose         # debug logging
-.\dev.ps1 -SkipBuild       # run last build without rebuilding
+.\dev.ps1 -Release          # optimised build
+.\dev.ps1 -SkipBuild        # relaunch last build
 ```
 
-### Quick Start — WSL (Ubuntu)
+## Download
 
-CodexBar runs natively inside WSL. The CLI works out of the box; the desktop shell
-requires [WSLg](https://github.com/microsoft/wslg) (Windows 11, build 22000+).
+Grab the latest build from [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases).
+
+- **Installer**: `CodexBar-<version>-Setup.exe`
+- **Portable**: `codexbar-desktop-tauri.exe`
+
+## First Run
+
+1. Launch CodexBar — it sits in the system tray
+2. Click the tray icon to open the usage panel
+3. Open **Settings → Providers**, enable the services you use
+4. For cookie-based providers, click the provider and use **Browser Cookies → Import**
+5. For CLI-based providers (`codex`, `claude`, `gemini`), make sure you're logged in
+
+## CLI
 
 ```bash
-# Clone and build
-git clone https://github.com/Finesssee/Win-CodexBar.git
-cd Win-CodexBar
-./dev.sh
-```
-
-This will:
-1. Detect your WSL environment
-2. Build CodexBar Desktop through Tauri's no-bundle workflow
-4. Launch the desktop shell (WSLg) or CLI (no display server detected)
-
-CLI-only mode (no display server needed):
-```bash
-./dev.sh --cli              # codexbar usage -p all
-./dev.sh --release          # optimised build
-```
-
-#### How WSL Support Works
-
-When running inside WSL, CodexBar:
-
-- **Browser cookies**: Reads Windows browser data from `/mnt/c/Users/<you>/AppData/...`.
-  Chromium cookies encrypted with DPAPI cannot be decrypted from WSL automatically.
-  Use manual cookies (Settings → Cookies) or CLI-based provider authentication instead.
-- **Provider CLIs**: Works with `codex`, `claude`, `gemini` etc. installed inside WSL natively.
-- **Desktop shell**: Requires WSLg (Windows 11) or an X server. Falls back to CLI mode automatically.
-- **Notifications**: Uses `notify-send` in WSL. Falls back to logging if unavailable.
-
-#### WSL Authentication Tips
-
-| Provider | WSL Auth Strategy |
-|----------|-------------------|
-| Codex | `npm i -g @openai/codex` inside WSL, then `codex login` |
-| Claude | `npm i -g @anthropic-ai/claude-code` inside WSL, then `claude login` |
-| Gemini | `gcloud auth login` inside WSL (requires gcloud CLI) |
-| Cursor / Kimi | Manual cookies — copy from browser DevTools (F12 → Network → Cookie header) |
-| Copilot | GitHub Device Flow works natively in WSL |
-
-### Download
-
-Download the latest release from [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases).
-
-- Recommended installer: `CodexBar-<version>-Setup.exe`
-- Portable build: `codexbar-desktop-tauri.exe` (from `target/release/`)
-
-### Manual Build
-
-Prerequisites: Rust 1.70+ with `x86_64-pc-windows-gnu` target, MinGW-w64, and Node.js/npm.
-Install them automatically with:
-
-```powershell
-.\scripts\setup-windows.ps1
-```
-
-Then build:
-```powershell
-cd apps/desktop-tauri
-npm install
-cd ../..
-npm --prefix apps/desktop-tauri run tauri:build
-# Binary at: target/release/codexbar-desktop-tauri.exe
-```
-
-## Usage
-
-### Desktop shell
-```powershell
-.\dev.ps1
-# or: cd apps/desktop-tauri && npm run tauri:dev
-```
-
-### CLI
-```bash
-# Check usage for a provider
-codexbar usage -p claude
-codexbar usage -p codex
-codexbar usage -p all
-
-# Check local cost usage (from JSONL logs)
-codexbar cost -p codex
-codexbar cost -p claude
+codexbar usage -p claude          # single provider
+codexbar usage -p all             # all enabled providers
+codexbar cost  -p codex           # local cost from JSONL logs
 ```
 
 ## Providers
 
-| Provider | Auth Method | What's Tracked |
-|----------|-------------|----------------|
+| Provider | Auth | Tracks |
+|----------|------|--------|
 | Codex | OAuth / CLI | Session, Weekly, Credits |
 | Claude | OAuth / Cookies / CLI | Session (5h), Weekly |
-| Cursor | Browser Cookies | Plan, Usage, Billing |
-| Gemini | OAuth (gcloud) | Quota |
+| Cursor | Cookies | Plan, Usage, Billing |
+| Factory | Cookies | Usage |
+| Gemini | gcloud OAuth | Quota |
 | Copilot | GitHub Device Flow | Usage |
-| Antigravity | Local Language Server | Usage |
-| Windsurf | Local Config | Usage |
-| Zai | API Token | Quota |
-| Kiro | CLI | Monthly Credits |
-| Vertex AI | gcloud OAuth | Cost Tracking |
-| Augment | Browser Cookies | Credits |
-| MiniMax | API | Usage |
+| Antigravity | Cookies / LSP | Usage |
+| z.ai | API Token | Quota |
+| MiniMax | API / Cookies | Usage |
+| Kiro | Cookies / CLI | Monthly Credits |
+| Vertex AI | gcloud OAuth | Cost |
+| Augment | Cookies | Credits |
 | OpenCode | Local Config | Usage |
-| Kimi | Browser Cookies | 5-Hour Rate, Weekly |
+| Kimi | Cookies | 5h Rate, Weekly |
 | Kimi K2 | API Key | Credits |
+| Amp | Cookies | Usage |
+| Warp | Local Config | Usage |
+| Ollama | Cookies | Usage |
+| OpenRouter | API Key | Credits |
+| JetBrains AI | Local Config | Usage |
+| Alibaba | Cookies | Usage |
+| NanoGPT | API Key | Credits |
 | Infini | API Key | Session, Weekly, Quota |
-
-## First Run
-
-1. Run `.\dev.ps1`, `./dev.sh`, or `cd apps/desktop-tauri && npm run tauri:dev` to start the desktop shell
-2. Click **Settings** in the menu
-3. In **General**, choose your preferred UI language
-4. In **Providers**, enable the providers you use and check their auth state
-5. If a provider stops updating, recover credentials from **Cookies**, **API Keys**, or the provider account section
-6. Make sure you're logged into the provider CLIs you use (for example `codex`, `claude`, or `gemini`)
-
-## Browser Cookie Extraction
-
-Win-CodexBar automatically extracts cookies from:
-- **Chrome** (DPAPI + AES-256-GCM)
-- **Edge** (DPAPI + AES-256-GCM)
-- **Brave** (DPAPI + AES-256-GCM)
-- **Firefox** (unencrypted SQLite)
-
-For providers that need web authentication (Claude, Cursor, Kimi), cookies are extracted automatically when you're logged into the web interface.
-
-> **WSL note**: Chromium cookies are encrypted with Windows DPAPI, which is not accessible
-> from WSL. Automatic extraction from Chrome/Edge/Brave only works when running CodexBar
-> natively on Windows. In WSL, use manual cookies or CLI-based provider authentication.
-
-### Manual Cookies
-
-If automatic extraction fails, you can add cookies manually:
-1. Go to **Settings** → **Cookies** tab
-2. Select the provider
-3. Paste the cookie header from browser DevTools (F12 → Network → Request Headers → Cookie)
-
-## Differences from macOS Version
-
-| Feature | macOS | Windows | WSL |
-|---------|-------|---------|-----|
-| UI Framework | SwiftUI | Tauri + React (Rust backend) | Tauri + React (via WSLg) |
-| System Tray | NSStatusItem | tray-icon crate | tray-icon (WSLg) |
-| Cookie Decryption | Keychain | DPAPI | Manual cookies |
-| Widget | WidgetKit | Not available | Not available |
-| Auto-update | Sparkle | Installer-first, manual fallback | Manual reinstall |
-| Notifications | macOS native | PowerShell toast | notify-send |
+| Perplexity | Cookies | Credits, Plan |
+| Abacus AI | Cookies | Credits |
+| OpenCode Go | Cookies | Usage |
+| Kilo | API Key / CLI | Usage |
 
 ## Privacy
 
-- **No disk scanning**: Only reads known config locations and browser cookies
-- **On-device only**: No data sent to external servers (except provider APIs)
-- **Cookies are opt-in**: Browser cookie extraction only happens for enabled providers
+- **On-device only** — no data sent anywhere except provider APIs
+- **No disk scanning** — only reads known config paths and browser cookies
+- **Opt-in cookies** — extraction only runs for providers you enable
+
+## More Docs
+
+| Topic | Link |
+|-------|------|
+| Building from source | [extra-docs/BUILDING.md](extra-docs/BUILDING.md) |
+| WSL setup & auth tips | [extra-docs/WSL.md](extra-docs/WSL.md) |
+| Browser cookie details | [extra-docs/COOKIES.md](extra-docs/COOKIES.md) |
 
 ## Credits
 
-- **Original CodexBar**: [steipete/CodexBar](https://github.com/steipete/CodexBar) by Peter Steinberger (MIT)
+- **Original CodexBar**: [steipete/CodexBar](https://github.com/steipete/CodexBar) by Peter Steinberger
 - **Inspired by**: [ccusage](https://github.com/ryoppippi/ccusage) for cost tracking
 
 ## License
 
-MIT - Same as original CodexBar
+MIT — same as the original CodexBar.
 
 ---
 
-*For the original macOS version, visit [steipete/CodexBar](https://github.com/steipete/CodexBar).*
+*For the macOS version, visit [steipete/CodexBar](https://github.com/steipete/CodexBar).*
