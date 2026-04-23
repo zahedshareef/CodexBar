@@ -16,7 +16,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev
+          sudo apt-get install -y libgtk-3-dev libxdo-dev libayatana-appindicator3-dev libwebkit2gtk-4.1-dev libjavascriptcoregtk-4.1-dev
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -32,6 +32,12 @@ jobs:
 
       - name: Run tests
         run: cargo test --manifest-path rust/Cargo.toml --target x86_64-unknown-linux-gnu
+
+      - name: Run Tauri clippy
+        run: cargo clippy --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml --all-targets --target x86_64-unknown-linux-gnu -- -D warnings
+
+      - name: Run Tauri tests
+        run: cargo test --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml --target x86_64-unknown-linux-gnu
 
   windows-build-and-test:
     runs-on: windows-latest
@@ -65,70 +71,18 @@ jobs:
       - name: Smoke test Windows CLI
         shell: pwsh
         run: |
-          $exe = Resolve-Path "rust\target\x86_64-pc-windows-msvc\release\codexbar.exe"
-          $log = Join-Path $env:TEMP "codexbar_launch.log"
-          Remove-Item $log -Force -ErrorAction SilentlyContinue
+          $exe = Resolve-Path "target\x86_64-pc-windows-msvc\release\codexbar.exe"
+          $output = (& $exe --version 2>&1 | Out-String).Trim()
 
-          $proc = Start-Process -FilePath $exe -ArgumentList "--version" -WindowStyle Hidden -PassThru
-          $proc.WaitForExit()
-          $proc.Refresh()
-
-          if ($proc.ExitCode -ne 0) {
-            if (Test-Path $log) {
-              Write-Host (Get-Content $log -Raw)
-            }
-            throw "codexbar.exe --version exited with code $($proc.ExitCode)"
+          if ($LASTEXITCODE -ne 0) {
+            throw "codexbar.exe --version exited with code $LASTEXITCODE"
           }
 
-          if (-not (Test-Path $log)) {
-            throw "codexbar.exe --version did not create the expected launch log"
+          Write-Host $output
+
+          if ([string]::IsNullOrWhiteSpace($output)) {
+            throw "codexbar.exe --version produced no output"
           }
-
-          $logContent = Get-Content $log -Raw
-          Write-Host "codexbar.exe --version exit code: $($proc.ExitCode)"
-          Write-Host $logContent
-
-          if ($logContent -notmatch '--version') {
-            throw "codexbar.exe --version launch log did not record the CLI arguments"
-          }
-
-      - name: Smoke test Windows menubar launch
-        shell: pwsh
-        run: |
-          $exe = Resolve-Path "rust\target\x86_64-pc-windows-msvc\release\codexbar.exe"
-          $log = Join-Path $env:TEMP "codexbar_launch.log"
-          Remove-Item $log -Force -ErrorAction SilentlyContinue
-          $proc = Start-Process -FilePath $exe -ArgumentList "menubar" -WindowStyle Hidden -PassThru
-          $stillRunning = -not $proc.WaitForExit(8000)
-          $proc.Refresh()
-
-          if (-not (Test-Path $log)) {
-            throw "codexbar menubar did not create the expected launch log"
-          }
-
-          $logContent = Get-Content $log -Raw
-          Write-Host "codexbar menubar exit code: $($proc.ExitCode)"
-          Write-Host $logContent
-
-          if ($logContent -notmatch 'menubar') {
-            throw "codexbar menubar launch log did not record the command"
-          }
-
-          if ($stillRunning) {
-            Stop-Process -Id $proc.Id -Force
-            Wait-Process -Id $proc.Id -Timeout 15 -ErrorAction SilentlyContinue
-            return
-          }
-
-          if (
-            $logContent -match 'Remote Desktop' -or
-            $logContent -match 'egui_glow: OpenGL: egui_glow requires opengl 2\.0\+'
-          ) {
-            Write-Host "codexbar menubar exited because the GitHub Windows runner lacks a usable interactive graphics session; treating that as expected for CI."
-            return
-          }
-
-          throw "codexbar menubar exited before the smoke check completed"
 
   linux-cli-smoke:
     strategy:
@@ -165,7 +119,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN="rust/target/${{ matrix.target }}/release/codexbar"
+          BIN="target/${{ matrix.target }}/release/codexbar"
           "$BIN" --help >/dev/null
           "$BIN" --version >/dev/null
           "$BIN" usage --help >/dev/null

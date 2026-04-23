@@ -55,7 +55,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BIN="rust/target/${{ matrix.target }}/release/codexbar"
+          BIN="target/${{ matrix.target }}/release/codexbar"
           "$BIN" --help >/dev/null
           "$BIN" --version >/dev/null
           "$BIN" usage --help >/dev/null
@@ -79,7 +79,7 @@ jobs:
           fi
 
           OUT_DIR="$(mktemp -d)"
-          BIN="rust/target/${{ matrix.target }}/release/codexbar"
+          BIN="target/${{ matrix.target }}/release/codexbar"
           install -m 0755 "$BIN" "$OUT_DIR/codexbar"
           cp rust/README.md "$OUT_DIR/README.md"
           cp LICENSE "$OUT_DIR/LICENSE"
