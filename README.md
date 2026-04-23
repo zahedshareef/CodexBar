@@ -7,9 +7,7 @@ The Windows port of [CodexBar](https://github.com/steipete/CodexBar) — a syste
 > Built with **Tauri + React** on a shared **Rust** backend. The original CodexBar is a macOS Swift app by [Peter Steinberger](https://github.com/steipete).
 
 <p align="center">
-  <img src="extra-docs/images/tray-panel.png" width="310" alt="Tray panel"/>
-  &nbsp;&nbsp;
-  <img src="extra-docs/images/settings-providers.png" width="310" alt="Settings — provider detail"/>
+  <img src="extra-docs/images/tray-panel.png" width="310" alt="Tray panel showing provider grid and Claude usage"/>
 </p>
 
 ## Features

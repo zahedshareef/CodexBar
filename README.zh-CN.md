@@ -7,9 +7,7 @@
 > 基于 **Tauri + React** 构建，底层复用共享 **Rust** 后端。原版 CodexBar 是由 [Peter Steinberger](https://github.com/steipete) 开发的 macOS Swift 应用。
 
 <p align="center">
-  <img src="extra-docs/images/tray-panel.png" width="310" alt="托盘面板"/>
-  &nbsp;&nbsp;
-  <img src="extra-docs/images/settings-providers.png" width="310" alt="设置 — 服务商详情"/>
+  <img src="extra-docs/images/tray-panel.png" width="310" alt="托盘面板 — 服务商网格与 Claude 用量"/>
 </p>
 
 ## 功能特性
