@@ -93,8 +93,22 @@ unsafe extern "system" fn borderless_subclass_proc(
 /// Eliminate the DWM caption bar by subclassing the window to zero the
 /// non-client area.  Safe to call on multiple windows — each gets its
 /// own subclass via `SetWindowSubclass`.
+///
+/// When `resizable` is true, `WS_THICKFRAME` is preserved so the native
+/// resize affordance still works.
 #[cfg(windows)]
 pub fn force_dark_caption(win: &tauri::WebviewWindow) {
+    force_dark_caption_inner(win, false);
+}
+
+/// Same as [`force_dark_caption`] but keeps the resize frame.
+#[cfg(windows)]
+pub fn force_dark_caption_resizable(win: &tauri::WebviewWindow) {
+    force_dark_caption_inner(win, true);
+}
+
+#[cfg(windows)]
+fn force_dark_caption_inner(win: &tauri::WebviewWindow, keep_resize: bool) {
     use raw_window_handle::HasWindowHandle;
 
     let Ok(handle) = win.window_handle() else {
@@ -153,15 +167,23 @@ pub fn force_dark_caption(win: &tauri::WebviewWindow) {
             SetWindowLongPtrW(hwnd, GCL_HBRBACKGROUND, brush);
         }
 
-        // Remove WS_CAPTION and WS_THICKFRAME if present
+        // Remove WS_CAPTION; only strip WS_THICKFRAME for non-resizable windows
         const GWL_STYLE: i32 = -16;
         const WS_CAPTION: isize = 0x00C00000;
         const WS_THICKFRAME: isize = 0x00040000;
         let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-        let new_style = style & !WS_CAPTION & !WS_THICKFRAME;
+        let new_style = if keep_resize {
+            style & !WS_CAPTION
+        } else {
+            style & !WS_CAPTION & !WS_THICKFRAME
+        };
         if new_style != style {
             SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
-            tracing::info!("dwm: stripped WS_CAPTION/WS_THICKFRAME");
+            if keep_resize {
+                tracing::info!("dwm: stripped WS_CAPTION (kept WS_THICKFRAME for resize)");
+            } else {
+                tracing::info!("dwm: stripped WS_CAPTION/WS_THICKFRAME");
+            }
         }
 
         // Force frame recalculation
@@ -183,3 +205,6 @@ pub fn force_dark_caption(win: &tauri::WebviewWindow) {
 
 #[cfg(not(windows))]
 pub fn force_dark_caption(_win: &tauri::WebviewWindow) {}
+
+#[cfg(not(windows))]
+pub fn force_dark_caption_resizable(_win: &tauri::WebviewWindow) {}

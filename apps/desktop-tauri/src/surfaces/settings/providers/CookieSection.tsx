@@ -35,25 +35,29 @@ export function CookieSection({ providerId, cookieDomain }: Props) {
 
   const [pasteValue, setPasteValue] = useState("");
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (signal: { stale: boolean }) => {
     try {
       const cookies = await getManualCookies();
+      if (signal.stale) return;
       setSaved(cookies.find((c) => c.providerId === providerId) ?? null);
     } catch (err: unknown) {
+      if (signal.stale) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoaded(true);
+      if (!signal.stale) setLoaded(true);
     }
   }, [providerId]);
 
   useEffect(() => {
     if (cookieDomain === null) return;
+    const signal = { stale: false };
     setLoaded(false);
     setError(null);
     setImportError(null);
     setImportStatus(null);
     setPasteValue("");
-    void reload();
+    void reload(signal);
+    return () => { signal.stale = true; };
   }, [reload, cookieDomain]);
 
   useEffect(() => {

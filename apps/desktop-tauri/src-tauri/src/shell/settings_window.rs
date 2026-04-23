@@ -31,8 +31,8 @@ pub fn open_or_focus(app: &tauri::AppHandle, tab: &str) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    // Force DWM caption to dark so the residual non-client strip is invisible
-    super::dwm::force_dark_caption(&win);
+    // Force DWM caption to dark; keep WS_THICKFRAME since window is resizable
+    super::dwm::force_dark_caption_resizable(&win);
 
     // Manually center: Tauri's .center() is unreliable on Windows when
     // called from async commands. Compute position from the primary monitor.

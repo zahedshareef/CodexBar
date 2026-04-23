@@ -30,31 +30,47 @@ export function ApiKeySection({ providerId }: Props) {
   const [editValue, setEditValue] = useState("");
   const [editLabel, setEditLabel] = useState("");
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (signal: { stale: boolean }) => {
     try {
       const [providers, keys] = await Promise.all([
         getApiKeyProviders(),
         getApiKeys(),
       ]);
+      if (signal.stale) return;
       setInfo(providers.find((p) => p.id === providerId) ?? null);
       setSaved(keys.find((k) => k.providerId === providerId) ?? null);
     } catch (err: unknown) {
+      if (signal.stale) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoaded(true);
+      if (!signal.stale) setLoaded(true);
     }
   }, [providerId]);
 
   useEffect(() => {
+    const signal = { stale: false };
     setLoaded(false);
     setEditing(false);
     setEditValue("");
     setEditLabel("");
     setError(null);
-    void reload();
+    void reload(signal);
+    return () => { signal.stale = true; };
   }, [reload]);
 
   if (!loaded) return null;
+  // Provider doesn't support API keys — render nothing.
+  // Distinguish from "failed to load" by checking error state.
+  if (!info && !error) return null;
+  if (!info && error) {
+    return (
+      <section className="provider-detail-section">
+        <h4>API Key</h4>
+        <div className="settings-status settings-status--error">{error}</div>
+      </section>
+    );
+  }
+  // After the guards above, info is guaranteed non-null.
   if (!info) return null;
 
   const handleSave = async () => {

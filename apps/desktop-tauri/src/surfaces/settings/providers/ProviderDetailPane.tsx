@@ -79,7 +79,7 @@ export function ProviderDetailPane({ providerId, cookieDomain = null }: Props) {
     };
   }, []);
 
-  const load = useCallback(async (id: string) => {
+  const load = useCallback(async (id: string, signal?: { stale: boolean }) => {
     setLoading(true);
     setError(null);
     try {
@@ -88,16 +88,18 @@ export function ProviderDetailPane({ providerId, cookieDomain = null }: Props) {
         getProviderCookieSourceOptions(id),
         getProviderRegionOptions(id),
       ]);
+      if (signal?.stale) return;
       setDetail(next);
       setCookieOptions(cookieOpts);
       setRegionOptions(regionOpts);
     } catch (e) {
+      if (signal?.stale) return;
       setError(String(e));
       setDetail(null);
       setCookieOptions([]);
       setRegionOptions([]);
     } finally {
-      setLoading(false);
+      if (!signal?.stale) setLoading(false);
     }
   }, []);
 
@@ -108,7 +110,9 @@ export function ProviderDetailPane({ providerId, cookieDomain = null }: Props) {
       setRegionOptions([]);
       return;
     }
-    void load(providerId);
+    const signal = { stale: false };
+    void load(providerId, signal);
+    return () => { signal.stale = true; };
   }, [providerId, load]);
 
   // Live-refresh when a new snapshot lands for this provider.
