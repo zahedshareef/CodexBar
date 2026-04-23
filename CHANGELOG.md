@@ -1,6 +1,6 @@
 # Changelog
 
-## [Windows] 0.22.0 — 2026-07-20
+## [Windows] 0.22.0 — 2026-04-23
 
 ### New Providers
 - Perplexity: cookie-based credits tracking (recurring/bonus/purchased), Pro/Max plan detection
@@ -31,6 +31,18 @@
 - Add keyboard shortcuts: Ctrl+R (Refresh), Ctrl+, (Settings), Ctrl+Q (Quit)
 - Show shortcut hints in footer menu items
 - Update PopOutPanel shortcuts from macOS ⌘ to Windows Ctrl+
+- Fix settings window resize (preserve WS_THICKFRAME in DWM caption hack)
+- Fix async race conditions on provider switching (stale response guards)
+- Fix error visibility in API key section
+- Fix GDI brush leak in DWM dark caption
+
+### Repo Cleanup
+- Remove legacy egui shell (22,539 lines of dead code)
+- Rewrite README with extra-docs split (WSL, Building, Cookies)
+- Fresh Windows screenshots
+- Fix CI target paths for workspace layout
+- Release workflow now builds Tauri app as codexbar.exe
+- Add frontend CI job, Rust/npm caching, Dependabot
 
 ---
 
