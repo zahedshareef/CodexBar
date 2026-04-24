@@ -97,6 +97,7 @@ export default function ProvidersTab({
       <ProviderDetailPane
         providerId={selectedId}
         cookieDomain={selectedEntry?.cookieDomain ?? null}
+        resetTimeRelative={settings.resetTimeRelative}
       />
     </div>
   );
