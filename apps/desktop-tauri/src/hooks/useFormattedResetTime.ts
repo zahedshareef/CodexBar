@@ -5,15 +5,15 @@ import { useLocale } from "./useLocale";
  * Format a provider's reset timestamp for display.
  *
  * When `relative` is true, returns a live "Resets in 3h 42m" style string
- * (matches the tray pop-out countdown used by `useResetCountdown`).
+ * and includes the reset label because the locale strings include it.
  *
  * When `relative` is false, returns the absolute reset time converted to
  * the user's local timezone via `Intl.DateTimeFormat`, fixing the issue
  * where the backend-supplied `reset_description` was pre-formatted as UTC
  * wall time (e.g., `Mar 5 at 3:00PM`).
  *
- * Falls back to `fallback` (typically the backend's `resetDescription`)
- * when `resetsAt` is absent or unparseable.
+ * Falls back to a labeled `fallback` (typically the backend's
+ * `resetDescription`) when `resetsAt` is absent or unparseable.
  */
 export function useFormattedResetTime(
   resetsAt: string | null,
@@ -29,9 +29,13 @@ export function useFormattedResetTime(
     return () => window.clearInterval(id);
   }, [resetsAt, relative]);
 
-  if (!resetsAt) return fallback;
+  if (!resetsAt) {
+    return relative && fallback ? `${t("MetricResetsIn")} ${fallback}` : fallback;
+  }
   const target = Date.parse(resetsAt);
-  if (Number.isNaN(target)) return fallback;
+  if (Number.isNaN(target)) {
+    return relative && fallback ? `${t("MetricResetsIn")} ${fallback}` : fallback;
+  }
 
   if (relative) {
     const diffMs = target - now;

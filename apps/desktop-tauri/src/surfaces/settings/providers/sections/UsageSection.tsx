@@ -91,7 +91,9 @@ function UsageBar({
     resetTimeRelative,
   );
   const resetHint = formattedReset
-    ? `${t("MetricResetsIn")} ${formattedReset}`
+    ? resetTimeRelative
+      ? formattedReset
+      : `${t("MetricResetsIn")} ${formattedReset}`
     : null;
 
   return (
