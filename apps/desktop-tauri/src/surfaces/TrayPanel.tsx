@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
 import { setSurfaceMode, openSettingsWindow } from "../lib/tauri";
@@ -74,6 +74,8 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   // Hide panel during the initial resize+reposition dance so the user
   // doesn't see the window jump around.  Revealed after first layout pass.
   const [layoutReady, setLayoutReady] = useState(false);
+  const layoutReadyRef = useRef(false);
+  const resizeRunRef = useRef(0);
 
   // Cards to display based on mode
   // Overview: all providers in the grid — non-error first, then errors
@@ -96,88 +98,125 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   }, [sorted, selectedProviderId]);
 
   // Dynamically size the Tauri window to fit content, capped at 800px.
-  // During measurement we temporarily unlock overflow/flex constraints,
-  // expand the window, scan all descendants for true visual extent,
-  // then shrink the window to the content height.
+  // The first pass can grow the hidden window for a complete measurement.
+  // Later content updates measure in-place so the visible panel does not
+  // bounce to max height and back while providers finish refreshing.
   useEffect(() => {
     const TRAY_WIDTH = 310;
     const MAX_HEIGHT = 800;
     const MIN_HEIGHT = 200;
 
     const resize = async () => {
+      const run = ++resizeRunRef.current;
       const win = getCurrentWindow();
       const surface = document.querySelector<HTMLElement>(".menu-surface--tray");
       if (!surface) return;
 
-      // Unlock viewport constraints for measurement
+      const body = surface.querySelector<HTMLElement>(".menu-surface__body");
+      const stack = surface.querySelector<HTMLElement>(".menu-stack");
+
+      const previous = {
+        htmlOverflow: document.documentElement.style.overflow,
+        bodyOverflow: document.body.style.overflow,
+        bodyMinHeight: document.body.style.minHeight,
+        surfaceMaxHeight: surface.style.maxHeight,
+        surfaceOverflow: surface.style.overflow,
+        bodyInnerOverflow: body?.style.overflow,
+        bodyFlex: body?.style.flex,
+        stackOverflow: stack?.style.overflow,
+      };
+      let committedHeight = false;
+
       document.documentElement.style.overflow = "visible";
       document.body.style.overflow = "visible";
       document.body.style.minHeight = "0";
       surface.style.maxHeight = "none";
-
-      const body = surface.querySelector<HTMLElement>(".menu-surface__body");
-      const stack = surface.querySelector<HTMLElement>(".menu-stack");
+      surface.style.overflow = "visible";
       if (body) { body.style.overflow = "visible"; body.style.flex = "0 0 auto"; }
       if (stack) { stack.style.overflow = "visible"; }
 
-      // Expand window so content has room to lay out
-      await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
-      for (let i = 0; i < 20; i++) {
-        await new Promise<void>((r) => setTimeout(r, 50));
-        if (document.documentElement.clientHeight >= MAX_HEIGHT - 20) break;
+      try {
+        if (!layoutReadyRef.current) {
+          await win.setSize(new LogicalSize(TRAY_WIDTH, MAX_HEIGHT));
+          for (let i = 0; i < 20; i++) {
+            await new Promise<void>((r) => setTimeout(r, 50));
+            if (document.documentElement.clientHeight >= MAX_HEIGHT - 20) break;
+          }
+        }
+
+        await new Promise<void>((r) => requestAnimationFrame(() => r()));
+        await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+        if (run !== resizeRunRef.current) return;
+
+        // Scan all descendants to find true content extent
+        const surfaceRect = surface.getBoundingClientRect();
+        let maxBottom = surfaceRect.bottom;
+        for (const el of surface.querySelectorAll("*")) {
+          const r = (el as HTMLElement).getBoundingClientRect();
+          if (r.height > 0 && r.bottom > maxBottom) maxBottom = r.bottom;
+        }
+
+        // Also check the footer explicitly — it may lay out below the
+        // surface border-box when body flex overflows the auto-height parent.
+        const footer = surface.querySelector<HTMLElement>(".menu-surface__footer");
+        const footerRect = footer?.getBoundingClientRect();
+        if (footerRect && footerRect.height > 0 && footerRect.bottom > maxBottom) {
+          maxBottom = footerRect.bottom;
+        }
+
+        const contentHeight = Math.ceil(maxBottom - surfaceRect.top) + 4;
+        const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
+
+        // Lock surface to measured content height.
+        surface.style.maxHeight = `${height}px`;
+        committedHeight = true;
+
+        await win.setSize(new LogicalSize(TRAY_WIDTH, height));
+        await reanchorTrayPanel().catch(() => {});
+
+        // First layout pass complete — reveal the panel
+        if (run === resizeRunRef.current) {
+          layoutReadyRef.current = true;
+          setLayoutReady(true);
+        }
+      } finally {
+        if (!committedHeight) {
+          surface.style.maxHeight = previous.surfaceMaxHeight;
+        }
+        surface.style.overflow = previous.surfaceOverflow;
+        document.documentElement.style.overflow = previous.htmlOverflow;
+        document.body.style.overflow = previous.bodyOverflow;
+        document.body.style.minHeight = previous.bodyMinHeight;
+        if (body) {
+          body.style.overflow = previous.bodyInnerOverflow ?? "";
+          body.style.flex = previous.bodyFlex ?? "";
+        }
+        if (stack) {
+          stack.style.overflow = previous.stackOverflow ?? "";
+        }
       }
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-      await new Promise<void>((r) => requestAnimationFrame(() => r()));
-
-      // Scan all descendants to find true content extent
-      const surfaceRect = surface.getBoundingClientRect();
-      let maxBottom = surfaceRect.bottom;
-      for (const el of surface.querySelectorAll("*")) {
-        const r = (el as HTMLElement).getBoundingClientRect();
-        if (r.height > 0 && r.bottom > maxBottom) maxBottom = r.bottom;
-      }
-
-      // Also check the footer explicitly — it may lay out below the
-      // surface border-box when body flex overflows the auto-height parent.
-      const footer = surface.querySelector<HTMLElement>(".menu-surface__footer");
-      const footerRect = footer?.getBoundingClientRect();
-      if (footerRect && footerRect.height > 0 && footerRect.bottom > maxBottom) {
-        maxBottom = footerRect.bottom;
-      }
-
-      const contentHeight = Math.ceil(maxBottom - surfaceRect.top) + 4;
-      const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
-
-      // Lock surface to measured content height and restore body constraints
-      surface.style.maxHeight = `${height}px`;
-      if (body) { body.style.overflow = ""; body.style.flex = ""; }
-
-      await win.setSize(new LogicalSize(TRAY_WIDTH, height));
-      await reanchorTrayPanel().catch(() => {});
-
-      // First layout pass complete — reveal the panel
-      setLayoutReady(true);
     };
 
-    const t0 = setTimeout(() => void resize(), 100);
-    const t1 = setTimeout(() => void resize(), 2000);
-    const t2 = setTimeout(() => void resize(), 5000);
+    const t0 = setTimeout(() => void resize(), layoutReadyRef.current ? 50 : 100);
 
     return () => {
       clearTimeout(t0);
-      clearTimeout(t1);
-      clearTimeout(t2);
     };
   }, [visibleProviders, providers]);
 
   const openSettings = useCallback(() => {
-    openSettingsWindow("general");
+    void openSettingsWindow("general").finally(() => {
+      void getCurrentWindow().close();
+    });
   }, []);
   const openPopOut = useCallback(() => {
     setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
   const openAbout = useCallback(() => {
-    openSettingsWindow("about");
+    void openSettingsWindow("about").finally(() => {
+      void getCurrentWindow().close();
+    });
   }, []);
   const quitApp = useCallback(() => {
     void getCurrentWindow().close();
@@ -222,13 +261,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const handleGridClick = useCallback(
     (providerId: string | null) => {
       setSelectedProviderId(providerId);
-      // In overview mode, scroll to card if clicking a specific provider
-      if (providerId !== null) {
-        const el = document.getElementById(`card-${providerId}`);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
-      }
     },
     [],
   );
