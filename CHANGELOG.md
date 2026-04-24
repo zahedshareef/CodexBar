@@ -1,5 +1,14 @@
 # Changelog
 
+## [Windows] 0.22.1 — 2026-04-24
+
+### Fixed
+- Stabilize the tray panel height measurement so provider refreshes and provider selection no longer visibly jump or re-anchor the popup.
+- Close the tray panel when opening Settings or About so those windows can take focus cleanly.
+- Keep the Windows DWM helper clean under `cargo clippy --all-targets -- -D warnings`.
+
+---
+
 ## [Windows] 0.22.0 — 2026-04-23
 
 ### New Providers
