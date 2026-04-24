@@ -38,6 +38,7 @@ import { CookieSection } from "./CookieSection";
 interface Props {
   providerId: string | null;
   cookieDomain?: string | null;
+  resetTimeRelative: boolean;
 }
 
 /**
@@ -50,7 +51,11 @@ interface Props {
  * credential detection UIs (6d), inline token accounts (6e) and charts
  * (6f) are wired in as sub-sections below.
  */
-export function ProviderDetailPane({ providerId, cookieDomain = null }: Props) {
+export function ProviderDetailPane({
+  providerId,
+  cookieDomain = null,
+  resetTimeRelative,
+}: Props) {
   const { t } = useLocale();
   const [detail, setDetail] = useState<ProviderDetail | null>(null);
   const [cookieOptions, setCookieOptions] = useState<CookieSourceOption[]>([]);
@@ -224,7 +229,11 @@ export function ProviderDetailPane({ providerId, cookieDomain = null }: Props) {
         </div>
       )}
 
-      <UsageSection provider={detail} t={t} />
+      <UsageSection
+        provider={detail}
+        resetTimeRelative={resetTimeRelative}
+        t={t}
+      />
       <PaceSection pace={detail.pace} t={t} />
       <CostSection cost={detail.cost} t={t} />
 

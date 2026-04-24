@@ -3,9 +3,11 @@ import type {
   RateWindowSnapshot,
 } from "../../../../types/bridge";
 import type { LocaleKey } from "../../../../i18n/keys";
+import { useFormattedResetTime } from "../../../../hooks/useFormattedResetTime";
 
 interface Props {
   provider: ProviderDetail;
+  resetTimeRelative: boolean;
   t: (key: LocaleKey) => string;
 }
 
@@ -20,7 +22,7 @@ interface BarSpec {
  * Mirrors the bars in
  * `rust/src/native_ui/preferences.rs::render_provider_detail_panel`.
  */
-export function UsageSection({ provider, t }: Props) {
+export function UsageSection({ provider, resetTimeRelative, t }: Props) {
   const bars: BarSpec[] = [];
   if (provider.session) {
     bars.push({
@@ -59,7 +61,13 @@ export function UsageSection({ provider, t }: Props) {
     <section className="provider-detail-section">
       <h4>{t("ProviderUsage")}</h4>
       {bars.map((b) => (
-        <UsageBar key={b.key} label={b.label} rate={b.rate} t={t} />
+        <UsageBar
+          key={b.key}
+          label={b.label}
+          rate={b.rate}
+          resetTimeRelative={resetTimeRelative}
+          t={t}
+        />
       ))}
     </section>
   );
@@ -68,15 +76,22 @@ export function UsageSection({ provider, t }: Props) {
 function UsageBar({
   label,
   rate,
+  resetTimeRelative,
   t,
 }: {
   label: string;
   rate: RateWindowSnapshot;
+  resetTimeRelative: boolean;
   t: (key: LocaleKey) => string;
 }) {
   const pct = rate.isExhausted ? 100 : Math.min(100, rate.usedPercent);
-  const resetHint = rate.resetDescription
-    ? `${t("MetricResetsIn")} ${rate.resetDescription}`
+  const formattedReset = useFormattedResetTime(
+    rate.resetsAt,
+    rate.resetDescription,
+    resetTimeRelative,
+  );
+  const resetHint = formattedReset
+    ? `${t("MetricResetsIn")} ${formattedReset}`
     : null;
 
   return (
