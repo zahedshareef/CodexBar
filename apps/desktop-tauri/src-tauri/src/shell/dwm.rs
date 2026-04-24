@@ -12,12 +12,12 @@ use std::ffi::c_void;
 #[link(name = "dwmapi")]
 unsafe extern "system" {
     fn DwmSetWindowAttribute(hwnd: isize, attr: u32, data: *const c_void, size: u32) -> i32;
-    fn DwmExtendFrameIntoClientArea(hwnd: isize, margins: *const MARGINS) -> i32;
+    fn DwmExtendFrameIntoClientArea(hwnd: isize, margins: *const Margins) -> i32;
 }
 
 #[cfg(windows)]
 #[repr(C)]
-struct MARGINS {
+struct Margins {
     left: i32,
     right: i32,
     top: i32,
@@ -124,7 +124,7 @@ fn force_dark_caption_inner(win: &tauri::WebviewWindow, keep_resize: bool) {
     };
 
     const GA_ROOT: u32 = 2;
-    let inner = h.hwnd.get() as isize;
+    let inner = h.hwnd.get();
     let hwnd = unsafe { GetAncestor(inner, GA_ROOT) };
     let hwnd = if hwnd != 0 { hwnd } else { inner };
     tracing::info!("dwm: inner={inner:#x} root={hwnd:#x}");
@@ -150,7 +150,7 @@ fn force_dark_caption_inner(win: &tauri::WebviewWindow, keep_resize: bool) {
         tracing::info!("dwm: dark_mode={r1:#x} caption_color={r2:#x}");
 
         // Extend DWM frame fully into client area
-        let margins = MARGINS {
+        let margins = Margins {
             left: -1,
             right: -1,
             top: -1,
