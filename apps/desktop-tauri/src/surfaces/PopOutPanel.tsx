@@ -147,7 +147,11 @@ export default function PopOutPanel({
             data-deeplinked={p.providerId === providerId || undefined}
           >
             {idx > 0 && <div className="menu-stack__sep" />}
-            <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />
+            <MenuCard
+              provider={p}
+              hideEmail={settings.hidePersonalInfo}
+              resetTimeRelative={settings.resetTimeRelative}
+            />
           </div>
         ))}
       </div>
