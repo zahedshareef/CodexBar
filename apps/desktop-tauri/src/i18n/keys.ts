@@ -249,6 +249,7 @@ export const ALL_LOCALE_KEYS = [
   "ProviderSourceOauthWeb",
   "Automatic",
   "Average",
+  "ExtraUsage",
   "OAuth",
   "Api",
   "Web",

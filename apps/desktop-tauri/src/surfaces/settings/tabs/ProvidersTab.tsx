@@ -98,6 +98,9 @@ export default function ProvidersTab({
         providerId={selectedId}
         cookieDomain={selectedEntry?.cookieDomain ?? null}
         resetTimeRelative={settings.resetTimeRelative}
+        providerMetrics={settings.providerMetrics}
+        settingsDisabled={saving}
+        onSettingsChange={set}
       />
     </div>
   );

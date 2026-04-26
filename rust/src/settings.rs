@@ -136,7 +136,10 @@ pub enum MetricPreference {
     Session,
     Weekly,
     Model,
+    Tertiary,
     Credits,
+    #[serde(rename = "extraUsage", alias = "extrausage")]
+    ExtraUsage,
     Average,
 }
 
@@ -148,7 +151,9 @@ impl MetricPreference {
             MetricPreference::Session,
             MetricPreference::Weekly,
             MetricPreference::Model,
+            MetricPreference::Tertiary,
             MetricPreference::Credits,
+            MetricPreference::ExtraUsage,
             MetricPreference::Average,
         ]
     }
@@ -160,7 +165,9 @@ impl MetricPreference {
             MetricPreference::Session => "Session",
             MetricPreference::Weekly => "Weekly",
             MetricPreference::Model => "Model",
+            MetricPreference::Tertiary => "Tertiary",
             MetricPreference::Credits => "Credits",
+            MetricPreference::ExtraUsage => "Extra usage",
             MetricPreference::Average => "Average",
         }
     }
@@ -172,7 +179,9 @@ impl MetricPreference {
             MetricPreference::Session => "Current session usage",
             MetricPreference::Weekly => "Weekly usage limit",
             MetricPreference::Model => "Model-specific limit",
+            MetricPreference::Tertiary => "Tertiary usage limit",
             MetricPreference::Credits => "Credit balance",
+            MetricPreference::ExtraUsage => "On-demand or extra usage budget",
             MetricPreference::Average => "Average across metrics",
         }
     }

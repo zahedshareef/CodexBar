@@ -16,7 +16,9 @@ export type MetricPreference =
   | "session"
   | "weekly"
   | "model"
+  | "tertiary"
   | "credits"
+  | "extraUsage"
   | "average";
 
 export type Language = "english" | "chinese";

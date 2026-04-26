@@ -3,6 +3,8 @@ import type {
   CookieSourceOption,
   ProviderDetail,
   RegionOption,
+  SettingsSnapshot,
+  SettingsUpdate,
 } from "../../../types/bridge";
 import { useLocale } from "../../../hooks/useLocale";
 import {
@@ -34,11 +36,15 @@ import { OpenAiExtras } from "./sections/credentials/OpenAiExtras";
 import { TokenAccountsPanel } from "../tokens/TokenAccountsPanel";
 import { ApiKeySection } from "./ApiKeySection";
 import { CookieSection } from "./CookieSection";
+import { MenuBarMetricSection } from "./sections/MenuBarMetricSection";
 
 interface Props {
   providerId: string | null;
   cookieDomain?: string | null;
   resetTimeRelative: boolean;
+  providerMetrics: SettingsSnapshot["providerMetrics"];
+  settingsDisabled: boolean;
+  onSettingsChange: (patch: SettingsUpdate) => void;
 }
 
 /**
@@ -55,6 +61,9 @@ export function ProviderDetailPane({
   providerId,
   cookieDomain = null,
   resetTimeRelative,
+  providerMetrics,
+  settingsDisabled,
+  onSettingsChange,
 }: Props) {
   const { t } = useLocale();
   const [detail, setDetail] = useState<ProviderDetail | null>(null);
@@ -233,6 +242,13 @@ export function ProviderDetailPane({
         provider={detail}
         resetTimeRelative={resetTimeRelative}
         t={t}
+      />
+      <MenuBarMetricSection
+        provider={detail}
+        providerMetrics={providerMetrics}
+        disabled={settingsDisabled}
+        t={t}
+        onChange={onSettingsChange}
       />
       <PaceSection pace={detail.pace} t={t} />
       <CostSection cost={detail.cost} t={t} />

@@ -793,7 +793,9 @@ fn metric_preference_label(pref: MetricPreference) -> &'static str {
         MetricPreference::Session => "session",
         MetricPreference::Weekly => "weekly",
         MetricPreference::Model => "model",
+        MetricPreference::Tertiary => "tertiary",
         MetricPreference::Credits => "credits",
+        MetricPreference::ExtraUsage => "extraUsage",
         MetricPreference::Average => "average",
     }
 }
@@ -804,7 +806,9 @@ fn parse_metric_preference(s: &str) -> Option<MetricPreference> {
         "session" => Some(MetricPreference::Session),
         "weekly" => Some(MetricPreference::Weekly),
         "model" => Some(MetricPreference::Model),
+        "tertiary" => Some(MetricPreference::Tertiary),
         "credits" => Some(MetricPreference::Credits),
+        "extraUsage" | "extrausage" => Some(MetricPreference::ExtraUsage),
         "average" => Some(MetricPreference::Average),
         _ => None,
     }

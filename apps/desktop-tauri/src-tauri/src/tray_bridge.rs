@@ -3,7 +3,8 @@
 use std::sync::Mutex;
 
 use crate::commands::ProviderCatalogEntry;
-use codexbar::settings::Settings;
+use codexbar::core::ProviderId;
+use codexbar::settings::{MetricPreference, Settings};
 use tauri::image::Image;
 use tauri::menu::{CheckMenuItemBuilder, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -410,14 +411,11 @@ pub fn update_tray_icon_and_tooltip(
     let picked = pick_tray_provider(&ok_snapshots, prefer_highest);
 
     let (session_pct, weekly_pct) = match picked {
-        Some(s) => (
-            s.primary.used_percent,
-            s.secondary.as_ref().map(|w| w.used_percent),
-        ),
+        Some(s) => selected_tray_percents(s, &settings),
         None => (
             ok_snapshots
                 .iter()
-                .map(|s| s.primary.used_percent)
+                .map(|s| selected_tray_percents(s, &settings).0)
                 .fold(0.0_f64, f64::max),
             None,
         ),
@@ -453,6 +451,103 @@ fn pick_tray_provider<'a>(
     } else {
         Some(ok_snapshots[0])
     }
+}
+
+fn selected_tray_percents(
+    snapshot: &crate::commands::ProviderUsageSnapshot,
+    settings: &Settings,
+) -> (f64, Option<f64>) {
+    let provider = ProviderId::from_cli_name(snapshot.provider_id.as_str());
+    let preference = provider
+        .map(|id| settings.get_provider_metric(id))
+        .unwrap_or(MetricPreference::Automatic);
+    let primary = selected_metric_percent(snapshot, provider, preference)
+        .or_else(|| selected_metric_percent(snapshot, provider, MetricPreference::Automatic))
+        .unwrap_or(snapshot.primary.used_percent);
+
+    let secondary = snapshot.secondary.as_ref().map(|w| w.used_percent);
+
+    (primary, secondary)
+}
+
+fn selected_metric_percent(
+    snapshot: &crate::commands::ProviderUsageSnapshot,
+    provider: Option<ProviderId>,
+    preference: MetricPreference,
+) -> Option<f64> {
+    match preference {
+        MetricPreference::Automatic => automatic_metric_percent(snapshot, provider),
+        MetricPreference::Session => Some(snapshot.primary.used_percent),
+        MetricPreference::Weekly => snapshot
+            .secondary
+            .as_ref()
+            .map(|w| w.used_percent)
+            .or(Some(snapshot.primary.used_percent)),
+        MetricPreference::Model => snapshot
+            .model_specific
+            .as_ref()
+            .map(|w| w.used_percent)
+            .or(Some(snapshot.primary.used_percent)),
+        MetricPreference::Tertiary => snapshot
+            .tertiary
+            .as_ref()
+            .map(|w| w.used_percent)
+            .or_else(|| snapshot.secondary.as_ref().map(|w| w.used_percent))
+            .or(Some(snapshot.primary.used_percent)),
+        MetricPreference::Credits | MetricPreference::ExtraUsage => cost_metric_percent(snapshot),
+        MetricPreference::Average => average_metric_percent(snapshot),
+    }
+}
+
+fn automatic_metric_percent(
+    snapshot: &crate::commands::ProviderUsageSnapshot,
+    provider: Option<ProviderId>,
+) -> Option<f64> {
+    match provider {
+        Some(ProviderId::Cursor) => max_metric_percent([
+            Some(snapshot.primary.used_percent),
+            snapshot.secondary.as_ref().map(|w| w.used_percent),
+            snapshot.tertiary.as_ref().map(|w| w.used_percent),
+        ]),
+        Some(ProviderId::Zai) => max_metric_percent([
+            Some(snapshot.primary.used_percent),
+            snapshot.tertiary.as_ref().map(|w| w.used_percent),
+            None,
+        ])
+        .or_else(|| snapshot.secondary.as_ref().map(|w| w.used_percent)),
+        Some(ProviderId::Factory) | Some(ProviderId::Kimi) => snapshot
+            .secondary
+            .as_ref()
+            .map(|w| w.used_percent)
+            .or(Some(snapshot.primary.used_percent)),
+        Some(ProviderId::Copilot) => max_metric_percent([
+            Some(snapshot.primary.used_percent),
+            snapshot.secondary.as_ref().map(|w| w.used_percent),
+            None,
+        ]),
+        _ => Some(snapshot.primary.used_percent),
+    }
+}
+
+fn average_metric_percent(snapshot: &crate::commands::ProviderUsageSnapshot) -> Option<f64> {
+    let secondary = snapshot.secondary.as_ref()?;
+    Some((snapshot.primary.used_percent + secondary.used_percent) / 2.0)
+}
+
+fn cost_metric_percent(snapshot: &crate::commands::ProviderUsageSnapshot) -> Option<f64> {
+    let cost = snapshot.cost.as_ref()?;
+    let limit = cost.limit?;
+    if limit <= 0.0 {
+        return None;
+    }
+    Some(((cost.used / limit) * 100.0).clamp(0.0, 100.0))
+}
+
+fn max_metric_percent<const N: usize>(values: [Option<f64>; N]) -> Option<f64> {
+    values
+        .into_iter()
+        .flatten()
+        .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
 }
 
 /// Build a compact multi-line tooltip string from provider snapshots.
@@ -719,10 +814,13 @@ mod tests {
         assert!(anchor.is_none());
     }
 
-    fn fake_snapshot(
+    fn fake_snapshot_with(
         id: &str,
         display: &str,
         used_percent: f64,
+        secondary_percent: Option<f64>,
+        tertiary_percent: Option<f64>,
+        cost: Option<(f64, f64)>,
     ) -> crate::commands::ProviderUsageSnapshot {
         crate::commands::ProviderUsageSnapshot {
             provider_id: id.into(),
@@ -738,12 +836,39 @@ mod tests {
                 reserve_description: None,
             },
             primary_label: None,
-            secondary: None,
+            secondary: secondary_percent.map(|pct| crate::commands::RateWindowSnapshot {
+                used_percent: pct,
+                remaining_percent: 100.0 - pct,
+                window_minutes: None,
+                resets_at: None,
+                reset_description: None,
+                is_exhausted: false,
+                reserve_percent: None,
+                reserve_description: None,
+            }),
             secondary_label: None,
             model_specific: None,
-            tertiary: None,
+            tertiary: tertiary_percent.map(|pct| crate::commands::RateWindowSnapshot {
+                used_percent: pct,
+                remaining_percent: 100.0 - pct,
+                window_minutes: None,
+                resets_at: None,
+                reset_description: None,
+                is_exhausted: false,
+                reserve_percent: None,
+                reserve_description: None,
+            }),
             extra_rate_windows: Vec::new(),
-            cost: None,
+            cost: cost.map(|(used, limit)| crate::commands::CostSnapshotBridge {
+                used,
+                limit: Some(limit),
+                remaining: Some((limit - used).max(0.0)),
+                currency_code: "USD".to_string(),
+                period: "monthly".to_string(),
+                resets_at: None,
+                formatted_used: format!("${used:.2}"),
+                formatted_limit: Some(format!("${limit:.2}")),
+            }),
             plan_name: None,
             account_email: None,
             source_label: String::new(),
@@ -753,6 +878,14 @@ mod tests {
             account_organization: None,
             tray_status_label: None,
         }
+    }
+
+    fn fake_snapshot(
+        id: &str,
+        display: &str,
+        used_percent: f64,
+    ) -> crate::commands::ProviderUsageSnapshot {
+        fake_snapshot_with(id, display, used_percent, None, None, None)
     }
 
     #[test]
@@ -783,5 +916,35 @@ mod tests {
         let refs: Vec<&crate::commands::ProviderUsageSnapshot> = vec![];
         assert!(pick_tray_provider(&refs, true).is_none());
         assert!(pick_tray_provider(&refs, false).is_none());
+    }
+
+    #[test]
+    fn selected_tray_percent_uses_cursor_extra_usage_cost() {
+        let mut settings = Settings::default();
+        settings.set_provider_metric(ProviderId::Cursor, MetricPreference::ExtraUsage);
+        let snapshot = fake_snapshot_with(
+            "cursor",
+            "Cursor",
+            10.0,
+            Some(20.0),
+            Some(72.0),
+            Some((15.0, 100.0)),
+        );
+
+        let (primary, secondary) = selected_tray_percents(&snapshot, &settings);
+
+        assert_eq!(primary, 15.0);
+        assert_eq!(secondary, Some(20.0));
+    }
+
+    #[test]
+    fn selected_tray_percent_falls_back_when_extra_usage_missing() {
+        let mut settings = Settings::default();
+        settings.set_provider_metric(ProviderId::Cursor, MetricPreference::ExtraUsage);
+        let snapshot = fake_snapshot_with("cursor", "Cursor", 10.0, Some(72.0), None, None);
+
+        let (primary, _) = selected_tray_percents(&snapshot, &settings);
+
+        assert_eq!(primary, 72.0);
     }
 }
