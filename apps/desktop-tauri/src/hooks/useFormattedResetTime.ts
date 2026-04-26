@@ -12,8 +12,9 @@ import { useLocale } from "./useLocale";
  * where the backend-supplied `reset_description` was pre-formatted as UTC
  * wall time (e.g., `Mar 5 at 3:00PM`).
  *
- * Falls back to a labeled `fallback` (typically the backend's
- * `resetDescription`) when `resetsAt` is absent or unparseable.
+ * Falls back to `fallback` (typically the backend's `resetDescription`) when
+ * `resetsAt` is absent or unparseable. Some providers use that fallback for
+ * non-time details, so callers should not assume it is safe to prefix.
  */
 export function useFormattedResetTime(
   resetsAt: string | null,
@@ -30,11 +31,11 @@ export function useFormattedResetTime(
   }, [resetsAt, relative]);
 
   if (!resetsAt) {
-    return relative && fallback ? `${t("MetricResetsIn")} ${fallback}` : fallback;
+    return fallback;
   }
   const target = Date.parse(resetsAt);
   if (Number.isNaN(target)) {
-    return relative && fallback ? `${t("MetricResetsIn")} ${fallback}` : fallback;
+    return fallback;
   }
 
   if (relative) {

@@ -349,7 +349,11 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
                 className={`menu-stack__item${isSelected ? " menu-stack__item--selected" : ""}`}
                 id={`card-${p.providerId}`}
               >
-                <MenuCard provider={p} hideEmail={settings.hidePersonalInfo} />
+                <MenuCard
+                  provider={p}
+                  hideEmail={settings.hidePersonalInfo}
+                  resetTimeRelative={settings.resetTimeRelative}
+                />
               </div>
             </Fragment>
           );

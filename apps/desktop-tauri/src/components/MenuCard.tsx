@@ -7,6 +7,7 @@ import type {
 } from "../types/bridge";
 import { getProviderChartData } from "../lib/tauri";
 import { useLocale } from "../hooks/useLocale";
+import { useFormattedResetTime } from "../hooks/useFormattedResetTime";
 import type { LocaleKey } from "../i18n/keys";
 import { paceCategory } from "../surfaces/tray/paceCategory";
 import { SimpleBarChart, StackedBarChart } from "./MiniBarChart";
@@ -41,6 +42,7 @@ function CopyIconButton({ text }: { text: string }) {
 interface MenuCardProps {
   provider: ProviderUsageSnapshot;
   hideEmail: boolean;
+  resetTimeRelative: boolean;
 }
 
 function maskEmail(email: string): string {
@@ -123,14 +125,21 @@ function MetricRow({
   title,
   snap,
   exhaustedLabel,
+  resetTimeRelative,
 }: {
   title: string;
   snap: RateWindowSnapshot;
   exhaustedLabel: string;
+  resetTimeRelative: boolean;
 }) {
   const pct = Math.min(100, Math.max(0, snap.usedPercent));
   const remain = 100 - pct;
   const level = levelOf(remain, snap.isExhausted);
+  const resetText = useFormattedResetTime(
+    snap.resetsAt,
+    snap.resetDescription,
+    resetTimeRelative,
+  );
   return (
     <div className="menu-metric">
       <span className="menu-metric__title">{title}</span>
@@ -139,8 +148,8 @@ function MetricRow({
       </div>
       <div className="menu-metric__row">
         <span className="menu-metric__pct">{Math.round(100 - pct)}% left</span>
-        {snap.resetDescription && (
-          <span className="menu-metric__reset">{snap.resetDescription}</span>
+        {resetText && (
+          <span className="menu-metric__reset">{resetText}</span>
         )}
       </div>
       {snap.isExhausted && (
@@ -174,9 +183,14 @@ function MetricRow({
  *
  * Padding: horizontal 16, vertical 2 (matches upstream UsageMenuCardView).
  */
-export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
+export default function MenuCard({ provider, hideEmail, resetTimeRelative }: MenuCardProps) {
   const { t } = useLocale();
   const [chartData, setChartData] = useState<ProviderChartData | null>(null);
+  const formattedCostReset = useFormattedResetTime(
+    provider.cost?.resetsAt ?? null,
+    null,
+    resetTimeRelative,
+  );
 
   useEffect(() => {
     if (DEMO_ENABLED) return; // skip chart fetch in demo mode
@@ -267,6 +281,7 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
                   title={m.label}
                   snap={m.snap}
                   exhaustedLabel={t("DetailWindowExhausted")}
+                  resetTimeRelative={resetTimeRelative}
                 />
               ))}
             </section>
@@ -297,9 +312,9 @@ export default function MenuCard({ provider, hideEmail }: MenuCardProps) {
                   {formatCurrency(provider.cost.remaining, provider.cost.currencyCode)}
                 </div>
               )}
-              {provider.cost.resetsAt && (
+              {formattedCostReset && (
                 <div className="menu-card__cost-line menu-card__cost-line--muted">
-                  {t("DetailCostResets")}: {provider.cost.resetsAt}
+                  {t("DetailCostResets")}: {formattedCostReset}
                 </div>
               )}
             </section>
