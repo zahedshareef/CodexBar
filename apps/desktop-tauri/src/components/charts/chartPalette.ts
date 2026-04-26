@@ -35,6 +35,7 @@ const PROVIDER_TOKEN: Record<string, string> = {
   alibaba: "--chart-alibaba",
   tongyi: "--chart-alibaba",
   nanogpt: "--chart-nanogpt",
+  mistral: "--chart-mistral",
 };
 
 /** CSS color expression for a provider's cost-series bars. */

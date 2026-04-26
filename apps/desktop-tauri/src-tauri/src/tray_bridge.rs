@@ -742,6 +742,7 @@ mod tests {
             secondary_label: None,
             model_specific: None,
             tertiary: None,
+            extra_rate_windows: Vec::new(),
             cost: None,
             plan_name: None,
             account_email: None,

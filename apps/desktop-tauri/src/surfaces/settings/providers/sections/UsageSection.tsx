@@ -52,6 +52,13 @@ export function UsageSection({ provider, resetTimeRelative, t }: Props) {
       rate: provider.tertiary,
     });
   }
+  for (const extra of provider.extraRateWindows ?? []) {
+    bars.push({
+      key: extra.id,
+      label: extra.title,
+      rate: extra.window,
+    });
+  }
 
   if (bars.length === 0) {
     return null;

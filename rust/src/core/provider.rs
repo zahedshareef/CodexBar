@@ -37,6 +37,7 @@ pub enum ProviderId {
     Infini,
     Perplexity,
     Abacus,
+    Mistral,
     OpenCodeGo,
     Kilo,
 }
@@ -71,6 +72,7 @@ impl ProviderId {
             ProviderId::Infini,
             ProviderId::Perplexity,
             ProviderId::Abacus,
+            ProviderId::Mistral,
             ProviderId::OpenCodeGo,
             ProviderId::Kilo,
         ]
@@ -105,6 +107,7 @@ impl ProviderId {
             ProviderId::Infini => "infini",
             ProviderId::Perplexity => "perplexity",
             ProviderId::Abacus => "abacus",
+            ProviderId::Mistral => "mistral",
             ProviderId::OpenCodeGo => "opencodego",
             ProviderId::Kilo => "kilo",
         }
@@ -139,6 +142,7 @@ impl ProviderId {
             ProviderId::Infini => "Infini",
             ProviderId::Perplexity => "Perplexity",
             ProviderId::Abacus => "Abacus AI",
+            ProviderId::Mistral => "Mistral",
             ProviderId::OpenCodeGo => "OpenCode Go",
             ProviderId::Kilo => "Kilo",
         }
@@ -166,6 +170,7 @@ impl ProviderId {
             ProviderId::Ollama => Some("ollama.com"),
             ProviderId::Perplexity => Some("perplexity.ai"),
             ProviderId::Abacus => Some("apps.abacus.ai"),
+            ProviderId::Mistral => Some("admin.mistral.ai"),
             ProviderId::OpenCodeGo => Some("opencode.ai"),
             // Token-based providers (don't use cookies)
             ProviderId::Copilot => None,
@@ -212,6 +217,7 @@ impl ProviderId {
             "infini" | "infini-ai" => Some(ProviderId::Infini),
             "perplexity" | "pplx" => Some(ProviderId::Perplexity),
             "abacus" | "abacus ai" | "abacus-ai" => Some(ProviderId::Abacus),
+            "mistral" | "mistral-ai" | "mistral ai" => Some(ProviderId::Mistral),
             "opencodego" | "opencode-go" | "opencode go" => Some(ProviderId::OpenCodeGo),
             "kilo" => Some(ProviderId::Kilo),
             _ => None,
@@ -396,6 +402,7 @@ pub fn cli_name_map() -> HashMap<&'static str, ProviderId> {
     map.insert("infini-ai", ProviderId::Infini);
     map.insert("pplx", ProviderId::Perplexity);
     map.insert("abacus-ai", ProviderId::Abacus);
+    map.insert("mistral-ai", ProviderId::Mistral);
     map.insert("opencode-go", ProviderId::OpenCodeGo);
     map
 }
@@ -407,7 +414,7 @@ mod tests {
     #[test]
     fn test_provider_id_all() {
         let all = ProviderId::all();
-        assert_eq!(all.len(), 28);
+        assert_eq!(all.len(), 29);
         assert!(all.contains(&ProviderId::Claude));
         assert!(all.contains(&ProviderId::Codex));
         assert!(all.contains(&ProviderId::Kimi));

@@ -122,6 +122,7 @@
   --chart-synthetic: rgb(60, 60, 60);
   --chart-alibaba: rgb(255, 106, 0);
   --chart-nanogpt: rgb(104, 127, 161);
+  --chart-mistral: rgb(255, 80, 15);
 
   /* Default cost/credits series colors (match egui credits teal). */
   --chart-cost: rgb(93, 135, 255);

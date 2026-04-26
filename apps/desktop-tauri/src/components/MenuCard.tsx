@@ -229,6 +229,9 @@ export default function MenuCard({ provider, hideEmail, resetTimeRelative }: Men
     });
   if (provider.tertiary)
     metrics.push({ label: t("DetailWindowTertiary"), snap: provider.tertiary });
+  for (const extra of provider.extraRateWindows ?? []) {
+    metrics.push({ label: extra.title, snap: extra.window });
+  }
 
   const hasCostHistory = chartData !== null && chartData.costHistory.length > 0;
   const hasCreditsHistory =

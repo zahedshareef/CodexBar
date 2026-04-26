@@ -337,6 +337,7 @@ pub fn account_name_for_provider(provider: ProviderId) -> &'static str {
         ProviderId::Infini => "infini-api-token",
         ProviderId::Perplexity => "perplexity-cookie",
         ProviderId::Abacus => "abacus-cookie",
+        ProviderId::Mistral => "mistral-cookie",
         ProviderId::OpenCodeGo => "opencodego-cookie",
         ProviderId::Kilo => "kilo-api-token",
     }

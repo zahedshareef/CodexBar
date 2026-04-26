@@ -246,6 +246,24 @@ static CODEX_PRICING: LazyLock<HashMap<&'static str, CodexPricing>> = LazyLock::
             display_label: None,
         },
     );
+    m.insert(
+        "gpt-5.5",
+        CodexPricing {
+            input_cost_per_token: 5e-6,
+            output_cost_per_token: 3e-5,
+            cache_read_input_cost_per_token: 5e-7,
+            display_label: None,
+        },
+    );
+    m.insert(
+        "gpt-5.5-pro",
+        CodexPricing {
+            input_cost_per_token: 3e-5,
+            output_cost_per_token: 1.8e-4,
+            cache_read_input_cost_per_token: 3e-5,
+            display_label: None,
+        },
+    );
 
     m
 });
@@ -471,6 +489,14 @@ impl CostUsagePricing {
         // Check if base model (without -codex suffix) exists in pricing
         if let Some(idx) = trimmed.find("-codex") {
             let base = &trimmed[..idx];
+            if CODEX_PRICING.contains_key(base) {
+                return base.to_string();
+            }
+        }
+
+        let date_pattern = regex_lite::Regex::new(r"-\d{4}-\d{2}-\d{2}$").unwrap();
+        if let Some(mat) = date_pattern.find(&trimmed) {
+            let base = &trimmed[..mat.start()];
             if CODEX_PRICING.contains_key(base) {
                 return base.to_string();
             }
@@ -719,6 +745,22 @@ mod tests {
             CostUsagePricing::normalize_codex_model("gpt-5.4-mini-codex"),
             "gpt-5.4-mini"
         );
+    }
+
+    #[test]
+    fn test_gpt55_pricing() {
+        assert_eq!(
+            CostUsagePricing::normalize_codex_model("openai/gpt-5.5-2026-04-23"),
+            "gpt-5.5"
+        );
+        assert_eq!(
+            CostUsagePricing::normalize_codex_model("gpt-5.5-pro-2026-04-23"),
+            "gpt-5.5-pro"
+        );
+
+        let cost = CostUsagePricing::codex_cost_usd("gpt-5.5", 1000, 500, 500);
+        assert!(cost.is_some());
+        assert!((cost.unwrap() - 0.01775).abs() < 1e-10);
     }
 
     #[test]

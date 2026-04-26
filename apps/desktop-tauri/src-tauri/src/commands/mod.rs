@@ -94,6 +94,14 @@ pub struct CostSnapshotBridge {
     pub formatted_limit: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NamedRateWindowSnapshot {
+    pub id: String,
+    pub title: String,
+    pub window: RateWindowSnapshot,
+}
+
 /// Pace prediction snapshot for tray/bridge display.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -118,6 +126,7 @@ pub struct ProviderUsageSnapshot {
     pub secondary_label: Option<String>,
     pub model_specific: Option<RateWindowSnapshot>,
     pub tertiary: Option<RateWindowSnapshot>,
+    pub extra_rate_windows: Vec<NamedRateWindowSnapshot>,
     pub cost: Option<CostSnapshotBridge>,
     pub plan_name: Option<String>,
     pub account_email: Option<String>,
@@ -204,6 +213,15 @@ impl ProviderUsageSnapshot {
                 .tertiary
                 .as_ref()
                 .map(RateWindowSnapshot::from_rate_window),
+            extra_rate_windows: usage
+                .extra_rate_windows
+                .iter()
+                .map(|extra| NamedRateWindowSnapshot {
+                    id: extra.id.clone(),
+                    title: extra.title.clone(),
+                    window: RateWindowSnapshot::from_rate_window(&extra.window),
+                })
+                .collect(),
             cost: result.cost.as_ref().map(|c| CostSnapshotBridge {
                 used: c.used,
                 limit: c.limit,
@@ -244,6 +262,7 @@ impl ProviderUsageSnapshot {
             secondary_label: None,
             model_specific: None,
             tertiary: None,
+            extra_rate_windows: Vec::new(),
             cost: None,
             plan_name: None,
             account_email: None,
@@ -1586,6 +1605,7 @@ fn cookie_source_provider(provider_id: &str) -> Option<codexbar::core::ProviderI
         "augment" => ProviderId::Augment,
         "amp" => ProviderId::Amp,
         "ollama" => ProviderId::Ollama,
+        "mistral" => ProviderId::Mistral,
         _ => return None,
     })
 }
@@ -1870,6 +1890,22 @@ pub fn cookie_source_options_for(provider_id: &str, lang: Language) -> Vec<Cooki
                 "manual",
                 "",
                 "Paste a Cookie header from Ollama settings.",
+                None,
+            ),
+        ],
+        "mistral" => vec![
+            cookie_option(
+                lang,
+                "auto",
+                "Automatic imports browser cookies from Mistral Admin.",
+                "",
+                None,
+            ),
+            cookie_option(
+                lang,
+                "manual",
+                "",
+                "Paste a Cookie header from admin.mistral.ai.",
                 None,
             ),
         ],
@@ -2352,6 +2388,7 @@ pub struct ProviderDetail {
     pub weekly: Option<RateWindowSnapshot>,
     pub model_specific: Option<RateWindowSnapshot>,
     pub tertiary: Option<RateWindowSnapshot>,
+    pub extra_rate_windows: Vec<NamedRateWindowSnapshot>,
 
     // Cost / pace.
     pub cost: Option<CostSnapshotBridge>,
@@ -2402,6 +2439,7 @@ fn build_provider_detail(provider_id: &str) -> Result<ProviderDetail, String> {
         weekly: None,
         model_specific: None,
         tertiary: None,
+        extra_rate_windows: Vec::new(),
         cost: None,
         pace: None,
         last_error: None,
@@ -2449,6 +2487,7 @@ pub fn get_provider_detail(
             detail.weekly = snap.secondary.clone();
             detail.model_specific = snap.model_specific.clone();
             detail.tertiary = snap.tertiary.clone();
+            detail.extra_rate_windows = snap.extra_rate_windows.clone();
             detail.cost = snap.cost.clone();
             detail.pace = snap.pace.clone();
         }

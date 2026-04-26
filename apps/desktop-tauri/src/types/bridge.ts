@@ -50,7 +50,12 @@ export type ProofProviderId =
   | "jetbrains"
   | "alibaba"
   | "nanogpt"
-  | "infini";
+  | "infini"
+  | "perplexity"
+  | "abacus"
+  | "opencodego"
+  | "kilo"
+  | "mistral";
 
 export type TrayPanelSurfaceTarget = { kind: "summary" };
 export type PopOutSurfaceTarget =
@@ -251,6 +256,11 @@ export interface ProviderUsageSnapshot {
   secondaryLabel?: string;
   modelSpecific: RateWindowSnapshot | null;
   tertiary: RateWindowSnapshot | null;
+  extraRateWindows: Array<{
+    id: string;
+    title: string;
+    window: RateWindowSnapshot;
+  }>;
   cost: CostSnapshotBridge | null;
   planName: string | null;
   accountEmail: string | null;
@@ -458,6 +468,11 @@ export interface ProviderDetail {
   weekly: RateWindowSnapshot | null;
   modelSpecific: RateWindowSnapshot | null;
   tertiary: RateWindowSnapshot | null;
+  extraRateWindows: Array<{
+    id: string;
+    title: string;
+    window: RateWindowSnapshot;
+  }>;
 
   cost: CostSnapshotBridge | null;
   pace: PaceSnapshot | null;

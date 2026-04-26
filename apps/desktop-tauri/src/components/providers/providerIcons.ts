@@ -17,6 +17,7 @@ import kilo from "./icons/ProviderIcon-kilo.svg?raw";
 import kimi from "./icons/ProviderIcon-kimi.svg?raw";
 import kiro from "./icons/ProviderIcon-kiro.svg?raw";
 import minimax from "./icons/ProviderIcon-minimax.svg?raw";
+import mistral from "./icons/ProviderIcon-mistral.svg?raw";
 import ollama from "./icons/ProviderIcon-ollama.svg?raw";
 import opencode from "./icons/ProviderIcon-opencode.svg?raw";
 import opencodego from "./icons/ProviderIcon-opencodego.svg?raw";
@@ -67,6 +68,7 @@ const RAW: Record<string, string> = {
   kimi: tint(kimi),
   kiro: tint(kiro),
   minimax: tint(minimax),
+  mistral: tint(mistral),
   ollama: tint(ollama),
   opencode: tint(opencode),
   opencodego: tint(opencodego),
@@ -100,6 +102,7 @@ export const PROVIDER_ICON_REGISTRY: Record<string, ProviderIcon> = {
   kimik2:      { id: "kimik2",      brandColor: "#4c00ff", fallbackLetter: "☽", svgPath: RAW.kimi },
   kiro:        { id: "kiro",        brandColor: "#ff9900", fallbackLetter: "K", svgPath: RAW.kiro },
   minimax:     { id: "minimax",     brandColor: "#fe603c", fallbackLetter: "M", svgPath: RAW.minimax },
+  mistral:     { id: "mistral",     brandColor: "#ff500f", fallbackLetter: "M", svgPath: RAW.mistral },
   ollama:      { id: "ollama",      brandColor: "#8b95b0", fallbackLetter: "○", svgPath: RAW.ollama },
   opencode:    { id: "opencode",    brandColor: "#3b82f6", fallbackLetter: "○", svgPath: RAW.opencode },
   opencodego:  { id: "opencodego",  brandColor: "#3b82f6", fallbackLetter: "○", svgPath: RAW.opencodego },
@@ -123,6 +126,7 @@ const ALIASES: Record<string, string> = {
   qwen: "alibaba",
   qianwen: "alibaba",
   "open router": "openrouter",
+  "mistral ai": "mistral",
   "warp terminal": "warp",
   "warp ai": "warp",
 };

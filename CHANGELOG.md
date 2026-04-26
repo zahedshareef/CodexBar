@@ -1,5 +1,19 @@
 # Changelog
 
+## [Windows] 0.23.0 — 2026-04-26
+
+### Upstream 0.23 Parity
+- Add Mistral usage support with monthly spend parsing from the Mistral Admin billing API, browser-cookie/manual-cookie auth, token-account storage, and provider branding.
+- Add Claude Designs and Daily Routines usage windows when Claude OAuth/Web quota payloads include those limits.
+- Add GPT-5.5 and GPT-5.5 Pro pricing for local Codex cost scanning.
+- Prefer Cursor on-demand budget data for the extra/monthly cost metric when Cursor returns it.
+
+### Windows Release
+- Bump the Tauri desktop and shared Rust crate to `0.23.0`.
+- Keep macOS-only upstream 0.23 work out of the Windows port: WidgetKit metadata, Sparkle appcast, AppKit menu sizing, and full-screen confetti are not applicable here.
+
+---
+
 ## [Windows] 0.22.1 — 2026-04-24
 
 ### Fixed

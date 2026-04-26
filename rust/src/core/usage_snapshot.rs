@@ -5,6 +5,24 @@ use serde::{Deserialize, Serialize};
 
 use super::RateWindow;
 
+/// A labeled extra usage window surfaced by provider APIs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NamedRateWindow {
+    pub id: String,
+    pub title: String,
+    pub window: RateWindow,
+}
+
+impl NamedRateWindow {
+    pub fn new(id: impl Into<String>, title: impl Into<String>, window: RateWindow) -> Self {
+        Self {
+            id: id.into(),
+            title: title.into(),
+            window,
+        }
+    }
+}
+
 /// A snapshot of usage data for a provider at a point in time
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsageSnapshot {
@@ -22,6 +40,10 @@ pub struct UsageSnapshot {
     /// Tertiary rate window (e.g., 30-day quota for Infini)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tertiary: Option<RateWindow>,
+
+    /// Additional labeled windows that do not fit the primary/secondary/model slots.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_rate_windows: Vec<NamedRateWindow>,
 
     /// When this snapshot was captured
     pub updated_at: DateTime<Utc>,
@@ -47,6 +69,7 @@ impl UsageSnapshot {
             secondary: None,
             model_specific: None,
             tertiary: None,
+            extra_rate_windows: Vec::new(),
             updated_at: Utc::now(),
             account_email: None,
             account_organization: None,
@@ -69,6 +92,18 @@ impl UsageSnapshot {
     /// Builder pattern: set tertiary window
     pub fn with_tertiary(mut self, tertiary: RateWindow) -> Self {
         self.tertiary = Some(tertiary);
+        self
+    }
+
+    /// Builder pattern: append a labeled extra rate window
+    pub fn with_extra_rate_window(
+        mut self,
+        id: impl Into<String>,
+        title: impl Into<String>,
+        window: RateWindow,
+    ) -> Self {
+        self.extra_rate_windows
+            .push(NamedRateWindow::new(id, title, window));
         self
     }
 
@@ -112,6 +147,12 @@ impl UsageSnapshot {
             most = tertiary;
         }
 
+        for extra in &self.extra_rate_windows {
+            if extra.window.used_percent > most.used_percent {
+                most = &extra.window;
+            }
+        }
+
         most
     }
 
@@ -124,6 +165,10 @@ impl UsageSnapshot {
                 .as_ref()
                 .is_some_and(|w| w.is_exhausted())
             || self.tertiary.as_ref().is_some_and(|w| w.is_exhausted())
+            || self
+                .extra_rate_windows
+                .iter()
+                .any(|extra| extra.window.is_exhausted())
     }
 }
 

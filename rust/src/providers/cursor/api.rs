@@ -167,13 +167,22 @@ impl CursorApi {
                         .api_percent_used
                         .map(|v| RateWindow::with_details(v * 100.0, None, billing_end, None));
 
-                    let mut cost = CostSnapshot::new(used_cents / 100.0, "USD", "Monthly");
-                    if limit_cents > 0.0 {
-                        cost = cost.with_limit(limit_cents / 100.0);
-                    }
-                    if let Some(reset) = billing_end {
-                        cost = cost.with_resets_at(reset);
-                    }
+                    let cost = Self::on_demand_cost(individual.on_demand.as_ref(), billing_end)
+                        .or_else(|| {
+                            summary.team_usage.as_ref().and_then(|team| {
+                                Self::on_demand_cost(team.on_demand.as_ref(), billing_end)
+                            })
+                        })
+                        .unwrap_or_else(|| {
+                            let mut cost = CostSnapshot::new(used_cents / 100.0, "USD", "Monthly");
+                            if limit_cents > 0.0 {
+                                cost = cost.with_limit(limit_cents / 100.0);
+                            }
+                            if let Some(reset) = billing_end {
+                                cost = cost.with_resets_at(reset);
+                            }
+                            cost
+                        });
 
                     (percent, secondary, model_specific, Some(cost))
                 } else {
@@ -206,6 +215,39 @@ impl CursorApi {
             email,
             plan_type,
         ))
+    }
+
+    fn on_demand_cost(
+        on_demand: Option<&OnDemandUsage>,
+        billing_end: Option<DateTime<Utc>>,
+    ) -> Option<CostSnapshot> {
+        let usage = on_demand?;
+        if usage.enabled == Some(false) {
+            return None;
+        }
+
+        let used_cents = usage.used.unwrap_or(0) as f64;
+        let limit_cents = usage
+            .limit
+            .or_else(|| {
+                usage
+                    .remaining
+                    .map(|remaining| remaining + usage.used.unwrap_or(0))
+            })
+            .unwrap_or(0) as f64;
+
+        if used_cents <= 0.0 && limit_cents <= 0.0 {
+            return None;
+        }
+
+        let mut cost = CostSnapshot::new(used_cents / 100.0, "USD", "Monthly");
+        if limit_cents > 0.0 {
+            cost = cost.with_limit(limit_cents / 100.0);
+        }
+        if let Some(reset) = billing_end {
+            cost = cost.with_resets_at(reset);
+        }
+        Some(cost)
     }
 }
 
@@ -418,8 +460,9 @@ mod tests {
         let (primary, _, _, cost, _, _) = api().build_result(summary, None).unwrap();
 
         assert!((primary.used_percent - 16.0).abs() < 0.01);
-        let cost = cost.expect("cost should exist from plan usage");
-        assert!((cost.used - 8.0).abs() < 0.01);
-        assert_eq!(cost.limit, Some(50.0));
+        let cost = cost.expect("cost should exist from on-demand usage");
+        assert!((cost.used - 3.5).abs() < 0.01);
+        assert_eq!(cost.limit, Some(10.0));
+        assert_eq!(cost.period, "Monthly");
     }
 }

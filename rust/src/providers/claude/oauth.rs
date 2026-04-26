@@ -7,7 +7,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use std::path::PathBuf;
 
-use crate::core::{ProviderError, ProviderFetchResult, RateWindow, UsageSnapshot};
+use crate::core::{NamedRateWindow, ProviderError, ProviderFetchResult, RateWindow, UsageSnapshot};
 
 /// OAuth credentials from Claude CLI
 #[derive(Debug, Clone)]
@@ -71,6 +71,12 @@ pub struct OAuthUsageResponse {
 
     #[serde(rename = "sevenDayOpus")]
     pub seven_day_opus: Option<UsageWindow>,
+
+    #[serde(rename = "sevenDayDesign")]
+    pub seven_day_design: Option<UsageWindow>,
+
+    #[serde(rename = "sevenDayRoutines")]
+    pub seven_day_routines: Option<UsageWindow>,
 
     #[serde(rename = "extraUsage")]
     pub extra_usage: Option<ExtraUsage>,
@@ -318,6 +324,32 @@ impl ClaudeOAuthFetcher {
             .and_then(|w| Self::to_rate_window(w, Some(10080)))
         {
             usage = usage.with_model_specific(sonnet);
+        }
+
+        let extra_windows = [
+            (
+                "claude-design",
+                "Designs",
+                response
+                    .seven_day_design
+                    .as_ref()
+                    .and_then(|w| Self::to_rate_window(w, Some(10080))),
+            ),
+            (
+                "claude-routines",
+                "Daily Routines",
+                response
+                    .seven_day_routines
+                    .as_ref()
+                    .and_then(|w| Self::to_rate_window(w, Some(10080))),
+            ),
+        ];
+        for (id, title, window) in extra_windows {
+            if let Some(window) = window {
+                usage
+                    .extra_rate_windows
+                    .push(NamedRateWindow::new(id, title, window));
+            }
         }
 
         // Login method from rate limit tier or default

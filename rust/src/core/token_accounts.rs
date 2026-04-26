@@ -125,6 +125,14 @@ impl TokenAccountSupport {
                 requires_manual_cookie_source: true,
                 cookie_name: None,
             }),
+            ProviderId::Mistral => Some(TokenAccountSupport {
+                title: "Session tokens",
+                subtitle: "Store multiple Mistral Cookie headers.",
+                placeholder: "Cookie: ...",
+                injection: TokenInjection::CookieHeader,
+                requires_manual_cookie_source: true,
+                cookie_name: None,
+            }),
             // These providers don't support token accounts
             ProviderId::Codex
             | ProviderId::Gemini

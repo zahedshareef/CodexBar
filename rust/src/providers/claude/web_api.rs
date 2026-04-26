@@ -5,7 +5,9 @@ use reqwest::{Client, header};
 use serde::Deserialize;
 
 use crate::browser::cookies::get_cookie_header;
-use crate::core::{CostSnapshot, ProviderError, ProviderFetchResult, RateWindow, UsageSnapshot};
+use crate::core::{
+    CostSnapshot, NamedRateWindow, ProviderError, ProviderFetchResult, RateWindow, UsageSnapshot,
+};
 
 /// Claude Web API fetcher
 pub struct ClaudeWebApiFetcher {
@@ -34,6 +36,28 @@ struct UsageResponse {
 
     #[serde(rename = "seven_day_sonnet")]
     seven_day_sonnet: Option<UsageWindow>,
+
+    #[serde(
+        rename = "seven_day_design",
+        alias = "seven_day_claude_design",
+        alias = "claude_design",
+        alias = "design",
+        alias = "seven_day_omelette",
+        alias = "omelette",
+        alias = "omelette_promotional"
+    )]
+    seven_day_design: Option<UsageWindow>,
+
+    #[serde(
+        rename = "seven_day_routines",
+        alias = "seven_day_claude_routines",
+        alias = "claude_routines",
+        alias = "routines",
+        alias = "routine",
+        alias = "seven_day_cowork",
+        alias = "cowork"
+    )]
+    seven_day_routines: Option<UsageWindow>,
 }
 
 /// A usage window from the API
@@ -163,6 +187,31 @@ impl ClaudeWebApiFetcher {
 
         if let Some(m) = model_specific {
             snapshot = snapshot.with_model_specific(m);
+        }
+
+        for (id, title, window) in [
+            (
+                "claude-design",
+                "Designs",
+                usage
+                    .seven_day_design
+                    .as_ref()
+                    .map(|w| self.to_rate_window(w, Some(10080))),
+            ),
+            (
+                "claude-routines",
+                "Daily Routines",
+                usage
+                    .seven_day_routines
+                    .as_ref()
+                    .map(|w| self.to_rate_window(w, Some(10080))),
+            ),
+        ] {
+            if let Some(window) = window {
+                snapshot
+                    .extra_rate_windows
+                    .push(NamedRateWindow::new(id, title, window));
+            }
         }
 
         if let Some(ref acc) = account {
@@ -541,5 +590,32 @@ mod tests {
             Some("web_claude_ai")
         );
         assert!(headers.contains_key(header::USER_AGENT));
+    }
+
+    #[test]
+    fn parses_extra_design_and_routines_aliases() {
+        let usage: super::UsageResponse = serde_json::from_str(
+            r#"{
+                "five_hour": { "utilization": 0.1 },
+                "seven_day_omelette": { "utilization": 26 },
+                "seven_day_cowork": { "utilization": 11 }
+            }"#,
+        )
+        .unwrap();
+
+        let fetcher = ClaudeWebApiFetcher::new();
+        let design = usage
+            .seven_day_design
+            .as_ref()
+            .map(|w| fetcher.to_rate_window(w, Some(10080)))
+            .expect("design window");
+        let routines = usage
+            .seven_day_routines
+            .as_ref()
+            .map(|w| fetcher.to_rate_window(w, Some(10080)))
+            .expect("routines window");
+
+        assert!((design.used_percent - 26.0).abs() < f64::EPSILON);
+        assert!((routines.used_percent - 11.0).abs() < f64::EPSILON);
     }
 }

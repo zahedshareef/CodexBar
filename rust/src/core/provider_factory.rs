@@ -10,9 +10,9 @@ use crate::providers::{
     AbacusProvider, AlibabaProvider, AmpProvider, AntigravityProvider, AugmentProvider,
     ClaudeProvider, CodexProvider, CopilotProvider, CursorProvider, FactoryProvider,
     GeminiProvider, InfiniProvider, JetBrainsProvider, KiloProvider, KimiK2Provider, KimiProvider,
-    KiroProvider, MiniMaxProvider, NanoGPTProvider, OllamaProvider, OpenCodeGoProvider,
-    OpenCodeProvider, OpenRouterProvider, PerplexityProvider, SyntheticProvider, VertexAIProvider,
-    WarpProvider, ZaiProvider,
+    KiroProvider, MiniMaxProvider, MistralProvider, NanoGPTProvider, OllamaProvider,
+    OpenCodeGoProvider, OpenCodeProvider, OpenRouterProvider, PerplexityProvider,
+    SyntheticProvider, VertexAIProvider, WarpProvider, ZaiProvider,
 };
 
 /// Instantiate the concrete [`Provider`] implementation for a given [`ProviderId`].
@@ -47,6 +47,7 @@ pub fn instantiate(id: ProviderId) -> Box<dyn Provider> {
         ProviderId::Infini => Box::new(InfiniProvider::default()),
         ProviderId::Perplexity => Box::new(PerplexityProvider::new()),
         ProviderId::Abacus => Box::new(AbacusProvider::new()),
+        ProviderId::Mistral => Box::new(MistralProvider::new()),
         ProviderId::OpenCodeGo => Box::new(OpenCodeGoProvider::new()),
         ProviderId::Kilo => Box::new(KiloProvider::new()),
     }
