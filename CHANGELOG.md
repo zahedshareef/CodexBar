@@ -1,5 +1,13 @@
 # Changelog
 
+## [Windows] 0.23.1 — 2026-04-26
+
+### Fixed
+- Add the provider Settings picker for the tray/menu bar metric so the Windows frontend can choose session, weekly, model-specific, tertiary, average, or Cursor extra-usage display modes.
+- Make the tray icon respect per-provider metric preferences, including Cursor on-demand budget and legacy credits settings.
+
+---
+
 ## [Windows] 0.23.0 — 2026-04-26
 
 ### Upstream 0.23 Parity
