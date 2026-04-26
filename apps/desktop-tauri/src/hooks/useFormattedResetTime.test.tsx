@@ -59,11 +59,11 @@ describe("useFormattedResetTime", () => {
     expect(screen.getByTestId("reset")).toHaveTextContent("Resets in 3h 42m");
   });
 
-  it("labels fallback text in relative mode", async () => {
+  it("leaves fallback text unlabelled in relative mode", async () => {
     await mountWithLocale(
       <Probe resetsAt={null} fallback="3h" relative={true} />,
     );
-    expect(screen.getByTestId("reset")).toHaveTextContent("Resets in 3h");
+    expect(screen.getByTestId("reset")).toHaveTextContent("3h");
   });
 
   it("returns an absolute local time without the reset label", async () => {
