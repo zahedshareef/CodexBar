@@ -119,11 +119,11 @@ impl TokenAccountSupport {
             }),
             ProviderId::Ollama => Some(TokenAccountSupport {
                 title: "Session tokens",
-                subtitle: "Store multiple Ollama Cookie headers.",
-                placeholder: "Cookie: ...",
+                subtitle: "Store multiple Ollama Cookie headers or __Secure-session values.",
+                placeholder: "__Secure-session value or Cookie: ...",
                 injection: TokenInjection::CookieHeader,
                 requires_manual_cookie_source: true,
-                cookie_name: None,
+                cookie_name: Some("__Secure-session"),
             }),
             ProviderId::Mistral => Some(TokenAccountSupport {
                 title: "Session tokens",
@@ -570,6 +570,9 @@ mod tests {
             "sessionKey=already_formatted",
         );
         assert_eq!(header, "sessionKey=already_formatted");
+
+        let header = TokenAccountSupport::normalized_cookie_header(ProviderId::Ollama, "abc123");
+        assert_eq!(header, "__Secure-session=abc123");
     }
 
     #[test]

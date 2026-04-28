@@ -17,6 +17,13 @@ interface Props {
   cookieDomain: string | null;
 }
 
+function cookiePlaceholder(providerId: string): string {
+  if (providerId === "ollama") {
+    return "Paste the full Cookie header or just the __Secure-session value...";
+  }
+  return "Paste cookie header value...";
+}
+
 /**
  * Per-provider browser cookie management. Renders nothing for providers
  * that do not have a cookieDomain (i.e. don't authenticate via web cookies).
@@ -193,7 +200,7 @@ export function CookieSection({ providerId, cookieDomain }: Props) {
       <div className="credential-add-form">
         <textarea
           className="text-input credential-textarea"
-          placeholder="Paste cookie header value…"
+          placeholder={cookiePlaceholder(providerId)}
           rows={3}
           value={pasteValue}
           onChange={(e) => setPasteValue(e.target.value)}

@@ -1,5 +1,14 @@
 # Changelog
 
+## [Windows] 0.23.2 - 2026-04-28
+
+### Fixed
+- Accept a raw `__Secure-session` value for Ollama Cloud manual cookies instead of requiring a full `Cookie` header.
+- Normalize Ollama token-account entries the same way, so saved accounts can use either raw `__Secure-session` values or full cookie headers.
+- Clarify the Ollama cookie placeholder in the desktop settings UI.
+
+---
+
 ## [Windows] 0.23.1 — 2026-04-26
 
 ### Fixed

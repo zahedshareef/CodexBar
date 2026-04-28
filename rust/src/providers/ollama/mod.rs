@@ -13,6 +13,8 @@ use crate::core::{
 
 /// Ollama settings page URL
 const OLLAMA_SETTINGS_URL: &str = "https://ollama.com/settings";
+const OLLAMA_COOKIE_DOMAIN: &str = "ollama.com";
+const OLLAMA_SESSION_COOKIE_NAME: &str = "__Secure-session";
 
 /// Ollama provider
 pub struct OllamaProvider {
@@ -88,18 +90,42 @@ impl OllamaProvider {
         self.parse_usage_html(&html)
     }
 
+    fn normalize_cookie_header(input: &str) -> Option<String> {
+        let mut header = input.trim();
+        if header.is_empty() {
+            return None;
+        }
+
+        if header
+            .get(.."cookie:".len())
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("cookie:"))
+        {
+            header = header["cookie:".len()..].trim();
+        }
+
+        if header.is_empty() {
+            return None;
+        }
+
+        if header.contains('=') {
+            Some(header.to_string())
+        } else {
+            Some(format!("{OLLAMA_SESSION_COOKIE_NAME}={header}"))
+        }
+    }
+
     /// Resolve cookie header from manual cookies, browser import, or context
     fn resolve_cookie_header(&self, ctx: &FetchContext) -> Result<String, ProviderError> {
         // Check manual cookie header first
         if let Some(ref cookie) = ctx.manual_cookie_header
-            && !cookie.is_empty()
+            && let Some(header) = Self::normalize_cookie_header(cookie)
         {
-            return Ok(cookie.clone());
+            return Ok(header);
         }
 
         // Try browser cookie extraction
         use crate::browser::cookies::get_cookie_header;
-        match get_cookie_header("ollama.com") {
+        match get_cookie_header(OLLAMA_COOKIE_DOMAIN) {
             Ok(header) if !header.is_empty() => {
                 // Validate that we have a recognized session cookie
                 const SESSION_COOKIE_NAMES: &[&str] = &[
@@ -244,5 +270,40 @@ impl Provider for OllamaProvider {
 
     fn supports_cli(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalizes_raw_ollama_session_cookie_value() {
+        assert_eq!(
+            OllamaProvider::normalize_cookie_header("abc123"),
+            Some("__Secure-session=abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn preserves_full_cookie_header() {
+        assert_eq!(
+            OllamaProvider::normalize_cookie_header("__Secure-session=abc123; aid=device"),
+            Some("__Secure-session=abc123; aid=device".to_string())
+        );
+    }
+
+    #[test]
+    fn strips_cookie_header_prefix() {
+        assert_eq!(
+            OllamaProvider::normalize_cookie_header("Cookie: __Secure-session=abc123"),
+            Some("__Secure-session=abc123".to_string())
+        );
+    }
+
+    #[test]
+    fn ignores_empty_cookie_input() {
+        assert_eq!(OllamaProvider::normalize_cookie_header("   "), None);
+        assert_eq!(OllamaProvider::normalize_cookie_header("Cookie:   "), None);
     }
 }
