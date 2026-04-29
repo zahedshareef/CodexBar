@@ -10,13 +10,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
-- (Next features go here)
+- Added safe diagnostics and credential storage status reporting for the Tauri shell without exposing secret values.
+- Added a Windows installer smoke-test script for silent install, installed-file, registry, shortcut, and uninstall validation.
 
 ### Changed
-- (Changes go here)
+- Reused fresh provider refresh results during startup and panel opening to reduce avoidable provider fetches.
 
 ### Fixed
-- (Bug fixes go here)
+- Redacted secret-like values from provider refresh errors before they cross the Tauri bridge.
+- Re-verify downloaded installer SHA-256 hashes immediately before applying an update.
+- Hardened desktop command inputs for provider IDs, credential values, cookie source values, region values, token accounts, and filesystem paths.
 
 ---
 ## [1.2.12] — 2026-04-04

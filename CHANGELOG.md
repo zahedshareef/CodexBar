@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Added
+- Add safe diagnostics and credential storage status reporting without exposing secret values.
+- Add a Windows installer smoke-test script for silent install, installed-file, registry, shortcut, and uninstall validation.
+
+### Changed
+- Reuse fresh provider refresh results during startup and panel opening to reduce avoidable provider fetches.
+
+### Fixed
+- Redact secret-like values from provider refresh errors before they cross the Tauri bridge.
+- Re-verify downloaded installer SHA-256 hashes immediately before applying an update.
+- Harden desktop command inputs for provider IDs, credential values, cookie source values, region values, token accounts, and filesystem paths.
+
 ---
 
 ## [Windows] 0.23.4 - 2026-04-29

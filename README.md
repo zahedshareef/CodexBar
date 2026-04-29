@@ -98,6 +98,9 @@ codexbar cost  -p codex           # local cost from JSONL logs
 - **On-device only** — no data sent anywhere except provider APIs
 - **No disk scanning** — only reads known config paths and browser cookies
 - **Opt-in cookies** — extraction only runs for providers you enable
+- **Protected credential stores** — app-managed API keys, manual cookies, and token accounts are written through the secure-file layer; on Windows this uses user-scoped DPAPI where available
+- **Safe diagnostics** — diagnostic snapshots expose provider/source/status metadata only, never raw cookies, API keys, bearer tokens, or OAuth values
+- **Verified updates** — automatic installer downloads require a GitHub SHA-256 digest and the installer is re-verified immediately before apply
 
 ## More Docs
 
