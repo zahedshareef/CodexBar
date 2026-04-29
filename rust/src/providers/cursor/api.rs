@@ -36,11 +36,18 @@ impl CursorApi {
     pub async fn fetch_usage(&self) -> Result<CursorUsageResult, ProviderError> {
         // Try to get cookies from browser
         let cookie_header = self.get_cookie_header()?;
+        self.fetch_usage_with_cookie_header(&cookie_header).await
+    }
 
+    /// Fetch usage information with an already resolved Cookie header.
+    pub async fn fetch_usage_with_cookie_header(
+        &self,
+        cookie_header: &str,
+    ) -> Result<CursorUsageResult, ProviderError> {
         // Fetch usage summary and user info in parallel
         let (usage_result, user_result) = tokio::join!(
-            self.fetch_usage_summary(&cookie_header),
-            self.fetch_user_info(&cookie_header)
+            self.fetch_usage_summary(cookie_header),
+            self.fetch_user_info(cookie_header)
         );
 
         let usage_summary = usage_result?;

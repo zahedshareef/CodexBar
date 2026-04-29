@@ -55,10 +55,23 @@ impl Provider for CursorProvider {
         &self.metadata
     }
 
-    async fn fetch_usage(&self, _ctx: &FetchContext) -> Result<ProviderFetchResult, ProviderError> {
+    async fn fetch_usage(&self, ctx: &FetchContext) -> Result<ProviderFetchResult, ProviderError> {
         tracing::debug!("Fetching Cursor usage via web API");
 
-        match self.api.fetch_usage().await {
+        let usage_result = match ctx.source_mode {
+            SourceMode::Auto | SourceMode::Web => {
+                if let Some(cookie_header) = ctx.manual_cookie_header.as_deref() {
+                    self.api.fetch_usage_with_cookie_header(cookie_header).await
+                } else {
+                    self.api.fetch_usage().await
+                }
+            }
+            SourceMode::Cli | SourceMode::OAuth => {
+                Err(ProviderError::UnsupportedSource(ctx.source_mode))
+            }
+        };
+
+        match usage_result {
             Ok((primary, secondary, model_specific, cost, email, plan_type)) => {
                 let mut usage = UsageSnapshot::new(primary);
                 if let Some(sec) = secondary {

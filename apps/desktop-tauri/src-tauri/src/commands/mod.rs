@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 
 use codexbar::core::{
-    FetchContext, ProviderFetchResult, ProviderId, ProviderMetadata, RateWindow,
+    FetchContext, ProviderFetchResult, ProviderId, ProviderMetadata, RateWindow, SourceMode,
     instantiate_provider,
 };
 use codexbar::locale;
@@ -1103,24 +1103,44 @@ fn target_label(target: &SurfaceTarget) -> String {
 /// Build a `FetchContext` for a provider using persisted cookies/keys.
 fn build_fetch_context(
     id: ProviderId,
+    settings: &Settings,
     cookies: &ManualCookies,
     api_keys: &ApiKeys,
 ) -> FetchContext {
-    let manual_cookie = cookies.get(id.cli_name()).map(|s| s.to_string());
+    let cookie_source = settings.cookie_source(id);
+    let stored_cookie = cookies.get(id.cli_name()).map(|s| s.to_string());
+    let usage_source = SourceMode::parse(settings.usage_source(id)).unwrap_or_default();
 
-    // Try browser cookie extraction as fallback when no manual cookie is set.
-    // On non-Windows this is a harmless no-op that returns an error.
-    let cookie_header = manual_cookie.or_else(|| {
-        id.cookie_domain().and_then(|domain| {
-            codexbar::browser::cookies::get_cookie_header(domain)
-                .ok()
-                .filter(|h| !h.is_empty())
-        })
-    });
+    let (source_mode, cookie_header) = match cookie_source {
+        "off" => (SourceMode::Cli, None),
+        "manual" => {
+            let source_mode = if stored_cookie.is_some() {
+                SourceMode::Web
+            } else {
+                SourceMode::Cli
+            };
+            (source_mode, stored_cookie)
+        }
+        // `browser` is accepted as a legacy alias from older settings.
+        "auto" | "browser" | "web" => {
+            // Try browser cookie extraction as fallback when no manual cookie is set.
+            // On non-Windows this is a harmless no-op that returns an error.
+            let cookie_header = stored_cookie.or_else(|| {
+                id.cookie_domain().and_then(|domain| {
+                    codexbar::browser::cookies::get_cookie_header(domain)
+                        .ok()
+                        .filter(|h| !h.is_empty())
+                })
+            });
+            (usage_source, cookie_header)
+        }
+        _ => (usage_source, stored_cookie),
+    };
 
     let api_key = api_keys.get(id.cli_name()).map(|s| s.to_string());
 
     FetchContext {
+        source_mode,
         manual_cookie_header: cookie_header,
         api_key,
         ..FetchContext::default()
@@ -1156,7 +1176,7 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
     for id in &enabled_ids {
         let id = *id;
         let app_handle = app.clone();
-        let ctx = build_fetch_context(id, &manual_cookies, &api_keys);
+        let ctx = build_fetch_context(id, &settings, &manual_cookies, &api_keys);
 
         handles.push(tokio::spawn(async move {
             let provider = instantiate_provider(id);
@@ -2651,9 +2671,9 @@ mod tests {
     };
     use crate::surface::SurfaceMode;
     use crate::surface_target::SurfaceTarget;
-    use codexbar::core::ProviderId;
+    use codexbar::core::{ProviderId, SourceMode};
     use codexbar::host::session::launch_block_reason;
-    use codexbar::settings::{Language, Settings};
+    use codexbar::settings::{ApiKeys, Language, ManualCookies, Settings};
 
     #[test]
     fn validate_surface_target_accepts_matching_target() {
@@ -2829,6 +2849,31 @@ mod tests {
         let mut s = Settings::default();
         let err = super::provider_cookie_source_set(&mut s, "nope", "x".into()).unwrap_err();
         assert!(err.contains("nope"));
+    }
+
+    #[test]
+    fn fetch_context_defaults_to_manual_cookies_without_browser_import() {
+        let settings = Settings::default();
+        let cookies = ManualCookies::default();
+        let api_keys = ApiKeys::default();
+
+        let ctx = super::build_fetch_context(ProviderId::Cursor, &settings, &cookies, &api_keys);
+
+        assert_eq!(ctx.source_mode, SourceMode::Cli);
+        assert!(ctx.manual_cookie_header.is_none());
+    }
+
+    #[test]
+    fn fetch_context_manual_cookie_uses_web_without_browser_import() {
+        let settings = Settings::default();
+        let mut cookies = ManualCookies::default();
+        cookies.set("cursor", "session=abc123");
+        let api_keys = ApiKeys::default();
+
+        let ctx = super::build_fetch_context(ProviderId::Cursor, &settings, &cookies, &api_keys);
+
+        assert_eq!(ctx.source_mode, SourceMode::Web);
+        assert_eq!(ctx.manual_cookie_header.as_deref(), Some("session=abc123"));
     }
 
     #[test]

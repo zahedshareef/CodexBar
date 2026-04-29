@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Security
+- Default browser-cookie usage to manual mode so provider refreshes no longer read and decrypt browser cookie stores unless the user explicitly selects Automatic or imports cookies.
+- Respect manual/off cookie-source settings when building provider fetch contexts, reducing behavior-based antivirus triggers around DPAPI browser-cookie access.
+
+---
+
 ## [Windows] 0.23.3 - 2026-04-29
 
 ### Fixed

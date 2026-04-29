@@ -354,7 +354,14 @@ fn default_true() -> bool {
     true
 }
 
-/// Default cookie/usage source value for any provider.
+/// Default cookie source value for browser-authenticated providers.
+///
+/// Browser cookie extraction reads browser profile databases and decrypts
+/// Chromium cookies via Windows DPAPI, which can trigger behavior-based AV
+/// engines. Keep that path explicit opt-in by default.
+const DEFAULT_COOKIE_SOURCE: &str = "manual";
+
+/// Default usage source value for any provider.
 const DEFAULT_PROVIDER_SOURCE: &str = "auto";
 
 /// Default API region for providers that expose one.
@@ -1021,12 +1028,12 @@ impl Settings {
         self.provider_configs.entry(id).or_default()
     }
 
-    /// Cookie source for `id`, or the default `"auto"` if unset.
+    /// Cookie source for `id`, or the default `"manual"` if unset.
     pub fn cookie_source(&self, id: ProviderId) -> &str {
         self.provider_configs
             .get(&id)
             .and_then(|c| c.cookie_source.as_deref())
-            .unwrap_or(DEFAULT_PROVIDER_SOURCE)
+            .unwrap_or(DEFAULT_COOKIE_SOURCE)
     }
 
     pub fn set_cookie_source(&mut self, id: ProviderId, source: impl Into<String>) {
@@ -1989,8 +1996,9 @@ mod tests {
         assert_eq!(settings.cookie_source(ProviderId::Claude), "browser");
         assert_eq!(settings.cookie_source(ProviderId::Cursor), "manual");
         assert_eq!(settings.cookie_source(ProviderId::Alibaba), "manual");
-        // Untouched providers fall through to the default "auto"
-        assert_eq!(settings.cookie_source(ProviderId::Amp), "auto");
+        // Untouched providers fall through to the default "manual" to avoid
+        // background browser-cookie reads unless the user opts into Automatic.
+        assert_eq!(settings.cookie_source(ProviderId::Amp), "manual");
 
         // Manual cookie headers + api regions
         assert_eq!(
@@ -2101,7 +2109,7 @@ mod tests {
             "ali=PLACEHOLDER"
         );
         // Untouched providers still get their defaults.
-        assert_eq!(settings.cookie_source(ProviderId::Claude), "auto");
+        assert_eq!(settings.cookie_source(ProviderId::Claude), "manual");
         assert_eq!(settings.api_region(ProviderId::Zai), "global");
     }
 
@@ -2121,7 +2129,8 @@ mod tests {
     #[test]
     fn test_per_provider_defaults_applied() {
         let settings = Settings::default();
-        assert_eq!(settings.cookie_source(ProviderId::Codex), "auto");
+        assert_eq!(settings.cookie_source(ProviderId::Codex), "manual");
+        assert_eq!(settings.usage_source(ProviderId::Codex), "auto");
         assert_eq!(settings.api_region(ProviderId::Alibaba), "intl");
         assert_eq!(settings.api_region(ProviderId::Zai), "global");
         assert_eq!(settings.api_region(ProviderId::MiniMax), "global");
