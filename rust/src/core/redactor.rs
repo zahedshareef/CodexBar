@@ -18,6 +18,62 @@ fn email_regex() -> &'static Regex {
     })
 }
 
+fn bearer_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| Regex::new(r"(?i)(Bearer\s+)[^\s,;]+").expect("Invalid bearer regex"))
+}
+
+fn cookie_header_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r"(?i)((?:cookie|set-cookie)\s*:\s*)[^\r\n]+")
+            .expect("Invalid cookie header regex")
+    })
+}
+
+fn query_secret_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(
+            r"(?i)([?&](?:token|code|client_secret|api_key|access_token|refresh_token)=)[^&#\s]+",
+        )
+        .expect("Invalid query secret regex")
+    })
+}
+
+fn json_secret_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(
+            r#"(?i)("?(?:api_key|apiKey|token|access_token|refresh_token|client_secret)"?\s*[:=]\s*")[^"]+""#,
+        )
+        .expect("Invalid JSON secret regex")
+    })
+}
+
+fn api_key_regex() -> &'static Regex {
+    static REGEX: OnceLock<Regex> = OnceLock::new();
+    REGEX.get_or_init(|| {
+        Regex::new(r"(?i)\b(?:sk|ghp|gho|github_pat|zai|nanogpt|openrouter)-[A-Za-z0-9_\-]{8,}\b")
+            .expect("Invalid API key regex")
+    })
+}
+
+/// Redacts local secrets before they enter logs or frontend-visible errors.
+pub struct SecretRedactor;
+
+impl SecretRedactor {
+    pub fn redact(input: &str) -> String {
+        let redacted = bearer_regex().replace_all(input, "${1}[REDACTED]");
+        let redacted = cookie_header_regex().replace_all(&redacted, "${1}[REDACTED]");
+        let redacted = query_secret_regex().replace_all(&redacted, "${1}[REDACTED]");
+        let redacted = json_secret_regex().replace_all(&redacted, "${1}[REDACTED]\"");
+        api_key_regex()
+            .replace_all(&redacted, "[REDACTED]")
+            .to_string()
+    }
+}
+
 /// Personal information redactor
 pub struct PersonalInfoRedactor;
 
@@ -144,5 +200,43 @@ mod tests {
             PersonalInfoRedactor::partial_redact_email(Some("test@domain.org"), false),
             "test@domain.org"
         );
+    }
+
+    #[test]
+    fn redacts_cookie_header_values() {
+        let input = "cookie: session=abc123; cf_clearance=secret";
+        let redacted = SecretRedactor::redact(input);
+        assert!(!redacted.contains("abc123"));
+        assert!(!redacted.contains("secret"));
+        assert_eq!(redacted, "cookie: [REDACTED]");
+    }
+
+    #[test]
+    fn redacts_bearer_tokens() {
+        let input = "Authorization: Bearer sk-test-secret-token";
+        assert_eq!(
+            SecretRedactor::redact(input),
+            "Authorization: Bearer [REDACTED]"
+        );
+    }
+
+    #[test]
+    fn redacts_url_query_tokens() {
+        let input = "https://example.com/callback?token=abc&code=def";
+        let redacted = SecretRedactor::redact(input);
+        assert!(!redacted.contains("abc"));
+        assert!(!redacted.contains("def"));
+        assert!(redacted.contains("token=[REDACTED]"));
+        assert!(redacted.contains("code=[REDACTED]"));
+    }
+
+    #[test]
+    fn redacts_json_secret_fields() {
+        let input = r#"{"api_key":"secret-value","client_secret":"other-secret"}"#;
+        let redacted = SecretRedactor::redact(input);
+        assert!(!redacted.contains("secret-value"));
+        assert!(!redacted.contains("other-secret"));
+        assert!(redacted.contains(r#""api_key":"[REDACTED]""#));
+        assert!(redacted.contains(r#""client_secret":"[REDACTED]""#));
     }
 }

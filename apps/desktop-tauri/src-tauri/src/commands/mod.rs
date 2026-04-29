@@ -1239,7 +1239,11 @@ async fn do_refresh_providers_with_policy(
             .await
             {
                 Ok(Ok(result)) => ProviderUsageSnapshot::from_fetch_result(id, &metadata, &result),
-                Ok(Err(e)) => ProviderUsageSnapshot::from_error(id, &metadata, e.to_string()),
+                Ok(Err(e)) => ProviderUsageSnapshot::from_error(
+                    id,
+                    &metadata,
+                    codexbar::logging::safe_error_message(e),
+                ),
                 Err(_) => ProviderUsageSnapshot::from_error(id, &metadata, "Timeout".to_string()),
             };
             let fetch_duration_ms = started.elapsed().as_millis();

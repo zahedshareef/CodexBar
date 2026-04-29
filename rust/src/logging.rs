@@ -2,6 +2,11 @@
 
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
+/// Convert a displayable error into a frontend/log-safe message.
+pub fn safe_error_message(err: impl std::fmt::Display) -> String {
+    crate::core::SecretRedactor::redact(&err.to_string())
+}
+
 /// Initialize the logging system
 pub fn init(verbose: bool, json: bool) -> anyhow::Result<()> {
     let filter = if verbose {
