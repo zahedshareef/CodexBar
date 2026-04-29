@@ -61,6 +61,7 @@ fn main() {
             commands::refresh_providers_if_stale,
             commands::get_cached_providers,
             commands::get_safe_diagnostics,
+            commands::get_credential_storage_status,
             commands::get_update_state,
             commands::check_for_updates,
             commands::download_update,

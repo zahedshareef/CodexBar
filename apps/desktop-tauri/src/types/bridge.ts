@@ -291,6 +291,12 @@ export interface SafeDiagnostics {
   refreshIntervalSecs: number;
 }
 
+export interface CredentialStorageStatus {
+  manualCookies: string;
+  apiKeys: string;
+  tokenAccounts: string;
+}
+
 // ── Update state types ───────────────────────────────────────────────
 
 export type UpdateStatus =

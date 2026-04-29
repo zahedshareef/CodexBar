@@ -27,6 +27,7 @@ import type {
   CookieSourceOption,
   RegionOption,
   SafeDiagnostics,
+  CredentialStorageStatus,
 } from "../types/bridge";
 
 export function getBootstrapState(): Promise<BootstrapState> {
@@ -92,6 +93,10 @@ export function getCachedProviders(): Promise<ProviderUsageSnapshot[]> {
 
 export function getSafeDiagnostics(): Promise<SafeDiagnostics> {
   return invoke<SafeDiagnostics>("get_safe_diagnostics");
+}
+
+export function getCredentialStorageStatus(): Promise<CredentialStorageStatus> {
+  return invoke<CredentialStorageStatus>("get_credential_storage_status");
 }
 
 export function getUpdateState(): Promise<UpdateStatePayload> {
@@ -263,6 +268,10 @@ export function openProviderStatusPage(providerId: string): Promise<void> {
 
 export function triggerProviderLogin(providerId: string): Promise<void> {
   return invoke<void>("trigger_provider_login", { providerId });
+}
+
+export function revokeProviderCredentials(providerId: string): Promise<void> {
+  return invoke<void>("revoke_provider_credentials", { providerId });
 }
 
 // ── Phase 6c — cookie source & region pickers ────────────────────────

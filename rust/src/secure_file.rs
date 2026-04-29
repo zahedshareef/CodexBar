@@ -19,6 +19,47 @@ struct ProtectedFile {
     payload: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SecureFileStatus {
+    Missing,
+    Plaintext,
+    Protected(String),
+    Unreadable(String),
+}
+
+/// Return a non-secret storage status for diagnostics/UI surfaces.
+pub fn status(path: &Path) -> SecureFileStatus {
+    if !path.exists() {
+        return SecureFileStatus::Missing;
+    }
+
+    let raw = match std::fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(e) => return SecureFileStatus::Unreadable(e.to_string()),
+    };
+
+    let Ok(file) = serde_json::from_str::<ProtectedFile>(&raw) else {
+        return SecureFileStatus::Plaintext;
+    };
+
+    if file.format != FORMAT {
+        return SecureFileStatus::Plaintext;
+    }
+    if file.version != VERSION {
+        return SecureFileStatus::Unreadable(format!(
+            "unsupported secure file version {}",
+            file.version
+        ));
+    }
+
+    match file.protection.as_str() {
+        WINDOWS_DPAPI_USER | WINDOWS_DPAPI_MACHINE => SecureFileStatus::Protected(file.protection),
+        other => {
+            SecureFileStatus::Unreadable(format!("unsupported secure file protection {other}"))
+        }
+    }
+}
+
 /// Read a UTF-8 file that may be protected by this module.
 pub fn read_string(path: &Path) -> io::Result<String> {
     let raw = std::fs::read_to_string(path)?;
@@ -206,6 +247,53 @@ mod tests {
         write_string(&path, r#"{"secret":"value"}"#).unwrap();
 
         assert_eq!(read_string(&path).unwrap(), r#"{"secret":"value"}"#);
+    }
+
+    #[test]
+    fn status_reports_missing_plaintext_and_protected_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("missing.json");
+        assert_eq!(status(&missing), SecureFileStatus::Missing);
+
+        let plain = dir.path().join("plain.json");
+        std::fs::write(&plain, r#"{"secret":"value"}"#).unwrap();
+        assert_eq!(status(&plain), SecureFileStatus::Plaintext);
+
+        let protected = dir.path().join("protected.json");
+        std::fs::write(
+            &protected,
+            serde_json::to_string(&ProtectedFile {
+                format: FORMAT.to_string(),
+                version: VERSION,
+                protection: WINDOWS_DPAPI_USER.to_string(),
+                payload: "AA==".to_string(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            status(&protected),
+            SecureFileStatus::Protected(WINDOWS_DPAPI_USER.to_string())
+        );
+    }
+
+    #[test]
+    fn status_reports_unsupported_wrappers_as_unreadable() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("protected.json");
+        std::fs::write(
+            &path,
+            serde_json::to_string(&ProtectedFile {
+                format: FORMAT.to_string(),
+                version: VERSION + 1,
+                protection: WINDOWS_DPAPI_USER.to_string(),
+                payload: "AA==".to_string(),
+            })
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert!(matches!(status(&path), SecureFileStatus::Unreadable(_)));
     }
 
     #[cfg(windows)]

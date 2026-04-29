@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type {
   CookieSourceOption,
+  CredentialStorageStatus,
   ProviderDetail,
   RegionOption,
   SettingsSnapshot,
@@ -8,6 +9,7 @@ import type {
 } from "../../../types/bridge";
 import { useLocale } from "../../../hooks/useLocale";
 import {
+  getCredentialStorageStatus,
   getProviderCookieSourceOptions,
   getProviderDetail,
   getProviderRegionOptions,
@@ -15,6 +17,7 @@ import {
   openProviderDashboard,
   openProviderStatusPage,
   refreshProviders,
+  revokeProviderCredentials,
   triggerProviderLogin,
 } from "../../../lib/tauri";
 import { listen } from "@tauri-apps/api/event";
@@ -69,6 +72,9 @@ export function ProviderDetailPane({
   const [detail, setDetail] = useState<ProviderDetail | null>(null);
   const [cookieOptions, setCookieOptions] = useState<CookieSourceOption[]>([]);
   const [regionOptions, setRegionOptions] = useState<RegionOption[]>([]);
+  const [credentialStatus, setCredentialStatus] =
+    useState<CredentialStorageStatus | null>(null);
+  const [credentialRevision, setCredentialRevision] = useState(0);
   const [tokenProviderIds, setTokenProviderIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -97,21 +103,24 @@ export function ProviderDetailPane({
     setLoading(true);
     setError(null);
     try {
-      const [next, cookieOpts, regionOpts] = await Promise.all([
+      const [next, cookieOpts, regionOpts, storageStatus] = await Promise.all([
         getProviderDetail(id),
         getProviderCookieSourceOptions(id),
         getProviderRegionOptions(id),
+        getCredentialStorageStatus(),
       ]);
       if (signal?.stale) return;
       setDetail(next);
       setCookieOptions(cookieOpts);
       setRegionOptions(regionOpts);
+      setCredentialStatus(storageStatus);
     } catch (e) {
       if (signal?.stale) return;
       setError(String(e));
       setDetail(null);
       setCookieOptions([]);
       setRegionOptions([]);
+      setCredentialStatus(null);
     } finally {
       if (!signal?.stale) setLoading(false);
     }
@@ -128,6 +137,7 @@ export function ProviderDetailPane({
     setDetail(null);
     setCookieOptions([]);
     setRegionOptions([]);
+    setCredentialStatus(null);
     const signal = { stale: false };
     void load(providerId, signal);
     return () => { signal.stale = true; };
@@ -208,6 +218,20 @@ export function ProviderDetailPane({
     }
   };
 
+  const handleRevokeCredentials = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await revokeProviderCredentials(detail.id);
+      setCredentialRevision((value) => value + 1);
+      await load(detail.id);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleOpenDashboard = () => {
     void openProviderDashboard(detail.id).catch((e) => setError(String(e)));
   };
@@ -269,10 +293,26 @@ export function ProviderDetailPane({
         onChanged={() => void load(detail.id)}
       />
       <CredentialsDispatcher providerId={detail.id} t={t} />
-      <ApiKeySection providerId={detail.id} />
-      <CookieSection providerId={detail.id} cookieDomain={cookieDomain} />
+      <CredentialStorageSection
+        status={credentialStatus}
+        busy={busy}
+        onRevoke={handleRevokeCredentials}
+      />
+      <ApiKeySection
+        key={`api-${detail.id}-${credentialRevision}`}
+        providerId={detail.id}
+      />
+      <CookieSection
+        key={`cookie-${detail.id}-${credentialRevision}`}
+        providerId={detail.id}
+        cookieDomain={cookieDomain}
+      />
       {tokenProviderIds.has(detail.id) && (
-        <TokenAccountsPanel providerId={detail.id} compact />
+        <TokenAccountsPanel
+          key={`token-${detail.id}-${credentialRevision}`}
+          providerId={detail.id}
+          compact
+        />
       )}
       <ChartsSection
         providerId={detail.id}
@@ -293,6 +333,59 @@ export function ProviderDetailPane({
       />
     </div>
   );
+}
+
+function CredentialStorageSection({
+  status,
+  busy,
+  onRevoke,
+}: {
+  status: CredentialStorageStatus | null;
+  busy: boolean;
+  onRevoke: () => void;
+}) {
+  if (!status) return null;
+
+  return (
+    <section className="provider-detail-section provider-detail-credential-storage">
+      <div className="provider-detail-section__header">
+        <h4>Credential Storage</h4>
+        <button
+          className="credential-btn credential-btn--danger"
+          disabled={busy}
+          onClick={onRevoke}
+        >
+          Revoke Stored Credentials
+        </button>
+      </div>
+      <dl className="provider-detail-grid provider-detail-grid--storage">
+        <dt>API keys</dt>
+        <dd>{storageLabel(status.apiKeys)}</dd>
+        <dt>Manual cookies</dt>
+        <dd>{storageLabel(status.manualCookies)}</dd>
+        <dt>Token accounts</dt>
+        <dd>{storageLabel(status.tokenAccounts)}</dd>
+      </dl>
+    </section>
+  );
+}
+
+function storageLabel(value: string): string {
+  if (value.startsWith("protected:")) {
+    return `Protected (${value.slice("protected:".length)})`;
+  }
+  switch (value) {
+    case "missing":
+      return "Not created";
+    case "plaintext":
+      return "Plaintext";
+    case "unavailable":
+      return "Unavailable";
+    case "unreadable":
+      return "Unreadable";
+    default:
+      return value;
+  }
 }
 
 function buildSubtitle(

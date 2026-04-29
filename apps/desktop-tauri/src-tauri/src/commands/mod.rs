@@ -3,9 +3,10 @@ use std::sync::Mutex;
 
 use codexbar::core::{
     FetchContext, ProviderFetchResult, ProviderId, ProviderMetadata, RateWindow, SourceMode,
-    instantiate_provider,
+    TokenAccountStore, instantiate_provider,
 };
 use codexbar::locale;
+use codexbar::secure_file::{self, SecureFileStatus};
 use codexbar::settings::{
     ApiKeys, Language, ManualCookies, MetricPreference, Settings, ThemePreference, TrayIconMode,
     UpdateChannel,
@@ -706,7 +707,11 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
         },
         BridgeCommandDescriptor {
             id: "revoke_provider_credentials",
-            description: "Revoke or remove stored credentials (API keys + manual cookies) for a provider.",
+            description: "Revoke or remove stored credentials (API keys, manual cookies, and token accounts) for a provider.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_credential_storage_status",
+            description: "Return non-secret credential file protection status labels.",
         },
         BridgeCommandDescriptor {
             id: "get_locale_strings",
@@ -1173,10 +1178,7 @@ fn is_provider_cache_fresh(
         .unwrap_or(false)
 }
 
-fn upsert_provider_cache(
-    cache: &mut Vec<ProviderUsageSnapshot>,
-    snapshot: ProviderUsageSnapshot,
-) {
+fn upsert_provider_cache(cache: &mut Vec<ProviderUsageSnapshot>, snapshot: ProviderUsageSnapshot) {
     if let Some(existing) = cache
         .iter_mut()
         .find(|existing| existing.provider_id == snapshot.provider_id)
@@ -2600,9 +2602,12 @@ pub fn get_provider_detail(
 
 #[tauri::command]
 pub fn revoke_provider_credentials(provider_id: String) -> Result<(), String> {
-    // Best-effort: drop both a stored API key and any manual cookie so the
+    // Best-effort: drop every app-managed credential for this provider so the
     // caller can follow up with a fresh login or import. Missing entries are
     // silently ignored; only I/O errors propagate.
+    let id = ProviderId::from_cli_name(&provider_id)
+        .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
+
     let mut keys = ApiKeys::load();
     keys.remove(&provider_id);
     keys.save().map_err(|e| e.to_string())?;
@@ -2611,7 +2616,48 @@ pub fn revoke_provider_credentials(provider_id: String) -> Result<(), String> {
     cookies.remove(&provider_id);
     cookies.save().map_err(|e| e.to_string())?;
 
+    let token_store = TokenAccountStore::new();
+    let mut token_accounts = token_store.load().map_err(|e| e.to_string())?;
+    if token_accounts.remove(&id).is_some() {
+        token_store
+            .save(&token_accounts)
+            .map_err(|e| e.to_string())?;
+    }
+
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialStorageStatusBridge {
+    pub manual_cookies: String,
+    pub api_keys: String,
+    pub token_accounts: String,
+}
+
+fn credential_file_status_label(status: SecureFileStatus) -> String {
+    match status {
+        SecureFileStatus::Missing => "missing".to_string(),
+        SecureFileStatus::Plaintext => "plaintext".to_string(),
+        SecureFileStatus::Protected(protection) => format!("protected:{protection}"),
+        SecureFileStatus::Unreadable(_) => "unreadable".to_string(),
+    }
+}
+
+fn optional_credential_status(path: Option<std::path::PathBuf>) -> String {
+    path.map(|path| credential_file_status_label(secure_file::status(&path)))
+        .unwrap_or_else(|| "unavailable".to_string())
+}
+
+#[tauri::command]
+pub fn get_credential_storage_status() -> CredentialStorageStatusBridge {
+    CredentialStorageStatusBridge {
+        manual_cookies: optional_credential_status(ManualCookies::cookies_path()),
+        api_keys: optional_credential_status(ApiKeys::keys_path()),
+        token_accounts: credential_file_status_label(secure_file::status(
+            &TokenAccountStore::default_path(),
+        )),
+    }
 }
 
 // ── Locale / i18n commands ───────────────────────────────────────────
@@ -2742,8 +2788,9 @@ mod locale_tests {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProviderSummary, ProviderUsageSnapshot, apply_provider_order, bridge_commands, bridge_events,
-        provider_cookie_source_lookup, provider_region_lookup, validate_surface_target,
+        ProviderSummary, ProviderUsageSnapshot, apply_provider_order, bridge_commands,
+        bridge_events, provider_cookie_source_lookup, provider_region_lookup,
+        validate_surface_target,
     };
     use crate::surface::SurfaceMode;
     use crate::surface_target::SurfaceTarget;
@@ -2841,9 +2888,38 @@ mod tests {
             "open_provider_dashboard",
             "trigger_provider_login",
             "revoke_provider_credentials",
+            "get_credential_storage_status",
         ] {
             assert!(ids.contains(&expected), "missing command id: {expected}");
         }
+    }
+
+    #[test]
+    fn credential_status_labels_do_not_include_error_details() {
+        assert_eq!(
+            super::credential_file_status_label(codexbar::secure_file::SecureFileStatus::Missing),
+            "missing"
+        );
+        assert_eq!(
+            super::credential_file_status_label(codexbar::secure_file::SecureFileStatus::Plaintext),
+            "plaintext"
+        );
+        assert_eq!(
+            super::credential_file_status_label(
+                codexbar::secure_file::SecureFileStatus::Protected(
+                    "windows-dpapi-user".to_string(),
+                )
+            ),
+            "protected:windows-dpapi-user"
+        );
+        assert_eq!(
+            super::credential_file_status_label(
+                codexbar::secure_file::SecureFileStatus::Unreadable(
+                    "secret path / token".to_string(),
+                )
+            ),
+            "unreadable"
+        );
     }
 
     #[test]

@@ -1906,6 +1906,22 @@ html {
   color: var(--text-eyebrow);
 }
 
+.provider-detail-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.provider-detail-section__header h4 {
+  margin-bottom: 0;
+}
+
+.provider-detail-grid--storage {
+  margin-top: 4px;
+}
+
 .provider-usage-bar {
   display: flex;
   flex-direction: column;
