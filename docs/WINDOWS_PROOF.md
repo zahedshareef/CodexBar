@@ -47,6 +47,23 @@ Artefacts land in
 tauri:build`) skip installer packaging; drop `--no-bundle` for the real
 release flow via `cargo tauri build` directly.
 
+For the Inno Setup release artefact produced by
+`.github/workflows/release-windows.yml`, run the smoke installer test on a
+Windows machine before upload or publication:
+
+```powershell
+powershell -ExecutionPolicy Bypass `
+  -File .\scripts\windows-smoke-install.ps1 `
+  -InstallerPath .\rust\target\installer\CodexBar-0.23.5-Setup.exe `
+  -ExpectedVersion 0.23.5
+```
+
+The script verifies the silent install switches
+`/VERYSILENT /SUPPRESSMSGBOXES /NORESTART`, installed files,
+Start Menu shortcut, uninstall registry entry, optional version match, and
+silent uninstall cleanup. Add `-LeaveInstalled` when the VM should keep the
+installed app for manual UI validation.
+
 ---
 
 ## 2. Observable behaviours to verify on Windows
