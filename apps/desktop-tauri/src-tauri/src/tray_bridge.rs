@@ -877,6 +877,7 @@ mod tests {
             pace: None,
             account_organization: None,
             tray_status_label: None,
+            fetch_duration_ms: None,
         }
     }
 

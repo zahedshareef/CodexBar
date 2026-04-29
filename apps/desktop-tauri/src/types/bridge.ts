@@ -272,6 +272,7 @@ export interface ProviderUsageSnapshot {
   pace: PaceSnapshot | null;
   accountOrganization: string | null;
   trayStatusLabel: string | null;
+  fetchDurationMs?: number | null;
 }
 
 export interface RefreshCompletePayload {

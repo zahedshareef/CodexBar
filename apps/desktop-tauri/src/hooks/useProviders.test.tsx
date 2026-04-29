@@ -79,6 +79,7 @@ describe("useProviders", () => {
         pace: null,
         accountOrganization: null,
         trayStatusLabel: "25%",
+        fetchDurationMs: null,
       },
     ]);
 

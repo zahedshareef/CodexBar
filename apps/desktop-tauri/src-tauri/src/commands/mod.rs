@@ -138,6 +138,7 @@ pub struct ProviderUsageSnapshot {
     pub pace: Option<PaceSnapshot>,
     pub account_organization: Option<String>,
     pub tray_status_label: Option<String>,
+    pub fetch_duration_ms: Option<u128>,
 }
 
 fn pace_stage_str(stage: codexbar::core::PaceStage) -> &'static str {
@@ -242,6 +243,7 @@ impl ProviderUsageSnapshot {
             pace,
             account_organization: usage.account_organization.clone(),
             tray_status_label,
+            fetch_duration_ms: None,
         }
     }
 
@@ -274,6 +276,7 @@ impl ProviderUsageSnapshot {
             pace: None,
             account_organization: None,
             tray_status_label: None,
+            fetch_duration_ms: None,
         }
     }
 }
@@ -1227,8 +1230,9 @@ async fn do_refresh_providers_with_policy(
         handles.push(tokio::spawn(async move {
             let provider = instantiate_provider(id);
             let metadata = provider.metadata().clone();
+            let started = std::time::Instant::now();
 
-            let snapshot = match tokio::time::timeout(
+            let mut snapshot = match tokio::time::timeout(
                 PROVIDER_FETCH_TIMEOUT,
                 provider.fetch_usage(&ctx),
             )
@@ -1238,6 +1242,15 @@ async fn do_refresh_providers_with_policy(
                 Ok(Err(e)) => ProviderUsageSnapshot::from_error(id, &metadata, e.to_string()),
                 Err(_) => ProviderUsageSnapshot::from_error(id, &metadata, "Timeout".to_string()),
             };
+            let fetch_duration_ms = started.elapsed().as_millis();
+            snapshot.fetch_duration_ms = Some(fetch_duration_ms);
+            if fetch_duration_ms > 5_000 {
+                tracing::warn!(
+                    provider = id.cli_name(),
+                    fetch_duration_ms,
+                    "slow provider refresh"
+                );
+            }
 
             // Emit per-provider update event.
             events::emit_provider_updated(&app_handle, &snapshot);
