@@ -40,10 +40,19 @@ The script installs Rust/MinGW if needed, builds the Tauri desktop shell, and la
 
 ## Download
 
-Grab the latest build from [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases).
+Install with Windows Package Manager:
+
+```powershell
+winget install Finesssee.Win-CodexBar
+```
+
+Winget distribution is approved through [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs/tree/master/manifests/f/Finesssee/Win-CodexBar). New releases may take a little time to appear in Winget after the GitHub release is published because each version is pinned to its own installer URL and SHA-256 hash.
+
+You can also grab the latest build from [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases).
 
 - **Installer**: `CodexBar-<version>-Setup.exe`
 - **Portable**: `CodexBar-<version>-portable.zip`
+- **Checksums**: each release includes `.sha256` files for manual verification
 
 ## First Run
 

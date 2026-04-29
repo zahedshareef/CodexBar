@@ -39,10 +39,19 @@ cd Win-CodexBar
 
 ## 下载
 
-前往 [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases) 下载最新版本。
+使用 Windows Package Manager 安装：
+
+```powershell
+winget install Finesssee.Win-CodexBar
+```
+
+Winget 分发已通过 [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs/tree/master/manifests/f/Finesssee/Win-CodexBar) 审核。GitHub Release 发布后，新版本可能需要一点时间才会出现在 Winget 中，因为每个版本都要固定自己的安装包 URL 和 SHA-256 哈希。
+
+也可以前往 [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases) 下载最新版本。
 
 - **安装包**：`CodexBar-<version>-Setup.exe`
-- **便携版**：`codexbar-desktop-tauri.exe`
+- **便携版**：`CodexBar-<version>-portable.zip`
+- **校验和**：每个发布版本都包含 `.sha256` 文件，便于手动校验
 
 ## 首次运行
 
