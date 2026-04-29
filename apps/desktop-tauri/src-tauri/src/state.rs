@@ -123,6 +123,8 @@ pub struct AppState {
     pub current_target: SurfaceTarget,
     pub tray_anchor: Option<TrayAnchor>,
     pub provider_cache: Vec<ProviderUsageSnapshot>,
+    pub provider_cache_updated_at: Option<std::time::Instant>,
+    pub provider_refresh_started_at: Option<std::time::Instant>,
     pub is_refreshing: bool,
     pub update_state: UpdateState,
     /// Full update metadata from the last successful check.
@@ -166,6 +168,8 @@ impl AppState {
             current_target: SurfaceTarget::Summary,
             tray_anchor: None,
             provider_cache: Vec::new(),
+            provider_cache_updated_at: None,
+            provider_refresh_started_at: None,
             is_refreshing: false,
             update_state: UpdateState::Idle,
             update_info: None,

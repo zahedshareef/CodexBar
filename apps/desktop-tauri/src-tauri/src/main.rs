@@ -58,6 +58,7 @@ fn main() {
             commands::get_proof_state,
             commands::run_proof_command,
             commands::refresh_providers,
+            commands::refresh_providers_if_stale,
             commands::get_cached_providers,
             commands::get_update_state,
             commands::check_for_updates,

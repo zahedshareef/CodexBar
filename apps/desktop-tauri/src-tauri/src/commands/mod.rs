@@ -28,6 +28,8 @@ pub use chart::*;
 pub use tokens::*;
 pub use updater::*;
 
+const PROVIDER_CACHE_STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
+
 // ── Bridge snapshot types ────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize)]
@@ -484,6 +486,10 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
         BridgeCommandDescriptor {
             id: "refresh_providers",
             description: "Async refresh of provider usage snapshots with per-provider event updates.",
+        },
+        BridgeCommandDescriptor {
+            id: "refresh_providers_if_stale",
+            description: "Refresh provider usage only when the in-memory cache is stale.",
         },
         BridgeCommandDescriptor {
             id: "get_cached_providers",
@@ -1149,8 +1155,42 @@ fn build_fetch_context(
 
 const PROVIDER_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 
+fn is_provider_cache_fresh(
+    updated_at: Option<std::time::Instant>,
+    stale_after: std::time::Duration,
+) -> bool {
+    updated_at
+        .map(|updated| updated.elapsed() <= stale_after)
+        .unwrap_or(false)
+}
+
+fn upsert_provider_cache(
+    cache: &mut Vec<ProviderUsageSnapshot>,
+    snapshot: ProviderUsageSnapshot,
+) {
+    if let Some(existing) = cache
+        .iter_mut()
+        .find(|existing| existing.provider_id == snapshot.provider_id)
+    {
+        *existing = snapshot;
+    } else {
+        cache.push(snapshot);
+    }
+}
+
 /// Core refresh logic, usable from both the Tauri command and tray menu actions.
 pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), String> {
+    do_refresh_providers_with_policy(app, true).await
+}
+
+pub(crate) async fn do_refresh_providers_if_stale(app: &tauri::AppHandle) -> Result<(), String> {
+    do_refresh_providers_with_policy(app, false).await
+}
+
+async fn do_refresh_providers_with_policy(
+    app: &tauri::AppHandle,
+    force: bool,
+) -> Result<(), String> {
     let state = app.state::<Mutex<AppState>>();
 
     {
@@ -1158,8 +1198,14 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
         if guard.is_refreshing {
             return Ok(());
         }
+        if !force
+            && !guard.provider_cache.is_empty()
+            && is_provider_cache_fresh(guard.provider_cache_updated_at, PROVIDER_CACHE_STALE_AFTER)
+        {
+            return Ok(());
+        }
         guard.is_refreshing = true;
-        guard.provider_cache.clear();
+        guard.provider_refresh_started_at = Some(std::time::Instant::now());
     }
 
     events::emit_refresh_started(app);
@@ -1199,7 +1245,7 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
             // Append to the cache.
             let st = app_handle.state::<Mutex<AppState>>();
             if let Ok(mut guard) = st.lock() {
-                guard.provider_cache.push(snapshot);
+                upsert_provider_cache(&mut guard.provider_cache, snapshot);
             }
         }));
     }
@@ -1213,6 +1259,8 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
     let error_count = {
         let mut guard = state.lock().map_err(|e| e.to_string())?;
         guard.is_refreshing = false;
+        guard.provider_cache_updated_at = Some(std::time::Instant::now());
+        guard.provider_refresh_started_at = None;
         guard
             .provider_cache
             .iter()
@@ -1259,6 +1307,11 @@ pub(crate) async fn do_refresh_providers(app: &tauri::AppHandle) -> Result<(), S
 #[tauri::command]
 pub async fn refresh_providers(app: tauri::AppHandle) -> Result<(), String> {
     do_refresh_providers(&app).await
+}
+
+#[tauri::command]
+pub async fn refresh_providers_if_stale(app: tauri::AppHandle) -> Result<(), String> {
+    do_refresh_providers_if_stale(&app).await
 }
 
 #[tauri::command]
@@ -2666,12 +2719,12 @@ mod locale_tests {
 #[cfg(test)]
 mod tests {
     use super::{
-        ProviderSummary, apply_provider_order, bridge_commands, bridge_events,
+        ProviderSummary, ProviderUsageSnapshot, apply_provider_order, bridge_commands, bridge_events,
         provider_cookie_source_lookup, provider_region_lookup, validate_surface_target,
     };
     use crate::surface::SurfaceMode;
     use crate::surface_target::SurfaceTarget;
-    use codexbar::core::{ProviderId, SourceMode};
+    use codexbar::core::{ProviderFetchResult, ProviderId, SourceMode, instantiate_provider};
     use codexbar::host::session::launch_block_reason;
     use codexbar::settings::{ApiKeys, Language, ManualCookies, Settings};
 
@@ -2964,6 +3017,64 @@ mod tests {
             ids.contains(&"get_provider_chart_data"),
             "get_provider_chart_data must be advertised to the bridge",
         );
+    }
+
+    #[test]
+    fn bootstrap_contract_lists_stale_refresh_command() {
+        let ids = bridge_commands()
+            .into_iter()
+            .map(|descriptor| descriptor.id)
+            .collect::<Vec<_>>();
+        assert!(
+            ids.contains(&"refresh_providers_if_stale"),
+            "refresh_providers_if_stale must be advertised to the bridge",
+        );
+    }
+
+    #[test]
+    fn provider_cache_is_fresh_inside_stale_window() {
+        assert!(super::is_provider_cache_fresh(
+            Some(std::time::Instant::now()),
+            std::time::Duration::from_secs(30),
+        ));
+    }
+
+    #[test]
+    fn provider_cache_is_stale_when_missing_timestamp() {
+        assert!(!super::is_provider_cache_fresh(
+            None,
+            std::time::Duration::from_secs(30),
+        ));
+    }
+
+    #[test]
+    fn provider_cache_is_stale_after_window() {
+        assert!(!super::is_provider_cache_fresh(
+            Some(std::time::Instant::now() - std::time::Duration::from_secs(31)),
+            std::time::Duration::from_secs(30),
+        ));
+    }
+
+    #[test]
+    fn provider_cache_upsert_replaces_existing_provider() {
+        let metadata = instantiate_provider(ProviderId::Codex).metadata().clone();
+        let result = ProviderFetchResult {
+            usage: codexbar::core::UsageSnapshot::new(codexbar::core::RateWindow::new(10.0)),
+            cost: None,
+            source_label: "CLI".to_string(),
+        };
+        let mut first =
+            ProviderUsageSnapshot::from_fetch_result(ProviderId::Codex, &metadata, &result);
+        let mut second = first.clone();
+        first.error = Some("old".to_string());
+        second.error = Some("new".to_string());
+
+        let mut cache = vec![first];
+        super::upsert_provider_cache(&mut cache, second);
+
+        assert_eq!(cache.len(), 1);
+        assert_eq!(cache[0].provider_id, "codex");
+        assert_eq!(cache[0].error.as_deref(), Some("new"));
     }
 
     #[test]
