@@ -34,7 +34,8 @@ Download the latest release from the [Releases](https://github.com/Finesssee/Win
 
 - Recommended: `CodexBar-<version>-Setup.exe`
   - This installer now installs the required Microsoft Visual C++ runtime on clean Windows machines before launching CodexBar.
-- Portable: `codexbar.exe`
+- Portable: `CodexBar-<version>-portable.zip`
+  - Extract the zip and keep `codexbar.exe` beside `WebView2Loader.dll`.
   - Best for machines that already have the Microsoft Visual C++ runtime installed.
 - Linux CLI: `codexbar-v<version>-linux-x86_64.tar.gz` or `codexbar-v<version>-linux-aarch64.tar.gz`
   - Includes the standalone `codexbar` CLI binary plus README and license files.

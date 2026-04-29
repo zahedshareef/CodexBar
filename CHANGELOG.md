@@ -1,5 +1,14 @@
 # Changelog
 
+## [Windows] 0.23.3 - 2026-04-29
+
+### Fixed
+- Ship `WebView2Loader.dll` beside `codexbar.exe` in the Windows installer so clean installs can launch the Tauri shell.
+- Replace the standalone portable executable release asset with `CodexBar-<version>-portable.zip`, which includes both `codexbar.exe` and `WebView2Loader.dll`.
+- Add release workflow checks that fail the build when the WebView2 runtime sidecar is missing.
+
+---
+
 ## [Windows] 0.23.2 - 2026-04-28
 
 ### Fixed

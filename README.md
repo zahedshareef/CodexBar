@@ -42,7 +42,7 @@ The script installs Rust/MinGW if needed, builds the Tauri desktop shell, and la
 Grab the latest build from [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases).
 
 - **Installer**: `CodexBar-<version>-Setup.exe`
-- **Portable**: `codexbar-desktop-tauri.exe`
+- **Portable**: `CodexBar-<version>-portable.zip`
 
 ## First Run
 

@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: npm ci --prefix apps/desktop-tauri
 
-      - name: Build portable executable
+      - name: Build Windows executable
         shell: bash
         run: |
           set -euo pipefail
@@ -60,6 +60,13 @@ jobs:
           fi
 
           cp "$SOURCE_EXE" "$DEST_EXE"
+
+          WEBVIEW2_DLL="target/release/WebView2Loader.dll"
+          if [[ ! -f "$WEBVIEW2_DLL" ]]; then
+            echo "Missing expected WebView2 runtime sidecar: $WEBVIEW2_DLL" >&2
+            echo "The installer and portable package must ship WebView2Loader.dll beside codexbar.exe." >&2
+            exit 1
+          fi
 
       - name: Install Inno Setup
         shell: pwsh
@@ -114,13 +121,24 @@ jobs:
           $assetDir = "rust\target\release-assets"
           New-Item -ItemType Directory -Force $assetDir | Out-Null
 
-          $portable = "target\release\codexbar.exe"
+          $webview2 = "target\release\WebView2Loader.dll"
           $installer = "rust\target\installer\CodexBar-$env:APP_VERSION-Setup.exe"
+          $portableDir = "rust\target\portable\CodexBar-$env:APP_VERSION-portable"
+          $portableZip = Join-Path $assetDir "CodexBar-$env:APP_VERSION-portable.zip"
 
-          foreach ($path in @($portable, $installer)) {
+          foreach ($path in @("target\release\codexbar.exe", $webview2, $installer)) {
             if (-not (Test-Path $path)) {
               throw "Missing expected asset: $path"
             }
+          }
+
+          New-Item -ItemType Directory -Force $portableDir | Out-Null
+          Copy-Item "target\release\codexbar.exe" $portableDir -Force
+          Copy-Item $webview2 $portableDir -Force
+          Copy-Item "rust\icons\icon.ico" $portableDir -Force
+          Compress-Archive -Path "$portableDir\*" -DestinationPath $portableZip -Force
+
+          foreach ($path in @($installer, $portableZip)) {
             Copy-Item $path $assetDir -Force
 
             $fileName = Split-Path $path -Leaf
@@ -139,8 +157,8 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" \
             "rust/target/release-assets/CodexBar-$APP_VERSION-Setup.exe" \
             "rust/target/release-assets/CodexBar-$APP_VERSION-Setup.exe.sha256" \
-            "rust/target/release-assets/codexbar.exe" \
-            "rust/target/release-assets/codexbar.exe.sha256" \
+            "rust/target/release-assets/CodexBar-$APP_VERSION-portable.zip" \
+            "rust/target/release-assets/CodexBar-$APP_VERSION-portable.zip.sha256" \
             --clobber
 
       - name: Upload workflow artifact
@@ -151,5 +169,5 @@ jobs:
           path: |
             rust/target/release-assets/CodexBar-${{ env.APP_VERSION }}-Setup.exe
             rust/target/release-assets/CodexBar-${{ env.APP_VERSION }}-Setup.exe.sha256
-            rust/target/release-assets/codexbar.exe
-            rust/target/release-assets/codexbar.exe.sha256
+            rust/target/release-assets/CodexBar-${{ env.APP_VERSION }}-portable.zip
+            rust/target/release-assets/CodexBar-${{ env.APP_VERSION }}-portable.zip.sha256
