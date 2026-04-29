@@ -280,6 +280,17 @@ export interface RefreshCompletePayload {
   errorCount: number;
 }
 
+export interface SafeDiagnostics {
+  appVersion: string;
+  platform: string;
+  enabledProviders: string[];
+  providerCookieSources: Record<string, string>;
+  hasManualCookies: string[];
+  hasApiKeys: string[];
+  hidePersonalInfo: boolean;
+  refreshIntervalSecs: number;
+}
+
 // ── Update state types ───────────────────────────────────────────────
 
 export type UpdateStatus =

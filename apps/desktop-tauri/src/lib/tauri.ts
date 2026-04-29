@@ -26,6 +26,7 @@ import type {
   UpdateStatePayload,
   CookieSourceOption,
   RegionOption,
+  SafeDiagnostics,
 } from "../types/bridge";
 
 export function getBootstrapState(): Promise<BootstrapState> {
@@ -87,6 +88,10 @@ export function refreshProvidersIfStale(): Promise<void> {
 
 export function getCachedProviders(): Promise<ProviderUsageSnapshot[]> {
   return invoke<ProviderUsageSnapshot[]>("get_cached_providers");
+}
+
+export function getSafeDiagnostics(): Promise<SafeDiagnostics> {
+  return invoke<SafeDiagnostics>("get_safe_diagnostics");
 }
 
 export function getUpdateState(): Promise<UpdateStatePayload> {

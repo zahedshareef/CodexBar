@@ -21,10 +21,12 @@ use crate::surface::SurfaceMode;
 use crate::surface_target::SurfaceTarget;
 
 mod chart;
+mod diagnostics;
 mod tokens;
 mod updater;
 
 pub use chart::*;
+pub use diagnostics::*;
 pub use tokens::*;
 pub use updater::*;
 
@@ -497,6 +499,10 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
         BridgeCommandDescriptor {
             id: "get_cached_providers",
             description: "Return the most recent provider usage snapshots from the in-memory cache.",
+        },
+        BridgeCommandDescriptor {
+            id: "get_safe_diagnostics",
+            description: "Return a redacted diagnostics snapshot for support/debugging.",
         },
         BridgeCommandDescriptor {
             id: "update_settings",
