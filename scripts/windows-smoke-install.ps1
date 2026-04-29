@@ -100,8 +100,16 @@ if ($ExpectedVersion -and $uninstallEntry.DisplayVersion -ne $ExpectedVersion) {
     throw "Expected DisplayVersion $ExpectedVersion, got $($uninstallEntry.DisplayVersion)"
 }
 
-$shortcut = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs\CodexBar\CodexBar.lnk"
-Assert-Path -Path $shortcut -Label "Start Menu shortcut"
+$startMenu = Join-Path $env:APPDATA "Microsoft\Windows\Start Menu\Programs"
+$shortcutCandidates = @(
+    (Join-Path $startMenu "CodexBar.lnk"),
+    (Join-Path $startMenu "CodexBar\CodexBar.lnk")
+)
+$shortcut = $shortcutCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if (-not $shortcut) {
+    throw "Missing Start Menu shortcut. Checked: $($shortcutCandidates -join ', ')"
+}
+Write-Step "Start Menu shortcut: $shortcut"
 
 if (-not $LeaveInstalled) {
     $uninstallLog = Join-Path $logDir "uninstall.log"
