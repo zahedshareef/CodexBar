@@ -81,6 +81,10 @@ export function refreshProviders(): Promise<void> {
   return invoke<void>("refresh_providers");
 }
 
+export function refreshProvidersIfStale(): Promise<void> {
+  return invoke<void>("refresh_providers_if_stale");
+}
+
 export function getCachedProviders(): Promise<ProviderUsageSnapshot[]> {
   return invoke<ProviderUsageSnapshot[]>("get_cached_providers");
 }

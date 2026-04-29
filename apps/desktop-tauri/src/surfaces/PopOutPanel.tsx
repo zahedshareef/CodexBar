@@ -38,7 +38,13 @@ export default function PopOutPanel({
   state: BootstrapState;
   providerId?: string;
 }) {
-  const { providers, isRefreshing, refresh, lastRefresh } = useProviders();
+  const {
+    providers,
+    isRefreshing,
+    refresh,
+    lastRefresh,
+    hasCachedData,
+  } = useProviders();
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
@@ -117,7 +123,10 @@ export default function PopOutPanel({
         banner={banner}
         footerRows={footerRows}
       >
-        <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
+        <MenuEmpty
+          isLoading={isRefreshing && !hasCachedData}
+          onSettings={openSettings}
+        />
       </MenuSurface>
     );
   }

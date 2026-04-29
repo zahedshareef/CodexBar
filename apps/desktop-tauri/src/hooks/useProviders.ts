@@ -4,7 +4,11 @@ import type {
   ProviderUsageSnapshot,
   RefreshCompletePayload,
 } from "../types/bridge";
-import { getCachedProviders, refreshProviders } from "../lib/tauri";
+import {
+  getCachedProviders,
+  refreshProviders,
+  refreshProvidersIfStale,
+} from "../lib/tauri";
 
 export interface UseProvidersResult {
   /** Current provider snapshots (updated live as each provider completes). */
@@ -15,6 +19,8 @@ export interface UseProvidersResult {
   refresh: () => void;
   /** Summary from the last completed refresh cycle, if any. */
   lastRefresh: RefreshCompletePayload | null;
+  /** True when the hook has provider data that can stay visible during refresh. */
+  hasCachedData: boolean;
 }
 
 /**
@@ -96,8 +102,13 @@ export function useProviders(): UseProvidersResult {
       },
     );
 
-    // Kick off the initial refresh.
-    refresh();
+    // Kick off the initial refresh, but let the backend reuse fresh cache.
+    refreshProvidersIfStale().catch(() => {
+      if (!cancelled) {
+        refreshingRef.current = false;
+        setIsRefreshing(false);
+      }
+    });
 
     return () => {
       cancelled = true;
@@ -107,5 +118,11 @@ export function useProviders(): UseProvidersResult {
     };
   }, [refresh, upsert]);
 
-  return { providers, isRefreshing, refresh, lastRefresh };
+  return {
+    providers,
+    isRefreshing,
+    refresh,
+    lastRefresh,
+    hasCachedData: providers.length > 0,
+  };
 }

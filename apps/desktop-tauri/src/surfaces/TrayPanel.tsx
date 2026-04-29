@@ -56,7 +56,12 @@ function sortProviders(
  * 2. Detail: click a provider in grid → show only that provider's card
  */
 export default function TrayPanel({ state }: { state: BootstrapState }) {
-  const { providers: realProviders, isRefreshing, refresh } = useProviders();
+  const {
+    providers: realProviders,
+    isRefreshing,
+    refresh,
+    hasCachedData,
+  } = useProviders();
   const providers = DEMO_ENABLED ? DEMO_PROVIDERS : realProviders;
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
@@ -287,7 +292,10 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
         banner={banner}
         footerRows={footerRows}
       >
-        <MenuEmpty isLoading={isRefreshing} onSettings={openSettings} />
+        <MenuEmpty
+          isLoading={isRefreshing && !hasCachedData}
+          onSettings={openSettings}
+        />
       </MenuSurface>
       </div>
     );
