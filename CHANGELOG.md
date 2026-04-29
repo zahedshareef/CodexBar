@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+---
+
+## [Windows] 0.23.5 - 2026-04-29
+
 ### Added
 - Add safe diagnostics and credential storage status reporting without exposing secret values.
 - Add a Windows installer smoke-test script for silent install, installed-file, registry, shortcut, and uninstall validation.

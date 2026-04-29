@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+---
+
+## [0.23.5] — 2026-04-29
+
 ### Added
 - Added safe diagnostics and credential storage status reporting for the Tauri shell without exposing secret values.
 - Added a Windows installer smoke-test script for silent install, installed-file, registry, shortcut, and uninstall validation.

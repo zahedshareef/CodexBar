@@ -2709,11 +2709,11 @@ pub fn revoke_provider_credentials(provider_id: String) -> Result<(), String> {
     let provider_id = id.cli_name();
 
     let mut keys = ApiKeys::load();
-    keys.remove(&provider_id);
+    keys.remove(provider_id);
     keys.save().map_err(|e| e.to_string())?;
 
     let mut cookies = ManualCookies::load();
-    cookies.remove(&provider_id);
+    cookies.remove(provider_id);
     cookies.save().map_err(|e| e.to_string())?;
 
     let token_store = TokenAccountStore::new();
