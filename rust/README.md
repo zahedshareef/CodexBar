@@ -130,7 +130,9 @@ Settings are stored in `%APPDATA%\CodexBar\settings.json`:
 }
 ```
 
-Manual cookies are stored separately in `%APPDATA%\CodexBar\manual_cookies.json`.
+Manual cookies, API keys, token accounts, and settings are stored under `%APPDATA%\CodexBar`.
+On Windows, new saves are wrapped with DPAPI protection. Existing plaintext files remain readable
+and are rewritten protected on the next save.
 
 ## Provider Authentication
 

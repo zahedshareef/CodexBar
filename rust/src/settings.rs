@@ -856,7 +856,7 @@ impl Settings {
     pub fn load() -> Self {
         #[allow(unused_mut)]
         let mut settings = match Self::settings_path() {
-            Some(path) if path.exists() => match std::fs::read_to_string(&path) {
+            Some(path) if path.exists() => match crate::secure_file::read_string(&path) {
                 Ok(content) => {
                     serde_json::from_str(content.trim_start_matches('\u{feff}')).unwrap_or_default()
                 }
@@ -885,7 +885,7 @@ impl Settings {
         }
 
         let json = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, json)?;
+        crate::secure_file::write_string(&path, &json)?;
 
         Ok(())
     }
@@ -1399,7 +1399,7 @@ impl ManualCookies {
     pub fn load() -> Self {
         if let Some(path) = Self::cookies_path()
             && path.exists()
-            && let Ok(content) = std::fs::read_to_string(&path)
+            && let Ok(content) = crate::secure_file::read_string(&path)
         {
             return serde_json::from_str(&content).unwrap_or_default();
         }
@@ -1416,7 +1416,7 @@ impl ManualCookies {
         }
 
         let json = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, json)?;
+        crate::secure_file::write_string(&path, &json)?;
 
         Ok(())
     }
@@ -1499,7 +1499,7 @@ impl ApiKeys {
     pub fn load() -> Self {
         if let Some(path) = Self::keys_path()
             && path.exists()
-            && let Ok(content) = std::fs::read_to_string(&path)
+            && let Ok(content) = crate::secure_file::read_string(&path)
         {
             return serde_json::from_str(&content).unwrap_or_default();
         }
@@ -1516,7 +1516,7 @@ impl ApiKeys {
         }
 
         let json = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, json)?;
+        crate::secure_file::write_string(&path, &json)?;
 
         Ok(())
     }

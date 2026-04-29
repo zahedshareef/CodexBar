@@ -5,6 +5,8 @@
 ### Security
 - Default browser-cookie usage to manual mode so provider refreshes no longer read and decrypt browser cookie stores unless the user explicitly selects Automatic or imports cookies.
 - Respect manual/off cookie-source settings when building provider fetch contexts, reducing behavior-based antivirus triggers around DPAPI browser-cookie access.
+- Save local secret-bearing files through a secure-file wrapper; Windows writes are protected with DPAPI while existing plaintext files remain readable for migration.
+- Redact raw provider response bodies and browser cookie-store paths from routine diagnostic logs.
 
 ---
 

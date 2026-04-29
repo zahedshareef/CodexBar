@@ -420,7 +420,7 @@ impl TokenAccountStore {
             return Ok(HashMap::new());
         }
 
-        let data = fs::read_to_string(&self.file_path)?;
+        let data = crate::secure_file::read_string(&self.file_path)?;
         let file: TokenAccountsFile = serde_json::from_str(&data)?;
 
         let mut result = HashMap::new();
@@ -453,7 +453,7 @@ impl TokenAccountStore {
         };
 
         let json = serde_json::to_string_pretty(&file)?;
-        fs::write(&self.file_path, json)?;
+        crate::secure_file::write_string(&self.file_path, &json)?;
         Ok(())
     }
 

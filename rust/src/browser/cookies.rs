@@ -152,10 +152,7 @@ impl CookieExtractor {
             .and_then(|v| v.get("app_bound_encrypted_key"))
             .is_some();
         if present {
-            tracing::debug!(
-                "Chrome App-Bound Encryption detected in {:?}",
-                local_state_path
-            );
+            tracing::debug!("Chrome App-Bound Encryption detected in Local State");
         }
         present
     }
@@ -167,18 +164,22 @@ impl CookieExtractor {
         domain: &str,
     ) -> Result<Vec<Cookie>, CookieError> {
         let cookies_db = profile.cookies_db_path();
-        tracing::debug!("Cookies DB path: {:?}", cookies_db);
+        tracing::debug!(
+            "Reading Chromium cookies for {} profile {}",
+            browser.browser_type.display_name(),
+            profile.name
+        );
 
         if !cookies_db.exists() {
             return Err(CookieError::NotFound(format!(
-                "Cookies database not found at {:?}",
-                cookies_db
+                "Cookies database not found for {} profile {}",
+                browser.browser_type.display_name(),
+                profile.name
             )));
         }
 
         // Get the encryption key from Local State
         let local_state_path = profile.local_state_path(&browser.user_data_dir);
-        tracing::debug!("Local State path: {:?}", local_state_path);
         let encryption_key = Self::get_chromium_encryption_key(&local_state_path).map_err(|e| {
             tracing::debug!("Failed to get encryption key: {}", e);
             e
@@ -191,15 +192,10 @@ impl CookieExtractor {
             tracing::debug!("Failed to copy cookies DB: {}", e);
             e
         })?;
-        tracing::debug!("Temp DB at: {:?}", temp_db);
 
         let domain_pattern = format!("%{}", domain);
         let dot_domain_pattern = format!(".{}", domain);
-        tracing::debug!(
-            "Searching for cookies matching: {} or {}",
-            domain_pattern,
-            dot_domain_pattern
-        );
+        tracing::debug!("Searching for cookies for domain {}", domain);
 
         let mut cookies = Vec::new();
         let mut decrypt_failures: u32 = 0;
@@ -233,7 +229,7 @@ impl CookieExtractor {
                 let value = match Self::decrypt_chromium_cookie(&encrypted_value, &encryption_key) {
                     Ok(v) => v,
                     Err(e) => {
-                        tracing::debug!("Failed to decrypt cookie {}: {}", name, e);
+                        tracing::debug!("Failed to decrypt a candidate cookie: {}", e);
                         decrypt_failures += 1;
                         continue;
                     }
@@ -451,10 +447,8 @@ impl CookieExtractor {
                 CookieError::Decryption(e.to_string())
             })
         } else {
-            // Log what we got if it doesn't match expected format
             tracing::debug!(
-                "Cookie not v10/v11 format, first 10 bytes: {:?}, total {} bytes",
-                &encrypted_value[..encrypted_value.len().min(10)],
+                "Cookie not v10/v11 format, total {} bytes",
                 encrypted_value.len()
             );
             // Old format: DPAPI encrypted directly
@@ -472,8 +466,8 @@ impl CookieExtractor {
 
         if !cookies_db.exists() {
             return Err(CookieError::NotFound(format!(
-                "Cookies database not found at {:?}",
-                cookies_db
+                "Cookies database not found for Firefox profile {}",
+                profile.name
             )));
         }
 

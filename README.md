@@ -16,8 +16,9 @@ The Windows port of [CodexBar](https://github.com/steipete/CodexBar) — a syste
 
 - **28 AI providers** — Codex, Claude, Cursor, Factory, Gemini, Copilot, Antigravity, z.ai, MiniMax, Kiro, Vertex AI, Augment, OpenCode, Kimi, Kimi K2, Amp, Warp, Ollama, OpenRouter, Synthetic, JetBrains AI, Alibaba, NanoGPT, Infini, Perplexity, Abacus AI, OpenCode Go, Kilo
 - **System tray icon** — dynamic two-bar meter showing session + weekly usage
-- **Browser cookie import** — Chrome, Edge, Brave, Firefox (DPAPI decryption on Windows)
+- **Browser cookie import** — Chrome, Edge, Brave, Firefox, with browser access kept opt-in
 - **Per-provider credentials** — API keys, cookies, and OAuth all managed from the provider detail pane
+- **Credential hardening** — local secret-bearing stores are protected with Windows DPAPI on save
 - **CLI** — `codexbar usage` and `codexbar cost` for scripting and CI
 - **WSL support** — CLI works out of the box; desktop shell via WSLg
 

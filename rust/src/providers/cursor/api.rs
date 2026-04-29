@@ -108,8 +108,8 @@ impl CursorApi {
             .map_err(|e| ProviderError::Parse(e.to_string()))?;
         serde_json::from_str::<UsageSummary>(&text).map_err(|e| {
             tracing::warn!(
-                "Cursor usage-summary parse error: {e}, raw: {}",
-                &text[..text.len().min(200)]
+                "Cursor usage-summary parse error: {e}; response length: {} bytes",
+                text.len()
             );
             ProviderError::Parse(e.to_string())
         })
