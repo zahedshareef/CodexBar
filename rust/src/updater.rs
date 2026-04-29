@@ -349,11 +349,36 @@ pub async fn download_update(
 
 /// Verify the SHA256 hash of a downloaded file against release metadata.
 async fn verify_download_hash(file_path: &PathBuf, expected_hash: &str) -> Result<(), String> {
+    let actual = sha256_file_async(file_path).await?;
+    if let Err(e) = verify_sha256_hex(&actual, expected_hash) {
+        let _ = std::fs::remove_file(file_path);
+        return Err(e);
+    }
+
+    tracing::info!("SHA256 verification passed for {:?}", file_path);
+    Ok(())
+}
+
+/// Re-verify an installer immediately before launching it.
+pub fn verify_installer_hash(file_path: &Path, expected_hash: &str) -> Result<(), String> {
+    let actual = sha256_file(file_path)?;
+    verify_sha256_hex(&actual, expected_hash)
+}
+
+fn verify_sha256_hex(actual_hash: &str, expected_hash: &str) -> Result<(), String> {
     let expected = expected_hash.trim().to_ascii_lowercase();
     if expected.len() != 64 || !expected.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err("Invalid SHA256 digest provided for update asset".to_string());
     }
 
+    if actual_hash != expected {
+        return Err("SHA256 mismatch. Download may be corrupted or tampered.".to_string());
+    }
+
+    Ok(())
+}
+
+async fn sha256_file_async(file_path: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
 
     let file_bytes = tokio::fs::read(file_path)
@@ -362,16 +387,18 @@ async fn verify_download_hash(file_path: &PathBuf, expected_hash: &str) -> Resul
 
     let mut hasher = Sha256::new();
     hasher.update(&file_bytes);
-    let actual = format!("{:x}", hasher.finalize());
+    Ok(format!("{:x}", hasher.finalize()))
+}
 
-    if actual != expected {
-        // Delete the corrupted file
-        let _ = tokio::fs::remove_file(file_path).await;
-        return Err("SHA256 mismatch. Download may be corrupted or tampered.".to_string());
-    }
+fn sha256_file(file_path: &Path) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
 
-    tracing::info!("SHA256 verification passed for {:?}", file_path);
-    Ok(())
+    let file_bytes = std::fs::read(file_path)
+        .map_err(|e| format!("Failed to read downloaded file for hashing: {}", e))?;
+
+    let mut hasher = Sha256::new();
+    hasher.update(&file_bytes);
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 /// Start background download of an update
@@ -632,5 +659,26 @@ mod tests {
             )),
             Some((major, minor, patch + 1))
         );
+    }
+
+    #[test]
+    fn verify_installer_hash_accepts_matching_sha256() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let path = temp.path().join("CodexBar-1.2.3-Setup.exe");
+        std::fs::write(&path, b"installer bytes").expect("write installer");
+
+        let expected = sha256_file(&path).expect("hash");
+        assert!(verify_installer_hash(&path, &expected).is_ok());
+    }
+
+    #[test]
+    fn verify_installer_hash_rejects_mismatched_sha256() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let path = temp.path().join("CodexBar-1.2.3-Setup.exe");
+        std::fs::write(&path, b"installer bytes").expect("write installer");
+
+        let wrong = "0".repeat(64);
+        let err = verify_installer_hash(&path, &wrong).unwrap_err();
+        assert!(err.contains("SHA256 mismatch"));
     }
 }

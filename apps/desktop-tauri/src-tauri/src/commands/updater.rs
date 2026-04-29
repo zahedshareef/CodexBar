@@ -161,13 +161,20 @@ pub async fn download_update(
 
 #[tauri::command]
 pub fn apply_update(state: tauri::State<'_, Mutex<AppState>>) -> Result<(), String> {
-    let path = {
+    let (path, expected_sha256) = {
         let guard = state.lock().map_err(|e| e.to_string())?;
-        guard
+        let path = guard
             .installer_path
             .clone()
-            .ok_or("No downloaded update available to apply")?
+            .ok_or("No downloaded update available to apply")?;
+        let expected_sha256 = guard
+            .update_info
+            .as_ref()
+            .and_then(|info| info.expected_sha256.clone())
+            .ok_or("Missing SHA256 digest for downloaded update")?;
+        (path, expected_sha256)
     };
+    codexbar::updater::verify_installer_hash(&path, &expected_sha256)?;
     codexbar::updater::apply_update(&path)
 }
 
