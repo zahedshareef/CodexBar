@@ -32,6 +32,52 @@ pub use tokens::*;
 pub use updater::*;
 
 const PROVIDER_CACHE_STALE_AFTER: std::time::Duration = std::time::Duration::from_secs(30);
+const MAX_API_KEY_LEN: usize = 16 * 1024;
+const MAX_COOKIE_HEADER_LEN: usize = 64 * 1024;
+const MAX_LABEL_LEN: usize = 80;
+
+fn parse_provider_arg(provider_id: &str) -> Result<ProviderId, String> {
+    let trimmed = provider_id.trim();
+    if trimmed.is_empty() {
+        return Err("Provider id is empty".to_string());
+    }
+    if trimmed.len() > 64 || trimmed.chars().any(char::is_control) {
+        return Err("Provider id is invalid".to_string());
+    }
+    ProviderId::from_cli_name(trimmed).ok_or_else(|| format!("Unknown provider: {trimmed}"))
+}
+
+fn canonical_provider_arg(provider_id: &str) -> Result<String, String> {
+    Ok(parse_provider_arg(provider_id)?.cli_name().to_string())
+}
+
+fn validate_single_line_secret(value: &str, field: &str, max_len: usize) -> Result<(), String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{field} is empty"));
+    }
+    if trimmed.len() > max_len {
+        return Err(format!("{field} is too long"));
+    }
+    if trimmed.contains('\r') || trimmed.contains('\n') {
+        return Err(format!("{field} must be a single line"));
+    }
+    Ok(())
+}
+
+fn sanitize_optional_label(label: Option<String>) -> Result<Option<String>, String> {
+    let Some(label) = label else {
+        return Ok(None);
+    };
+    let trimmed = label.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.len() > MAX_LABEL_LEN || trimmed.chars().any(char::is_control) {
+        return Err("Label is invalid".to_string());
+    }
+    Ok(Some(trimmed.to_string()))
+}
 
 // ── Bridge snapshot types ────────────────────────────────────────────
 
@@ -1428,16 +1474,29 @@ pub fn set_api_key(
     api_key: String,
     label: Option<String>,
 ) -> Result<Vec<ApiKeyInfoBridge>, String> {
+    let canonical_provider = canonical_provider_arg(&provider_id)?;
+    if !codexbar::settings::get_api_key_providers()
+        .iter()
+        .any(|p| p.id.cli_name() == canonical_provider)
+    {
+        return Err(format!(
+            "Provider '{canonical_provider}' does not support API-key storage"
+        ));
+    }
+    validate_single_line_secret(&api_key, "API key", MAX_API_KEY_LEN)?;
+    let label = sanitize_optional_label(label)?;
+
     let mut keys = ApiKeys::load();
-    keys.set(&provider_id, &api_key, label.as_deref());
+    keys.set(&canonical_provider, api_key.trim(), label.as_deref());
     keys.save().map_err(|e| e.to_string())?;
     Ok(get_api_keys())
 }
 
 #[tauri::command]
 pub fn remove_api_key(provider_id: String) -> Result<Vec<ApiKeyInfoBridge>, String> {
+    let canonical_provider = canonical_provider_arg(&provider_id)?;
     let mut keys = ApiKeys::load();
-    keys.remove(&provider_id);
+    keys.remove(&canonical_provider);
     keys.save().map_err(|e| e.to_string())?;
     Ok(get_api_keys())
 }
@@ -1461,16 +1520,26 @@ pub fn set_manual_cookie(
     provider_id: String,
     cookie_header: String,
 ) -> Result<Vec<CookieInfoBridge>, String> {
+    let id = parse_provider_arg(&provider_id)?;
+    if id.cookie_domain().is_none() {
+        return Err(format!(
+            "Provider '{}' does not support manual cookie storage",
+            id.cli_name()
+        ));
+    }
+    validate_single_line_secret(&cookie_header, "Cookie header", MAX_COOKIE_HEADER_LEN)?;
+
     let mut cookies = ManualCookies::load();
-    cookies.set(&provider_id, &cookie_header);
+    cookies.set(id.cli_name(), cookie_header.trim());
     cookies.save().map_err(|e| e.to_string())?;
     Ok(get_manual_cookies())
 }
 
 #[tauri::command]
 pub fn remove_manual_cookie(provider_id: String) -> Result<Vec<CookieInfoBridge>, String> {
+    let canonical_provider = canonical_provider_arg(&provider_id)?;
     let mut cookies = ManualCookies::load();
-    cookies.remove(&provider_id);
+    cookies.remove(&canonical_provider);
     cookies.save().map_err(|e| e.to_string())?;
     Ok(get_manual_cookies())
 }
@@ -1519,14 +1588,9 @@ pub fn import_browser_cookies(
 ) -> Result<Vec<CookieInfoBridge>, String> {
     use codexbar::browser::cookies::{CookieError, CookieExtractor};
     use codexbar::browser::detection::BrowserDetector;
-    use codexbar::core::ProviderId;
 
     // Resolve the provider to get its cookie domain.
-    let pid = ProviderId::all()
-        .iter()
-        .find(|p| p.cli_name() == provider_id.as_str())
-        .copied()
-        .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
+    let pid = parse_provider_arg(&provider_id)?;
 
     let domain = pid
         .cookie_domain()
@@ -1556,7 +1620,7 @@ pub fn import_browser_cookies(
 
     // Persist as manual cookie.
     let mut manual = ManualCookies::load();
-    manual.set(&provider_id, &cookie_header);
+    manual.set(pid.cli_name(), &cookie_header);
     manual.save().map_err(|e| e.to_string())?;
 
     Ok(get_manual_cookies())
@@ -1729,8 +1793,18 @@ fn provider_cookie_source_set(
 
 #[tauri::command]
 pub fn set_provider_cookie_source(provider_id: String, source: String) -> Result<(), String> {
+    let source = source.trim();
+    if source.is_empty()
+        || !cookie_source_options_for(&provider_id, Language::English)
+            .iter()
+            .any(|option| option.value == source)
+    {
+        return Err(format!(
+            "Invalid cookie source '{source}' for provider '{provider_id}'"
+        ));
+    }
     let mut settings = Settings::load();
-    provider_cookie_source_set(&mut settings, &provider_id, source)?;
+    provider_cookie_source_set(&mut settings, &provider_id, source.to_string())?;
     settings.save().map_err(|e| e.to_string())
 }
 
@@ -1769,8 +1843,18 @@ fn provider_region_set(
 
 #[tauri::command]
 pub fn set_provider_region(provider_id: String, region: String) -> Result<(), String> {
+    let region = region.trim();
+    if region.is_empty()
+        || !region_options_for(&provider_id)
+            .iter()
+            .any(|option| option.value == region)
+    {
+        return Err(format!(
+            "Invalid region '{region}' for provider '{provider_id}'"
+        ));
+    }
     let mut settings = Settings::load();
-    provider_region_set(&mut settings, &provider_id, region)?;
+    provider_region_set(&mut settings, &provider_id, region.to_string())?;
     settings.save().map_err(|e| e.to_string())
 }
 
@@ -2172,8 +2256,19 @@ pub fn list_jetbrains_detected_ides() -> Result<Vec<JetbrainsIde>, String> {
 
 #[tauri::command]
 pub fn set_jetbrains_ide_path(path: String) -> Result<(), String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("JetBrains IDE path is empty".to_string());
+    }
+    let pb = std::path::PathBuf::from(trimmed);
+    if !pb.is_absolute() {
+        return Err("JetBrains IDE path must be absolute".to_string());
+    }
+    if !pb.is_dir() {
+        return Err(format!("JetBrains IDE path is not a directory: {trimmed}"));
+    }
     let mut settings = Settings::load();
-    settings.set_jetbrains_ide_base_path(path);
+    settings.set_jetbrains_ide_base_path(pb.to_string_lossy().into_owned());
     settings.save().map_err(|e| e.to_string())
 }
 
@@ -2202,6 +2297,9 @@ pub fn open_path(path: String) -> Result<(), String> {
         return Err("Path is empty".into());
     }
     let pb = std::path::PathBuf::from(trimmed);
+    if !pb.is_absolute() {
+        return Err("Path must be absolute".into());
+    }
     if !pb.exists() {
         return Err(format!("Path not found: {trimmed}"));
     }
@@ -2441,6 +2539,7 @@ fn status_page_url_for_provider(provider_id: &str) -> Option<String> {
 
 #[tauri::command]
 pub fn open_provider_dashboard(provider_id: String) -> Result<(), String> {
+    let provider_id = canonical_provider_arg(&provider_id)?;
     let url = dashboard_url_for_provider(&provider_id)
         .ok_or_else(|| format!("No dashboard URL registered for provider '{provider_id}'"))?;
     open_url_in_browser(&url)
@@ -2448,6 +2547,7 @@ pub fn open_provider_dashboard(provider_id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn open_provider_status_page(provider_id: String) -> Result<(), String> {
+    let provider_id = canonical_provider_arg(&provider_id)?;
     let url = status_page_url_for_provider(&provider_id)
         .ok_or_else(|| format!("No status page URL registered for provider '{provider_id}'"))?;
     open_url_in_browser(&url)
@@ -2455,6 +2555,7 @@ pub fn open_provider_status_page(provider_id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn trigger_provider_login(provider_id: String) -> Result<(), String> {
+    let provider_id = canonical_provider_arg(&provider_id)?;
     // TODO(6b): replace fallthrough once LoginPhase events land. The login
     // runners live in `codexbar::login` but are async-oriented and tightly
     // coupled to the egui UI's phase callbacks. For the Tauri shell we
@@ -2515,8 +2616,7 @@ pub struct ProviderDetail {
 }
 
 fn build_provider_detail(provider_id: &str) -> Result<ProviderDetail, String> {
-    let id = ProviderId::from_cli_name(provider_id)
-        .ok_or_else(|| format!("Unknown provider id: {provider_id}"))?;
+    let id = parse_provider_arg(provider_id)?;
 
     let settings = Settings::load();
     let enabled = settings
@@ -2605,8 +2705,8 @@ pub fn revoke_provider_credentials(provider_id: String) -> Result<(), String> {
     // Best-effort: drop every app-managed credential for this provider so the
     // caller can follow up with a fresh login or import. Missing entries are
     // silently ignored; only I/O errors propagate.
-    let id = ProviderId::from_cli_name(&provider_id)
-        .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
+    let id = parse_provider_arg(&provider_id)?;
+    let provider_id = id.cli_name();
 
     let mut keys = ApiKeys::load();
     keys.remove(&provider_id);
@@ -2920,6 +3020,26 @@ mod tests {
             ),
             "unreadable"
         );
+    }
+
+    #[test]
+    fn command_inputs_reject_invalid_provider_ids_before_storage_writes() {
+        assert!(super::set_api_key("not-a-provider".into(), "sk-test".into(), None).is_err());
+        assert!(super::set_manual_cookie("not-a-provider".into(), "a=b".into()).is_err());
+        assert!(super::remove_api_key("bad\nprovider".into()).is_err());
+        assert!(super::remove_manual_cookie("".into()).is_err());
+    }
+
+    #[test]
+    fn command_inputs_reject_multiline_secrets() {
+        assert!(super::set_api_key("openrouter".into(), "sk-test\nnext".into(), None).is_err());
+        assert!(super::set_manual_cookie("codex".into(), "a=b\nc=d".into()).is_err());
+    }
+
+    #[test]
+    fn command_inputs_reject_unknown_cookie_source_and_region_values() {
+        assert!(super::set_provider_cookie_source("codex".into(), "browser".into()).is_err());
+        assert!(super::set_provider_region("zai".into(), "moon".into()).is_err());
     }
 
     #[test]
@@ -3330,6 +3450,12 @@ mod tests {
     fn open_path_rejects_empty_path() {
         let err = super::open_path(String::new()).unwrap_err();
         assert!(err.to_lowercase().contains("empty"));
+    }
+
+    #[test]
+    fn open_path_rejects_relative_path() {
+        let err = super::open_path("relative/path".into()).unwrap_err();
+        assert!(err.contains("absolute"));
     }
 
     #[test]

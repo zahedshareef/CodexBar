@@ -97,8 +97,7 @@ pub fn get_token_account_providers() -> Vec<TokenAccountSupportBridge> {
 /// Load token accounts for a single provider.
 #[tauri::command]
 pub fn get_token_accounts(provider_id: String) -> Result<ProviderTokenAccountsBridge, String> {
-    let id = ProviderId::from_cli_name(&provider_id)
-        .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
+    let id = super::parse_provider_arg(&provider_id)?;
     let support = TokenAccountSupport::for_provider(id)
         .ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
     let store = TokenAccountStore::new();
@@ -119,13 +118,15 @@ pub fn add_token_account(
     label: String,
     token: String,
 ) -> Result<ProviderTokenAccountsBridge, String> {
-    let id = ProviderId::from_cli_name(&provider_id)
-        .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
+    let id = super::parse_provider_arg(&provider_id)?;
     let support = TokenAccountSupport::for_provider(id)
         .ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
+    super::validate_single_line_secret(&token, "Token", super::MAX_COOKIE_HEADER_LEN)?;
+    let label = super::sanitize_optional_label(Some(label))?
+        .unwrap_or_else(|| id.display_name().to_string());
     let store = TokenAccountStore::new();
     let mut data = store.load_provider(id).map_err(|e| e.to_string())?;
-    data.add_account(TokenAccount::new(label, token));
+    data.add_account(TokenAccount::new(label, token.trim()));
     store.save_provider(id, &data).map_err(|e| e.to_string())?;
     let active = data.clamped_active_index();
     Ok(build_provider_token_accounts(
@@ -142,8 +143,7 @@ pub fn remove_token_account(
     provider_id: String,
     account_id: String,
 ) -> Result<ProviderTokenAccountsBridge, String> {
-    let id = ProviderId::from_cli_name(&provider_id)
-        .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
+    let id = super::parse_provider_arg(&provider_id)?;
     let support = TokenAccountSupport::for_provider(id)
         .ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
     let uuid = uuid::Uuid::parse_str(&account_id).map_err(|e| e.to_string())?;
@@ -166,8 +166,7 @@ pub fn set_active_token_account(
     provider_id: String,
     account_id: String,
 ) -> Result<ProviderTokenAccountsBridge, String> {
-    let id = ProviderId::from_cli_name(&provider_id)
-        .ok_or_else(|| format!("Unknown provider: {provider_id}"))?;
+    let id = super::parse_provider_arg(&provider_id)?;
     let support = TokenAccountSupport::for_provider(id)
         .ok_or_else(|| format!("Provider {provider_id} does not support token accounts"))?;
     let uuid = uuid::Uuid::parse_str(&account_id).map_err(|e| e.to_string())?;
