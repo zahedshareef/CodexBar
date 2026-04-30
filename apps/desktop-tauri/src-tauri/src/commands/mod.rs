@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 
 use codexbar::core::{
-    FetchContext, ProviderFetchResult, ProviderId, ProviderMetadata, RateWindow, SourceMode,
-    TokenAccountStore, instantiate_provider,
+    FetchContext, ProviderAccountData, ProviderFetchResult, ProviderId, ProviderMetadata,
+    RateWindow, SourceMode, TokenAccountOverride, TokenAccountStore, instantiate_provider,
 };
 use codexbar::locale;
 use codexbar::secure_file::{self, SecureFileStatus};
@@ -1172,26 +1172,36 @@ fn build_fetch_context(
     settings: &Settings,
     cookies: &ManualCookies,
     api_keys: &ApiKeys,
+    token_accounts: &HashMap<ProviderId, ProviderAccountData>,
 ) -> FetchContext {
     let cookie_source = settings.cookie_source(id);
     let stored_cookie = cookies.get(id.cli_name()).map(|s| s.to_string());
+    let token_override = token_accounts
+        .get(&id)
+        .and_then(|data| data.active_account())
+        .cloned()
+        .map(|account| TokenAccountOverride::from_account(id, account));
+    let active_token_cookie = token_override
+        .as_ref()
+        .and_then(|override_data| override_data.cookie_header.clone());
     let usage_source = SourceMode::parse(settings.usage_source(id)).unwrap_or_default();
 
     let (source_mode, cookie_header) = match cookie_source {
         "off" => (SourceMode::Cli, None),
         "manual" => {
-            let source_mode = if stored_cookie.is_some() {
+            let cookie_header = active_token_cookie.or(stored_cookie);
+            let source_mode = if cookie_header.is_some() {
                 SourceMode::Web
             } else {
                 SourceMode::Cli
             };
-            (source_mode, stored_cookie)
+            (source_mode, cookie_header)
         }
         // `browser` is accepted as a legacy alias from older settings.
         "auto" | "browser" | "web" => {
             // Try browser cookie extraction as fallback when no manual cookie is set.
             // On non-Windows this is a harmless no-op that returns an error.
-            let cookie_header = stored_cookie.or_else(|| {
+            let cookie_header = active_token_cookie.or(stored_cookie).or_else(|| {
                 id.cookie_domain().and_then(|domain| {
                     codexbar::browser::cookies::get_cookie_header(domain)
                         .ok()
@@ -1203,7 +1213,17 @@ fn build_fetch_context(
         _ => (usage_source, stored_cookie),
     };
 
-    let api_key = api_keys.get(id.cli_name()).map(|s| s.to_string());
+    let api_key = api_keys
+        .get(id.cli_name())
+        .map(|s| s.to_string())
+        .or_else(|| {
+            token_override.as_ref().and_then(|override_data| {
+                override_data
+                    .env_override
+                    .as_ref()
+                    .and_then(|env| env.values().next().cloned())
+            })
+        });
 
     FetchContext {
         source_mode,
@@ -1272,6 +1292,10 @@ async fn do_refresh_providers_with_policy(
     let enabled_ids = settings.get_enabled_provider_ids();
     let manual_cookies = ManualCookies::load();
     let api_keys = ApiKeys::load();
+    let token_accounts = TokenAccountStore::new().load().unwrap_or_else(|e| {
+        tracing::warn!("failed to load token accounts for provider refresh: {e}");
+        HashMap::new()
+    });
 
     // Spawn one task per enabled provider.
     let mut handles = Vec::with_capacity(enabled_ids.len());
@@ -1279,7 +1303,7 @@ async fn do_refresh_providers_with_policy(
     for id in &enabled_ids {
         let id = *id;
         let app_handle = app.clone();
-        let ctx = build_fetch_context(id, &settings, &manual_cookies, &api_keys);
+        let ctx = build_fetch_context(id, &settings, &manual_cookies, &api_keys, &token_accounts);
 
         handles.push(tokio::spawn(async move {
             let provider = instantiate_provider(id);
@@ -2887,6 +2911,8 @@ mod locale_tests {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::{
         ProviderSummary, ProviderUsageSnapshot, apply_provider_order, bridge_commands,
         bridge_events, provider_cookie_source_lookup, provider_region_lookup,
@@ -2894,7 +2920,10 @@ mod tests {
     };
     use crate::surface::SurfaceMode;
     use crate::surface_target::SurfaceTarget;
-    use codexbar::core::{ProviderFetchResult, ProviderId, SourceMode, instantiate_provider};
+    use codexbar::core::{
+        ProviderAccountData, ProviderFetchResult, ProviderId, SourceMode, TokenAccount,
+        instantiate_provider,
+    };
     use codexbar::host::session::launch_block_reason;
     use codexbar::settings::{ApiKeys, Language, ManualCookies, Settings};
 
@@ -3128,8 +3157,15 @@ mod tests {
         let settings = Settings::default();
         let cookies = ManualCookies::default();
         let api_keys = ApiKeys::default();
+        let token_accounts = HashMap::new();
 
-        let ctx = super::build_fetch_context(ProviderId::Cursor, &settings, &cookies, &api_keys);
+        let ctx = super::build_fetch_context(
+            ProviderId::Cursor,
+            &settings,
+            &cookies,
+            &api_keys,
+            &token_accounts,
+        );
 
         assert_eq!(ctx.source_mode, SourceMode::Cli);
         assert!(ctx.manual_cookie_header.is_none());
@@ -3141,11 +3177,69 @@ mod tests {
         let mut cookies = ManualCookies::default();
         cookies.set("cursor", "session=abc123");
         let api_keys = ApiKeys::default();
+        let token_accounts = HashMap::new();
 
-        let ctx = super::build_fetch_context(ProviderId::Cursor, &settings, &cookies, &api_keys);
+        let ctx = super::build_fetch_context(
+            ProviderId::Cursor,
+            &settings,
+            &cookies,
+            &api_keys,
+            &token_accounts,
+        );
 
         assert_eq!(ctx.source_mode, SourceMode::Web);
         assert_eq!(ctx.manual_cookie_header.as_deref(), Some("session=abc123"));
+    }
+
+    #[test]
+    fn fetch_context_token_account_uses_web_cookie_header() {
+        let settings = Settings::default();
+        let cookies = ManualCookies::default();
+        let api_keys = ApiKeys::default();
+        let mut token_accounts = HashMap::new();
+        let mut data = ProviderAccountData::new();
+        data.add_account(TokenAccount::new("Work", "abc123"));
+        token_accounts.insert(ProviderId::Ollama, data);
+
+        let ctx = super::build_fetch_context(
+            ProviderId::Ollama,
+            &settings,
+            &cookies,
+            &api_keys,
+            &token_accounts,
+        );
+
+        assert_eq!(ctx.source_mode, SourceMode::Web);
+        assert_eq!(
+            ctx.manual_cookie_header.as_deref(),
+            Some("__Secure-session=abc123")
+        );
+    }
+
+    #[test]
+    fn fetch_context_token_account_takes_precedence_over_manual_cookie() {
+        let settings = Settings::default();
+        let mut cookies = ManualCookies::default();
+        cookies.set("cursor", "manual=old");
+        let api_keys = ApiKeys::default();
+        let mut token_accounts = HashMap::new();
+        let mut data = ProviderAccountData::new();
+        data.add_account(TokenAccount::new("Work", "WorkosCursorSessionToken=new"));
+        token_accounts.insert(ProviderId::Cursor, data);
+
+        let ctx = super::build_fetch_context(
+            ProviderId::Cursor,
+            &settings,
+            &cookies,
+            &api_keys,
+            &token_accounts,
+        );
+
+        assert_eq!(ctx.source_mode, SourceMode::Web);
+        assert_eq!(
+            ctx.manual_cookie_header.as_deref(),
+            Some("WorkosCursorSessionToken=new")
+        );
     }
 
     #[test]
