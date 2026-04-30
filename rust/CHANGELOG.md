@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.23.6] — 2026-04-30
+
+### Fixed
+- Use active token accounts during provider refresh so Cursor, Ollama, and other cookie-token providers fetch via web cookies instead of falling back to unsupported CLI mode.
+
+---
+
 ## [0.23.5] — 2026-04-29
 
 ### Added

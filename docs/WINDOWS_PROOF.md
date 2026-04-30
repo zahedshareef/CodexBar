@@ -54,8 +54,8 @@ Windows machine before upload or publication:
 ```powershell
 powershell -ExecutionPolicy Bypass `
   -File .\scripts\windows-smoke-install.ps1 `
-  -InstallerPath .\rust\target\installer\CodexBar-0.23.5-Setup.exe `
-  -ExpectedVersion 0.23.5
+  -InstallerPath .\rust\target\installer\CodexBar-<version>-Setup.exe `
+  -ExpectedVersion <version>
 ```
 
 The script verifies the silent install switches
