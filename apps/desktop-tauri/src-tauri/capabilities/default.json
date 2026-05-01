@@ -3,7 +3,9 @@
   "description": "Default permissions for the CodexBar desktop scaffold.",
   "windows": ["main", "settings"],
   "permissions": [
-    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-close",
     "core:window:allow-set-size",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister"

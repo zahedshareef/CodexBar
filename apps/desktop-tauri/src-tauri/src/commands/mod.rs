@@ -1676,10 +1676,12 @@ pub fn get_app_info() -> AppInfoBridge {
 }
 
 pub(super) fn open_url_in_browser(url: &str) -> Result<(), String> {
+    let url = validate_external_url(url)?;
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/c", "start", "", url])
+        std::process::Command::new(windows_system_binary("rundll32.exe"))
+            .arg("url.dll,FileProtocolHandler")
+            .arg(url)
             .spawn()
             .map_err(|e| format!("Failed to open URL: {e}"))?;
     }
@@ -1696,6 +1698,29 @@ pub(super) fn open_url_in_browser(url: &str) -> Result<(), String> {
             .map_err(|e| format!("Failed to open URL: {e}"))?;
     }
     Ok(())
+}
+
+fn validate_external_url(url: &str) -> Result<&str, String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err("URL is empty".to_string());
+    }
+    if trimmed.len() > 2048 || trimmed.chars().any(char::is_control) {
+        return Err("URL is invalid".to_string());
+    }
+    if !(trimmed.starts_with("https://") || trimmed.starts_with("http://")) {
+        return Err("Only http and https URLs can be opened".to_string());
+    }
+    Ok(trimmed)
+}
+
+#[cfg(target_os = "windows")]
+fn windows_system_binary(name: &str) -> std::path::PathBuf {
+    std::env::var_os("SystemRoot")
+        .map(std::path::PathBuf::from)
+        .map(|root| root.join("System32").join(name))
+        .filter(|path| path.exists())
+        .unwrap_or_else(|| std::path::PathBuf::from(name))
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2340,7 +2365,7 @@ pub fn open_path(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("explorer")
+        std::process::Command::new(windows_system_binary("explorer.exe"))
             .arg(&target_str)
             .spawn()
             .map_err(|e| format!("Failed to open path: {e}"))?;
@@ -3557,6 +3582,25 @@ mod tests {
         let err =
             super::open_path("/definitely/not/a/real/path/codexbar-phase6d".into()).unwrap_err();
         assert!(err.contains("not found"));
+    }
+
+    #[test]
+    fn external_url_validator_accepts_http_and_https() {
+        assert_eq!(
+            super::validate_external_url(" https://github.com/Finesssee/Win-CodexBar "),
+            Ok("https://github.com/Finesssee/Win-CodexBar")
+        );
+        assert_eq!(
+            super::validate_external_url("http://localhost:1420"),
+            Ok("http://localhost:1420")
+        );
+    }
+
+    #[test]
+    fn external_url_validator_rejects_non_web_and_control_urls() {
+        assert!(super::validate_external_url("file:///C:/Windows/win.ini").is_err());
+        assert!(super::validate_external_url("javascript:alert(1)").is_err());
+        assert!(super::validate_external_url("https://example.com/\nmalicious").is_err());
     }
 
     // ── Phase 13 — E2E IPC harness ─────────────────────────────────
