@@ -4,6 +4,20 @@
 
 ---
 
+## [Windows] 0.23.7 - 2026-05-03
+
+### Fixed
+- Parse Claude CLI's exhausted `You've hit your limit · resets ...` short form as full session usage instead of reporting `Claude CLI did not return usage data`.
+- Make Claude CLI usage parsing more tolerant of compact labels, decimal percentages, and remaining/available wording.
+- Keep weekly reset lines from being promoted into the session reset when the session section has no reset.
+
+### Security
+- Re-enable the Tauri content security policy and disable global Tauri injection.
+- Narrow the default Tauri capability permissions to the event, window, and global shortcut APIs the frontend actually uses.
+- Harden external URL opening by validating web URLs and avoiding `cmd /c start` on Windows.
+
+---
+
 ## [Windows] 0.23.5 - 2026-04-29
 
 ### Added
