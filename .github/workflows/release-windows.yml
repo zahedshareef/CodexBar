@@ -63,6 +63,13 @@ jobs:
 
           WEBVIEW2_DLL="target/release/WebView2Loader.dll"
           if [[ ! -f "$WEBVIEW2_DLL" ]]; then
+            mapfile -t WEBVIEW2_CANDIDATES < <(find target/release/build -path '*/out/x64/WebView2Loader.dll' -type f)
+            if [[ "${#WEBVIEW2_CANDIDATES[@]}" -gt 0 ]]; then
+              cp "${WEBVIEW2_CANDIDATES[0]}" "$WEBVIEW2_DLL"
+            fi
+          fi
+
+          if [[ ! -f "$WEBVIEW2_DLL" ]]; then
             echo "Missing expected WebView2 runtime sidecar: $WEBVIEW2_DLL" >&2
             echo "The installer and portable package must ship WebView2Loader.dll beside codexbar.exe." >&2
             exit 1
@@ -139,10 +146,12 @@ jobs:
           Compress-Archive -Path "$portableDir\*" -DestinationPath $portableZip -Force
 
           foreach ($path in @($installer, $portableZip)) {
-            Copy-Item $path $assetDir -Force
-
             $fileName = Split-Path $path -Leaf
             $destPath = Join-Path $assetDir $fileName
+            if ((Resolve-Path $path).Path -ne (Resolve-Path $destPath -ErrorAction SilentlyContinue).Path) {
+              Copy-Item $path $assetDir -Force
+            }
+
             $hash = (Get-FileHash -Algorithm SHA256 $destPath).Hash.ToLower()
             "$hash  $fileName" | Set-Content -Encoding ascii "$destPath.sha256"
           }
