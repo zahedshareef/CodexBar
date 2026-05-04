@@ -239,6 +239,12 @@ impl ClaudeProvider {
             ));
         }
 
+        if is_non_interactive_slash_command_response(&clean_lower) {
+            return Err(ProviderError::Other(
+                "Claude CLI treated /usage as a normal prompt instead of opening the interactive usage screen. Use Auto, OAuth, or Web mode for Claude usage.".to_string(),
+            ));
+        }
+
         // Parse session percent: "X% used" or "X% left"
         let mut session_percent: Option<f64> = None;
         let mut weekly_percent: Option<f64> = None;
@@ -484,6 +490,20 @@ fn strip_ansi(text: &str) -> String {
     }
 
     result
+}
+
+fn is_non_interactive_slash_command_response(text: &str) -> bool {
+    let mentions_usage_and_exit = text.contains("/usage") && text.contains("/exit");
+    let says_entered_commands =
+        text.contains("i see you've entered") || text.contains("you've entered two slash commands");
+    let says_no_slash_command = text.contains("available custom slash commands")
+        && text.contains("don't see these commands");
+    let says_usage_is_cli_only = text
+        .contains("token usage and statistics are typically displayed by the cli interface")
+        || text.contains("i don't have direct access to those metrics");
+
+    mentions_usage_and_exit
+        && (says_entered_commands || says_no_slash_command || says_usage_is_cli_only)
 }
 
 /// Extract percentage near a label (e.g., "Current session")
@@ -868,5 +888,46 @@ Resets Dec 24 at 3:59pm (Europe/Paris)
             err.to_string(),
             "Parse error: Claude CLI did not return usage data"
         );
+    }
+
+    #[test]
+    fn rejects_claude_2_1_non_interactive_slash_response() {
+        let provider = ClaudeProvider::new();
+        let output = r#"
+I see you've entered `/usage` and `/exit`.
+
+**Usage**: Token usage and statistics are typically displayed by the CLI interface itself. I don't have direct access to those metrics through my available tools.
+
+**Exit**: I'll end the session here. Goodbye!
+"#;
+
+        let err = provider
+            .parse_cli_output(output)
+            .expect_err("should reject non-interactive slash command response");
+
+        assert!(matches!(err, ProviderError::Other(_)));
+        assert_eq!(
+            err.to_string(),
+            "Claude CLI treated /usage as a normal prompt instead of opening the interactive usage screen. Use Auto, OAuth, or Web mode for Claude usage."
+        );
+    }
+
+    #[test]
+    fn rejects_legacy_non_interactive_slash_response() {
+        let provider = ClaudeProvider::new();
+        let output = r#"
+I see you've entered two slash commands:
+
+1. `/usage` - This appears to be a request to check usage information
+2. `/exit` - This appears to be a request to exit
+
+However, looking at the available custom slash commands, I don't see these commands defined.
+"#;
+
+        let err = provider
+            .parse_cli_output(output)
+            .expect_err("should reject non-interactive slash command response");
+
+        assert!(matches!(err, ProviderError::Other(_)));
     }
 }
