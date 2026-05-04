@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.23.8] — 2026-05-05
+## [0.23.9] — 2026-05-05
 
 ### Fixed
 - Run Claude CLI `/usage` probes through a real PTY/ConPTY instead of piped stdin, so interactive slash commands are handled like terminal input on Claude Code 2.1.x.

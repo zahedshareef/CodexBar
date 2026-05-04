@@ -6,6 +6,8 @@ mod web_api;
 use async_trait::async_trait;
 use regex_lite::Regex;
 #[cfg(windows)]
+use std::os::windows::process::CommandExt;
+#[cfg(windows)]
 use std::process::{Command as StdCommand, Stdio};
 
 use crate::cli::tty_runner::{TtyCommandOptions, TtyCommandRunner};
