@@ -37,6 +37,9 @@ docs/*-analysis.md
 rust/target/
 target/
 
+# Host-specific Tauri schemas generated during local desktop checks
+apps/desktop-tauri/src-tauri/gen/schemas/macOS-schema.json
+
 # Claude temp files
 tmpclaude-*
 .claude/

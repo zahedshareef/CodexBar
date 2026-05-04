@@ -6,13 +6,9 @@ mod web_api;
 use async_trait::async_trait;
 use regex_lite::Regex;
 #[cfg(windows)]
-use std::os::windows::process::CommandExt;
-#[cfg(windows)]
-use std::process::Command as StdCommand;
-use std::process::Stdio;
-use tokio::io::AsyncWriteExt;
-use tokio::process::Command;
+use std::process::{Command as StdCommand, Stdio};
 
+use crate::cli::tty_runner::{TtyCommandOptions, TtyCommandRunner};
 use crate::core::{
     FetchContext, Provider, ProviderError, ProviderFetchResult, ProviderId, ProviderMetadata,
     RateWindow, SourceMode, UsageSnapshot,
@@ -53,6 +49,108 @@ impl Default for ClaudeProvider {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn claude_usage_probe_dir() -> Result<std::path::PathBuf, ProviderError> {
+    let base = dirs::data_local_dir()
+        .or_else(dirs::home_dir)
+        .ok_or_else(|| {
+            ProviderError::Other("Could not resolve a local data directory".to_string())
+        })?;
+    let dir = base.join("CodexBar").join("claude-usage-probe");
+    std::fs::create_dir_all(&dir).map_err(|e| {
+        ProviderError::Other(format!(
+            "Failed to prepare Claude CLI probe directory: {}",
+            e
+        ))
+    })?;
+    Ok(dir)
+}
+
+struct ClaudePtyProbeOptions {
+    script: &'static str,
+    timeout_secs: f64,
+    idle_timeout_secs: Option<f64>,
+    initial_delay_secs: f64,
+    script_char_delay_secs: f64,
+    script_line_delay_secs: f64,
+    send_on_substring: Option<(&'static str, &'static str)>,
+}
+
+async fn run_claude_usage_pty_probe(
+    claude_path: std::path::PathBuf,
+    working_directory: std::path::PathBuf,
+) -> Result<String, ProviderError> {
+    run_claude_pty_probe(
+        claude_path,
+        working_directory,
+        ClaudePtyProbeOptions {
+            script: "/usage",
+            timeout_secs: 20.0,
+            idle_timeout_secs: Some(6.0),
+            initial_delay_secs: 3.0,
+            script_char_delay_secs: 0.04,
+            script_line_delay_secs: 0.0,
+            send_on_substring: None,
+        },
+    )
+    .await
+}
+
+async fn run_claude_trust_preflight(
+    claude_path: std::path::PathBuf,
+    working_directory: std::path::PathBuf,
+) -> Result<String, ProviderError> {
+    run_claude_pty_probe(
+        claude_path,
+        working_directory,
+        ClaudePtyProbeOptions {
+            script: "",
+            timeout_secs: 15.0,
+            idle_timeout_secs: Some(4.0),
+            initial_delay_secs: 0.6,
+            script_char_delay_secs: 0.0,
+            script_line_delay_secs: 0.0,
+            send_on_substring: Some(("Enter", "\n/exit\n")),
+        },
+    )
+    .await
+}
+
+async fn run_claude_pty_probe(
+    claude_path: std::path::PathBuf,
+    working_directory: std::path::PathBuf,
+    probe: ClaudePtyProbeOptions,
+) -> Result<String, ProviderError> {
+    tokio::task::spawn_blocking(move || {
+        let mut env = TtyCommandRunner::enriched_environment();
+        env.insert("NO_COLOR".to_string(), "1".to_string());
+
+        let mut options = TtyCommandOptions::new()
+            .with_timeout(probe.timeout_secs)
+            .with_initial_delay(probe.initial_delay_secs)
+            .with_script_char_delay(probe.script_char_delay_secs)
+            .with_script_line_delay(probe.script_line_delay_secs)
+            .with_working_directory(working_directory)
+            .with_extra_args(vec!["--setting-sources".to_string(), "user".to_string()]);
+        if let Some(idle) = probe.idle_timeout_secs {
+            options = options.with_idle_timeout(idle);
+        }
+        if let Some((trigger, keys)) = probe.send_on_substring {
+            options = options.with_send_on_substring(trigger, keys);
+        }
+        options.env = env;
+
+        TtyCommandRunner::new()
+            .run(&claude_path.to_string_lossy(), probe.script, options)
+            .map(|result| result.text)
+    })
+    .await
+    .map_err(|e| ProviderError::Other(format!("Claude CLI probe failed: {}", e)))?
+    .map_err(|e| match e {
+        crate::cli::tty_runner::TtyCommandError::TimedOut => ProviderError::Timeout,
+        other => ProviderError::Other(format!("Claude CLI failed: {}", other)),
+    })
 }
 
 #[async_trait]
@@ -150,42 +248,14 @@ impl ClaudeProvider {
             )
         })?;
 
-        // Run claude CLI with /usage command via stdin
-        // We spawn claude in non-interactive mode and send /usage
-        #[cfg(windows)]
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        let probe_dir = claude_usage_probe_dir()?;
+        let mut combined =
+            run_claude_usage_pty_probe(claude_path.clone(), probe_dir.clone()).await?;
 
-        let mut cmd = Command::new(&claude_path);
-        cmd.stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .env("TERM", "xterm-256color")
-            .env("NO_COLOR", "1"); // Try to disable colors
-        #[cfg(windows)]
-        cmd.creation_flags(CREATE_NO_WINDOW);
-
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| ProviderError::Other(format!("Failed to spawn claude: {}", e)))?;
-
-        // Send /usage command
-        if let Some(mut stdin) = child.stdin.take() {
-            let _ = stdin.write_all(b"/usage\n").await;
-            tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-            let _ = stdin.write_all(b"/exit\n").await;
-            drop(stdin);
+        if is_workspace_trust_prompt(&strip_ansi(&combined).to_lowercase()) {
+            run_claude_trust_preflight(claude_path.clone(), probe_dir.clone()).await?;
+            combined = run_claude_usage_pty_probe(claude_path, probe_dir).await?;
         }
-
-        // Wait for output with timeout
-        let output =
-            tokio::time::timeout(std::time::Duration::from_secs(30), child.wait_with_output())
-                .await
-                .map_err(|_| ProviderError::Timeout)?
-                .map_err(|e| ProviderError::Other(format!("Claude CLI failed: {}", e)))?;
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let combined = format!("{}\n{}", stdout, stderr);
 
         // Check for common error conditions
         let lowered = combined.to_lowercase();
@@ -242,6 +312,12 @@ impl ClaudeProvider {
         if is_non_interactive_slash_command_response(&clean_lower) {
             return Err(ProviderError::Other(
                 "Claude CLI treated /usage as a normal prompt instead of opening the interactive usage screen. Use Auto, OAuth, or Web mode for Claude usage.".to_string(),
+            ));
+        }
+
+        if is_cli_activity_stats_response(&clean_lower) {
+            return Err(ProviderError::Other(
+                "Claude CLI /usage opened, but this Claude version returned local activity stats instead of plan limit percentages. Use Auto, OAuth, or Web mode for Claude limits.".to_string(),
             ));
         }
 
@@ -470,11 +546,16 @@ fn strip_ansi(text: &str) -> String {
             // Skip CSI sequences: ESC[...letter
             if chars.peek() == Some(&'[') {
                 chars.next();
+                let mut final_char = None;
                 while let Some(&next) = chars.peek() {
                     chars.next();
                     if next.is_ascii_alphabetic() {
+                        final_char = Some(next);
                         break;
                     }
+                }
+                if final_char == Some('C') {
+                    result.push(' ');
                 }
             // Skip OSC sequences: ESC]...BEL
             } else if chars.peek() == Some(&']') {
@@ -504,6 +585,20 @@ fn is_non_interactive_slash_command_response(text: &str) -> bool {
 
     mentions_usage_and_exit
         && (says_entered_commands || says_no_slash_command || says_usage_is_cli_only)
+}
+
+fn is_workspace_trust_prompt(text: &str) -> bool {
+    text.contains("quick safety check")
+        && text.contains("trust this folder")
+        && text.contains("yes, i trust this folder")
+}
+
+fn is_cli_activity_stats_response(text: &str) -> bool {
+    let has_activity_overview = text.contains("favorite model:") || text.contains("total tokens:");
+    let has_session_cost_summary =
+        text.contains("total duration") && text.contains("usage:") && text.contains("cache read");
+
+    has_activity_overview || has_session_cost_summary
 }
 
 /// Extract percentage near a label (e.g., "Current session")
@@ -927,6 +1022,46 @@ However, looking at the available custom slash commands, I don't see these comma
         let err = provider
             .parse_cli_output(output)
             .expect_err("should reject non-interactive slash command response");
+
+        assert!(matches!(err, ProviderError::Other(_)));
+    }
+
+    #[test]
+    fn rejects_cli_activity_stats_without_plan_limits() {
+        let provider = ClaudeProvider::new();
+        let output = r#"
+❯ /usage
+
+Status   Config   Usage   Stats
+
+Overview  Models
+
+Favorite model: glm-4.6        Total tokens: 263.3k
+Sessions: 6                    Longest session: 18s
+Active days: 2/10              Longest streak: 1 day
+"#;
+
+        let err = provider
+            .parse_cli_output(output)
+            .expect_err("should reject local activity stats");
+
+        assert!(matches!(err, ProviderError::Other(_)));
+        assert_eq!(
+            err.to_string(),
+            "Claude CLI /usage opened, but this Claude version returned local activity stats instead of plan limit percentages. Use Auto, OAuth, or Web mode for Claude limits."
+        );
+    }
+
+    #[test]
+    fn rejects_ansi_spaced_cli_activity_stats_without_plan_limits() {
+        let provider = ClaudeProvider::new();
+        let output = "\x1b[2CTotal\x1b[1Ccost:\x1b[12C$0.0000\n\
+                      \x1b[2CTotal\x1b[1Cduration\x1b[1C(API):\x1b[2C0s\n\
+                      \x1b[2CUsage:\x1b[17C0\x1b[1Cinput,\x1b[1C0\x1b[1Coutput,\x1b[1C0\x1b[1Ccache\x1b[1Cread";
+
+        let err = provider
+            .parse_cli_output(output)
+            .expect_err("should reject ANSI-spaced local activity stats");
 
         assert!(matches!(err, ProviderError::Other(_)));
     }

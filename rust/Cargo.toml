@@ -96,6 +96,9 @@ regex-lite = "0.1"
 # Which - find executables in PATH
 which = "7"
 
+# Native pseudo-terminal support for interactive CLI probes
+portable-pty = "0.9"
+
 # Dirs - standard directories
 dirs = "6"
 

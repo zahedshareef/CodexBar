@@ -1,6 +1,6 @@
-//! TTY Command Runner for Windows
+//! TTY Command Runner
 //!
-//! Executes interactive CLI commands using Windows ConPTY (pseudo-console).
+//! Executes interactive CLI commands using the platform pseudo-console.
 //! Provides PTY-like functionality for capturing output from interactive TUI programs.
 
 #![allow(dead_code)]
@@ -9,7 +9,8 @@ use regex_lite::Regex;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+#[cfg(windows)]
+use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 use thiserror::Error;
@@ -49,6 +50,10 @@ pub struct TtyCommandOptions {
     pub extra_args: Vec<String>,
     /// Initial delay before sending script (default: 0.4s)
     pub initial_delay_secs: f64,
+    /// Delay between script characters (default: 0s)
+    pub script_char_delay_secs: f64,
+    /// Delay between script lines (default: 0s)
+    pub script_line_delay_secs: f64,
     /// Send enter/return every N seconds (optional)
     pub send_enter_every_secs: Option<f64>,
     /// Map of substrings to keys to send when detected
@@ -73,6 +78,8 @@ impl Default for TtyCommandOptions {
             working_directory: None,
             extra_args: Vec::new(),
             initial_delay_secs: 0.4,
+            script_char_delay_secs: 0.0,
+            script_line_delay_secs: 0.0,
             send_enter_every_secs: None,
             send_on_substrings: HashMap::new(),
             stop_on_url: false,
@@ -95,6 +102,21 @@ impl TtyCommandOptions {
 
     pub fn with_idle_timeout(mut self, secs: f64) -> Self {
         self.idle_timeout_secs = Some(secs);
+        self
+    }
+
+    pub fn with_initial_delay(mut self, secs: f64) -> Self {
+        self.initial_delay_secs = secs;
+        self
+    }
+
+    pub fn with_script_char_delay(mut self, secs: f64) -> Self {
+        self.script_char_delay_secs = secs;
+        self
+    }
+
+    pub fn with_script_line_delay(mut self, secs: f64) -> Self {
+        self.script_line_delay_secs = secs;
         self
     }
 
@@ -243,26 +265,34 @@ impl TtyCommandRunner {
         Self::run_where("claude")
     }
 
-    /// Run the Windows `where` command to find a binary
+    /// Find a binary in PATH.
     fn run_where(tool: &str) -> Option<PathBuf> {
-        let output = Command::new("where")
-            .arg(tool)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .output()
-            .ok()?;
+        #[cfg(windows)]
+        {
+            let output = Command::new("where")
+                .arg(tool)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .output()
+                .ok()?;
 
-        if !output.status.success() {
-            return None;
+            if !output.status.success() {
+                return None;
+            }
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let first_line = stdout.lines().next()?.trim();
+            if first_line.is_empty() {
+                return None;
+            }
+
+            Some(PathBuf::from(first_line))
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let first_line = stdout.lines().next()?.trim();
-        if first_line.is_empty() {
-            return None;
+        #[cfg(not(windows))]
+        {
+            which::which(tool).ok()
         }
-
-        Some(PathBuf::from(first_line))
     }
 
     fn is_explicit_binary_path(binary: &str) -> bool {
@@ -272,8 +302,8 @@ impl TtyCommandRunner {
 
     /// Run a command and capture its output
     ///
-    /// This is a simplified version for Windows that doesn't use PTY.
-    /// For interactive TUI programs, you may need to use ConPTY directly.
+    /// Uses the platform pseudo-terminal implementation, including Windows
+    /// ConPTY, so interactive programs see a real terminal.
     pub fn run(
         &self,
         binary: &str,
@@ -294,39 +324,43 @@ impl TtyCommandRunner {
             return Err(TtyCommandError::BinaryNotFound(binary.to_string()));
         };
 
-        // Build the command
-        let mut cmd = Command::new(&resolved);
+        let pty_system = portable_pty::native_pty_system();
+        let pair = pty_system
+            .openpty(portable_pty::PtySize {
+                rows: options.rows,
+                cols: options.cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| TtyCommandError::LaunchFailed(e.to_string()))?;
+
+        let mut cmd = portable_pty::CommandBuilder::new(resolved.as_os_str());
         cmd.args(&options.extra_args);
 
         if let Some(ref dir) = options.working_directory {
-            cmd.current_dir(dir);
+            cmd.cwd(dir.as_os_str());
         }
 
-        // Set environment
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         for (key, value) in &options.env {
             cmd.env(key, value);
         }
 
-        // Set up I/O
-        cmd.stdin(Stdio::piped());
-        cmd.stdout(Stdio::piped());
-        cmd.stderr(Stdio::piped());
-
-        // Launch the process
-        let mut child = cmd
-            .spawn()
+        let mut child = pair
+            .slave
+            .spawn_command(cmd)
             .map_err(|e| TtyCommandError::LaunchFailed(e.to_string()))?;
+        drop(pair.slave);
 
-        // Run the interactive session
-        self.run_session(&mut child, script, &options)
+        self.run_pty_session(pair.master, &mut child, script, &options)
     }
 
     /// Run an interactive session with the child process
-    fn run_session(
+    fn run_pty_session(
         &self,
-        child: &mut Child,
+        master: Box<dyn portable_pty::MasterPty + Send>,
+        child: &mut Box<dyn portable_pty::Child + Send + Sync>,
         script: &str,
         options: &TtyCommandOptions,
     ) -> Result<TtyCommandResult, TtyCommandError> {
@@ -341,63 +375,58 @@ impl TtyCommandRunner {
         let mut last_output_time = Instant::now();
         let mut triggered_sends = std::collections::HashSet::new();
 
-        // Take ownership of stdin/stdout
-        let mut stdin = child.stdin.take();
-        let stdout = child.stdout.take();
-        let stderr = child.stderr.take();
-
         // URL detection regex
         let url_regex = Regex::new(r"https?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+").ok();
+
+        // Set up non-blocking readers using channels
+        let (tx, rx) = mpsc::channel::<String>();
+        let mut writer = master
+            .take_writer()
+            .map_err(|e| TtyCommandError::LaunchFailed(e.to_string()))?;
+        let mut reader = master
+            .try_clone_reader()
+            .map_err(|e| TtyCommandError::LaunchFailed(e.to_string()))?;
+
+        std::thread::spawn(move || {
+            let mut buf = [0u8; 4096];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        if let Ok(s) = String::from_utf8(buf[..n].to_vec()) {
+                            let _ = tx.send(s);
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
 
         // Initial delay
         std::thread::sleep(Duration::from_secs_f64(options.initial_delay_secs));
 
-        // Send the script if provided
-        let trimmed = script.trim();
-        if !trimmed.is_empty()
-            && let Some(ref mut stdin) = stdin
-        {
-            let _ = writeln!(stdin, "{}", trimmed);
-            let _ = stdin.flush();
-        }
-
-        // Set up non-blocking readers using channels
-        let (tx, rx) = mpsc::channel::<String>();
-
-        if let Some(mut stdout) = stdout {
-            let tx_stdout = tx.clone();
-            std::thread::spawn(move || {
-                let mut buf = [0u8; 4096];
-                loop {
-                    match stdout.read(&mut buf) {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            if let Ok(s) = String::from_utf8(buf[..n].to_vec()) {
-                                let _ = tx_stdout.send(s);
-                            }
-                        }
-                        Err(_) => break,
-                    }
+        // Send the script if provided. PTYs expect carriage-return line endings
+        // for interactive programs to treat writes like pressing Enter.
+        let script_lines: Vec<&str> = script
+            .lines()
+            .map(str::trim_end)
+            .filter(|line| !line.trim().is_empty())
+            .collect();
+        for (idx, line) in script_lines.iter().enumerate() {
+            if options.script_char_delay_secs > 0.0 {
+                for ch in line.chars() {
+                    let _ = write!(writer, "{}", ch);
+                    let _ = writer.flush();
+                    std::thread::sleep(Duration::from_secs_f64(options.script_char_delay_secs));
                 }
-            });
-        }
-
-        if let Some(mut stderr) = stderr {
-            let tx_stderr = tx;
-            std::thread::spawn(move || {
-                let mut buf = [0u8; 4096];
-                loop {
-                    match stderr.read(&mut buf) {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            if let Ok(s) = String::from_utf8(buf[..n].to_vec()) {
-                                let _ = tx_stderr.send(s);
-                            }
-                        }
-                        Err(_) => break,
-                    }
-                }
-            });
+                let _ = write!(writer, "\r\n");
+            } else {
+                let _ = write!(writer, "{}\r\n", line);
+            }
+            let _ = writer.flush();
+            if idx + 1 < script_lines.len() && options.script_line_delay_secs > 0.0 {
+                std::thread::sleep(Duration::from_secs_f64(options.script_line_delay_secs));
+            }
         }
 
         let mut last_enter = Instant::now();
@@ -467,10 +496,9 @@ impl TtyCommandRunner {
                 // Check for send triggers
                 for (trigger, keys) in &options.send_on_substrings {
                     if !triggered_sends.contains(trigger) && buffer.contains(trigger) {
-                        if let Some(ref mut stdin) = stdin {
-                            let _ = write!(stdin, "{}", keys);
-                            let _ = stdin.flush();
-                        }
+                        let normalized = keys.replace('\n', "\r\n");
+                        let _ = write!(writer, "{}", normalized);
+                        let _ = writer.flush();
                         triggered_sends.insert(trigger.clone());
                     }
                 }
@@ -484,10 +512,8 @@ impl TtyCommandRunner {
             if let Some(interval) = options.send_enter_every_secs
                 && last_enter.elapsed() >= Duration::from_secs_f64(interval)
             {
-                if let Some(ref mut stdin) = stdin {
-                    let _ = writeln!(stdin);
-                    let _ = stdin.flush();
-                }
+                let _ = write!(writer, "\r\n");
+                let _ = writer.flush();
                 last_enter = Instant::now();
             }
 
@@ -506,9 +532,10 @@ impl TtyCommandRunner {
             }
         }
 
-        // Clean up the child process
-        let _ = child.kill();
-        let _ = child.wait();
+        if child.try_wait().ok().flatten().is_none() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
 
         if buffer.is_empty() && !stopped_early {
             return Err(TtyCommandError::TimedOut);
@@ -525,30 +552,30 @@ impl TtyCommandRunner {
     pub fn enriched_path() -> String {
         let mut paths = Vec::new();
 
-        // Add common npm/bun paths on Windows
         if let Some(home) = dirs::home_dir() {
+            #[cfg(windows)]
             paths.push(home.join("AppData").join("Roaming").join("npm"));
+            #[cfg(not(windows))]
+            paths.push(home.join(".local").join("bin"));
             paths.push(home.join(".bun").join("bin"));
             paths.push(home.join(".deno").join("bin"));
+            paths.push(home.join(".cargo").join("bin"));
         }
 
+        #[cfg(windows)]
         if let Some(local) = dirs::data_local_dir() {
             paths.push(local.join("npm"));
         }
 
-        // Get current PATH
-        let current_path = std::env::var("PATH").unwrap_or_default();
+        let mut all_paths: Vec<PathBuf> = paths.into_iter().filter(|p| p.exists()).collect();
 
-        // Combine paths
-        let mut all_paths: Vec<String> = paths
-            .into_iter()
-            .filter(|p| p.exists())
-            .map(|p| p.to_string_lossy().to_string())
-            .collect();
+        if let Some(current_path) = std::env::var_os("PATH") {
+            all_paths.extend(std::env::split_paths(&current_path));
+        }
 
-        all_paths.push(current_path);
-
-        all_paths.join(";")
+        std::env::join_paths(all_paths)
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_else(|_| std::env::var("PATH").unwrap_or_default())
     }
 
     /// Get enriched environment for CLI commands
@@ -658,6 +685,23 @@ mod tests {
         };
 
         assert_eq!(result.first_url(), Some("https://example.com"));
+    }
+
+    #[test]
+    fn test_run_sends_script_through_pty() {
+        let runner = TtyCommandRunner::new();
+        let opts = TtyCommandOptions::new()
+            .with_timeout(5.0)
+            .with_idle_timeout(2.0)
+            .with_script_line_delay(0.1);
+
+        #[cfg(windows)]
+        let result = runner.run("cmd", "echo CODEXBAR_PTY_OK\nexit", opts);
+        #[cfg(not(windows))]
+        let result = runner.run("sh", "echo CODEXBAR_PTY_OK\nexit", opts);
+
+        let result = result.expect("pty command should run");
+        assert!(result.text.contains("CODEXBAR_PTY_OK"), "{}", result.text);
     }
 
     #[test]
