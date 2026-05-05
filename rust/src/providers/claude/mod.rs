@@ -168,14 +168,23 @@ impl Provider for ClaudeProvider {
     async fn fetch_usage(&self, ctx: &FetchContext) -> Result<ProviderFetchResult, ProviderError> {
         match ctx.source_mode {
             SourceMode::Auto => {
-                // Try OAuth first, then Web, then CLI
-                if let Ok(result) = self.fetch_via_oauth(ctx).await {
-                    return Ok(result);
+                let mut failures = Vec::new();
+
+                match self.fetch_via_oauth(ctx).await {
+                    Ok(result) => return Ok(result),
+                    Err(error) => failures.push(("OAuth", error)),
                 }
-                if let Ok(result) = self.fetch_via_web(ctx).await {
-                    return Ok(result);
+                match self.fetch_via_web(ctx).await {
+                    Ok(result) => return Ok(result),
+                    Err(error) => failures.push(("Web", error)),
                 }
-                self.fetch_via_cli(ctx).await
+                match self.fetch_via_cli(ctx).await {
+                    Ok(result) => Ok(result),
+                    Err(error) => {
+                        failures.push(("CLI", error));
+                        Err(claude_auto_fetch_error(failures))
+                    }
+                }
             }
             SourceMode::OAuth => self.fetch_via_oauth(ctx).await,
             SourceMode::Web => self.fetch_via_web(ctx).await,
@@ -212,9 +221,16 @@ impl Provider for ClaudeProvider {
 impl ClaudeProvider {
     async fn fetch_via_oauth(
         &self,
-        _ctx: &FetchContext,
+        ctx: &FetchContext,
     ) -> Result<ProviderFetchResult, ProviderError> {
         tracing::debug!("Attempting OAuth fetch for Claude");
+        if let Some(token) = ctx
+            .api_key
+            .as_deref()
+            .filter(|token| !token.trim().is_empty())
+        {
+            return self.oauth_fetcher.fetch_with_access_token(token).await;
+        }
         self.oauth_fetcher.fetch().await
     }
 
@@ -428,6 +444,18 @@ impl ClaudeProvider {
 
         Ok(ProviderFetchResult::new(usage, "cli"))
     }
+}
+
+fn claude_auto_fetch_error(failures: Vec<(&'static str, ProviderError)>) -> ProviderError {
+    let summary = failures
+        .into_iter()
+        .map(|(source, error)| format!("{source}: {error}"))
+        .collect::<Vec<_>>()
+        .join("; ");
+
+    ProviderError::Other(format!(
+        "Claude usage failed from all configured sources. {summary}"
+    ))
 }
 
 /// Try to find the claude CLI binary
@@ -984,6 +1012,23 @@ Resets Dec 24 at 3:59pm (Europe/Paris)
         assert_eq!(
             err.to_string(),
             "Parse error: Claude CLI did not return usage data"
+        );
+    }
+
+    #[test]
+    fn auto_fetch_error_keeps_all_source_failures() {
+        let err = claude_auto_fetch_error(vec![
+            ("OAuth", ProviderError::OAuth("token expired".to_string())),
+            ("Web", ProviderError::NoCookies),
+            (
+                "CLI",
+                ProviderError::Parse("Empty output from Claude CLI".to_string()),
+            ),
+        ]);
+
+        assert_eq!(
+            err.to_string(),
+            "Claude usage failed from all configured sources. OAuth: OAuth error: token expired; Web: No cookies available for web API; CLI: Parse error: Empty output from Claude CLI"
         );
     }
 

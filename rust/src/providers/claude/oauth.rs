@@ -126,6 +126,36 @@ impl ClaudeOAuthFetcher {
     /// Load credentials and fetch usage
     pub async fn fetch(&self) -> Result<ProviderFetchResult, ProviderError> {
         let credentials = self.load_credentials()?;
+        self.fetch_with_credentials(credentials).await
+    }
+
+    /// Fetch usage with an explicit OAuth access token.
+    pub async fn fetch_with_access_token(
+        &self,
+        access_token: &str,
+    ) -> Result<ProviderFetchResult, ProviderError> {
+        let access_token = access_token.trim();
+        if access_token.is_empty() {
+            return Err(ProviderError::OAuth(
+                "Claude OAuth access token is empty.".to_string(),
+            ));
+        }
+
+        let credentials = ClaudeOAuthCredentials {
+            access_token: access_token.to_string(),
+            refresh_token: None,
+            expires_at: None,
+            scopes: vec!["user:profile".to_string()],
+            rate_limit_tier: None,
+        };
+
+        self.fetch_with_credentials(credentials).await
+    }
+
+    async fn fetch_with_credentials(
+        &self,
+        credentials: ClaudeOAuthCredentials,
+    ) -> Result<ProviderFetchResult, ProviderError> {
         let usage_response = self.fetch_usage(&credentials).await?;
         let usage = self.build_usage_snapshot(&usage_response, &credentials);
         Ok(ProviderFetchResult::new(usage, "oauth"))

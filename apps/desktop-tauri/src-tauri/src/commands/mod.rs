@@ -1184,9 +1184,14 @@ fn build_fetch_context(
     let active_token_cookie = token_override
         .as_ref()
         .and_then(|override_data| override_data.cookie_header.clone());
+    let active_token_env = token_override
+        .as_ref()
+        .and_then(|override_data| override_data.env_override.as_ref());
+    let active_token_api_key = active_token_env.and_then(|env| env.values().next().cloned());
     let usage_source = SourceMode::parse(settings.usage_source(id)).unwrap_or_default();
 
     let (source_mode, cookie_header) = match cookie_source {
+        _ if active_token_env.is_some() => (SourceMode::OAuth, None),
         "off" => (SourceMode::Cli, None),
         "manual" => {
             let cookie_header = active_token_cookie.or(stored_cookie);
@@ -1216,14 +1221,7 @@ fn build_fetch_context(
     let api_key = api_keys
         .get(id.cli_name())
         .map(|s| s.to_string())
-        .or_else(|| {
-            token_override.as_ref().and_then(|override_data| {
-                override_data
-                    .env_override
-                    .as_ref()
-                    .and_then(|env| env.values().next().cloned())
-            })
-        });
+        .or(active_token_api_key);
 
     FetchContext {
         source_mode,
@@ -3239,6 +3237,55 @@ mod tests {
             ctx.manual_cookie_header.as_deref(),
             Some("__Secure-session=abc123")
         );
+    }
+
+    #[test]
+    fn fetch_context_claude_oauth_token_account_uses_oauth() {
+        let settings = Settings::default();
+        let cookies = ManualCookies::default();
+        let api_keys = ApiKeys::default();
+        let mut token_accounts = HashMap::new();
+        let mut data = ProviderAccountData::new();
+        data.add_account(TokenAccount::new("Claude OAuth", "sk-ant-oat01-abc123"));
+        token_accounts.insert(ProviderId::Claude, data);
+
+        let ctx = super::build_fetch_context(
+            ProviderId::Claude,
+            &settings,
+            &cookies,
+            &api_keys,
+            &token_accounts,
+        );
+
+        assert_eq!(ctx.source_mode, SourceMode::OAuth);
+        assert!(ctx.manual_cookie_header.is_none());
+        assert_eq!(ctx.api_key.as_deref(), Some("sk-ant-oat01-abc123"));
+    }
+
+    #[test]
+    fn fetch_context_claude_session_token_account_uses_web_cookie() {
+        let settings = Settings::default();
+        let cookies = ManualCookies::default();
+        let api_keys = ApiKeys::default();
+        let mut token_accounts = HashMap::new();
+        let mut data = ProviderAccountData::new();
+        data.add_account(TokenAccount::new("Claude Web", "sessionKey=abc123"));
+        token_accounts.insert(ProviderId::Claude, data);
+
+        let ctx = super::build_fetch_context(
+            ProviderId::Claude,
+            &settings,
+            &cookies,
+            &api_keys,
+            &token_accounts,
+        );
+
+        assert_eq!(ctx.source_mode, SourceMode::Web);
+        assert_eq!(
+            ctx.manual_cookie_header.as_deref(),
+            Some("sessionKey=abc123")
+        );
+        assert!(ctx.api_key.is_none());
     }
 
     #[test]
