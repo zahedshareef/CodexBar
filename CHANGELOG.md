@@ -4,14 +4,12 @@
 
 ---
 
-## [Windows] 0.23.9 - 2026-05-05
+## [Windows] 0.23.10 - 2026-05-06
 
 ### Fixed
-- Run Claude CLI `/usage` probes through a real PTY/ConPTY instead of piped stdin, so interactive slash commands are handled like terminal input on Claude Code 2.1.x.
-- Use an app-owned empty Claude usage probe directory and only auto-confirm Claude's workspace trust prompt for that directory, avoiding accidental trust changes for user project folders.
-- Detect Claude Code 2.1.x `/usage` activity/stat screens that do not include plan limit percentages, and show a precise source-mode error instead of `Claude CLI did not return usage data`.
-- Preserve the existing parser for older Claude CLI usage screens that still expose session, weekly, and model-specific percentage limits.
-- Ignore host-generated macOS Tauri schema output so local desktop validation no longer leaves an untracked generated file.
+- Route active Claude OAuth token accounts through OAuth mode and pass the selected token directly into the Claude OAuth fetcher.
+- Keep Claude `sessionKey` token accounts on the web/cookie path instead of confusing them with OAuth tokens.
+- Report OAuth, Web, and CLI failures together in Claude Auto mode so a final CLI parse error no longer hides earlier token or cookie failures.
 
 ---
 
