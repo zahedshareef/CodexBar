@@ -19,8 +19,17 @@ The Windows port of [CodexBar](https://github.com/steipete/CodexBar) — a syste
 - **Browser cookie import** — Chrome, Edge, Brave, Firefox, with browser access kept opt-in
 - **Per-provider credentials** — API keys, cookies, and OAuth all managed from the provider detail pane
 - **Credential hardening** — local secret-bearing stores are protected with Windows DPAPI on save
+- **Windows release packaging** — Inno Setup installer, portable zip, WebView2 sidecar, VC++ runtime bootstrap, and SHA-256 checksum files
 - **CLI** — `codexbar usage` and `codexbar cost` for scripting and CI
 - **WSL support** — CLI works out of the box; desktop shell via WSLg
+
+## What's New in v0.24.0
+
+- Added upstream v0.24 provider support for **Codebuff**, **DeepSeek**, and **Windsurf**
+- Added Kilo to the API-key provider catalog so it appears in credential management
+- Hardened Codebuff parsing for `data`-wrapped usage payloads
+- Hardened Windsurf local-cache parsing for SQLite `TEXT` and `BLOB` values, including UTF-8 and UTF-16LE state data
+- Verified the Windows-native release path on Windows Server 2025: Rust tests, Tauri backend tests, frontend build, release exe, WebView2 sidecar, Inno installer, portable zip, SHA-256 files, silent install, installed app startup, and uninstall cleanup
 
 ## Quick Start
 
@@ -53,6 +62,8 @@ You can also grab the latest build from [GitHub Releases](https://github.com/Fin
 - **Installer**: `CodexBar-<version>-Setup.exe`
 - **Portable**: `CodexBar-<version>-portable.zip`
 - **Checksums**: each release includes `.sha256` files for manual verification
+
+The installer includes the desktop app, `WebView2Loader.dll`, app icon, Start Menu shortcut, uninstall metadata, and the Visual C++ runtime bootstrap needed on clean Windows machines. The portable zip keeps `codexbar.exe`, `WebView2Loader.dll`, and `icon.ico` together for manual installs.
 
 ## First Run
 

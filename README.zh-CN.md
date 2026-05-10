@@ -14,12 +14,22 @@
 
 ## 功能特性
 
-- **28 个 AI 服务商** — Codex、Claude、Cursor、Factory、Gemini、Copilot、Antigravity、z.ai、MiniMax、Kiro、Vertex AI、Augment、OpenCode、Kimi、Kimi K2、Amp、Warp、Ollama、OpenRouter、Synthetic、JetBrains AI、Alibaba、NanoGPT、Infini、Perplexity、Abacus AI、OpenCode Go、Kilo
+- **32 个 AI 服务商** — Codex、Claude、Cursor、Factory、Gemini、Copilot、Antigravity、z.ai、MiniMax、Kiro、Vertex AI、Augment、OpenCode、Kimi、Kimi K2、Amp、Warp、Ollama、OpenRouter、Synthetic、JetBrains AI、Alibaba、NanoGPT、Infini、Perplexity、Abacus AI、Mistral、OpenCode Go、Kilo、Codebuff、DeepSeek、Windsurf
 - **系统托盘图标** — 动态双条进度显示会话与周用量
 - **浏览器 Cookie 导入** — Chrome、Edge、Brave、Firefox（Windows DPAPI 解密）
 - **逐服务商凭据管理** — API Key、Cookie 和 OAuth 均可在服务商详情面板管理
+- **凭据加固** — 应用管理的本地敏感存储会在保存时使用 Windows DPAPI 保护
+- **Windows 发布打包** — Inno Setup 安装包、便携 zip、WebView2 旁加载 DLL、VC++ 运行库引导和 SHA-256 校验文件
 - **CLI** — `codexbar usage` 和 `codexbar cost`，便于脚本化和 CI
 - **WSL 支持** — CLI 开箱即用，桌面壳层通过 WSLg 运行
+
+## v0.24.0 更新内容
+
+- 新增上游 v0.24 服务商支持：**Codebuff**、**DeepSeek**、**Windsurf**
+- 将 Kilo 加入 API Key 服务商目录，可在凭据管理中配置
+- 加固 Codebuff 解析，支持 `data` 包裹的用量响应
+- 加固 Windsurf 本地缓存解析，支持 SQLite `TEXT` / `BLOB`，以及 UTF-8 / UTF-16LE 状态数据
+- 已在 Windows Server 2025 上验证原生 Windows 发布链路：Rust 测试、Tauri 后端测试、前端构建、release exe、WebView2 旁加载 DLL、Inno 安装包、便携 zip、SHA-256 文件、静默安装、已安装应用启动和卸载清理
 
 ## 快速开始
 
@@ -52,6 +62,8 @@ Winget 分发已通过 [microsoft/winget-pkgs](https://github.com/microsoft/wing
 - **安装包**：`CodexBar-<version>-Setup.exe`
 - **便携版**：`CodexBar-<version>-portable.zip`
 - **校验和**：每个发布版本都包含 `.sha256` 文件，便于手动校验
+
+安装包会包含桌面应用、`WebView2Loader.dll`、应用图标、开始菜单快捷方式、卸载信息，以及干净 Windows 机器可能需要的 Visual C++ 运行库引导。便携版 zip 会把 `codexbar.exe`、`WebView2Loader.dll` 和 `icon.ico` 放在一起，适合手动安装。
 
 ## 首次运行
 
@@ -98,14 +110,21 @@ codexbar cost  -p codex           # 本地成本（JSONL 日志）
 | Infini | API Key | 会话、周用量、配额 |
 | Perplexity | Cookies | Credits、套餐 |
 | Abacus AI | Cookies | Credits |
+| Mistral | Cookies | 账单、用量 |
 | OpenCode Go | Cookies | 用量 |
 | Kilo | API Key / CLI | 用量 |
+| Codebuff | API Key / 本地配置 | Credits、周用量 |
+| DeepSeek | API Key | 余额 |
+| Windsurf | 本地缓存 | 日用量、周用量 |
 
 ## 隐私
 
 - **仅本地处理** — 不会将数据发送到外部服务器（服务商 API 除外）
 - **不扫描磁盘** — 只读取已知配置路径和浏览器 Cookies
 - **按需启用** — 只有启用相应服务商后才会提取 Cookies
+- **受保护的凭据存储** — 应用管理的 API Key、手动 Cookie 和令牌账户会写入安全文件层；Windows 上会优先使用当前用户的 DPAPI
+- **安全诊断** — 诊断快照只展示服务商、来源和状态等元数据，不展示原始 Cookie、API Key、Bearer Token 或 OAuth 值
+- **已验证更新** — 自动下载的安装包需要 GitHub SHA-256 摘要，并会在应用前再次校验
 
 ## 更多文档
 
