@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.24.1] — 2026-05-11
+
+### Fixed
+- Bundle Microsoft's Evergreen WebView2 bootstrapper in the Inno installer and install WebView2 Runtime silently on clean Windows machines before launching CodexBar.
+
+---
+
 ## [0.24.0] — 2026-05-10
 
 ### Added

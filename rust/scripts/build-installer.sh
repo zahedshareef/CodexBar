@@ -15,6 +15,9 @@ CONTAINER_NAME="codexbar-inno-${VERSION//./-}-$$"
 VC_REDIST_URL="${VC_REDIST_URL:-https://aka.ms/vc14/vc_redist.x64.exe}"
 VC_REDIST_PATH="$INSTALLER_DEPS_DIR/vc_redist.x64.exe"
 VC_REDIST_SHA256="${VC_REDIST_SHA256:-}"
+WEBVIEW2_BOOTSTRAPPER_URL="${WEBVIEW2_BOOTSTRAPPER_URL:-https://go.microsoft.com/fwlink/p/?LinkId=2124703}"
+WEBVIEW2_BOOTSTRAPPER_PATH="$INSTALLER_DEPS_DIR/MicrosoftEdgeWebview2Setup.exe"
+WEBVIEW2_BOOTSTRAPPER_SHA256="${WEBVIEW2_BOOTSTRAPPER_SHA256:-}"
 
 for required_file in "$TARGET_BIN_DIR/codexbar.exe" "$RUST_DIR/icons/icon.ico"; do
   if [[ ! -f "$required_file" ]]; then
@@ -27,7 +30,29 @@ done
 mkdir -p "$OUTPUT_DIR"
 mkdir -p "$INSTALLER_DEPS_DIR"
 
-curl -L "$VC_REDIST_URL" -o "$VC_REDIST_PATH"
+verify_sha256() {
+  local file_path="$1"
+  local expected_sha256="$2"
+  local label="$3"
+  local actual_sha256
+
+  expected_sha256="$(printf '%s' "$expected_sha256" | tr '[:upper:]' '[:lower:]')"
+  if command -v sha256sum >/dev/null 2>&1; then
+    actual_sha256="$(sha256sum "$file_path" | awk '{print $1}')"
+  elif command -v shasum >/dev/null 2>&1; then
+    actual_sha256="$(shasum -a 256 "$file_path" | awk '{print $1}')"
+  else
+    echo "Missing SHA-256 tool (sha256sum or shasum) required for dependency verification." >&2
+    exit 1
+  fi
+
+  if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+    echo "$label checksum mismatch." >&2
+    echo "Expected: $expected_sha256" >&2
+    echo "Actual:   $actual_sha256" >&2
+    exit 1
+  fi
+}
 
 if [[ -z "$VC_REDIST_SHA256" ]]; then
   cat >&2 <<'EOF'
@@ -37,22 +62,22 @@ EOF
   exit 1
 fi
 
-expected_sha256="$(printf '%s' "$VC_REDIST_SHA256" | tr '[:upper:]' '[:lower:]')"
-if command -v sha256sum >/dev/null 2>&1; then
-  actual_sha256="$(sha256sum "$VC_REDIST_PATH" | awk '{print $1}')"
-elif command -v shasum >/dev/null 2>&1; then
-  actual_sha256="$(shasum -a 256 "$VC_REDIST_PATH" | awk '{print $1}')"
-else
-  echo "Missing SHA-256 tool (sha256sum or shasum) required for vc_redist verification." >&2
+if [[ -z "$WEBVIEW2_BOOTSTRAPPER_SHA256" ]]; then
+  cat >&2 <<'EOF'
+WEBVIEW2_BOOTSTRAPPER_SHA256 is required to verify MicrosoftEdgeWebview2Setup.exe.
+Set WEBVIEW2_BOOTSTRAPPER_SHA256 to the expected SHA-256 hash from a trusted source.
+EOF
   exit 1
 fi
 
-if [[ "$actual_sha256" != "$expected_sha256" ]]; then
-  echo "vc_redist.x64.exe checksum mismatch." >&2
-  echo "Expected: $expected_sha256" >&2
-  echo "Actual:   $actual_sha256" >&2
-  exit 1
-fi
+curl -L "$VC_REDIST_URL" -o "$VC_REDIST_PATH"
+verify_sha256 "$VC_REDIST_PATH" "$VC_REDIST_SHA256" "vc_redist.x64.exe"
+
+curl -L "$WEBVIEW2_BOOTSTRAPPER_URL" -o "$WEBVIEW2_BOOTSTRAPPER_PATH"
+verify_sha256 \
+  "$WEBVIEW2_BOOTSTRAPPER_PATH" \
+  "$WEBVIEW2_BOOTSTRAPPER_SHA256" \
+  "MicrosoftEdgeWebview2Setup.exe"
 
 cleanup() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
@@ -65,7 +90,7 @@ docker create \
   -w /work/rust/installer \
   --entrypoint /bin/sh \
   "$INNO_IMAGE" \
-  -lc "/opt/bin/iscc /Qp /DAppVersion=$VERSION /DTargetBinDir=..\\\\target\\\\$TARGET_TRIPLE\\\\release /DVCRedistPath=..\\\\target\\\\installer-deps\\\\vc_redist.x64.exe /DOutputDir=C:\\\\inno-out /DOutputBaseFilename=CodexBar-$VERSION-Setup codexbar.iss" \
+  -lc "/opt/bin/iscc /Qp /DAppVersion=$VERSION /DTargetBinDir=..\\\\target\\\\$TARGET_TRIPLE\\\\release /DVCRedistPath=..\\\\target\\\\installer-deps\\\\vc_redist.x64.exe /DWebView2BootstrapperPath=..\\\\target\\\\installer-deps\\\\MicrosoftEdgeWebview2Setup.exe /DOutputDir=C:\\\\inno-out /DOutputBaseFilename=CodexBar-$VERSION-Setup codexbar.iss" \
   >/dev/null
 
 docker start -a "$CONTAINER_NAME" >/dev/null

@@ -80,23 +80,29 @@ jobs:
         run: |
           choco install innosetup --no-progress -y
 
-      - name: Download Visual C++ Runtime
+      - name: Download installer dependencies
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force rust\target\installer-deps | Out-Null
           $vcRedistPath = "rust\target\installer-deps\vc_redist.x64.exe"
+          $webView2BootstrapperPath = "rust\target\installer-deps\MicrosoftEdgeWebview2Setup.exe"
           Invoke-WebRequest `
             -Uri "https://aka.ms/vc14/vc_redist.x64.exe" `
             -OutFile $vcRedistPath
+          Invoke-WebRequest `
+            -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" `
+            -OutFile $webView2BootstrapperPath
 
-          $signature = Get-AuthenticodeSignature -FilePath $vcRedistPath
-          if ($signature.Status -ne 'Valid') {
-            throw "vc_redist.x64.exe signature is not valid. Status: $($signature.Status)"
-          }
+          foreach ($dependency in @($vcRedistPath, $webView2BootstrapperPath)) {
+            $signature = Get-AuthenticodeSignature -FilePath $dependency
+            if ($signature.Status -ne 'Valid') {
+              throw "$dependency signature is not valid. Status: $($signature.Status)"
+            }
 
-          $subject = $signature.SignerCertificate.Subject
-          if ($subject -notlike '*Microsoft Corporation*') {
-            throw "vc_redist.x64.exe signer is unexpected: $subject"
+            $subject = $signature.SignerCertificate.Subject
+            if ($subject -notlike '*Microsoft Corporation*') {
+              throw "$dependency signer is unexpected: $subject"
+            }
           }
 
       - name: Build installer
@@ -115,6 +121,7 @@ jobs:
               "/DAppVersion=$env:APP_VERSION" `
               "/DTargetBinDir=..\..\target\release" `
               "/DVCRedistPath=..\target\installer-deps\vc_redist.x64.exe" `
+              "/DWebView2BootstrapperPath=..\target\installer-deps\MicrosoftEdgeWebview2Setup.exe" `
               "/DOutputDir=..\target\installer" `
               "/DOutputBaseFilename=CodexBar-$env:APP_VERSION-Setup" `
               codexbar.iss

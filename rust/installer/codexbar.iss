@@ -14,6 +14,9 @@
 #ifndef VCRedistPath
   #define VCRedistPath "..\\target\\installer-deps\\vc_redist.x64.exe"
 #endif
+#ifndef WebView2BootstrapperPath
+  #define WebView2BootstrapperPath "..\\target\\installer-deps\\MicrosoftEdgeWebview2Setup.exe"
+#endif
 
 [Setup]
 AppId=WinCodexBar
@@ -49,6 +52,7 @@ Source: "{#TargetBinDir}\codexbar.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#TargetBinDir}\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\icons\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#VCRedistPath}"; Flags: dontcopy
+Source: "{#WebView2BootstrapperPath}"; Flags: dontcopy
 
 [Icons]
 Name: "{autoprograms}\CodexBar"; Filename: "{app}\codexbar.exe"; Parameters: "menubar"; WorkingDir: "{app}"; IconFilename: "{app}\icon.ico"
@@ -60,6 +64,65 @@ Filename: "{app}\codexbar.exe"; Parameters: "menubar"; Description: "Launch Code
 [Code]
 var
   NeedsVCRedistRestart: Boolean;
+  NeedsWebView2Restart: Boolean;
+
+function WebView2InstalledInView(RootKey: Integer): Boolean;
+var
+  RuntimeVersion: String;
+begin
+  Result :=
+    RegQueryStringValue(
+      RootKey,
+      'SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}',
+      'pv',
+      RuntimeVersion
+    ) and
+    (RuntimeVersion <> '');
+end;
+
+function WebView2NeedsInstall(): Boolean;
+begin
+  Result :=
+    not WebView2InstalledInView(HKLM64) and
+    not WebView2InstalledInView(HKLM32) and
+    not WebView2InstalledInView(HKCU);
+end;
+
+procedure EnsureWebView2Installed();
+var
+  ResultCode: Integer;
+begin
+  if not WebView2NeedsInstall() then
+    exit;
+
+  ExtractTemporaryFile('MicrosoftEdgeWebview2Setup.exe');
+
+  WizardForm.StatusLabel.Caption := 'Installing Microsoft Edge WebView2 Runtime...';
+  WizardForm.ProgressGauge.Style := npbstMarquee;
+  try
+    if not Exec(
+      ExpandConstant('{tmp}\MicrosoftEdgeWebview2Setup.exe'),
+      '/silent /install',
+      '',
+      SW_HIDE,
+      ewWaitUntilTerminated,
+      ResultCode
+    ) then
+      RaiseException('Failed to start the Microsoft Edge WebView2 Runtime installer.');
+
+    if (ResultCode <> 0) and (ResultCode <> 1638) and (ResultCode <> 3010) then
+      RaiseException(
+        'Microsoft Edge WebView2 Runtime installation failed with exit code ' +
+        IntToStr(ResultCode) +
+        '.'
+      );
+
+    if ResultCode = 3010 then
+      NeedsWebView2Restart := True;
+  finally
+    WizardForm.ProgressGauge.Style := npbstNormal;
+  end;
+end;
 
 function VCRedistInstalledInView(RootKey: Integer): Boolean;
 var
@@ -120,16 +183,18 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssInstall then
+  if CurStep = ssInstall then begin
+    EnsureWebView2Installed();
     EnsureVCRedistInstalled();
+  end;
 end;
 
 function NeedRestart(): Boolean;
 begin
-  Result := NeedsVCRedistRestart;
+  Result := NeedsVCRedistRestart or NeedsWebView2Restart;
 end;
 
 function CanLaunchCodexBar(): Boolean;
 begin
-  Result := not NeedsVCRedistRestart;
+  Result := not NeedsVCRedistRestart and not NeedsWebView2Restart;
 end;
