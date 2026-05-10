@@ -4,6 +4,14 @@
 
 ---
 
+## [Windows] 0.23.11 - 2026-05-10
+
+### Fixed
+- Handle Claude Web usage payloads that include overlapping design or routines alias fields without failing with a duplicate-field parse error.
+- Keep Claude Web parse diagnostics useful without exposing raw response bodies in user-facing errors or logs.
+
+---
+
 ## [Windows] 0.23.10 - 2026-05-06
 
 ### Fixed
