@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.24.0] — 2026-05-10
+
+### Added
+- Ported upstream CodexBar 0.24 provider support for Codebuff, DeepSeek, and Windsurf to the Windows/Tauri Rust backend.
+- Added Codebuff and DeepSeek API-key provider configuration, CLI aliases, credential metadata, icons, and chart colors.
+- Added Windsurf local cached-plan usage support using the platform application-data `state.vscdb` cache.
+
+### Changed
+- Updated app/package versions and provider catalog metadata for the 0.24.0 Windows release.
+
+---
+
 ## [0.23.11] — 2026-05-10
 
 ### Fixed

@@ -8,11 +8,12 @@
 use super::{Provider, ProviderId};
 use crate::providers::{
     AbacusProvider, AlibabaProvider, AmpProvider, AntigravityProvider, AugmentProvider,
-    ClaudeProvider, CodexProvider, CopilotProvider, CursorProvider, FactoryProvider,
-    GeminiProvider, InfiniProvider, JetBrainsProvider, KiloProvider, KimiK2Provider, KimiProvider,
-    KiroProvider, MiniMaxProvider, MistralProvider, NanoGPTProvider, OllamaProvider,
-    OpenCodeGoProvider, OpenCodeProvider, OpenRouterProvider, PerplexityProvider,
-    SyntheticProvider, VertexAIProvider, WarpProvider, ZaiProvider,
+    ClaudeProvider, CodebuffProvider, CodexProvider, CopilotProvider, CursorProvider,
+    DeepSeekProvider, FactoryProvider, GeminiProvider, InfiniProvider, JetBrainsProvider,
+    KiloProvider, KimiK2Provider, KimiProvider, KiroProvider, MiniMaxProvider, MistralProvider,
+    NanoGPTProvider, OllamaProvider, OpenCodeGoProvider, OpenCodeProvider, OpenRouterProvider,
+    PerplexityProvider, SyntheticProvider, VertexAIProvider, WarpProvider, WindsurfProvider,
+    ZaiProvider,
 };
 
 /// Instantiate the concrete [`Provider`] implementation for a given [`ProviderId`].
@@ -50,6 +51,9 @@ pub fn instantiate(id: ProviderId) -> Box<dyn Provider> {
         ProviderId::Mistral => Box::new(MistralProvider::new()),
         ProviderId::OpenCodeGo => Box::new(OpenCodeGoProvider::new()),
         ProviderId::Kilo => Box::new(KiloProvider::new()),
+        ProviderId::Codebuff => Box::new(CodebuffProvider::new()),
+        ProviderId::DeepSeek => Box::new(DeepSeekProvider::new()),
+        ProviderId::Windsurf => Box::new(WindsurfProvider::new()),
     }
 }
 

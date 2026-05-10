@@ -340,6 +340,9 @@ pub fn account_name_for_provider(provider: ProviderId) -> &'static str {
         ProviderId::Mistral => "mistral-cookie",
         ProviderId::OpenCodeGo => "opencodego-cookie",
         ProviderId::Kilo => "kilo-api-token",
+        ProviderId::Codebuff => "codebuff-api-token",
+        ProviderId::DeepSeek => "deepseek-api-token",
+        ProviderId::Windsurf => "windsurf-local-cache",
     }
 }
 

@@ -57,7 +57,10 @@ export type ProofProviderId =
   | "abacus"
   | "opencodego"
   | "kilo"
-  | "mistral";
+  | "mistral"
+  | "codebuff"
+  | "deepseek"
+  | "windsurf";
 
 export type TrayPanelSurfaceTarget = { kind: "summary" };
 export type PopOutSurfaceTarget =

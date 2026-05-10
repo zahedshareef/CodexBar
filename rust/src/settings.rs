@@ -1696,6 +1696,26 @@ pub fn get_api_key_providers() -> Vec<ProviderConfigInfo> {
             config_file_path: None,
             dashboard_url: Some("https://cloud.infini-ai.com"),
         },
+        ProviderConfigInfo {
+            id: ProviderId::Codebuff,
+            name: "Codebuff",
+            requires_api_key: true,
+            api_key_env_var: Some("CODEBUFF_API_KEY"),
+            api_key_help: Some(
+                "Get your API key from Codebuff, or sign in with Codebuff/Manicode.",
+            ),
+            config_file_path: Some("~/.config/manicode/credentials.json"),
+            dashboard_url: Some("https://www.codebuff.com/usage"),
+        },
+        ProviderConfigInfo {
+            id: ProviderId::DeepSeek,
+            name: "DeepSeek",
+            requires_api_key: true,
+            api_key_env_var: Some("DEEPSEEK_API_KEY"),
+            api_key_help: Some("Get your API key from platform.deepseek.com."),
+            config_file_path: None,
+            dashboard_url: Some("https://platform.deepseek.com/usage"),
+        },
     ]
 }
 

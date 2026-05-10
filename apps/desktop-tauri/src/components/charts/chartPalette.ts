@@ -36,6 +36,12 @@ const PROVIDER_TOKEN: Record<string, string> = {
   tongyi: "--chart-alibaba",
   nanogpt: "--chart-nanogpt",
   mistral: "--chart-mistral",
+  codebuff: "--chart-codebuff",
+  manicode: "--chart-codebuff",
+  deepseek: "--chart-deepseek",
+  "deep seek": "--chart-deepseek",
+  windsurf: "--chart-windsurf",
+  codeium: "--chart-windsurf",
 };
 
 /** CSS color expression for a provider's cost-series bars. */

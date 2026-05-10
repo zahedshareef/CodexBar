@@ -151,7 +151,10 @@ impl TokenAccountSupport {
             | ProviderId::Perplexity
             | ProviderId::Abacus
             | ProviderId::OpenCodeGo
-            | ProviderId::Kilo => None,
+            | ProviderId::Kilo
+            | ProviderId::Codebuff
+            | ProviderId::DeepSeek
+            | ProviderId::Windsurf => None,
         }
     }
 

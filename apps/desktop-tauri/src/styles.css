@@ -123,6 +123,9 @@
   --chart-alibaba: rgb(255, 106, 0);
   --chart-nanogpt: rgb(104, 127, 161);
   --chart-mistral: rgb(255, 80, 15);
+  --chart-codebuff: rgb(68, 255, 0);
+  --chart-deepseek: rgb(82, 125, 240);
+  --chart-windsurf: rgb(34, 197, 94);
 
   /* Default cost/credits series colors (match egui credits teal). */
   --chart-cost: rgb(93, 135, 255);

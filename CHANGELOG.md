@@ -4,6 +4,18 @@
 
 ---
 
+## [Windows] 0.24.0 - 2026-05-10
+
+### Added
+- Port upstream CodexBar 0.24 provider support for Codebuff, DeepSeek, and Windsurf into the Windows/Tauri app.
+- Add Codebuff and DeepSeek API-key setup to Preferences, including provider icons, chart colors, CLI aliases, and release metadata.
+- Add Windsurf local cached-plan usage reading from the Windows application data path.
+
+### Changed
+- Update the provider catalog, CLI help text, credential metadata, frontend provider unions, and release docs for 32 supported providers.
+
+---
+
 ## [Windows] 0.23.11 - 2026-05-10
 
 ### Fixed

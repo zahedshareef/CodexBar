@@ -7,9 +7,11 @@ import amp from "./icons/ProviderIcon-amp.svg?raw";
 import antigravity from "./icons/ProviderIcon-antigravity.svg?raw";
 import augment from "./icons/ProviderIcon-augment.svg?raw";
 import claude from "./icons/ProviderIcon-claude.svg?raw";
+import codebuff from "./icons/ProviderIcon-codebuff.svg?raw";
 import codex from "./icons/ProviderIcon-codex.svg?raw";
 import copilot from "./icons/ProviderIcon-copilot.svg?raw";
 import cursor from "./icons/ProviderIcon-cursor.svg?raw";
+import deepseek from "./icons/ProviderIcon-deepseek.svg?raw";
 import factory from "./icons/ProviderIcon-factory.svg?raw";
 import gemini from "./icons/ProviderIcon-gemini.svg?raw";
 import jetbrains from "./icons/ProviderIcon-jetbrains.svg?raw";
@@ -26,6 +28,7 @@ import perplexity from "./icons/ProviderIcon-perplexity.svg?raw";
 import synthetic from "./icons/ProviderIcon-synthetic.svg?raw";
 import vertexai from "./icons/ProviderIcon-vertexai.svg?raw";
 import warp from "./icons/ProviderIcon-warp.svg?raw";
+import windsurf from "./icons/ProviderIcon-windsurf.svg?raw";
 import zai from "./icons/ProviderIcon-zai.svg?raw";
 
 /**
@@ -58,9 +61,11 @@ const RAW: Record<string, string> = {
   antigravity: tint(antigravity),
   augment: tint(augment),
   claude: tint(claude),
+  codebuff: tint(codebuff),
   codex: tint(codex),
   copilot: tint(copilot),
   cursor: tint(cursor),
+  deepseek: tint(deepseek),
   factory: tint(factory),
   gemini: tint(gemini),
   jetbrains: tint(jetbrains),
@@ -77,6 +82,7 @@ const RAW: Record<string, string> = {
   synthetic: tint(synthetic),
   vertexai: tint(vertexai),
   warp: tint(warp),
+  windsurf: tint(windsurf),
   zai: tint(zai),
 };
 
@@ -91,9 +97,11 @@ export const PROVIDER_ICON_REGISTRY: Record<string, ProviderIcon> = {
   antigravity: { id: "antigravity", brandColor: "#60ba7e", fallbackLetter: "◉", svgPath: RAW.antigravity },
   augment:     { id: "augment",     brandColor: "#6366f1", fallbackLetter: "A", svgPath: RAW.augment },
   claude:      { id: "claude",      brandColor: "#cc7c5e", fallbackLetter: "◈", svgPath: RAW.claude },
+  codebuff:    { id: "codebuff",    brandColor: "#44ff00", fallbackLetter: "B", svgPath: RAW.codebuff },
   codex:       { id: "codex",       brandColor: "#49a3b0", fallbackLetter: "◆", svgPath: RAW.codex },
   copilot:     { id: "copilot",     brandColor: "#a855f7", fallbackLetter: "⬡", svgPath: RAW.copilot },
   cursor:      { id: "cursor",      brandColor: "#00bfa5", fallbackLetter: "▸", svgPath: RAW.cursor },
+  deepseek:    { id: "deepseek",    brandColor: "#527df0", fallbackLetter: "D", svgPath: RAW.deepseek },
   factory:     { id: "factory",     brandColor: "#ff6b35", fallbackLetter: "◎", svgPath: RAW.factory },
   gemini:      { id: "gemini",      brandColor: "#ab87ea", fallbackLetter: "✦", svgPath: RAW.gemini },
   jetbrains:   { id: "jetbrains",   brandColor: "#ff3399", fallbackLetter: "J", svgPath: RAW.jetbrains },
@@ -111,6 +119,7 @@ export const PROVIDER_ICON_REGISTRY: Record<string, ProviderIcon> = {
   synthetic:   { id: "synthetic",   brandColor: "#141414", fallbackLetter: "◇", svgPath: RAW.synthetic },
   vertexai:    { id: "vertexai",    brandColor: "#4285f4", fallbackLetter: "△", svgPath: RAW.vertexai },
   warp:        { id: "warp",        brandColor: "#6366f1", fallbackLetter: "W", svgPath: RAW.warp },
+  windsurf:    { id: "windsurf",    brandColor: "#22c55e", fallbackLetter: "W", svgPath: RAW.windsurf },
   zai:         { id: "zai",         brandColor: "#e85a6a", fallbackLetter: "Z", svgPath: RAW.zai },
   // Aliases / Rust-side normalizations without their own SVG.
   nanogpt:     { id: "nanogpt",     brandColor: "#687fa1", fallbackLetter: "N" },
@@ -129,6 +138,10 @@ const ALIASES: Record<string, string> = {
   "mistral ai": "mistral",
   "warp terminal": "warp",
   "warp ai": "warp",
+  manicode: "codebuff",
+  "deep seek": "deepseek",
+  "deep-seek": "deepseek",
+  codeium: "windsurf",
 };
 
 function normalize(id: string): string {

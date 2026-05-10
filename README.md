@@ -14,7 +14,7 @@ The Windows port of [CodexBar](https://github.com/steipete/CodexBar) — a syste
 
 ## Features
 
-- **28 AI providers** — Codex, Claude, Cursor, Factory, Gemini, Copilot, Antigravity, z.ai, MiniMax, Kiro, Vertex AI, Augment, OpenCode, Kimi, Kimi K2, Amp, Warp, Ollama, OpenRouter, Synthetic, JetBrains AI, Alibaba, NanoGPT, Infini, Perplexity, Abacus AI, OpenCode Go, Kilo
+- **32 AI providers** — Codex, Claude, Cursor, Factory, Gemini, Copilot, Antigravity, z.ai, MiniMax, Kiro, Vertex AI, Augment, OpenCode, Kimi, Kimi K2, Amp, Warp, Ollama, OpenRouter, Synthetic, JetBrains AI, Alibaba, NanoGPT, Infini, Perplexity, Abacus AI, Mistral, OpenCode Go, Kilo, Codebuff, DeepSeek, Windsurf
 - **System tray icon** — dynamic two-bar meter showing session + weekly usage
 - **Browser cookie import** — Chrome, Edge, Brave, Firefox, with browser access kept opt-in
 - **Per-provider credentials** — API keys, cookies, and OAuth all managed from the provider detail pane
@@ -99,8 +99,12 @@ codexbar cost  -p codex           # local cost from JSONL logs
 | Infini | API Key | Session, Weekly, Quota |
 | Perplexity | Cookies | Credits, Plan |
 | Abacus AI | Cookies | Credits |
+| Mistral | Cookies | Billing, Usage |
 | OpenCode Go | Cookies | Usage |
 | Kilo | API Key / CLI | Usage |
+| Codebuff | API Key / Local Config | Credits, Weekly |
+| DeepSeek | API Key | Balance |
+| Windsurf | Local Cache | Daily, Weekly |
 
 ## Privacy
 
