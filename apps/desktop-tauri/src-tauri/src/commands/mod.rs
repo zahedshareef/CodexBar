@@ -3626,8 +3626,10 @@ mod tests {
 
     #[test]
     fn open_path_rejects_missing_path() {
-        let err =
-            super::open_path("/definitely/not/a/real/path/codexbar-phase6d".into()).unwrap_err();
+        let missing = std::env::temp_dir()
+            .join(format!("codexbar-phase6d-missing-{}", std::process::id()))
+            .join("does-not-exist");
+        let err = super::open_path(missing.to_string_lossy().into_owned()).unwrap_err();
         assert!(err.contains("not found"));
     }
 

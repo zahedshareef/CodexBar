@@ -461,6 +461,14 @@ impl TtyCommandRunner {
                 buffer.push_str(&chunk);
                 last_output_time = Instant::now();
 
+                // Some Windows ConPTY-backed shells issue an ANSI Device
+                // Status Report request and wait for a terminal cursor
+                // position response before processing scripted input.
+                if chunk.contains("\x1b[6n") {
+                    let _ = write!(writer, "\x1b[1;1R");
+                    let _ = writer.flush();
+                }
+
                 // Check for URLs
                 if let Some(ref regex) = url_regex {
                     for mat in regex.find_iter(&chunk) {
