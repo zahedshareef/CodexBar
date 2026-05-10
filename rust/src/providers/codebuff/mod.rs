@@ -147,6 +147,8 @@ impl CodebuffProvider {
     }
 
     fn snapshot_from_values(usage: &Value, subscription: Option<&Value>) -> UsageSnapshot {
+        let usage = data_payload(usage);
+        let subscription = subscription.map(data_payload);
         let used = number_at(usage, &["usage", "used"]).unwrap_or(0.0);
         let remaining = number_at(usage, &["remainingBalance", "remaining"]);
         let total = number_at(usage, &["creditsTotal", "quota", "limit"])
@@ -262,6 +264,10 @@ fn number_at(value: &Value, keys: &[&str]) -> Option<f64> {
     })
 }
 
+fn data_payload(value: &Value) -> &Value {
+    value.get("data").unwrap_or(value)
+}
+
 fn bool_at(value: &Value, keys: &[&str]) -> Option<bool> {
     keys.iter().find_map(|key| {
         value.get(*key).and_then(|v| {
@@ -331,6 +337,32 @@ mod tests {
         assert_eq!(
             snapshot.login_method.as_deref(),
             Some("Pro · 75 remaining · auto top-up")
+        );
+    }
+
+    #[test]
+    fn builds_snapshot_from_data_wrapped_payload() {
+        let usage = json!({
+            "data": {
+                "used": "40",
+                "limit": 100,
+                "remaining": 60
+            }
+        });
+        let subscription = json!({
+            "data": {
+                "subscription": {
+                    "tier": "Team"
+                }
+            }
+        });
+
+        let snapshot = CodebuffProvider::snapshot_from_values(&usage, Some(&subscription));
+
+        assert_eq!(snapshot.primary.used_percent, 40.0);
+        assert_eq!(
+            snapshot.login_method.as_deref(),
+            Some("Team · 60 remaining")
         );
     }
 }

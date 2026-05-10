@@ -1697,6 +1697,15 @@ pub fn get_api_key_providers() -> Vec<ProviderConfigInfo> {
             dashboard_url: Some("https://cloud.infini-ai.com"),
         },
         ProviderConfigInfo {
+            id: ProviderId::Kilo,
+            name: "Kilo",
+            requires_api_key: true,
+            api_key_env_var: Some("KILO_API_KEY"),
+            api_key_help: Some("Get your API key from Kilo, or sign in with Kilo CLI."),
+            config_file_path: Some("~/.local/share/kilo/auth.json"),
+            dashboard_url: Some("https://app.kilo.ai/usage"),
+        },
+        ProviderConfigInfo {
             id: ProviderId::Codebuff,
             name: "Codebuff",
             requires_api_key: true,
@@ -1780,6 +1789,17 @@ mod tests {
 
         let gemini_status = status.iter().find(|s| s.id == "gemini").unwrap();
         assert!(!gemini_status.enabled);
+    }
+
+    #[test]
+    fn test_api_key_provider_catalog_includes_token_providers() {
+        let providers = get_api_key_providers();
+        for id in [ProviderId::Kilo, ProviderId::Codebuff, ProviderId::DeepSeek] {
+            assert!(
+                providers.iter().any(|provider| provider.id == id),
+                "{id} should be configurable from the API Keys UI"
+            );
+        }
     }
 
     #[test]

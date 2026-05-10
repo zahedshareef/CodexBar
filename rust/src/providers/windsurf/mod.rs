@@ -6,7 +6,7 @@
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, types::Value as SqlValue};
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -100,7 +100,7 @@ impl WindsurfProvider {
                 ProviderError::Other(format!("Failed to configure SQLite timeout: {e}"))
             })?;
 
-        let value: Vec<u8> = conn
+        let value: SqlValue = conn
             .query_row(
                 "SELECT value FROM ItemTable WHERE key = ?1 LIMIT 1",
                 [STATE_KEY],
@@ -113,7 +113,7 @@ impl WindsurfProvider {
                 }
             })?;
 
-        let json_text = decode_json_blob(&value).ok_or_else(|| {
+        let json_text = decode_json_value(value).ok_or_else(|| {
             ProviderError::Parse("Windsurf plan cache is not valid UTF-8/UTF-16 JSON".to_string())
         })?;
 
@@ -232,12 +232,19 @@ impl Provider for WindsurfProvider {
     }
 }
 
+fn decode_json_value(value: SqlValue) -> Option<String> {
+    match value {
+        SqlValue::Text(text) => valid_json_text(&text),
+        SqlValue::Blob(bytes) => decode_json_blob(&bytes),
+        _ => None,
+    }
+}
+
 fn decode_json_blob(value: &[u8]) -> Option<String> {
-    if let Ok(text) = std::str::from_utf8(value) {
-        let trimmed = text.trim_matches(char::from(0)).trim();
-        if serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
-            return Some(trimmed.to_string());
-        }
+    if let Ok(text) = std::str::from_utf8(value)
+        && let Some(json) = valid_json_text(text)
+    {
+        return Some(json);
     }
 
     if value.len().is_multiple_of(2) {
@@ -245,14 +252,21 @@ fn decode_json_blob(value: &[u8]) -> Option<String> {
             .chunks_exact(2)
             .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
             .collect();
-        if let Ok(text) = String::from_utf16(&utf16) {
-            let trimmed = text.trim_matches(char::from(0)).trim();
-            if serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
-                return Some(trimmed.to_string());
-            }
+        if let Ok(text) = String::from_utf16(&utf16)
+            && let Some(json) = valid_json_text(&text)
+        {
+            return Some(json);
         }
     }
 
+    None
+}
+
+fn valid_json_text(text: &str) -> Option<String> {
+    let trimmed = text.trim_matches(char::from(0)).trim();
+    if serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
+        return Some(trimmed.to_string());
+    }
     None
 }
 
@@ -348,5 +362,15 @@ mod tests {
         let bytes: Vec<u8> = json.encode_utf16().flat_map(|c| c.to_le_bytes()).collect();
 
         assert_eq!(decode_json_blob(&bytes).as_deref(), Some(json));
+    }
+
+    #[test]
+    fn decodes_sql_text_state_value() {
+        let json = r#"{"planName":"Teams"}"#;
+
+        assert_eq!(
+            decode_json_value(SqlValue::Text(json.to_string())).as_deref(),
+            Some(json)
+        );
     }
 }

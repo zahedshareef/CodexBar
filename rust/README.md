@@ -7,19 +7,11 @@ A Windows port of [CodexBar](https://github.com/steipete/CodexBar) - a system tr
 ## Features
 
 - **System Tray Icon** - Color-coded usage indicator with incident badges
-- **Multiple Providers** - Support for 12 AI providers:
-  - Claude (Anthropic)
-  - Codex (OpenAI)
-  - Cursor
-  - Gemini (Google)
-  - Copilot (GitHub)
-  - Antigravity
-  - Windsurf (Factory/Codeium)
-  - Zai
-  - Kiro (AWS)
-  - Vertex AI (Google Cloud)
-  - Augment
-  - MiniMax
+- **Multiple Providers** - Support for 32 AI providers:
+  - Codex, Claude, Cursor, Factory, Gemini, Copilot, Antigravity, z.ai
+  - MiniMax, Kiro, Vertex AI, Augment, OpenCode, OpenCode Go, Kimi, Kimi K2
+  - Amp, Warp, Ollama, OpenRouter, Synthetic, JetBrains AI, Alibaba
+  - NanoGPT, Infini, Perplexity, Abacus AI, Mistral, Kilo, Codebuff, DeepSeek, Windsurf
 - **Usage Notifications** - Windows toast alerts when usage hits thresholds
 - **Settings Panel** - Enable/disable providers, configure refresh intervals
 - **Manual Cookie Input** - Fallback for when automatic cookie extraction fails
@@ -57,8 +49,10 @@ cargo build --release
 # Run the CLI
 ./target/release/codexbar.exe --help
 
-# Run the GUI (system tray)
-./target/release/codexbar.exe menubar
+# Build the Tauri desktop shell
+cd ../apps/desktop-tauri
+npm install
+npm run tauri:build
 ```
 
 ## Usage
@@ -66,7 +60,7 @@ cargo build --release
 ### GUI Mode (System Tray)
 
 ```powershell
-codexbar menubar
+codexbar-desktop-tauri.exe
 ```
 
 This launches the system tray application:
@@ -146,12 +140,29 @@ Each provider has different authentication methods:
 | Gemini | gcloud CLI credentials |
 | Copilot | GitHub device flow |
 | Antigravity | Local language server |
-| Windsurf | Browser cookies, local config |
+| Windsurf | Local cache |
 | Zai | Local config |
 | Kiro | AWS credentials |
 | Vertex AI | gcloud OAuth |
 | Augment | VS Code extension |
 | MiniMax | API key |
+| OpenCode / OpenCode Go | Browser cookies |
+| Kimi / Kimi K2 | Browser cookies / API cookies |
+| Amp | Sourcegraph token |
+| Warp | API key |
+| Ollama | Browser cookies |
+| OpenRouter | API key |
+| Synthetic | API key |
+| JetBrains AI | Local IDE config |
+| Alibaba | API key / browser cookies |
+| NanoGPT | API key |
+| Infini | API key |
+| Perplexity | Browser cookies |
+| Abacus AI | Browser cookies |
+| Mistral | Browser cookies |
+| Kilo | API key / local CLI config |
+| Codebuff | API key / local Manicode config |
+| DeepSeek | API key |
 
 ### Claude session env vars
 
