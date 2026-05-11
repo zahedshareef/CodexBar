@@ -4,6 +4,18 @@
 
 ---
 
+## [Windows] 0.25.0 - 2026-05-11
+
+### Added
+- Port upstream CodexBar 0.25 provider support for Manus, Xiaomi MiMo, Doubao, Command Code, Crof, StepFun, Venice, and OpenAI API balance into the Windows/Tauri app.
+- Add v0.25 providers to the Rust provider registry, Settings provider list, credential/API-key catalog, CLI aliases, cookie/token-account handling, and provider icon registry.
+- Add credit, request, refresh-credit, token-plan, purchased-credit, DIEM/USD balance, and OpenAI API credit-grants usage snapshots.
+
+### Changed
+- Update the provider catalog, CLI metadata, frontend provider unions, and release docs for 40 supported providers.
+
+---
+
 ## [Windows] 0.24.0 - 2026-05-10
 
 ### Added

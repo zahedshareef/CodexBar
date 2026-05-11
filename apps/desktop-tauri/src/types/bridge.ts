@@ -60,7 +60,15 @@ export type ProofProviderId =
   | "mistral"
   | "codebuff"
   | "deepseek"
-  | "windsurf";
+  | "windsurf"
+  | "manus"
+  | "mimo"
+  | "doubao"
+  | "commandcode"
+  | "crof"
+  | "stepfun"
+  | "venice"
+  | "openaiapi";
 
 export type TrayPanelSurfaceTarget = { kind: "summary" };
 export type PopOutSurfaceTarget =

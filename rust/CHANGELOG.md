@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.25.0] — 2026-05-11
+
+### Added
+- Ported upstream CodexBar 0.25 provider support for Manus, Xiaomi MiMo, Doubao, Command Code, Crof, StepFun, Venice, and OpenAI API balance to the Windows/Tauri Rust backend.
+- Added new provider IDs, CLI aliases, metadata, Settings provider rows, API-key configuration entries, cookie-domain mappings, token-account support for cookie-backed providers, and provider icon registry entries.
+- Added provider fetchers for credit balances, request quotas, refresh-credit windows, token-plan usage, purchased credits, DIEM/USD balances, and OpenAI API credit grants.
+
+### Changed
+- Updated app/package versions and README provider catalog metadata for the 0.25.0 Windows release.
+
+---
+
 ## [0.24.1] — 2026-05-11
 
 ### Fixed

@@ -133,6 +133,30 @@ impl TokenAccountSupport {
                 requires_manual_cookie_source: true,
                 cookie_name: None,
             }),
+            ProviderId::Manus => Some(TokenAccountSupport {
+                title: "Session tokens",
+                subtitle: "Store multiple Manus session_id values.",
+                placeholder: "session_id value or Cookie: ...",
+                injection: TokenInjection::CookieHeader,
+                requires_manual_cookie_source: true,
+                cookie_name: Some("session_id"),
+            }),
+            ProviderId::MiMo => Some(TokenAccountSupport {
+                title: "Session tokens",
+                subtitle: "Store multiple Xiaomi MiMo Cookie headers.",
+                placeholder: "Cookie: api-platform_serviceToken=...; userId=...",
+                injection: TokenInjection::CookieHeader,
+                requires_manual_cookie_source: true,
+                cookie_name: None,
+            }),
+            ProviderId::CommandCode => Some(TokenAccountSupport {
+                title: "Session tokens",
+                subtitle: "Store multiple Command Code better-auth session tokens.",
+                placeholder: "better-auth.session_token value or Cookie: ...",
+                injection: TokenInjection::CookieHeader,
+                requires_manual_cookie_source: true,
+                cookie_name: Some("__Secure-better-auth.session_token"),
+            }),
             // These providers don't support token accounts
             ProviderId::Codex
             | ProviderId::Gemini
@@ -154,7 +178,12 @@ impl TokenAccountSupport {
             | ProviderId::Kilo
             | ProviderId::Codebuff
             | ProviderId::DeepSeek
-            | ProviderId::Windsurf => None,
+            | ProviderId::Windsurf
+            | ProviderId::Doubao
+            | ProviderId::Crof
+            | ProviderId::StepFun
+            | ProviderId::Venice
+            | ProviderId::OpenAIApi => None,
         }
     }
 

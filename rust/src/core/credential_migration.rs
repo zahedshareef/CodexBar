@@ -343,6 +343,14 @@ pub fn account_name_for_provider(provider: ProviderId) -> &'static str {
         ProviderId::Codebuff => "codebuff-api-token",
         ProviderId::DeepSeek => "deepseek-api-token",
         ProviderId::Windsurf => "windsurf-local-cache",
+        ProviderId::Manus => "manus-cookie",
+        ProviderId::MiMo => "mimo-cookie",
+        ProviderId::Doubao => "doubao-api-token",
+        ProviderId::CommandCode => "commandcode-cookie",
+        ProviderId::Crof => "crof-api-token",
+        ProviderId::StepFun => "stepfun-token",
+        ProviderId::Venice => "venice-api-token",
+        ProviderId::OpenAIApi => "openaiapi-token",
     }
 }
 

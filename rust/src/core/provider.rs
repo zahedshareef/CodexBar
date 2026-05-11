@@ -43,6 +43,14 @@ pub enum ProviderId {
     Codebuff,
     DeepSeek,
     Windsurf,
+    Manus,
+    MiMo,
+    Doubao,
+    CommandCode,
+    Crof,
+    StepFun,
+    Venice,
+    OpenAIApi,
 }
 
 impl ProviderId {
@@ -81,6 +89,14 @@ impl ProviderId {
             ProviderId::Codebuff,
             ProviderId::DeepSeek,
             ProviderId::Windsurf,
+            ProviderId::Manus,
+            ProviderId::MiMo,
+            ProviderId::Doubao,
+            ProviderId::CommandCode,
+            ProviderId::Crof,
+            ProviderId::StepFun,
+            ProviderId::Venice,
+            ProviderId::OpenAIApi,
         ]
     }
 
@@ -119,6 +135,14 @@ impl ProviderId {
             ProviderId::Codebuff => "codebuff",
             ProviderId::DeepSeek => "deepseek",
             ProviderId::Windsurf => "windsurf",
+            ProviderId::Manus => "manus",
+            ProviderId::MiMo => "mimo",
+            ProviderId::Doubao => "doubao",
+            ProviderId::CommandCode => "commandcode",
+            ProviderId::Crof => "crof",
+            ProviderId::StepFun => "stepfun",
+            ProviderId::Venice => "venice",
+            ProviderId::OpenAIApi => "openaiapi",
         }
     }
 
@@ -157,6 +181,14 @@ impl ProviderId {
             ProviderId::Codebuff => "Codebuff",
             ProviderId::DeepSeek => "DeepSeek",
             ProviderId::Windsurf => "Windsurf",
+            ProviderId::Manus => "Manus",
+            ProviderId::MiMo => "Xiaomi MiMo",
+            ProviderId::Doubao => "Doubao",
+            ProviderId::CommandCode => "Command Code",
+            ProviderId::Crof => "Crof",
+            ProviderId::StepFun => "StepFun",
+            ProviderId::Venice => "Venice",
+            ProviderId::OpenAIApi => "OpenAI API",
         }
     }
 
@@ -184,6 +216,9 @@ impl ProviderId {
             ProviderId::Abacus => Some("apps.abacus.ai"),
             ProviderId::Mistral => Some("admin.mistral.ai"),
             ProviderId::OpenCodeGo => Some("opencode.ai"),
+            ProviderId::Manus => Some("manus.im"),
+            ProviderId::MiMo => Some("platform.xiaomimimo.com"),
+            ProviderId::CommandCode => Some("commandcode.ai"),
             // Token-based providers (don't use cookies)
             ProviderId::Copilot => None,
             ProviderId::Zai => None,
@@ -198,6 +233,11 @@ impl ProviderId {
             ProviderId::Codebuff => None,
             ProviderId::DeepSeek => None,
             ProviderId::Windsurf => None,
+            ProviderId::Doubao => None,
+            ProviderId::Crof => None,
+            ProviderId::StepFun => None,
+            ProviderId::Venice => None,
+            ProviderId::OpenAIApi => None,
         }
     }
 
@@ -238,6 +278,18 @@ impl ProviderId {
             "codebuff" | "manicode" => Some(ProviderId::Codebuff),
             "deepseek" | "deep-seek" | "ds" => Some(ProviderId::DeepSeek),
             "windsurf" | "codeium" => Some(ProviderId::Windsurf),
+            "manus" => Some(ProviderId::Manus),
+            "mimo" | "xiaomi" | "xiaomimimo" | "xiaomi-mimo" | "xiaomi mimo" => {
+                Some(ProviderId::MiMo)
+            }
+            "doubao" | "ark" | "volcengine" => Some(ProviderId::Doubao),
+            "commandcode" | "command-code" | "command code" => Some(ProviderId::CommandCode),
+            "crof" => Some(ProviderId::Crof),
+            "stepfun" | "step-fun" | "step fun" => Some(ProviderId::StepFun),
+            "venice" => Some(ProviderId::Venice),
+            "openaiapi" | "openai-api" | "openai api" | "openai-balance" => {
+                Some(ProviderId::OpenAIApi)
+            }
             _ => None,
         }
     }
@@ -425,6 +477,14 @@ pub fn cli_name_map() -> HashMap<&'static str, ProviderId> {
     map.insert("abacus-ai", ProviderId::Abacus);
     map.insert("mistral-ai", ProviderId::Mistral);
     map.insert("opencode-go", ProviderId::OpenCodeGo);
+    map.insert("xiaomimimo", ProviderId::MiMo);
+    map.insert("xiaomi-mimo", ProviderId::MiMo);
+    map.insert("ark", ProviderId::Doubao);
+    map.insert("volcengine", ProviderId::Doubao);
+    map.insert("command-code", ProviderId::CommandCode);
+    map.insert("step-fun", ProviderId::StepFun);
+    map.insert("openai-api", ProviderId::OpenAIApi);
+    map.insert("openai-balance", ProviderId::OpenAIApi);
     map
 }
 
@@ -435,7 +495,7 @@ mod tests {
     #[test]
     fn test_provider_id_all() {
         let all = ProviderId::all();
-        assert_eq!(all.len(), 32);
+        assert_eq!(all.len(), 40);
         assert!(all.contains(&ProviderId::Claude));
         assert!(all.contains(&ProviderId::Codex));
         assert!(all.contains(&ProviderId::Kimi));
@@ -448,6 +508,14 @@ mod tests {
         assert!(all.contains(&ProviderId::Codebuff));
         assert!(all.contains(&ProviderId::DeepSeek));
         assert!(all.contains(&ProviderId::Windsurf));
+        assert!(all.contains(&ProviderId::Manus));
+        assert!(all.contains(&ProviderId::MiMo));
+        assert!(all.contains(&ProviderId::Doubao));
+        assert!(all.contains(&ProviderId::CommandCode));
+        assert!(all.contains(&ProviderId::Crof));
+        assert!(all.contains(&ProviderId::StepFun));
+        assert!(all.contains(&ProviderId::Venice));
+        assert!(all.contains(&ProviderId::OpenAIApi));
     }
 
     #[test]

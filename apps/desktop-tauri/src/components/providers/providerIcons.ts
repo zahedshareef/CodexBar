@@ -123,6 +123,16 @@ export const PROVIDER_ICON_REGISTRY: Record<string, ProviderIcon> = {
   zai:         { id: "zai",         brandColor: "#e85a6a", fallbackLetter: "Z", svgPath: RAW.zai },
   // Aliases / Rust-side normalizations without their own SVG.
   nanogpt:     { id: "nanogpt",     brandColor: "#687fa1", fallbackLetter: "N" },
+  infini:      { id: "infini",      brandColor: "#687fa1", fallbackLetter: "I" },
+  abacus:      { id: "abacus",      brandColor: "#7c3aed", fallbackLetter: "A" },
+  manus:       { id: "manus",       brandColor: "#34322d", fallbackLetter: "M" },
+  mimo:        { id: "mimo",        brandColor: "#ff6900", fallbackLetter: "M" },
+  doubao:      { id: "doubao",      brandColor: "#2563eb", fallbackLetter: "D" },
+  commandcode: { id: "commandcode", brandColor: "#44ff00", fallbackLetter: "C" },
+  crof:        { id: "crof",        brandColor: "#7c3aed", fallbackLetter: "C" },
+  stepfun:     { id: "stepfun",     brandColor: "#999999", fallbackLetter: "S" },
+  venice:      { id: "venice",      brandColor: "#111827", fallbackLetter: "V" },
+  openaiapi:   { id: "openaiapi",   brandColor: "#10a37f", fallbackLetter: "O" },
 };
 
 const ALIASES: Record<string, string> = {
@@ -142,6 +152,14 @@ const ALIASES: Record<string, string> = {
   "deep seek": "deepseek",
   "deep-seek": "deepseek",
   codeium: "windsurf",
+  "xiaomi mimo": "mimo",
+  xiaomimimo: "mimo",
+  "command code": "commandcode",
+  "command-code": "commandcode",
+  "step fun": "stepfun",
+  "step-fun": "stepfun",
+  "openai api": "openaiapi",
+  "openai-api": "openaiapi",
 };
 
 function normalize(id: string): string {

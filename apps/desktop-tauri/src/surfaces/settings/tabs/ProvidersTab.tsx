@@ -163,6 +163,9 @@ function providerSourceHintShort(
     case "ollama":
     case "alibaba":
     case "infini":
+    case "manus":
+    case "mimo":
+    case "commandcode":
       return t("ProviderSourceWebShort");
     case "gemini":
     case "antigravity":
@@ -176,6 +179,11 @@ function providerSourceHintShort(
     case "synthetic":
     case "nanogpt":
     case "warp":
+    case "doubao":
+    case "crof":
+    case "stepfun":
+    case "venice":
+    case "openaiapi":
       return t("ProviderSourceApiShort");
     case "kiro":
       return t("ProviderSourceKiroEnvShort");

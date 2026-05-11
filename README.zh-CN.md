@@ -14,7 +14,7 @@
 
 ## 功能特性
 
-- **32 个 AI 服务商** — Codex、Claude、Cursor、Factory、Gemini、Copilot、Antigravity、z.ai、MiniMax、Kiro、Vertex AI、Augment、OpenCode、Kimi、Kimi K2、Amp、Warp、Ollama、OpenRouter、Synthetic、JetBrains AI、Alibaba、NanoGPT、Infini、Perplexity、Abacus AI、Mistral、OpenCode Go、Kilo、Codebuff、DeepSeek、Windsurf
+- **40 个 AI 服务商** — Codex、Claude、Cursor、Factory、Gemini、Copilot、Antigravity、z.ai、MiniMax、Kiro、Vertex AI、Augment、OpenCode、Kimi、Kimi K2、Amp、Warp、Ollama、OpenRouter、Synthetic、JetBrains AI、Alibaba、NanoGPT、Infini、Perplexity、Abacus AI、Mistral、OpenCode Go、Kilo、Codebuff、DeepSeek、Windsurf、Manus、小米 MiMo、Doubao、Command Code、Crof、StepFun、Venice、OpenAI API
 - **系统托盘图标** — 动态双条进度显示会话与周用量
 - **浏览器 Cookie 导入** — Chrome、Edge、Brave、Firefox（Windows DPAPI 解密）
 - **逐服务商凭据管理** — API Key、Cookie 和 OAuth 均可在服务商详情面板管理
@@ -23,13 +23,12 @@
 - **CLI** — `codexbar usage` 和 `codexbar cost`，便于脚本化和 CI
 - **WSL 支持** — CLI 开箱即用，桌面壳层通过 WSLg 运行
 
-## v0.24.0 更新内容
+## v0.25.0 更新内容
 
-- 新增上游 v0.24 服务商支持：**Codebuff**、**DeepSeek**、**Windsurf**
-- 将 Kilo 加入 API Key 服务商目录，可在凭据管理中配置
-- 加固 Codebuff 解析，支持 `data` 包裹的用量响应
-- 加固 Windsurf 本地缓存解析，支持 SQLite `TEXT` / `BLOB`，以及 UTF-8 / UTF-16LE 状态数据
-- 已在 Windows Server 2025 上验证原生 Windows 发布链路：Rust 测试、Tauri 后端测试、前端构建、release exe、WebView2 旁加载 DLL、Inno 安装包、便携 zip、SHA-256 文件、静默安装、已安装应用启动和卸载清理
+- 新增上游 v0.25 服务商支持：**Manus**、**小米 MiMo**、**Doubao**、**Command Code**、**Crof**、**StepFun**、**Venice**、**OpenAI API 余额**
+- 新服务商已接入设置页、API Key 管理、Cookie / Token Account 流程、CLI 别名和托盘服务商图标注册表
+- 支持展示信用余额、请求额度、刷新额度、Token 套餐、购买额度、DIEM/USD 余额和 OpenAI API credit grants
+- 上游 `v0.25.1` 修复会作为单独补丁处理，先发布并验证 `v0.25.0`
 
 ## 快速开始
 

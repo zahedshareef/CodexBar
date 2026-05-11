@@ -14,7 +14,7 @@ The Windows port of [CodexBar](https://github.com/steipete/CodexBar) — a syste
 
 ## Features
 
-- **32 AI providers** — Codex, Claude, Cursor, Factory, Gemini, Copilot, Antigravity, z.ai, MiniMax, Kiro, Vertex AI, Augment, OpenCode, Kimi, Kimi K2, Amp, Warp, Ollama, OpenRouter, Synthetic, JetBrains AI, Alibaba, NanoGPT, Infini, Perplexity, Abacus AI, Mistral, OpenCode Go, Kilo, Codebuff, DeepSeek, Windsurf
+- **40 AI providers** — Codex, Claude, Cursor, Factory, Gemini, Copilot, Antigravity, z.ai, MiniMax, Kiro, Vertex AI, Augment, OpenCode, Kimi, Kimi K2, Amp, Warp, Ollama, OpenRouter, Synthetic, JetBrains AI, Alibaba, NanoGPT, Infini, Perplexity, Abacus AI, Mistral, OpenCode Go, Kilo, Codebuff, DeepSeek, Windsurf, Manus, Xiaomi MiMo, Doubao, Command Code, Crof, StepFun, Venice, OpenAI API
 - **System tray icon** — dynamic two-bar meter showing session + weekly usage
 - **Browser cookie import** — Chrome, Edge, Brave, Firefox, with browser access kept opt-in
 - **Per-provider credentials** — API keys, cookies, and OAuth all managed from the provider detail pane
@@ -23,14 +23,12 @@ The Windows port of [CodexBar](https://github.com/steipete/CodexBar) — a syste
 - **CLI** — `codexbar usage` and `codexbar cost` for scripting and CI
 - **WSL support** — CLI works out of the box; desktop shell via WSLg
 
-## What's New in v0.24.1
+## What's New in v0.25.0
 
-- Fixed the Windows installer to bootstrap Microsoft Edge WebView2 Runtime on clean Windows machines before CodexBar launches
-- Added upstream v0.24 provider support for **Codebuff**, **DeepSeek**, and **Windsurf**
-- Added Kilo to the API-key provider catalog so it appears in credential management
-- Hardened Codebuff parsing for `data`-wrapped usage payloads
-- Hardened Windsurf local-cache parsing for SQLite `TEXT` and `BLOB` values, including UTF-8 and UTF-16LE state data
-- Verified the Windows-native release path on Windows Server 2025: Rust tests, Tauri backend tests, frontend build, release exe, WebView2 loader/runtime handling, Inno installer, portable zip, SHA-256 files, silent install, installed app startup, and uninstall cleanup
+- Ported upstream v0.25 provider support for **Manus**, **Xiaomi MiMo**, **Doubao**, **Command Code**, **Crof**, **StepFun**, **Venice**, and **OpenAI API balance** to the Windows/Tauri Rust backend.
+- Added the new v0.25 providers to Settings → Providers, API-key management, cookie/token-account flows, provider search/aliases, and the tray/provider icon registry.
+- Added multi-window usage support for provider-specific credit, request, refresh, balance, token-plan, and API-credit displays.
+- Kept the `v0.25.1` upstream patch intentionally separate so `v0.25.0` can ship as its own verified Windows release first.
 
 ## Quick Start
 
@@ -117,6 +115,14 @@ codexbar cost  -p codex           # local cost from JSONL logs
 | Codebuff | API Key / Local Config | Credits, Weekly |
 | DeepSeek | API Key | Balance |
 | Windsurf | Local Cache | Daily, Weekly |
+| Manus | Cookies | Credits, Refresh Credits |
+| Xiaomi MiMo | Cookies | Balance, Token Plan |
+| Doubao | API Key | Request Limits |
+| Command Code | Cookies | Monthly Credits, Purchased Credits |
+| Crof | API Key | Credits, Request Quota |
+| StepFun | Oasis Token | 5h, Weekly |
+| Venice | API Key | USD / DIEM Balance |
+| OpenAI API | API Key | Credit Balance |
 
 ## Privacy
 
