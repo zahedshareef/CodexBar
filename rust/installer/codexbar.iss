@@ -49,7 +49,6 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Files]
 Source: "{#TargetBinDir}\codexbar.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#TargetBinDir}\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\icons\icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#VCRedistPath}"; Flags: dontcopy
 Source: "{#WebView2BootstrapperPath}"; Flags: dontcopy

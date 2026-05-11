@@ -70,10 +70,8 @@ if ($install.ExitCode -notin @(0, 3010)) {
 }
 
 $exe = Join-Path $InstallDir "codexbar.exe"
-$webview = Join-Path $InstallDir "WebView2Loader.dll"
 $icon = Join-Path $InstallDir "icon.ico"
 Assert-Path -Path $exe -Label "installed executable"
-Assert-Path -Path $webview -Label "WebView2Loader.dll"
 Assert-Path -Path $icon -Label "icon"
 
 $installedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $exe).Hash.ToLowerInvariant()

@@ -60,10 +60,10 @@ Winget 分发已通过 [microsoft/winget-pkgs](https://github.com/microsoft/wing
 也可以前往 [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases) 下载最新版本。
 
 - **安装包**：`CodexBar-<version>-Setup.exe`
-- **便携版**：`CodexBar-<version>-portable.zip`
+- **便携版**：`CodexBar-<version>-portable.exe`
 - **校验和**：每个发布版本都包含 `.sha256` 文件，便于手动校验
 
-安装包会包含桌面应用、`WebView2Loader.dll`、应用图标、开始菜单快捷方式、卸载信息，以及干净 Windows 机器可能需要的 Visual C++ 运行库引导。便携版 zip 会把 `codexbar.exe`、`WebView2Loader.dll` 和 `icon.ico` 放在一起，适合手动安装。
+安装包会包含桌面应用、Microsoft Evergreen WebView2 引导程序、应用图标、开始菜单快捷方式、卸载信息，以及干净 Windows 机器可能需要的 Visual C++ 运行库引导。便携版 exe 是没有安装器集成的同一个桌面应用；release 构建会静态链接 WebView2 loader，所以便携版用户只需要机器上已安装 Microsoft Edge WebView2 Runtime。
 
 ## 首次运行
 

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed
+- Stop shipping `WebView2Loader.dll` in Windows installer and portable packages because MSVC release builds statically link the WebView2 loader.
+- Restore portable release packaging to a standalone `CodexBar-<version>-portable.exe` asset instead of a zip bundle.
+
 ---
 
 ## [Windows] 0.25.1 - 2026-05-11
@@ -102,6 +106,9 @@
 - Ship `WebView2Loader.dll` beside `codexbar.exe` in the Windows installer so clean installs can launch the Tauri shell.
 - Replace the standalone portable executable release asset with `CodexBar-<version>-portable.zip`, which includes both `codexbar.exe` and `WebView2Loader.dll`.
 - Add release workflow checks that fail the build when the WebView2 runtime sidecar is missing.
+
+### Superseded
+- Later Windows MSVC builds statically link the WebView2 loader, so release packaging no longer needs to ship `WebView2Loader.dll` beside `codexbar.exe`.
 
 ---
 
