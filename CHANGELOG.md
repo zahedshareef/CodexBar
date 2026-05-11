@@ -4,6 +4,17 @@
 
 ---
 
+## [Windows] 0.25.1 - 2026-05-11
+
+### Changed
+- Align the Windows/Tauri release with upstream CodexBar 0.25.1 after reviewing the upstream patch set.
+- Bump app, CLI, package, Tauri, and release metadata to 0.25.1 for the follow-up Windows artifact release.
+
+### Notes
+- Upstream 0.25.1 fixes macOS SwiftPM localization bundle lookup, macOS Keychain cache prompt churn, Pi session cost cache migration, Swift concurrency annotations, and standalone Swift CLI archive version fallback. Those code paths do not exist in the Windows/Tauri port, so no runtime Rust/Tauri logic change was required beyond the release alignment.
+
+---
+
 ## [Windows] 0.25.0 - 2026-05-11
 
 ### Added

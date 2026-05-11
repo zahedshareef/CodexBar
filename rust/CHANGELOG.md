@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.25.1] — 2026-05-11
+
+### Changed
+- Aligned the Windows/Tauri package version with upstream CodexBar 0.25.1 after reviewing the upstream patch set.
+- Updated app, CLI, package, Tauri, and release metadata for the 0.25.1 Windows artifact release.
+
+### Notes
+- Upstream 0.25.1 fixes macOS SwiftPM localization bundle lookup, macOS Keychain cache prompt churn, Pi session cost cache migration, Swift concurrency annotations, and standalone Swift CLI archive version fallback. The Windows/Tauri port does not use those Swift/macOS code paths, so this release keeps runtime behavior unchanged while providing a verified Windows 0.25.1 build.
+
+---
+
 ## [0.25.0] — 2026-05-11
 
 ### Added

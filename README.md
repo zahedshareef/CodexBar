@@ -23,12 +23,13 @@ The Windows port of [CodexBar](https://github.com/steipete/CodexBar) — a syste
 - **CLI** — `codexbar usage` and `codexbar cost` for scripting and CI
 - **WSL support** — CLI works out of the box; desktop shell via WSLg
 
-## What's New in v0.25.0
+## What's New in v0.25.1
 
+- Rebuilt and validated the Windows/Tauri release against the upstream **CodexBar 0.25.1** patch line.
+- Reviewed the upstream macOS/Swift fixes for Settings localization, Keychain cache writes, Pi session cost cache migration, Swift concurrency annotations, and Swift CLI archive version fallback. Those exact code paths do not exist in Win-CodexBar's Tauri/Rust shell, so v0.25.1 keeps the Windows runtime behavior from v0.25.0 while moving users onto the matching patch version.
 - Ported upstream v0.25 provider support for **Manus**, **Xiaomi MiMo**, **Doubao**, **Command Code**, **Crof**, **StepFun**, **Venice**, and **OpenAI API balance** to the Windows/Tauri Rust backend.
 - Added the new v0.25 providers to Settings → Providers, API-key management, cookie/token-account flows, provider search/aliases, and the tray/provider icon registry.
 - Added multi-window usage support for provider-specific credit, request, refresh, balance, token-plan, and API-credit displays.
-- Kept the `v0.25.1` upstream patch intentionally separate so `v0.25.0` can ship as its own verified Windows release first.
 
 ## Quick Start
 

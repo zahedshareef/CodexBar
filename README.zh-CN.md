@@ -23,12 +23,13 @@
 - **CLI** — `codexbar usage` 和 `codexbar cost`，便于脚本化和 CI
 - **WSL 支持** — CLI 开箱即用，桌面壳层通过 WSLg 运行
 
-## v0.25.0 更新内容
+## v0.25.1 更新内容
 
+- 已基于上游 **CodexBar 0.25.1** 补丁线重新构建并验证 Windows/Tauri 版本
+- 已检查上游 macOS/Swift 修复：设置页本地化资源、Keychain 缓存写入、Pi 会话费用缓存迁移、Swift 并发标注和 Swift CLI 归档版本回退。这些代码路径不存在于 Win-CodexBar 的 Tauri/Rust 壳层中，因此 v0.25.1 保持 v0.25.0 的 Windows 运行时行为，同时同步补丁版本号
 - 新增上游 v0.25 服务商支持：**Manus**、**小米 MiMo**、**Doubao**、**Command Code**、**Crof**、**StepFun**、**Venice**、**OpenAI API 余额**
 - 新服务商已接入设置页、API Key 管理、Cookie / Token Account 流程、CLI 别名和托盘服务商图标注册表
 - 支持展示信用余额、请求额度、刷新额度、Token 套餐、购买额度、DIEM/USD 余额和 OpenAI API credit grants
-- 上游 `v0.25.1` 修复会作为单独补丁处理，先发布并验证 `v0.25.0`
 
 ## 快速开始
 
