@@ -57,6 +57,18 @@ npm install
 npm run tauri:build
 ```
 
+To produce release-style Windows assets from a local PowerShell session:
+
+```powershell
+# From the repository root.
+powershell -ExecutionPolicy Bypass `
+  -File .\scripts\build-windows-release-assets.ps1
+```
+
+The script writes `CodexBar-<version>-portable.exe`, `CodexBar-<version>-Setup.exe`,
+and matching `.sha256` files to `rust\target\release-assets`. Install
+Inno Setup 6 first, or pass `-SkipInstaller` to create only the portable asset.
+
 ## Usage
 
 ### GUI Mode (System Tray)

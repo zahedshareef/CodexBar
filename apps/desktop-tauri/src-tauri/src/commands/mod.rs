@@ -397,6 +397,7 @@ pub struct SettingsSnapshot {
     show_as_used: bool,
     show_credits_extra_usage: bool,
     show_all_token_accounts_in_menu: bool,
+    provider_changelog_links_enabled: bool,
     surprise_animations: bool,
     enable_animations: bool,
     reset_time_relative: bool,
@@ -466,6 +467,7 @@ impl From<Settings> for SettingsSnapshot {
             show_as_used: settings.show_as_used,
             show_credits_extra_usage: settings.show_credits_extra_usage,
             show_all_token_accounts_in_menu: settings.show_all_token_accounts_in_menu,
+            provider_changelog_links_enabled: settings.provider_changelog_links_enabled,
             surprise_animations: settings.surprise_animations,
             enable_animations: settings.enable_animations,
             reset_time_relative: settings.reset_time_relative,
@@ -744,6 +746,10 @@ fn bridge_commands() -> Vec<BridgeCommandDescriptor> {
             description: "Open a provider's external status page URL in the default browser.",
         },
         BridgeCommandDescriptor {
+            id: "open_provider_changelog",
+            description: "Open a provider's external changelog or release notes URL in the default browser.",
+        },
+        BridgeCommandDescriptor {
             id: "get_provider_detail",
             description: "Return the aggregated identity/usage/pace/cost snapshot backing the Settings provider detail pane.",
         },
@@ -903,6 +909,7 @@ pub struct SettingsUpdate {
     pub show_as_used: Option<bool>,
     pub show_credits_extra_usage: Option<bool>,
     pub show_all_token_accounts_in_menu: Option<bool>,
+    pub provider_changelog_links_enabled: Option<bool>,
     pub surprise_animations: Option<bool>,
     pub enable_animations: Option<bool>,
     pub reset_time_relative: Option<bool>,
@@ -1043,6 +1050,9 @@ pub fn update_settings(
     }
     if let Some(v) = patch.show_all_token_accounts_in_menu {
         settings.show_all_token_accounts_in_menu = v;
+    }
+    if let Some(v) = patch.provider_changelog_links_enabled {
+        settings.provider_changelog_links_enabled = v;
     }
     if let Some(v) = patch.auto_download_updates {
         settings.auto_download_updates = v;
@@ -2584,6 +2594,17 @@ fn status_page_url_for_provider(provider_id: &str) -> Option<String> {
     provider.metadata().status_page_url.map(|s| s.to_string())
 }
 
+fn changelog_url_for_provider(provider_id: &str) -> Option<String> {
+    let id = ProviderId::from_cli_name(provider_id)?;
+    let url = match id {
+        ProviderId::Codex => "https://github.com/openai/codex/releases",
+        ProviderId::Claude => "https://github.com/anthropics/claude-code/releases",
+        ProviderId::Gemini => "https://github.com/google-gemini/gemini-cli/releases",
+        _ => return None,
+    };
+    Some(url.to_string())
+}
+
 #[tauri::command]
 pub fn open_provider_dashboard(provider_id: String) -> Result<(), String> {
     let provider_id = canonical_provider_arg(&provider_id)?;
@@ -2597,6 +2618,14 @@ pub fn open_provider_status_page(provider_id: String) -> Result<(), String> {
     let provider_id = canonical_provider_arg(&provider_id)?;
     let url = status_page_url_for_provider(&provider_id)
         .ok_or_else(|| format!("No status page URL registered for provider '{provider_id}'"))?;
+    open_url_in_browser(&url)
+}
+
+#[tauri::command]
+pub fn open_provider_changelog(provider_id: String) -> Result<(), String> {
+    let provider_id = canonical_provider_arg(&provider_id)?;
+    let url = changelog_url_for_provider(&provider_id)
+        .ok_or_else(|| format!("No changelog URL registered for provider '{provider_id}'"))?;
     open_url_in_browser(&url)
 }
 
@@ -2650,6 +2679,7 @@ pub struct ProviderDetail {
     // URLs for quick-actions (button visibility).
     pub dashboard_url: Option<String>,
     pub status_page_url: Option<String>,
+    pub changelog_url: Option<String>,
     pub buy_credits_url: Option<String>,
 
     // True if the shared backend has produced any snapshot yet.
@@ -2694,6 +2724,11 @@ fn build_provider_detail(provider_id: &str) -> Result<ProviderDetail, String> {
         last_error: None,
         dashboard_url: metadata.dashboard_url.map(|s| s.to_string()),
         status_page_url: metadata.status_page_url.map(|s| s.to_string()),
+        changelog_url: if settings.provider_changelog_links_enabled {
+            changelog_url_for_provider(id.cli_name())
+        } else {
+            None
+        },
         // Buy-credits currently mirrors the dashboard URL for providers that
         // support credit top-ups; refine once a dedicated URL lands upstream.
         buy_credits_url: if metadata.supports_credits {
@@ -3354,6 +3389,19 @@ mod tests {
     }
 
     #[test]
+    fn changelog_url_is_registered_for_supported_upstream_providers() {
+        assert_eq!(
+            super::changelog_url_for_provider("codex").as_deref(),
+            Some("https://github.com/openai/codex/releases")
+        );
+        assert_eq!(
+            super::changelog_url_for_provider("claude").as_deref(),
+            Some("https://github.com/anthropics/claude-code/releases")
+        );
+        assert!(super::changelog_url_for_provider("cursor").is_none());
+    }
+
+    #[test]
     fn provider_detail_roundtrips_through_serde() {
         let detail = super::build_provider_detail("codex").expect("known provider");
         let json = serde_json::to_string(&detail).expect("serialize");
@@ -3361,6 +3409,7 @@ mod tests {
         assert!(json.contains("\"displayName\""));
         assert!(json.contains("\"hasSnapshot\""));
         assert!(json.contains("\"statusPageUrl\""));
+        assert!(json.contains("\"changelogUrl\""));
     }
 
     #[test]
@@ -3387,7 +3436,11 @@ mod tests {
             .map(|descriptor| descriptor.id)
             .collect::<Vec<_>>();
 
-        for expected in ["get_provider_detail", "open_provider_status_page"] {
+        for expected in [
+            "get_provider_detail",
+            "open_provider_status_page",
+            "open_provider_changelog",
+        ] {
             assert!(ids.contains(&expected), "missing command id: {expected}");
         }
     }

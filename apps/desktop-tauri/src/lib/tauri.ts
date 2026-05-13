@@ -266,6 +266,10 @@ export function openProviderStatusPage(providerId: string): Promise<void> {
   return invoke<void>("open_provider_status_page", { providerId });
 }
 
+export function openProviderChangelog(providerId: string): Promise<void> {
+  return invoke<void>("open_provider_changelog", { providerId });
+}
+
 export function triggerProviderLogin(providerId: string): Promise<void> {
   return invoke<void>("trigger_provider_login", { providerId });
 }

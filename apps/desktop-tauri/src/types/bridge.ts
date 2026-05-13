@@ -165,6 +165,7 @@ export interface SettingsSnapshot {
   showAsUsed: boolean;
   showCreditsExtraUsage: boolean;
   showAllTokenAccountsInMenu: boolean;
+  providerChangelogLinksEnabled: boolean;
   surpriseAnimations: boolean;
   enableAnimations: boolean;
   resetTimeRelative: boolean;
@@ -200,6 +201,7 @@ export interface SettingsUpdate {
   showAsUsed?: boolean;
   showCreditsExtraUsage?: boolean;
   showAllTokenAccountsInMenu?: boolean;
+  providerChangelogLinksEnabled?: boolean;
   surpriseAnimations?: boolean;
   enableAnimations?: boolean;
   resetTimeRelative?: boolean;
@@ -512,6 +514,7 @@ export interface ProviderDetail {
 
   dashboardUrl: string | null;
   statusPageUrl: string | null;
+  changelogUrl: string | null;
   buyCreditsUrl: string | null;
 
   hasSnapshot: boolean;

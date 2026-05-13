@@ -202,7 +202,7 @@ pub fn activate(app: &AppHandle) {
 
     let Some(config) = config else { return };
     let target = config.surface_mode();
-    let position = proof_window_position(app);
+    let position = proof_window_position(app, target);
     tracing::info!(
         "proof-harness: activating surface={} tab={:?} position={:?}",
         config.target_surface,
@@ -221,8 +221,10 @@ pub fn activate(app: &AppHandle) {
 /// Proof mode needs a reliable on-screen position. We skip
 /// `inferred_tray_panel_position` because its DPI-scaled maths can
 /// produce off-screen coords on high-DPI setups.
-fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
-    if let Some(pos) = shell::tray_panel_position(app) {
+fn proof_window_position(app: &AppHandle, surface_mode: SurfaceMode) -> Option<(i32, i32)> {
+    if surface_mode == SurfaceMode::TrayPanel
+        && let Some(pos) = shell::tray_panel_position(app)
+    {
         return Some(pos);
     }
     let window = app.get_webview_window("main")?;
@@ -239,14 +241,16 @@ fn proof_window_position(app: &AppHandle) -> Option<(i32, i32)> {
         let work_area = m.work_area();
         let work_bottom = work_area.position.y + work_area.size.height as i32;
         let scale = m.scale_factor().max(1.0);
-        let panel_w = (310.0 * scale) as i32;
-        let panel_h = (720.0 * scale) as i32;
+        let properties = surface_mode.window_properties();
+        let panel_w = (properties.width * scale) as i32;
+        let panel_h = (properties.height * scale) as i32;
         let margin = (12.0 * scale) as i32;
         let x = screen_w - panel_w - margin;
         let y = work_bottom - panel_h - margin;
         tracing::info!(
             "proof-pos: screen_w={screen_w} work_bottom={work_bottom} \
-             panel={}x{} scale={scale} → ({x},{y})",
+             surface={:?} panel={}x{} scale={scale} → ({x},{y})",
+            surface_mode,
             panel_w,
             panel_h,
         );

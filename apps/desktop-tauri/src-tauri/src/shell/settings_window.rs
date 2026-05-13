@@ -4,7 +4,7 @@
 use tauri::{Emitter, Manager, PhysicalPosition, WebviewUrl};
 
 const SETTINGS_LABEL: &str = "settings";
-const SETTINGS_WIDTH: f64 = 720.0;
+const SETTINGS_WIDTH: f64 = 1040.0;
 const SETTINGS_HEIGHT: f64 = 580.0;
 
 /// Open the detached Settings window, or focus it if already open.

@@ -8,6 +8,7 @@ interface Props {
   onSwitchAccount: () => void;
   onOpenDashboard: () => void;
   onOpenStatusPage: () => void;
+  onOpenChangelog: () => void;
   onCopyError: () => void;
   onBuyCredits: () => void;
   t: (key: LocaleKey) => string;
@@ -26,6 +27,7 @@ export function QuickActionsSection({
   onSwitchAccount,
   onOpenDashboard,
   onOpenStatusPage,
+  onOpenChangelog,
   onCopyError,
   onBuyCredits,
   t,
@@ -68,6 +70,15 @@ export function QuickActionsSection({
             onClick={onOpenStatusPage}
           >
             {t("ActionStatusPage")}
+          </button>
+        )}
+        {provider.changelogUrl && (
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={onOpenChangelog}
+          >
+            {t("ActionChangelog")}
           </button>
         )}
         {provider.lastError && (

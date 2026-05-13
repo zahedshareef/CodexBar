@@ -119,6 +119,17 @@ export default function DisplayTab({ settings, set, saving }: TabProps) {
             />
           </Field>
           <Field
+            label={t("ShowProviderChangelogLinksLabel")}
+            description={t("ShowProviderChangelogLinksHelper")}
+            leading
+          >
+            <Toggle
+              checked={settings.providerChangelogLinksEnabled}
+              disabled={saving}
+              onChange={(v) => set({ providerChangelogLinksEnabled: v })}
+            />
+          </Field>
+          <Field
             label={t("ResetTimeRelative")}
             description={t("ResetTimeRelativeHelper")}
             leading

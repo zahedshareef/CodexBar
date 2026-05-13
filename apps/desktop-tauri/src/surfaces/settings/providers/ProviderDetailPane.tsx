@@ -14,6 +14,7 @@ import {
   getProviderDetail,
   getProviderRegionOptions,
   getTokenAccountProviders,
+  openProviderChangelog,
   openProviderDashboard,
   openProviderStatusPage,
   refreshProviders,
@@ -240,6 +241,10 @@ export function ProviderDetailPane({
     void openProviderStatusPage(detail.id).catch((e) => setError(String(e)));
   };
 
+  const handleOpenChangelog = () => {
+    void openProviderChangelog(detail.id).catch((e) => setError(String(e)));
+  };
+
   const handleCopyError = () => {
     if (detail.lastError && navigator.clipboard) {
       void navigator.clipboard.writeText(detail.lastError);
@@ -327,6 +332,7 @@ export function ProviderDetailPane({
         onSwitchAccount={handleSwitchAccount}
         onOpenDashboard={handleOpenDashboard}
         onOpenStatusPage={handleOpenStatusPage}
+        onOpenChangelog={handleOpenChangelog}
         onCopyError={handleCopyError}
         onBuyCredits={handleBuyCredits}
         t={t}

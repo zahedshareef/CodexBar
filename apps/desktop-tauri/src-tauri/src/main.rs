@@ -106,6 +106,7 @@ fn main() {
             commands::quit_app,
             commands::open_provider_dashboard,
             commands::open_provider_status_page,
+            commands::open_provider_changelog,
             commands::get_provider_detail,
             commands::trigger_provider_login,
             commands::revoke_provider_credentials,

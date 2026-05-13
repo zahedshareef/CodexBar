@@ -277,6 +277,7 @@ pub enum LocaleKey {
     ActionSwitchAccount,
     ActionUsageDashboard,
     ActionStatusPage,
+    ActionChangelog,
     ActionCopyError,
     ActionBuyCredits,
 
@@ -529,6 +530,8 @@ pub enum LocaleKey {
     ShowAsUsedHelper,
     ShowAllTokenAccountsLabel,
     ShowAllTokenAccountsHelper,
+    ShowProviderChangelogLinksLabel,
+    ShowProviderChangelogLinksHelper,
     EnableAnimationsLabel,
     EnableAnimationsHelper,
     SurpriseAnimationsLabel,
@@ -875,6 +878,7 @@ impl LocaleKey {
             LocaleKey::ActionSwitchAccount => "Switch account...",
             LocaleKey::ActionUsageDashboard => "Usage dashboard",
             LocaleKey::ActionStatusPage => "Status page",
+            LocaleKey::ActionChangelog => "Changelog",
             LocaleKey::ActionCopyError => "Copy error",
             LocaleKey::ActionBuyCredits => "Buy credits...",
 
@@ -1174,6 +1178,10 @@ impl LocaleKey {
             LocaleKey::ShowAllTokenAccountsLabel => "Show all token accounts",
             LocaleKey::ShowAllTokenAccountsHelper => {
                 "List all token accounts in provider menus instead of collapsing them."
+            }
+            LocaleKey::ShowProviderChangelogLinksLabel => "Show provider changelog links",
+            LocaleKey::ShowProviderChangelogLinksHelper => {
+                "Adds release-notes links for supported CLI-backed providers to the menu."
             }
             LocaleKey::EnableAnimationsLabel => "Enable animations",
             LocaleKey::EnableAnimationsHelper => "Smooth transitions and animated progress bars.",
@@ -1539,6 +1547,7 @@ impl LocaleKey {
             LocaleKey::ActionSwitchAccount => "切换账号...",
             LocaleKey::ActionUsageDashboard => "用量仪表盘",
             LocaleKey::ActionStatusPage => "状态页面",
+            LocaleKey::ActionChangelog => "变更日志",
             LocaleKey::ActionCopyError => "复制错误",
             LocaleKey::ActionBuyCredits => "购买额度...",
 
@@ -1804,6 +1813,10 @@ impl LocaleKey {
             LocaleKey::ShowAllTokenAccountsLabel => "显示所有令牌账户",
             LocaleKey::ShowAllTokenAccountsHelper => {
                 "在服务商菜单中列出所有令牌账户，而不是折叠显示。"
+            }
+            LocaleKey::ShowProviderChangelogLinksLabel => "显示服务商变更日志链接",
+            LocaleKey::ShowProviderChangelogLinksHelper => {
+                "在菜单中为支持的 CLI 服务商添加发布说明链接。"
             }
             LocaleKey::EnableAnimationsLabel => "启用动画",
             LocaleKey::EnableAnimationsHelper => "平滑过渡与动画进度条。",
@@ -2192,6 +2205,7 @@ impl LocaleKey {
         (LocaleKey::ActionSwitchAccount, "ActionSwitchAccount"),
         (LocaleKey::ActionUsageDashboard, "ActionUsageDashboard"),
         (LocaleKey::ActionStatusPage, "ActionStatusPage"),
+        (LocaleKey::ActionChangelog, "ActionChangelog"),
         (LocaleKey::ActionCopyError, "ActionCopyError"),
         (LocaleKey::ActionBuyCredits, "ActionBuyCredits"),
         (LocaleKey::PaceOnTrack, "PaceOnTrack"),
@@ -2503,6 +2517,14 @@ impl LocaleKey {
         (
             LocaleKey::ShowAllTokenAccountsHelper,
             "ShowAllTokenAccountsHelper",
+        ),
+        (
+            LocaleKey::ShowProviderChangelogLinksLabel,
+            "ShowProviderChangelogLinksLabel",
+        ),
+        (
+            LocaleKey::ShowProviderChangelogLinksHelper,
+            "ShowProviderChangelogLinksHelper",
         ),
         (LocaleKey::EnableAnimationsLabel, "EnableAnimationsLabel"),
         (LocaleKey::EnableAnimationsHelper, "EnableAnimationsHelper"),

@@ -39,6 +39,7 @@ target/
 
 # Host-specific Tauri schemas generated during local desktop checks
 apps/desktop-tauri/src-tauri/gen/schemas/macOS-schema.json
+apps/desktop-tauri/src-tauri/gen/schemas/windows-schema.json
 
 # Claude temp files
 tmpclaude-*
@@ -60,6 +61,7 @@ nul
 /.local/
 /docs/
 /scripts/
+!/scripts/
 /docs/ui-parity-workflow.md
 /scripts/crop_vm_preferences_proof.sh
 /scripts/fetch_vm_preferences_proof.sh

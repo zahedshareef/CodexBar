@@ -145,6 +145,7 @@ codexbar cost  -p codex           # local cost from JSONL logs
 ## Credits
 
 - **Original CodexBar**: [steipete/CodexBar](https://github.com/steipete/CodexBar) by Peter Steinberger
+- **Upstream contributors**: [steipete/CodexBar contributors](https://github.com/steipete/CodexBar/graphs/contributors)
 - **Inspired by**: [ccusage](https://github.com/ryoppippi/ccusage) for cost tracking
 
 ## License

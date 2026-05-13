@@ -53,6 +53,14 @@ Windows machine before upload or publication:
 
 ```powershell
 powershell -ExecutionPolicy Bypass `
+  -File .\scripts\build-windows-release-assets.ps1
+```
+
+For local smoke passes without Inno Setup installed, add `-SkipInstaller` to
+produce the portable executable and checksum only.
+
+```powershell
+powershell -ExecutionPolicy Bypass `
   -File .\scripts\windows-smoke-install.ps1 `
   -InstallerPath .\rust\target\installer\CodexBar-<version>-Setup.exe `
   -ExpectedVersion <version>

@@ -293,6 +293,10 @@ pub struct Settings {
     #[serde(default)]
     pub show_all_token_accounts_in_menu: bool,
 
+    /// Show provider-specific release notes / changelog links where available
+    #[serde(default)]
+    pub provider_changelog_links_enabled: bool,
+
     /// Per-provider configuration map (cookie/usage source, region, manual
     /// headers, API tokens, etc). Replaces the legacy flat per-provider
     /// fields; legacy `settings.json` files are migrated via [`RawSettings`].
@@ -412,6 +416,7 @@ struct RawSettings {
     menu_bar_display_mode: String,
     show_credits_extra_usage: bool,
     show_all_token_accounts_in_menu: bool,
+    provider_changelog_links_enabled: bool,
 
     // ── New unified per-provider map ─────────────────────────────────
     provider_configs: HashMap<ProviderId, ProviderConfig>,
@@ -513,6 +518,7 @@ impl Default for RawSettings {
             menu_bar_display_mode: s.menu_bar_display_mode,
             show_credits_extra_usage: s.show_credits_extra_usage,
             show_all_token_accounts_in_menu: s.show_all_token_accounts_in_menu,
+            provider_changelog_links_enabled: s.provider_changelog_links_enabled,
             provider_configs: s.provider_configs,
             claude_usage_source: None,
             codex_usage_source: None,
@@ -785,6 +791,7 @@ impl From<RawSettings> for Settings {
             menu_bar_display_mode: raw.menu_bar_display_mode,
             show_credits_extra_usage: raw.show_credits_extra_usage,
             show_all_token_accounts_in_menu: raw.show_all_token_accounts_in_menu,
+            provider_changelog_links_enabled: raw.provider_changelog_links_enabled,
             provider_configs,
             show_debug_settings: raw.show_debug_settings,
             disable_keychain_access: raw.disable_keychain_access,
@@ -830,6 +837,7 @@ impl Default for Settings {
             menu_bar_display_mode: "detailed".to_string(), // Detailed mode by default
             show_credits_extra_usage: true, // Show credits + extra usage by default
             show_all_token_accounts_in_menu: false,
+            provider_changelog_links_enabled: false,
             provider_configs: HashMap::new(),
             show_debug_settings: false,
             disable_keychain_access: false,

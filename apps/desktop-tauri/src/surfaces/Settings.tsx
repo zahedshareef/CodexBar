@@ -99,8 +99,8 @@ function isSettingsTab(value: string): value is SettingsTab {
 }
 
 const SETTINGS_WINDOW_HEIGHT = 580;
-const SETTINGS_WINDOW_DEFAULT_WIDTH = 496;
-const SETTINGS_WINDOW_PROVIDERS_WIDTH = 720;
+const SETTINGS_WINDOW_DEFAULT_WIDTH = 1040;
+const SETTINGS_WINDOW_PROVIDERS_WIDTH = 1040;
 
 function applySettingsWindowSize(tab: SettingsTab) {
   const width =

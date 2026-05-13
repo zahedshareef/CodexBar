@@ -40,12 +40,30 @@ export default function AboutTab({ settings, set, saving }: TabProps) {
       <div className="about-header">
         <img className="about-icon" src={codexbarIcon} alt="CodexBar" />
         <div className="about-title-block">
-          <h2 className="about-title">{appInfo.name}</h2>
+          <div className="about-title-row">
+            <h2 className="about-title">{appInfo.name}</h2>
+            <span className="about-pill">Windows</span>
+          </div>
           <p className="about-version">
             Version {appInfo.version}
             {appInfo.buildNumber !== "dev" && ` (${appInfo.buildNumber})`}
           </p>
           <p className="about-tagline">{appInfo.tagline}</p>
+        </div>
+      </div>
+
+      <div className="about-meta-grid">
+        <div>
+          <span>Version</span>
+          <strong>{appInfo.version}</strong>
+        </div>
+        <div>
+          <span>Channel</span>
+          <strong>{appInfo.updateChannel}</strong>
+        </div>
+        <div>
+          <span>Build</span>
+          <strong>{appInfo.buildNumber}</strong>
         </div>
       </div>
 
@@ -76,105 +94,108 @@ export default function AboutTab({ settings, set, saving }: TabProps) {
         </a>
       </div>
 
-      <div className="about-divider" />
+      <div className="about-update-panel">
+        <div className="about-update-panel__header">
+          <div>
+            <h3>{t("UpdatesTitle")}</h3>
+            <p>{t("UpdateChannelChoiceHelper")}</p>
+          </div>
+          <button
+            className="credential-btn credential-btn--primary"
+            disabled={isBusy}
+            onClick={handleCheck}
+          >
+            {updateState.status === "checking"
+              ? "Checking..."
+              : "Check for updates"}
+          </button>
+        </div>
 
-      <div className="about-update-controls">
-        <Field
-          label={t("AutoDownloadUpdates")}
-          description={t("AutoDownloadUpdatesHelper")}
-          leading
-        >
-          <Toggle
-            checked={settings.autoDownloadUpdates}
-            disabled={saving}
-            onChange={(v) => set({ autoDownloadUpdates: v })}
-          />
-        </Field>
-
-        <div className="about-channel-row">
-          <Field label={t("UpdateChannelChoice")}>
-            <Select
-              value={settings.updateChannel}
+        <div className="about-update-controls">
+          <Field
+            label={t("AutoDownloadUpdates")}
+            description={t("AutoDownloadUpdatesHelper")}
+            leading
+          >
+            <Toggle
+              checked={settings.autoDownloadUpdates}
               disabled={saving}
-              options={[
-                { value: "stable", label: t("UpdateChannelStableOption") },
-                { value: "beta", label: t("UpdateChannelBetaOption") },
-              ]}
-              onChange={(v) => set({ updateChannel: v as UpdateChannel })}
+              onChange={(v) => set({ autoDownloadUpdates: v })}
             />
           </Field>
-          <p className="about-channel-description">
-            {t("UpdateChannelChoiceHelper")}
-          </p>
+
+          <div className="about-channel-row">
+            <Field label={t("UpdateChannelChoice")}>
+              <Select
+                value={settings.updateChannel}
+                disabled={saving}
+                options={[
+                  { value: "stable", label: t("UpdateChannelStableOption") },
+                  { value: "beta", label: t("UpdateChannelBetaOption") },
+                ]}
+                onChange={(v) => set({ updateChannel: v as UpdateChannel })}
+              />
+            </Field>
+          </div>
         </div>
-      </div>
 
-      <div className="about-actions">
-        <button
-          className="credential-btn credential-btn--primary"
-          disabled={isBusy}
-          onClick={handleCheck}
-        >
-          {updateState.status === "checking"
-            ? "Checking…"
-            : "Check for Updates…"}
-        </button>
+        <div className="about-actions">
+          {updateState.status === "available" && (
+            <div className="about-update-row">
+              <span className="about-update-msg">
+                Update {updateState.version} available
+              </span>
+              {updateState.canDownload ? (
+                <button
+                  className="credential-btn credential-btn--primary"
+                  onClick={download}
+                >
+                  Download
+                </button>
+              ) : (
+                <button className="credential-btn" onClick={openRelease}>
+                  View Release
+                </button>
+              )}
+            </div>
+          )}
 
-        {updateState.status === "available" && (
-          <div className="about-update-row">
+          {updateState.status === "downloading" && (
             <span className="about-update-msg">
-              Update {updateState.version} available
+              Downloading...
+              {updateState.progress != null &&
+                ` ${Math.round(updateState.progress * 100)}%`}
             </span>
-            {updateState.canDownload ? (
-              <button
-                className="credential-btn credential-btn--primary"
-                onClick={download}
-              >
-                Download
-              </button>
-            ) : (
-              <button className="credential-btn" onClick={openRelease}>
-                View Release
-              </button>
-            )}
-          </div>
-        )}
+          )}
 
-        {updateState.status === "downloading" && (
-          <span className="about-update-msg">
-            Downloading…
-            {updateState.progress != null &&
-              ` ${Math.round(updateState.progress * 100)}%`}
-          </span>
-        )}
+          {updateState.status === "ready" && (
+            <div className="about-update-row">
+              <span className="about-update-msg">Update ready to install</span>
+              {updateState.canApply ? (
+                <button
+                  className="credential-btn credential-btn--primary"
+                  onClick={apply}
+                >
+                  Install &amp; restart
+                </button>
+              ) : (
+                <button className="credential-btn" onClick={openRelease}>
+                  View Release
+                </button>
+              )}
+            </div>
+          )}
 
-        {updateState.status === "ready" && (
-          <div className="about-update-row">
-            <span className="about-update-msg">Update ready to install</span>
-            {updateState.canApply ? (
-              <button
-                className="credential-btn credential-btn--primary"
-                onClick={apply}
-              >
-                Install &amp; Restart
-              </button>
-            ) : (
-              <button className="credential-btn" onClick={openRelease}>
-                View Release
-              </button>
-            )}
-          </div>
-        )}
+          {updateState.status === "error" && (
+            <span className="about-update-msg">
+              Error: {updateState.error}
+            </span>
+          )}
 
-        {updateState.status === "error" && (
-          <span className="about-update-msg">
-            Error: {updateState.error}
-          </span>
-        )}
-
-        {updateState.status === "idle" && hasChecked && (
-          <span className="about-update-msg">You&apos;re up to date!</span>
-        )}
+          {updateState.status === "idle" && hasChecked && (
+            <span className="about-update-msg">You&apos;re up to date.</span>
+          )}
+        </div>
       </div>
 
       <p className="about-copyright">
@@ -187,7 +208,7 @@ export default function AboutTab({ settings, set, saving }: TabProps) {
         >
           CodexBar
         </a>{" "}
-        by steipete. MIT License.
+        by steipete and contributors. MIT License.
       </p>
     </section>
   );

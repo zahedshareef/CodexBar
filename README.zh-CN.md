@@ -137,6 +137,7 @@ codexbar cost  -p codex           # 本地成本（JSONL 日志）
 ## 致谢
 
 - **原版 CodexBar**：[steipete/CodexBar](https://github.com/steipete/CodexBar)，作者 Peter Steinberger
+- **上游贡献者**：[steipete/CodexBar contributors](https://github.com/steipete/CodexBar/graphs/contributors)
 - **灵感来源**：[ccusage](https://github.com/ryoppippi/ccusage)，用于成本跟踪思路
 
 ## 许可证

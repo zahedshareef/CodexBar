@@ -1,17 +1,22 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import type { BootstrapState, ProviderUsageSnapshot } from "../types/bridge";
-import { setSurfaceMode, openSettingsWindow } from "../lib/tauri";
+import { openSettingsWindow, setSurfaceMode } from "../lib/tauri";
 import { reanchorTrayPanel } from "../lib/tauri";
 import { useProviders } from "../hooks/useProviders";
 import { useSettings } from "../hooks/useSettings";
 import { useUpdateState } from "../hooks/useUpdateState";
-import { useLocale } from "../hooks/useLocale";
+import { useFormattedResetTime } from "../hooks/useFormattedResetTime";
 import MenuCard from "../components/MenuCard";
-import MenuSurface, {
-  MenuEmpty,
-  type MenuFooterRow,
-} from "../components/MenuSurface";
+import MenuSurface, { MenuEmpty } from "../components/MenuSurface";
 import UpdateBanner from "../components/UpdateBanner";
 import { ProviderIcon } from "../components/providers/ProviderIcon";
 import { getProviderIcon } from "../components/providers/providerIcons";
@@ -20,24 +25,64 @@ import { DEMO_ENABLED, DEMO_PROVIDERS } from "../lib/demoProviders";
 
 /** Provider IDs that have a dashboard URL in the backend */
 const HAS_DASHBOARD = new Set([
-  "codex", "claude", "copilot", "cursor", "gemini", "antigravity",
-  "factory", "augment", "kilo", "amp", "openrouter", "warp", "zai",
-  "minimax", "kiro", "opencode",
-]);
-/** Provider IDs that have a status page URL in the backend */
-const HAS_STATUS_PAGE = new Set([
-  "codex", "claude", "copilot", "cursor", "gemini",
+  "codex",
+  "claude",
+  "copilot",
+  "cursor",
+  "gemini",
+  "antigravity",
+  "factory",
+  "augment",
+  "kilo",
+  "amp",
+  "openrouter",
+  "warp",
+  "zai",
+  "minimax",
+  "kiro",
+  "opencode",
 ]);
 
-function getProviderStatus(
-  p: ProviderUsageSnapshot,
-): "ok" | "warning" | "exhausted" | "error" {
+/** Provider IDs that have a status page URL in the backend */
+const HAS_STATUS_PAGE = new Set([
+  "codex",
+  "claude",
+  "copilot",
+  "cursor",
+  "gemini",
+]);
+
+type ProviderStatus = "ok" | "warning" | "exhausted" | "error";
+
+function getProviderStatus(p: ProviderUsageSnapshot): ProviderStatus {
   if (p.error) return "error";
   if (p.primary.isExhausted) return "exhausted";
-  if (p.primary.usedPercent > 80) return "warning";
+  if (p.primary.usedPercent >= 80) return "warning";
   return "ok";
 }
-void getProviderStatus;
+
+function statusLabel(status: ProviderStatus): string {
+  switch (status) {
+    case "error":
+      return "Needs attention";
+    case "exhausted":
+      return "Exhausted";
+    case "warning":
+      return "Running low";
+    case "ok":
+    default:
+      return "Healthy";
+  }
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, value));
+}
+
+function remainingPercent(provider: ProviderUsageSnapshot): number {
+  return Math.round(clampPercent(provider.primary.remainingPercent));
+}
 
 /** Sort: highest primary used% first, then alphabetical by name. */
 function sortProviders(
@@ -50,11 +95,6 @@ function sortProviders(
   });
 }
 
-/**
- * Tray popover surface — two modes like macOS CodexBar:
- * 1. Overview (default): provider grid + all cards stacked
- * 2. Detail: click a provider in grid → show only that provider's card
- */
 export default function TrayPanel({ state }: { state: BootstrapState }) {
   const {
     providers: realProviders,
@@ -66,50 +106,38 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
   const { settings } = useSettings(state.settings);
   const { updateState, checkNow, download, apply, dismiss, openRelease } =
     useUpdateState();
-  const { t } = useLocale();
 
   const sorted = useMemo(() => sortProviders(providers), [providers]);
-
-  // null = overview (all providers), string = single provider detail
-  // Default to overview like macOS — shows all cards sorted by priority
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
     null,
   );
 
-  // Hide panel during the initial resize+reposition dance so the user
-  // doesn't see the window jump around.  Revealed after first layout pass.
+  const activeProvider = useMemo(() => {
+    if (sorted.length === 0) return null;
+    if (selectedProviderId) {
+      return sorted.find((p) => p.providerId === selectedProviderId) ?? sorted[0];
+    }
+    return sorted[0];
+  }, [selectedProviderId, sorted]);
+
   const [layoutReady, setLayoutReady] = useState(false);
   const layoutReadyRef = useRef(false);
   const resizeRunRef = useRef(0);
 
-  // Cards to display based on mode
-  // Overview: all providers in the grid — non-error first, then errors
-  // Detail: only the selected provider's card (macOS shows single provider)
-  const visibleProviders = useMemo(() => {
-    if (selectedProviderId === null) {
-      // Overview: show all providers (they have data, email, or error), non-error first
-      const normal = sorted.filter((p) => !p.error);
-      const errors = sorted.filter((p) => !!p.error);
-      return [...normal, ...errors];
-    }
-    // Detail: show ONLY the selected provider (macOS behavior — no appended errors)
-    const match = sorted.find((p) => p.providerId === selectedProviderId);
-    if (!match) {
-      const normal = sorted.filter((p) => !p.error);
-      const errors = sorted.filter((p) => !!p.error);
-      return [...normal, ...errors];
-    }
-    return [match];
-  }, [sorted, selectedProviderId]);
-
-  // Dynamically size the Tauri window to fit content, capped at 800px.
-  // The first pass can grow the hidden window for a complete measurement.
-  // Later content updates measure in-place so the visible panel does not
-  // bounce to max height and back while providers finish refreshing.
   useEffect(() => {
-    const TRAY_WIDTH = 310;
-    const MAX_HEIGHT = 800;
-    const MIN_HEIGHT = 200;
+    if (
+      selectedProviderId &&
+      !sorted.some((p) => p.providerId === selectedProviderId)
+    ) {
+      setSelectedProviderId(null);
+    }
+  }, [selectedProviderId, sorted]);
+
+  // Dynamically size the Tauri window to fit content, capped for tray use.
+  useEffect(() => {
+    const TRAY_WIDTH = 408;
+    const MAX_HEIGHT = 760;
+    const MIN_HEIGHT = 260;
 
     const resize = async () => {
       const run = ++resizeRunRef.current;
@@ -119,7 +147,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
       const body = surface.querySelector<HTMLElement>(".menu-surface__body");
       const stack = surface.querySelector<HTMLElement>(".menu-stack");
-
       const previous = {
         htmlOverflow: document.documentElement.style.overflow,
         bodyOverflow: document.body.style.overflow,
@@ -137,8 +164,11 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
       document.body.style.minHeight = "0";
       surface.style.maxHeight = "none";
       surface.style.overflow = "visible";
-      if (body) { body.style.overflow = "visible"; body.style.flex = "0 0 auto"; }
-      if (stack) { stack.style.overflow = "visible"; }
+      if (body) {
+        body.style.overflow = "visible";
+        body.style.flex = "0 0 auto";
+      }
+      if (stack) stack.style.overflow = "visible";
 
       try {
         if (!layoutReadyRef.current) {
@@ -154,7 +184,6 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
 
         if (run !== resizeRunRef.current) return;
 
-        // Scan all descendants to find true content extent
         const surfaceRect = surface.getBoundingClientRect();
         let maxBottom = surfaceRect.bottom;
         for (const el of surface.querySelectorAll("*")) {
@@ -162,25 +191,15 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           if (r.height > 0 && r.bottom > maxBottom) maxBottom = r.bottom;
         }
 
-        // Also check the footer explicitly — it may lay out below the
-        // surface border-box when body flex overflows the auto-height parent.
-        const footer = surface.querySelector<HTMLElement>(".menu-surface__footer");
-        const footerRect = footer?.getBoundingClientRect();
-        if (footerRect && footerRect.height > 0 && footerRect.bottom > maxBottom) {
-          maxBottom = footerRect.bottom;
-        }
-
         const contentHeight = Math.ceil(maxBottom - surfaceRect.top) + 4;
         const height = Math.min(Math.max(contentHeight, MIN_HEIGHT), MAX_HEIGHT);
 
-        // Lock surface to measured content height.
         surface.style.maxHeight = `${height}px`;
         committedHeight = true;
 
         await win.setSize(new LogicalSize(TRAY_WIDTH, height));
         await reanchorTrayPanel().catch(() => {});
 
-        // First layout pass complete — reveal the panel
         if (run === resizeRunRef.current) {
           layoutReadyRef.current = true;
           setLayoutReady(true);
@@ -197,9 +216,7 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           body.style.overflow = previous.bodyInnerOverflow ?? "";
           body.style.flex = previous.bodyFlex ?? "";
         }
-        if (stack) {
-          stack.style.overflow = previous.stackOverflow ?? "";
-        }
+        if (stack) stack.style.overflow = previous.stackOverflow ?? "";
       }
     };
 
@@ -208,39 +225,28 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     return () => {
       clearTimeout(t0);
     };
-  }, [visibleProviders, providers]);
+  }, [activeProvider, sorted, isRefreshing, hasCachedData]);
 
   const openSettings = useCallback(() => {
     void openSettingsWindow("general").finally(() => {
       void getCurrentWindow().close();
     });
   }, []);
+
   const openPopOut = useCallback(() => {
     setSurfaceMode("popOut", { kind: "dashboard" });
   }, []);
+
   const openAbout = useCallback(() => {
     void openSettingsWindow("about").finally(() => {
       void getCurrentWindow().close();
     });
   }, []);
-  const quitApp = useCallback(() => {
+
+  const closePanel = useCallback(() => {
     void getCurrentWindow().close();
   }, []);
 
-  const headerActions = [
-    { icon: "⧉", title: t("TooltipPopOut"), onClick: openPopOut },
-  ];
-
-  // Icon parity with macOS MenuDescriptor: only Refresh has an SF Symbol.
-  // Settings / About / Quit render as plain text rows (no icon column).
-  const footerRows: MenuFooterRow[] = [
-    { icon: "↻", label: "Refresh", shortcut: "Ctrl+R", onClick: refresh },
-    { icon: "", label: "Settings\u2026", shortcut: "Ctrl+,", onClick: openSettings },
-    { icon: "", label: "About CodexBar", onClick: openAbout },
-    { icon: "", label: "Quit", shortcut: "Ctrl+Q", onClick: quitApp },
-  ];
-
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!e.ctrlKey || e.shiftKey || e.altKey || e.metaKey) return;
@@ -255,20 +261,13 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
           break;
         case "q":
           e.preventDefault();
-          quitApp();
+          closePanel();
           break;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [refresh, openSettings, quitApp]);
-
-  const handleGridClick = useCallback(
-    (providerId: string | null) => {
-      setSelectedProviderId(providerId);
-    },
-    [],
-  );
+  }, [refresh, openSettings, closePanel]);
 
   const banner = (
     <UpdateBanner
@@ -281,129 +280,362 @@ export default function TrayPanel({ state }: { state: BootstrapState }) {
     />
   );
 
-  if (sorted.length === 0) {
-    return (
-      <div className={`tray-panel-reveal${layoutReady ? " tray-panel-reveal--ready" : ""}`}>
+  const errorCount = sorted.filter((p) => !!p.error).length;
+  const warningCount = sorted.filter(
+    (p) => getProviderStatus(p) === "warning" || getProviderStatus(p) === "exhausted",
+  ).length;
+
+  const headerSubtitle = isRefreshing
+    ? "Refreshing provider data"
+    : sorted.length === 0
+      ? "No providers configured"
+      : [
+          `${sorted.length} active`,
+          errorCount > 0 ? `${errorCount} need attention` : null,
+          warningCount > 0 ? `${warningCount} running low` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+
+  const activeProviderId = activeProvider?.providerId ?? null;
+
+  return (
+    <div
+      className={`tray-panel-reveal${layoutReady ? " tray-panel-reveal--ready" : ""}`}
+    >
       <MenuSurface
         variant="tray"
         onRefresh={refresh}
         isRefreshing={isRefreshing}
-        actions={headerActions}
+        actions={[]}
         banner={banner}
-        footerRows={footerRows}
       >
-        <MenuEmpty
-          isLoading={isRefreshing && !hasCachedData}
-          onSettings={openSettings}
-        />
-      </MenuSurface>
-      </div>
-    );
-  }
+        <div className="tray-modern">
+          <TrayHeader
+            subtitle={headerSubtitle}
+            isRefreshing={isRefreshing}
+            onRefresh={refresh}
+            onPopOut={openPopOut}
+            onSettings={openSettings}
+            onClose={closePanel}
+          />
 
-  return (
-    <div className={`tray-panel-reveal${layoutReady ? " tray-panel-reveal--ready" : ""}`}>
-    <MenuSurface
-      variant="tray"
-      onRefresh={refresh}
-      isRefreshing={isRefreshing}
-      actions={headerActions}
-      banner={banner}
-      footerRows={footerRows}
-    >
-      <div className="provider-grid">
-        {/* Overview button — first item like macOS */}
-        <button
-          type="button"
-          className={`provider-grid__item${selectedProviderId === null ? " provider-grid__item--active" : ""}`}
-          onClick={() => handleGridClick(null)}
-          title="Overview"
-        >
-          <span className="provider-grid__icon-overview">⊞</span>
-          <span className="provider-grid__label">All</span>
-        </button>
-        {providers.map((p) => (
-          <button
-            key={p.providerId}
-            type="button"
-            className={`provider-grid__item${p.providerId === selectedProviderId ? " provider-grid__item--active" : ""}`}
-            onClick={() => handleGridClick(p.providerId)}
-            title={p.displayName}
-          >
-            <ProviderIcon providerId={p.providerId} size={16} />
-            <span className="provider-grid__label">{p.displayName}</span>
-            {/* Weekly indicator bar — matches macOS ProviderSwitcherView */}
-            {!p.error && (
-              <span
-                className="provider-grid__weekly-track"
-                style={{
-                  "--weekly-pct": `${Math.max(0, Math.min(100, p.primary.remainingPercent))}%`,
-                  "--weekly-color": getProviderIcon(p.providerId).brandColor,
-                } as React.CSSProperties}
-              />
-            )}
-          </button>
-        ))}
-      </div>
-      <div className="provider-grid__divider" />
-      <div className="menu-stack">
-        {visibleProviders.map((p, idx) => {
-          const isSelected =
-            selectedProviderId !== null && p.providerId === selectedProviderId;
-          return (
-            <Fragment key={p.providerId}>
-              {idx > 0 && <div className="menu-stack__sep" />}
-              <div
-                className={`menu-stack__item${isSelected ? " menu-stack__item--selected" : ""}`}
-                id={`card-${p.providerId}`}
-              >
-                <MenuCard
-                  provider={p}
-                  hideEmail={settings.hidePersonalInfo}
-                  resetTimeRelative={settings.resetTimeRelative}
-                />
+          {sorted.length === 0 ? (
+            <MenuEmpty
+              isLoading={isRefreshing && !hasCachedData}
+              onSettings={openSettings}
+            />
+          ) : (
+            <>
+              <section className="tray-provider-list" aria-label="Providers">
+                {sorted.map((provider) => (
+                  <ProviderSummaryRow
+                    key={provider.providerId}
+                    provider={provider}
+                    selected={provider.providerId === activeProviderId}
+                    resetTimeRelative={settings.resetTimeRelative}
+                    onSelect={() => setSelectedProviderId(provider.providerId)}
+                  />
+                ))}
+              </section>
+
+              {activeProvider && (
+                <section className="tray-modern-detail" aria-label="Provider details">
+                  <div className="tray-modern-detail__bar">
+                    <div>
+                      <span className="tray-modern-detail__eyebrow">
+                        Details
+                      </span>
+                      <span className="tray-modern-detail__title">
+                        {activeProvider.displayName}
+                      </span>
+                    </div>
+                    <ProviderActions providerId={activeProvider.providerId} />
+                  </div>
+                  <div className="menu-stack">
+                    <div
+                      className="menu-stack__item menu-stack__item--selected"
+                      id={`card-${activeProvider.providerId}`}
+                    >
+                      <MenuCard
+                        provider={activeProvider}
+                        hideEmail={settings.hidePersonalInfo}
+                        resetTimeRelative={settings.resetTimeRelative}
+                      />
+                    </div>
+                  </div>
+                </section>
+              )}
+
+              <div className="tray-modern-footer">
+                <button type="button" onClick={openAbout}>
+                  About
+                </button>
+                <button type="button" onClick={closePanel}>
+                  Close
+                </button>
               </div>
-            </Fragment>
-          );
-        })}
-      </div>
-      {/* Context actions — detail mode only, matches macOS actionsSection */}
-      {selectedProviderId && (HAS_DASHBOARD.has(selectedProviderId) || HAS_STATUS_PAGE.has(selectedProviderId)) && (
-        <div className="context-actions">
-          <div className="context-actions__divider" />
-          {HAS_DASHBOARD.has(selectedProviderId) && (
-            <button
-              type="button"
-              className="context-actions__btn"
-              onClick={() => void openProviderDashboard(selectedProviderId)}
-            >
-              <span className="context-actions__icon" aria-hidden>
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="2" y="9" width="2.5" height="5" rx="0.6" fill="currentColor" />
-                  <rect x="6.75" y="6" width="2.5" height="8" rx="0.6" fill="currentColor" />
-                  <rect x="11.5" y="3" width="2.5" height="11" rx="0.6" fill="currentColor" />
-                </svg>
-              </span>
-              Usage Dashboard
-            </button>
-          )}
-          {HAS_STATUS_PAGE.has(selectedProviderId) && (
-            <button
-              type="button"
-              className="context-actions__btn"
-              onClick={() => void openProviderStatusPage(selectedProviderId)}
-            >
-              <span className="context-actions__icon" aria-hidden>
-                <svg width="14" height="13" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M1 7H4L5.5 3L8 11L10.5 5L12 7H17" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                </svg>
-              </span>
-              Status Page
-            </button>
+            </>
           )}
         </div>
-      )}
-    </MenuSurface>
+      </MenuSurface>
     </div>
+  );
+}
+
+function TrayHeader({
+  subtitle,
+  isRefreshing,
+  onRefresh,
+  onPopOut,
+  onSettings,
+  onClose,
+}: {
+  subtitle: string;
+  isRefreshing: boolean;
+  onRefresh: () => void;
+  onPopOut: () => void;
+  onSettings: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <header className="tray-modern-header">
+      <div className="tray-modern-brand">
+        <span className="tray-modern-brand__mark" aria-hidden>
+          <MeterIcon />
+        </span>
+        <span className="tray-modern-brand__text">
+          <span className="tray-modern-brand__title">CodexBar</span>
+          <span className="tray-modern-brand__subtitle">{subtitle}</span>
+        </span>
+      </div>
+      <div className="tray-modern-actions" aria-label="Tray commands">
+        <TrayIconButton
+          title="Refresh (Ctrl+R)"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+        >
+          <RefreshIcon spinning={isRefreshing} />
+        </TrayIconButton>
+        <TrayIconButton title="Pop out" onClick={onPopOut}>
+          <PopOutIcon />
+        </TrayIconButton>
+        <TrayIconButton title="Settings (Ctrl+,)" onClick={onSettings}>
+          <SettingsIcon />
+        </TrayIconButton>
+        <TrayIconButton title="Close (Ctrl+Q)" onClick={onClose}>
+          <CloseIcon />
+        </TrayIconButton>
+      </div>
+    </header>
+  );
+}
+
+function ProviderSummaryRow({
+  provider,
+  selected,
+  resetTimeRelative,
+  onSelect,
+}: {
+  provider: ProviderUsageSnapshot;
+  selected: boolean;
+  resetTimeRelative: boolean;
+  onSelect: () => void;
+}) {
+  const status = getProviderStatus(provider);
+  const remaining = remainingPercent(provider);
+  const brand = getProviderIcon(provider.providerId).brandColor;
+  const resetText = useFormattedResetTime(
+    provider.primary.resetsAt,
+    provider.primary.resetDescription,
+    resetTimeRelative,
+  );
+  const primaryLabel = provider.primaryLabel ?? "Usage";
+  const metricText = provider.error ? "Fix" : `${remaining}% left`;
+  const meta = provider.error
+    ? provider.error
+    : [primaryLabel, resetText].filter(Boolean).join(" · ");
+
+  const style = {
+    "--provider-brand": brand,
+    "--remaining-pct": provider.error ? "0%" : `${remaining}%`,
+  } as CSSProperties;
+
+  return (
+    <button
+      type="button"
+      className={`tray-provider-row${selected ? " tray-provider-row--selected" : ""}`}
+      data-status={status}
+      onClick={onSelect}
+      style={style}
+      aria-pressed={selected}
+    >
+      <span className="tray-provider-row__accent" aria-hidden />
+      <ProviderIcon providerId={provider.providerId} size={28} />
+      <span className="tray-provider-row__main">
+        <span className="tray-provider-row__top">
+          <span className="tray-provider-row__name">{provider.displayName}</span>
+          {provider.planName && (
+            <span className="tray-provider-row__plan">{provider.planName}</span>
+          )}
+        </span>
+        <span className="tray-provider-row__meta">{meta}</span>
+        <span className="tray-provider-row__track" aria-hidden>
+          <span className="tray-provider-row__fill" />
+        </span>
+      </span>
+      <span className="tray-provider-row__side">
+        <span className="tray-provider-row__metric">{metricText}</span>
+        <span className="tray-status-chip" data-status={status}>
+          {statusLabel(status)}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function ProviderActions({ providerId }: { providerId: string }) {
+  const canDashboard = HAS_DASHBOARD.has(providerId);
+  const canStatus = HAS_STATUS_PAGE.has(providerId);
+
+  if (!canDashboard && !canStatus) return null;
+
+  return (
+    <div className="tray-provider-actions">
+      {canDashboard && (
+        <button
+          type="button"
+          className="tray-command-button"
+          onClick={() => void openProviderDashboard(providerId)}
+        >
+          <DashboardIcon />
+          Dashboard
+        </button>
+      )}
+      {canStatus && (
+        <button
+          type="button"
+          className="tray-command-button"
+          onClick={() => void openProviderStatusPage(providerId)}
+        >
+          <PulseIcon />
+          Status
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TrayIconButton({
+  title,
+  disabled,
+  onClick,
+  children,
+}: {
+  title: string;
+  disabled?: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className="tray-icon-button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SvgIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.55"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      {children}
+    </svg>
+  );
+}
+
+function MeterIcon() {
+  return (
+    <SvgIcon>
+      <path d="M2.5 12.5h11" />
+      <path d="M4 10V6.5" />
+      <path d="M8 10V3.5" />
+      <path d="M12 10V7.5" />
+    </SvgIcon>
+  );
+}
+
+function RefreshIcon({ spinning }: { spinning?: boolean }) {
+  return (
+    <span className={spinning ? "spin" : undefined}>
+      <SvgIcon>
+        <path d="M13 5.2A5.4 5.4 0 0 0 3.7 3.7L2.5 5" />
+        <path d="M2.5 2.2V5h2.8" />
+        <path d="M3 10.8a5.4 5.4 0 0 0 9.3 1.5l1.2-1.3" />
+        <path d="M13.5 13.8V11h-2.8" />
+      </SvgIcon>
+    </span>
+  );
+}
+
+function PopOutIcon() {
+  return (
+    <SvgIcon>
+      <rect x="3" y="5" width="8" height="8" rx="1.4" />
+      <path d="M8.5 3H13v4.5" />
+      <path d="M8.5 7.5 13 3" />
+    </SvgIcon>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <SvgIcon>
+      <circle cx="8" cy="8" r="2.2" />
+      <path d="M8 1.8v1.5M8 12.7v1.5M2.6 4.1l1.1.9M12.3 11l1.1.9M1.8 8h1.5M12.7 8h1.5M2.6 11.9l1.1-.9M12.3 5l1.1-.9" />
+    </SvgIcon>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <SvgIcon>
+      <path d="M4.5 4.5 11.5 11.5" />
+      <path d="M11.5 4.5 4.5 11.5" />
+    </SvgIcon>
+  );
+}
+
+function DashboardIcon() {
+  return (
+    <SvgIcon>
+      <path d="M3 13V8" />
+      <path d="M8 13V4" />
+      <path d="M13 13V6.5" />
+      <path d="M2 13.5h12" />
+    </SvgIcon>
+  );
+}
+
+function PulseIcon() {
+  return (
+    <SvgIcon>
+      <path d="M1.5 8h3l1.4-4 3 8 1.6-4h4" />
+    </SvgIcon>
   );
 }

@@ -28,10 +28,9 @@ interface MenuSurfaceProps {
 /**
  * Flush, compact container that both `TrayPanel` and `PopOutPanel` consume.
  *
- * Mirrors the upstream macOS `MenuContent`: a narrow VStack(spacing: 8)
- * inside an NSMenu-like popover (310pt wide, vertical 6 / horizontal 10
- * padding, no hero framing). The body holds a stack of full provider
- * cards (`MenuCard`) — one per enabled provider — exactly like upstream.
+ * Shared container for the tray and pop-out surfaces. The Windows tray
+ * overrides its visual treatment in CSS; this component keeps common banner,
+ * body, and footer structure available to both surfaces.
  */
 export default function MenuSurface({
   variant,
