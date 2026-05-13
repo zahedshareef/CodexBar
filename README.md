@@ -21,7 +21,10 @@ CodexBar for Windows is a modern Tauri + React port of [CodexBar](https://github
 - **Browser cookie import** — Chrome, Edge, Brave, Firefox, with browser access kept opt-in
 - **Per-provider credentials** — API keys, cookies, and OAuth all managed from the provider detail pane
 - **Credential hardening** — local secret-bearing stores are protected with Windows DPAPI on save
+- **First-run setup** — Settings opens with provider, diagnostics, and update shortcuts for new installs
+- **Provider diagnostics** — copy a safe JSON snapshot for troubleshooting without exposing secrets
 - **Windows release packaging** — Inno Setup installer, standalone portable exe, WebView2 runtime bootstrap, VC++ runtime bootstrap, and SHA-256 checksum files
+- **Release trust hooks** — optional Authenticode signing for trusted release builds
 - **Provider changelog links** — optional release-note shortcuts for supported CLI-backed providers
 - **CLI** — `codexbar usage` and `codexbar cost` for scripting and CI
 - **WSL support** — CLI works out of the box; desktop shell via WSLg
@@ -32,6 +35,7 @@ CodexBar for Windows is a modern Tauri + React port of [CodexBar](https://github
 - Ported the upstream provider changelog-link setting and supported provider URLs.
 - Reworked the tray panel and Settings/About screens for a more native-feeling Windows desktop experience.
 - Added a reproducible local release script for portable and installer assets.
+- Added first-run setup, provider diagnostics export, checksum generation, and optional signing hooks for Windows releases.
 - Preserved upstream MIT license attribution and linked the original project contributors.
 - Verified with frontend tests, Rust tests, a Tauri debug build, release-asset dry run, and visual proof screenshots.
 
@@ -67,6 +71,7 @@ The script writes release-ready files under `rust\target\release-assets`:
 - **Checksums**: each release includes `.sha256` files for manual verification
 
 Use `-SkipInstaller` to produce only the portable exe when Inno Setup is not installed.
+Set `WINDOWS_SIGNING_CERT_PATH` and run with `-RequireSigning` to sign the portable exe, installed executable, and installer before checksums are generated.
 
 The installer includes the desktop app, Microsoft's Evergreen WebView2 bootstrapper, app icon, Start Menu shortcut, uninstall metadata, and the Visual C++ runtime bootstrap needed on clean Windows machines. The portable exe is the same desktop app without installer integration; release builds statically link the WebView2 loader, so portable users only need the Microsoft Edge WebView2 Runtime installed on the machine.
 
@@ -77,6 +82,7 @@ The installer includes the desktop app, Microsoft's Evergreen WebView2 bootstrap
 3. Open **Settings → Providers**, enable the services you use
 4. For cookie-based providers, click the provider and use **Browser Cookies → Import**
 5. For CLI-based providers (`codex`, `claude`, `gemini`), make sure you're logged in
+6. Open **Settings → Advanced → Diagnostics** to copy a safe support snapshot when a provider does not refresh
 
 ## CLI
 
@@ -144,6 +150,7 @@ codexbar cost  -p codex           # local cost from JSONL logs
 | Topic | Link |
 |-------|------|
 | Building from source | [extra-docs/BUILDING.md](extra-docs/BUILDING.md) |
+| Release trust & signing | [docs/RELEASE_TRUST.md](docs/RELEASE_TRUST.md) |
 | WSL setup & auth tips | [extra-docs/WSL.md](extra-docs/WSL.md) |
 | Browser cookie details | [extra-docs/COOKIES.md](extra-docs/COOKIES.md) |
 

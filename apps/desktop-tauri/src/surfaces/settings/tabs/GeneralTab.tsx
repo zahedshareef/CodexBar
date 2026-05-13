@@ -4,6 +4,9 @@ import { playNotificationSound, quitApp } from "../../../lib/tauri";
 import { Field, NumberInput, Select, Toggle } from "../../../components/FormControls";
 import type { TabProps } from "../../Settings";
 
+const FIRST_RUN_SETUP_DISMISSED_KEY = "codexbar:first-run-setup-dismissed";
+const FIRST_RUN_PROVIDER_DEFAULTS = ["codex", "claude", "gemini"];
+
 const REFRESH_CADENCE_OPTIONS: { value: string; label: string }[] = [
   { value: "0", label: "Manual" },
   { value: "60", label: "1 minute" },
@@ -13,7 +16,121 @@ const REFRESH_CADENCE_OPTIONS: { value: string; label: string }[] = [
   { value: "3600", label: "1 hour" },
 ];
 
-export default function GeneralTab({ settings, set, saving }: TabProps) {
+function readFirstRunDismissed(): boolean {
+  try {
+    return window.localStorage.getItem(FIRST_RUN_SETUP_DISMISSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeFirstRunDismissed(): void {
+  try {
+    window.localStorage.setItem(FIRST_RUN_SETUP_DISMISSED_KEY, "1");
+  } catch {
+    // Non-critical; the card can reappear if storage is unavailable.
+  }
+}
+
+function FirstRunSetup({ settings, set, saving, openTab }: TabProps) {
+  const [dismissed, setDismissed] = useState(readFirstRunDismissed);
+  const enabledCount = settings.enabledProviders.length;
+  const hasCliDefaults = FIRST_RUN_PROVIDER_DEFAULTS.every((provider) =>
+    settings.enabledProviders.includes(provider),
+  );
+
+  if (dismissed) {
+    return null;
+  }
+
+  const enableCliDefaults = () => {
+    const next = Array.from(
+      new Set([...settings.enabledProviders, ...FIRST_RUN_PROVIDER_DEFAULTS]),
+    ).sort();
+    set({ enabledProviders: next });
+  };
+
+  const dismiss = () => {
+    writeFirstRunDismissed();
+    setDismissed(true);
+  };
+
+  return (
+    <section className="settings-section first-run-setup">
+      <div className="first-run-setup__header">
+        <div className="first-run-setup__copy">
+          <h3>First-run setup</h3>
+          <p>
+            Enable the providers you use, then keep diagnostics ready for
+            provider refresh issues.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="credential-btn"
+          onClick={dismiss}
+          aria-label="Dismiss first-run setup"
+        >
+          Dismiss
+        </button>
+      </div>
+
+      <div className="first-run-setup__actions">
+        <button
+          type="button"
+          className="first-run-setup__action"
+          onClick={() => openTab?.("providers")}
+        >
+          <span className="first-run-setup__index">1</span>
+          <span>
+            <strong>Providers</strong>
+            <small>{enabledCount} enabled</small>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="first-run-setup__action"
+          disabled={saving || hasCliDefaults}
+          onClick={enableCliDefaults}
+        >
+          <span className="first-run-setup__index">2</span>
+          <span>
+            <strong>CLI defaults</strong>
+            <small>{hasCliDefaults ? "Enabled" : "Codex, Claude, Gemini"}</small>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="first-run-setup__action"
+          onClick={() => openTab?.("advanced")}
+        >
+          <span className="first-run-setup__index">3</span>
+          <span>
+            <strong>Diagnostics</strong>
+            <small>Safe support snapshot</small>
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="first-run-setup__action"
+          onClick={() => openTab?.("about")}
+        >
+          <span className="first-run-setup__index">4</span>
+          <span>
+            <strong>Updates</strong>
+            <small>{settings.updateChannel}</small>
+          </span>
+        </button>
+      </div>
+    </section>
+  );
+}
+
+export default function GeneralTab(props: TabProps) {
+  const { settings, set, saving } = props;
   const { t } = useLocale();
   const [playingSound, setPlayingSound] = useState(false);
 
@@ -29,6 +146,8 @@ export default function GeneralTab({ settings, set, saving }: TabProps) {
 
   return (
     <>
+      <FirstRunSetup {...props} />
+
       <section className="settings-section">
         <h3 className="settings-section__title">{t("StartupSettings")}</h3>
         <div className="settings-section__group">

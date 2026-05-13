@@ -7,6 +7,7 @@ import {
 import { ShortcutCapture } from "../../../components/ShortcutCapture";
 import { Field, Toggle } from "../../../components/FormControls";
 import type { TabProps } from "../../Settings";
+import { DiagnosticsPanel } from "../DiagnosticsPanel";
 
 export default function AdvancedTab({ settings, set, saving }: TabProps) {
   const { t } = useLocale();
@@ -140,6 +141,8 @@ export default function AdvancedTab({ settings, set, saving }: TabProps) {
           </Field>
         </div>
       </section>
+
+      <DiagnosticsPanel />
     </>
   );
 }

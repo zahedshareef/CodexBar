@@ -211,7 +211,12 @@ export default function Settings({ state, initialTab: propTab }: { state: Bootst
       {/* tab panels */}
       <div className={`settings-body${activeTab === "providers" ? " settings-body--providers" : ""}`}>
         {activeTab === "general" && (
-          <GeneralTab settings={settings} set={set} saving={saving} />
+          <GeneralTab
+            settings={settings}
+            set={set}
+            saving={saving}
+            openTab={handleTabClick}
+          />
         )}
         {activeTab === "providers" && (
           <ProvidersTab
@@ -241,4 +246,5 @@ export interface TabProps {
   settings: BootstrapState["settings"];
   set: (p: SettingsUpdate) => void;
   saving: boolean;
+  openTab?: (tab: SettingsTabId) => void;
 }

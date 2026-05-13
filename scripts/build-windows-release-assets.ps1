@@ -3,7 +3,11 @@ param(
     [string]$Configuration = "release",
     [switch]$SkipNpmInstall,
     [switch]$SkipInstaller,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [string]$SigningCertPath = $env:WINDOWS_SIGNING_CERT_PATH,
+    [string]$SigningCertPasswordEnv = "WINDOWS_SIGNING_CERT_PASSWORD",
+    [string]$SigningTimestampUrl = "http://timestamp.digicert.com",
+    [switch]$RequireSigning
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,6 +52,29 @@ function Get-IsccPath {
     return $null
 }
 
+function Get-SignToolPath {
+    $command = Get-Command signtool.exe -ErrorAction SilentlyContinue
+    if ($command) {
+        return $command.Source
+    }
+
+    $sdkBinRoot = Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"
+    if (-not (Test-Path -LiteralPath $sdkBinRoot)) {
+        return $null
+    }
+
+    $candidate = Get-ChildItem -LiteralPath $sdkBinRoot -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -like "*\x64\signtool.exe" } |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1
+
+    if ($candidate) {
+        return $candidate.FullName
+    }
+
+    return $null
+}
+
 function Assert-MicrosoftSignature {
     param(
         [string]$Path,
@@ -62,6 +89,69 @@ function Assert-MicrosoftSignature {
     $subject = $signature.SignerCertificate.Subject
     if ($subject -notlike "*Microsoft Corporation*") {
         throw "$Label signer is unexpected: $subject"
+    }
+}
+
+function Assert-StaticWebView2Loader {
+    param([string]$Path)
+
+    $objdump = Get-Command objdump.exe -ErrorAction SilentlyContinue
+    if (-not $objdump) {
+        return
+    }
+
+    $imports = & $objdump.Source -p $Path | Out-String
+    if ($imports -match "DLL Name:\s*WebView2Loader\.dll") {
+        throw "$Path imports WebView2Loader.dll, but release builds are expected to statically link the loader."
+    }
+}
+
+function Invoke-OptionalCodeSign {
+    param(
+        [string]$Path,
+        [string]$Label
+    )
+
+    if (-not $SigningCertPath) {
+        if ($RequireSigning) {
+            throw "Code signing is required but no certificate was provided. Set WINDOWS_SIGNING_CERT_PATH or pass -SigningCertPath."
+        }
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $SigningCertPath)) {
+        throw "Code signing certificate not found: $SigningCertPath"
+    }
+
+    $signtool = Get-SignToolPath
+    if (-not $signtool) {
+        throw "signtool.exe not found. Install the Windows SDK or rerun without signing."
+    }
+
+    $password = [System.Environment]::GetEnvironmentVariable($SigningCertPasswordEnv)
+    $args = @(
+        "sign",
+        "/fd", "SHA256",
+        "/tr", $SigningTimestampUrl,
+        "/td", "SHA256",
+        "/f", $SigningCertPath
+    )
+
+    if ($password) {
+        $args += @("/p", $password)
+    }
+
+    $args += $Path
+
+    Write-Step "signing $Label"
+    & $signtool @args
+    if ($LASTEXITCODE -ne 0) {
+        throw "Code signing failed for $Label"
+    }
+
+    $signature = Get-AuthenticodeSignature -FilePath $Path
+    if ($signature.Status -ne "Valid") {
+        throw "$Label signature is not valid after signing. Status: $($signature.Status)"
     }
 }
 
@@ -118,9 +208,11 @@ $sourceExe = Join-Path $binDir "codexbar-desktop-tauri.exe"
 if (-not (Test-Path -LiteralPath $sourceExe)) {
     throw "Missing expected Tauri executable: $sourceExe"
 }
+Assert-StaticWebView2Loader -Path $sourceExe
 
 $portableExe = Join-Path $assetDir "CodexBar-$appVersion-portable.exe"
 Copy-Item -LiteralPath $sourceExe -Destination $portableExe -Force
+Invoke-OptionalCodeSign -Path $portableExe -Label "portable executable"
 Save-Checksum -Path $portableExe
 Write-Step "portable asset: $portableExe"
 
@@ -148,6 +240,7 @@ if (-not $SkipInstaller) {
 
     $copiedExe = Join-Path $binDir "codexbar.exe"
     Copy-Item -LiteralPath $sourceExe -Destination $copiedExe -Force
+    Invoke-OptionalCodeSign -Path $copiedExe -Label "installed executable"
 
     Write-Step "building Inno Setup installer"
     Push-Location (Join-Path $repoRoot "rust\installer")
@@ -172,6 +265,7 @@ if (-not $SkipInstaller) {
 
     Copy-Item -LiteralPath $installer -Destination $assetDir -Force
     $assetInstaller = Join-Path $assetDir (Split-Path -Leaf $installer)
+    Invoke-OptionalCodeSign -Path $assetInstaller -Label "installer"
     Save-Checksum -Path $assetInstaller
     Write-Step "installer asset: $assetInstaller"
 }

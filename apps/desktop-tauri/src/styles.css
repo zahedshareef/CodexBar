@@ -5223,6 +5223,185 @@ body:has(.tray-modern) {
   color: var(--win-muted);
 }
 
+.first-run-setup {
+  border-bottom: none;
+}
+
+.first-run-setup__header,
+.diagnostics-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.first-run-setup__copy {
+  min-width: 0;
+}
+
+.first-run-setup__copy h3,
+.diagnostics-panel__header h4 {
+  margin: 0;
+  color: var(--win-text);
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.first-run-setup__copy p,
+.diagnostics-panel__header p {
+  margin: 5px 0 0;
+  color: var(--win-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.first-run-setup__actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.first-run-setup__action {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 10px;
+  border: 1px solid var(--win-border);
+  border-radius: var(--win-radius-md);
+  background: var(--win-surface);
+  color: var(--win-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.first-run-setup__action:hover:not(:disabled) {
+  background: var(--win-surface-hover);
+  border-color: color-mix(in srgb, var(--win-accent) 28%, var(--win-border));
+}
+
+.first-run-setup__action:disabled {
+  opacity: 0.58;
+  cursor: default;
+}
+
+.first-run-setup__index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--win-accent) 18%, transparent);
+  color: var(--win-accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.first-run-setup__action strong,
+.first-run-setup__action small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.first-run-setup__action strong {
+  font-size: 12px;
+}
+
+.first-run-setup__action small {
+  margin-top: 2px;
+  color: var(--win-muted);
+  font-size: 11px;
+}
+
+.diagnostics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--win-border);
+  border-radius: var(--win-radius-lg);
+  background: var(--win-surface);
+}
+
+.diagnostics-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.diagnostics-panel__stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.diagnostics-panel__stats > div {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--win-border);
+  border-radius: var(--win-radius-md);
+  background: color-mix(in srgb, var(--win-surface-raised) 72%, transparent);
+}
+
+.diagnostics-panel__stats span,
+.diagnostics-panel__stats strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagnostics-panel__stats span {
+  color: var(--win-subtle);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.diagnostics-panel__stats strong {
+  margin-top: 4px;
+  color: var(--win-text);
+  font-size: 13px;
+}
+
+.diagnostics-panel__storage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.diagnostics-panel__storage span {
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--win-border);
+  border-radius: 999px;
+  color: var(--win-muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.diagnostics-panel__output {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  padding: 10px;
+  border: 1px solid var(--win-border);
+  border-radius: var(--win-radius-md);
+  background: color-mix(in srgb, var(--win-bg) 72%, black 10%);
+  color: var(--win-text);
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .about-section {
   align-items: stretch;
   text-align: left;
@@ -5475,7 +5654,9 @@ body:has(.tray-modern) {
   }
 
   .about-meta-grid,
-  .about-links {
+  .about-links,
+  .first-run-setup__actions,
+  .diagnostics-panel__stats {
     grid-template-columns: 1fr;
     flex-direction: column;
   }
