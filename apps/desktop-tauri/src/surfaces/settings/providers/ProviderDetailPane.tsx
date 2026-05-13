@@ -31,6 +31,7 @@ import { QuickActionsSection } from "./sections/QuickActionsSection";
 import { ChartsSection } from "./sections/charts/ChartsSection";
 import { CookieSourceSection } from "./sections/CookieSourceSection";
 import { RegionSection } from "./sections/RegionSection";
+import { ProviderReadinessSection } from "./sections/ProviderReadinessSection";
 import { GeminiCliCreds } from "./sections/credentials/GeminiCliCreds";
 import { VertexAiCreds } from "./sections/credentials/VertexAiCreds";
 import { JetBrainsCreds } from "./sections/credentials/JetBrainsCreds";
@@ -45,6 +46,7 @@ import { MenuBarMetricSection } from "./sections/MenuBarMetricSection";
 interface Props {
   providerId: string | null;
   cookieDomain?: string | null;
+  enabledProviderIds: string[];
   resetTimeRelative: boolean;
   providerMetrics: SettingsSnapshot["providerMetrics"];
   settingsDisabled: boolean;
@@ -64,6 +66,7 @@ interface Props {
 export function ProviderDetailPane({
   providerId,
   cookieDomain = null,
+  enabledProviderIds,
   resetTimeRelative,
   providerMetrics,
   settingsDisabled,
@@ -241,6 +244,11 @@ export function ProviderDetailPane({
     void openProviderStatusPage(detail.id).catch((e) => setError(String(e)));
   };
 
+  const handleEnableProvider = () => {
+    const next = Array.from(new Set([...enabledProviderIds, detail.id])).sort();
+    onSettingsChange({ enabledProviders: next });
+  };
+
   const handleOpenChangelog = () => {
     void openProviderChangelog(detail.id).catch((e) => setError(String(e)));
   };
@@ -261,11 +269,14 @@ export function ProviderDetailPane({
     <div className="provider-detail">
       <IdentitySection provider={detail} subtitle={subtitle} t={t} />
 
-      {detail.lastError && (
-        <div className="provider-detail-error">
-          {t("ProviderLastFetchFailed")}: {detail.lastError}
-        </div>
-      )}
+      <ProviderReadinessSection
+        provider={detail}
+        busy={busy}
+        onEnable={handleEnableProvider}
+        onRefresh={handleRefresh}
+        onSwitchAccount={handleSwitchAccount}
+        onCopyError={handleCopyError}
+      />
 
       <UsageSection
         provider={detail}

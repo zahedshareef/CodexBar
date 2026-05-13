@@ -97,6 +97,7 @@ export default function ProvidersTab({
       <ProviderDetailPane
         providerId={selectedId}
         cookieDomain={selectedEntry?.cookieDomain ?? null}
+        enabledProviderIds={settings.enabledProviders}
         resetTimeRelative={settings.resetTimeRelative}
         providerMetrics={settings.providerMetrics}
         settingsDisabled={saving}
