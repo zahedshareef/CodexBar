@@ -1,42 +1,46 @@
-# Win-CodexBar
+# CodexBar for Windows
 
 [简体中文说明](./README.zh-CN.md)
 
-The Windows port of [CodexBar](https://github.com/steipete/CodexBar) — a system tray app that keeps your AI coding-tool usage limits visible at a glance.
+CodexBar for Windows is a modern Tauri + React port of [CodexBar](https://github.com/steipete/CodexBar), the macOS menu bar app for keeping AI coding-tool usage limits visible at a glance.
 
-> Built with **Tauri + React** on a shared **Rust** backend. The original CodexBar is a macOS Swift app by [Peter Steinberger](https://github.com/steipete).
+> The Windows shell is implemented with **Tauri + React** on a shared **Rust** backend. The original CodexBar is a macOS Swift app by [Peter Steinberger](https://github.com/steipete) and upstream contributors.
 
 <p align="center">
-  <img src="extra-docs/images/tray-panel.png" width="280" alt="Tray panel showing provider grid and Codex usage"/>
+  <img src="extra-docs/images/tray-panel-modern.png" width="320" alt="Modern Windows tray panel showing Codex usage"/>
   &nbsp;&nbsp;
-  <img src="extra-docs/images/settings-providers.png" width="480" alt="Settings — Providers tab"/>
+  <img src="extra-docs/images/settings-about-modern.png" width="640" alt="Modern Windows settings About tab"/>
 </p>
 
 ## Features
 
 - **40 AI providers** — Codex, Claude, Cursor, Factory, Gemini, Copilot, Antigravity, z.ai, MiniMax, Kiro, Vertex AI, Augment, OpenCode, Kimi, Kimi K2, Amp, Warp, Ollama, OpenRouter, Synthetic, JetBrains AI, Alibaba, NanoGPT, Infini, Perplexity, Abacus AI, Mistral, OpenCode Go, Kilo, Codebuff, DeepSeek, Windsurf, Manus, Xiaomi MiMo, Doubao, Command Code, Crof, StepFun, Venice, OpenAI API
+- **Modern Windows tray UI** — dense provider summary, clear usage state, provider actions, and Windows-friendly spacing
+- **Modern Settings/About surface** — wider desktop settings window, Fluent-inspired grouped controls, and explicit upstream attribution
 - **System tray icon** — dynamic two-bar meter showing session + weekly usage
 - **Browser cookie import** — Chrome, Edge, Brave, Firefox, with browser access kept opt-in
 - **Per-provider credentials** — API keys, cookies, and OAuth all managed from the provider detail pane
 - **Credential hardening** — local secret-bearing stores are protected with Windows DPAPI on save
 - **Windows release packaging** — Inno Setup installer, standalone portable exe, WebView2 runtime bootstrap, VC++ runtime bootstrap, and SHA-256 checksum files
+- **Provider changelog links** — optional release-note shortcuts for supported CLI-backed providers
 - **CLI** — `codexbar usage` and `codexbar cost` for scripting and CI
 - **WSL support** — CLI works out of the box; desktop shell via WSLg
 
-## What's New in v0.25.1
+## Windows Migration Status
 
-- Rebuilt and validated the Windows/Tauri release against the upstream **CodexBar 0.25.1** patch line.
-- Reviewed the upstream macOS/Swift fixes for Settings localization, Keychain cache writes, Pi session cost cache migration, Swift concurrency annotations, and Swift CLI archive version fallback. Those exact code paths do not exist in Win-CodexBar's Tauri/Rust shell, so v0.25.1 keeps the Windows runtime behavior from v0.25.0 while moving users onto the matching patch version.
-- Ported upstream v0.25 provider support for **Manus**, **Xiaomi MiMo**, **Doubao**, **Command Code**, **Crof**, **StepFun**, **Venice**, and **OpenAI API balance** to the Windows/Tauri Rust backend.
-- Added the new v0.25 providers to Settings → Providers, API-key management, cookie/token-account flows, provider search/aliases, and the tray/provider icon registry.
-- Added multi-window usage support for provider-specific credit, request, refresh, balance, token-plan, and API-credit displays.
+- Rebuilt and validated against the upstream **CodexBar 0.25.1** patch line.
+- Ported the upstream provider changelog-link setting and supported provider URLs.
+- Reworked the tray panel and Settings/About screens for a more native-feeling Windows desktop experience.
+- Added a reproducible local release script for portable and installer assets.
+- Preserved upstream MIT license attribution and linked the original project contributors.
+- Verified with frontend tests, Rust tests, a Tauri debug build, release-asset dry run, and visual proof screenshots.
 
 ## Quick Start
 
 ```powershell
 # Prerequisites: Node.js — Rust and MinGW are installed automatically
-git clone https://github.com/Finesssee/Win-CodexBar.git
-cd Win-CodexBar
+git clone https://github.com/zahedshareef/CodexBar.git
+cd CodexBar
 .\dev.ps1
 ```
 
@@ -47,21 +51,22 @@ The script installs Rust/MinGW if needed, builds the Tauri desktop shell, and la
 .\dev.ps1 -SkipBuild        # relaunch last build
 ```
 
-## Download
+## Release Assets
 
-Install with Windows Package Manager:
+Build local Windows release assets from the repository root:
 
 ```powershell
-winget install Finesssee.Win-CodexBar
+powershell -ExecutionPolicy Bypass `
+  -File .\scripts\build-windows-release-assets.ps1
 ```
 
-Winget distribution is approved through [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs/tree/master/manifests/f/Finesssee/Win-CodexBar). New releases may take a little time to appear in Winget after the GitHub release is published because each version is pinned to its own installer URL and SHA-256 hash.
-
-You can also grab the latest build from [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases).
+The script writes release-ready files under `rust\target\release-assets`:
 
 - **Installer**: `CodexBar-<version>-Setup.exe`
 - **Portable**: `CodexBar-<version>-portable.exe`
 - **Checksums**: each release includes `.sha256` files for manual verification
+
+Use `-SkipInstaller` to produce only the portable exe when Inno Setup is not installed.
 
 The installer includes the desktop app, Microsoft's Evergreen WebView2 bootstrapper, app icon, Start Menu shortcut, uninstall metadata, and the Visual C++ runtime bootstrap needed on clean Windows machines. The portable exe is the same desktop app without installer integration; release builds statically link the WebView2 loader, so portable users only need the Microsoft Edge WebView2 Runtime installed on the machine.
 

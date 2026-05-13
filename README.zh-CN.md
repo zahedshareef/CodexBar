@@ -1,42 +1,46 @@
-# Win-CodexBar
+# CodexBar for Windows
 
 [English README](./README.md)
 
-[CodexBar](https://github.com/steipete/CodexBar) 的 Windows 移植版 —— 一个系统托盘应用，让你随时掌握各个 AI 编程工具的用量额度。
+CodexBar for Windows 是 [CodexBar](https://github.com/steipete/CodexBar) 的现代 Windows 移植版，用系统托盘面板让你随时掌握各个 AI 编程工具的用量额度。
 
-> 基于 **Tauri + React** 构建，底层复用共享 **Rust** 后端。原版 CodexBar 是由 [Peter Steinberger](https://github.com/steipete) 开发的 macOS Swift 应用。
+> Windows 壳层基于 **Tauri + React** 构建，底层复用共享 **Rust** 后端。原版 CodexBar 是由 [Peter Steinberger](https://github.com/steipete) 和上游贡献者开发的 macOS Swift 应用。
 
 <p align="center">
-  <img src="extra-docs/images/tray-panel.png" width="280" alt="托盘面板 — 服务商网格与 Codex 用量"/>
+  <img src="extra-docs/images/tray-panel-modern.png" width="320" alt="现代 Windows 托盘面板，展示 Codex 用量"/>
   &nbsp;&nbsp;
-  <img src="extra-docs/images/settings-providers.png" width="480" alt="设置 — 服务商选项卡"/>
+  <img src="extra-docs/images/settings-about-modern.png" width="640" alt="现代 Windows 设置关于页"/>
 </p>
 
 ## 功能特性
 
 - **40 个 AI 服务商** — Codex、Claude、Cursor、Factory、Gemini、Copilot、Antigravity、z.ai、MiniMax、Kiro、Vertex AI、Augment、OpenCode、Kimi、Kimi K2、Amp、Warp、Ollama、OpenRouter、Synthetic、JetBrains AI、Alibaba、NanoGPT、Infini、Perplexity、Abacus AI、Mistral、OpenCode Go、Kilo、Codebuff、DeepSeek、Windsurf、Manus、小米 MiMo、Doubao、Command Code、Crof、StepFun、Venice、OpenAI API
+- **现代 Windows 托盘 UI** — 更紧凑的服务商摘要、清晰的用量状态、服务商快捷操作和适合 Windows 的间距
+- **现代设置 / 关于页** — 更宽的桌面设置窗口、Fluent 风格分组控件和明确的上游归属说明
 - **系统托盘图标** — 动态双条进度显示会话与周用量
 - **浏览器 Cookie 导入** — Chrome、Edge、Brave、Firefox（Windows DPAPI 解密）
 - **逐服务商凭据管理** — API Key、Cookie 和 OAuth 均可在服务商详情面板管理
 - **凭据加固** — 应用管理的本地敏感存储会在保存时使用 Windows DPAPI 保护
-- **Windows 发布打包** — Inno Setup 安装包、便携 zip、WebView2 旁加载 DLL、VC++ 运行库引导和 SHA-256 校验文件
+- **Windows 发布打包** — Inno Setup 安装包、便携 exe、WebView2 运行库引导、VC++ 运行库引导和 SHA-256 校验文件
+- **服务商变更日志链接** — 可选开启，为支持的 CLI 服务商显示 release notes 快捷入口
 - **CLI** — `codexbar usage` 和 `codexbar cost`，便于脚本化和 CI
 - **WSL 支持** — CLI 开箱即用，桌面壳层通过 WSLg 运行
 
-## v0.25.1 更新内容
+## Windows 迁移状态
 
-- 已基于上游 **CodexBar 0.25.1** 补丁线重新构建并验证 Windows/Tauri 版本
-- 已检查上游 macOS/Swift 修复：设置页本地化资源、Keychain 缓存写入、Pi 会话费用缓存迁移、Swift 并发标注和 Swift CLI 归档版本回退。这些代码路径不存在于 Win-CodexBar 的 Tauri/Rust 壳层中，因此 v0.25.1 保持 v0.25.0 的 Windows 运行时行为，同时同步补丁版本号
-- 新增上游 v0.25 服务商支持：**Manus**、**小米 MiMo**、**Doubao**、**Command Code**、**Crof**、**StepFun**、**Venice**、**OpenAI API 余额**
-- 新服务商已接入设置页、API Key 管理、Cookie / Token Account 流程、CLI 别名和托盘服务商图标注册表
-- 支持展示信用余额、请求额度、刷新额度、Token 套餐、购买额度、DIEM/USD 余额和 OpenAI API credit grants
+- 已基于上游 **CodexBar 0.25.1** 补丁线重新构建并验证。
+- 已移植上游服务商变更日志链接设置和支持的服务商 URL。
+- 已重做托盘面板和设置 / 关于页，让 Windows 桌面体验更自然。
+- 新增可复现的本地 Windows release 脚本，用于生成便携版和安装包资产。
+- 保留上游 MIT 许可证归属，并链接原项目贡献者。
+- 已通过前端测试、Rust 测试、Tauri debug 构建、release 脚本 dry run 和可视化 proof 截图验证。
 
 ## 快速开始
 
 ```powershell
 # 前置要求：Node.js — Rust 和 MinGW 将自动安装
-git clone https://github.com/Finesssee/Win-CodexBar.git
-cd Win-CodexBar
+git clone https://github.com/zahedshareef/CodexBar.git
+cd CodexBar
 .\dev.ps1
 ```
 
@@ -47,21 +51,22 @@ cd Win-CodexBar
 .\dev.ps1 -SkipBuild        # 跳过构建，直接启动
 ```
 
-## 下载
+## 发布资产
 
-使用 Windows Package Manager 安装：
+在仓库根目录生成本地 Windows release 资产：
 
 ```powershell
-winget install Finesssee.Win-CodexBar
+powershell -ExecutionPolicy Bypass `
+  -File .\scripts\build-windows-release-assets.ps1
 ```
 
-Winget 分发已通过 [microsoft/winget-pkgs](https://github.com/microsoft/winget-pkgs/tree/master/manifests/f/Finesssee/Win-CodexBar) 审核。GitHub Release 发布后，新版本可能需要一点时间才会出现在 Winget 中，因为每个版本都要固定自己的安装包 URL 和 SHA-256 哈希。
-
-也可以前往 [GitHub Releases](https://github.com/Finesssee/Win-CodexBar/releases) 下载最新版本。
+脚本会将发布文件写入 `rust\target\release-assets`：
 
 - **安装包**：`CodexBar-<version>-Setup.exe`
 - **便携版**：`CodexBar-<version>-portable.exe`
 - **校验和**：每个发布版本都包含 `.sha256` 文件，便于手动校验
+
+如果没有安装 Inno Setup，可以加上 `-SkipInstaller` 只生成便携版 exe。
 
 安装包会包含桌面应用、Microsoft Evergreen WebView2 引导程序、应用图标、开始菜单快捷方式、卸载信息，以及干净 Windows 机器可能需要的 Visual C++ 运行库引导。便携版 exe 是没有安装器集成的同一个桌面应用；release 构建会静态链接 WebView2 loader，所以便携版用户只需要机器上已安装 Microsoft Edge WebView2 Runtime。
 
