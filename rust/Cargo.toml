@@ -46,7 +46,7 @@ async-trait = "0.1"
 futures = "0.3"
 
 # System tray (Windows)
-tray-icon = "0.19"
+tray-icon = "0.21"
 # muda version must match what tray-icon uses
 muda = "0.15"
 # Channel for menu events
